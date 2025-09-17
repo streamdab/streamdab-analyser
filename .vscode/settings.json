@@ -1,0 +1,79 @@
+{
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.configureSettings": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_TESTING": "ON",
+        "ENABLE_COVERAGE": "ON",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+    },
+    "cmake.defaultVariants": {
+        "buildType": {
+            "default": "debug",
+            "description": "The build type for TDD development"
+        }
+    },
+    "cmake.generator": "Unix Makefiles",
+    "cmake.parallelJobs": 0,
+
+    // TDD-specific settings
+    "testMate.cpp.test.executables": "build/{test,Test,TEST}*",
+    "testMate.cpp.log.logpanel": true,
+    "testMate.cpp.debug.configTemplate": {
+        "type": "cppdbg",
+        "MIMode": "gdb",
+        "program": "${exec}",
+        "args": "${argsArray}",
+        "cwd": "${cwd}",
+        "environment": "${envObj}",
+        "externalConsole": false,
+        "stopAtEntry": false
+    },
+
+    // Code coverage settings
+    "coverage-gutters.coverageFileNames": [
+        "coverage_clean.info",
+        "coverage.info",
+        "lcov.info"
+    ],
+    "coverage-gutters.coverageBaseDir": "build",
+    "coverage-gutters.showLineCoverage": true,
+    "coverage-gutters.showRulerCoverage": true,
+
+    // C++ specific settings
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.intelliSenseMode": "linux-gcc-x64",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "C_Cpp.clang_format_style": "file",
+
+    // Files and search settings
+    "files.associations": {
+        "*.h": "cpp",
+        "*.cpp": "cpp",
+        "*.hpp": "cpp",
+        "CMakeLists.txt": "cmake",
+        "*.cmake": "cmake"
+    },
+    "search.exclude": {
+        "build/": true,
+        "third_party/": true,
+        "**/.git": true
+    },
+
+    // Git settings
+    "git.ignoreLimitWarning": true,
+
+    // Terminal settings for TDD workflow
+    "terminal.integrated.env.linux": {
+        "CMAKE_BUILD_TYPE": "Debug"
+    },
+    "terminal.integrated.env.osx": {
+        "CMAKE_BUILD_TYPE": "Debug"
+    },
+
+    // Task runner settings
+    "task.autoDetect": "on",
+    "task.showDecorations": true,
+
+    // Extensions recommendations
+    "extensions.showRecommendationsOnlyOnDemand": false
+}

@@ -1,0 +1,42 @@
+{
+    "recommendations": [
+        // C++ Development
+        "ms-vscode.cpptools",
+        "ms-vscode.cpptools-extension-pack",
+        "ms-vscode.cmake-tools",
+
+        // Testing and TDD
+        "matepek.vscode-catch2-test-adapter",
+        "hbenl.vscode-test-explorer",
+        "ryanluker.vscode-coverage-gutters",
+
+        // Code Quality
+        "ms-vscode.vscode-clangd",
+        "xaver.clang-format",
+        "cschlosser.doxdocgen",
+
+        // Git Integration
+        "eamodio.gitlens",
+        "mhutchie.git-graph",
+
+        // Project Management
+        "ms-vscode.vscode-json",
+        "redhat.vscode-yaml",
+        "ms-vscode.hexeditor",
+
+        // Productivity
+        "gruntfuggly.todo-tree",
+        "wayou.vscode-todo-highlight",
+        "alefragnani.project-manager",
+
+        // Documentation
+        "yzhang.markdown-all-in-one",
+        "davidanson.vscode-markdownlint",
+
+        // Performance and Profiling
+        "intel.oneapi-gdb-debug"
+    ],
+    "unwantedRecommendations": [
+        "ms-vscode.vscode-typescript"
+    ]
+}

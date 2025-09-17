@@ -102,35 +102,57 @@ eti-analyzer-desktop/
 
 ## 🚀 Development Phases
 
-### **Phase 1: Foundation (Week 1-2)**
+### **Phase 1: Foundation (Week 1-2) - TDD Setup**
 - [ ] Project structure setup and CMake configuration
+- [ ] **Test framework integration (gtest, Qt Test)**
+- [ ] **Basic test infrastructure and CI setup**
 - [ ] ETISnoop source integration and wrapper creation
+- [ ] **Write tests for ETI parsing before implementation**
 - [ ] Basic Qt application skeleton with main window
+- [ ] **GUI component tests setup**
 - [ ] File open/save functionality for ETI files
 - [ ] Basic YAML output display widget
 
-### **Phase 2: Core Features (Week 3-5)**
+### **Phase 2: Core Features (Week 3-5) - TDD Implementation**
+- [ ] **Write tests for real-time processing requirements**
 - [ ] Real-time ETI stream processing implementation
+- [ ] **Test-driven GUI layout development**
 - [ ] Professional GUI layout with splitters and docks
+- [ ] **FIG analysis tests before widget implementation**
 - [ ] FIG analysis widget with tree view display
+- [ ] **Audio monitoring tests and mock data**
 - [ ] Audio level monitoring with visual indicators
+- [ ] **Error detection test suite**
 - [ ] Error detection and validation system
 
-### **Phase 3: Professional Features (Week 6-8)**
+### **Phase 3: Professional Features (Week 6-8) - Advanced TDD**
+- [ ] **Alert system test scenarios**
 - [ ] Alert system with configurable thresholds
+- [ ] **Logging framework tests**
 - [ ] Logging framework with structured output
+- [ ] **Report generation test cases**
 - [ ] Report generation (PDF/HTML export)
+- [ ] **Configuration management tests**
 - [ ] Configuration management and settings
+- [ ] **Multi-stream support integration tests**
 - [ ] Multi-stream support and tabbed interface
-- [ ] **Stream recording with time-based segmentation**
-- [ ] **Audio extraction and format conversion**
-- [ ] **Metadata export and playlist generation**
+- [ ] **Stream recording test suite**
+- [ ] Stream recording with time-based segmentation
+- [ ] **Audio extraction tests**
+- [ ] Audio extraction and format conversion
+- [ ] **Metadata export validation tests**
+- [ ] Metadata export and playlist generation
 
-### **Phase 4: Polish & Testing (Week 9-11)**
+### **Phase 4: Polish & Testing (Week 9-11) - TDD Validation**
+- [ ] **UI/UX automated testing**
 - [ ] UI/UX improvements and professional styling
+- [ ] **Comprehensive test suite execution**
 - [ ] Comprehensive testing suite (unit/integration)
+- [ ] **Performance test validation**
 - [ ] Performance optimization and memory management
+- [ ] **Documentation with test examples**
 - [ ] Documentation and user manual creation
+- [ ] **Cross-platform test execution**
 - [ ] Cross-platform packaging and deployment
 
 ## 🎨 UI/UX Requirements
@@ -191,21 +213,88 @@ eti-analyzer-desktop/
 - [ ] Error history and statistics
 - [ ] User preferences and layouts
 
-## 🔍 Quality Assurance
+## 🧪 Test-Driven Development (TDD) Methodology
+
+### **TDD Implementation Strategy**
+- [ ] **Red-Green-Refactor Cycle** - Write failing tests, implement code, refactor
+- [ ] **Test-First Approach** - All new features start with tests
+- [ ] **Continuous Testing** - Automated test execution during development
+- [ ] **Test Coverage Goals** - Minimum 80% code coverage requirement
+- [ ] **Integration Testing** - End-to-end workflow validation
+
+### **Testing Framework Stack**
+- [ ] **Unit Testing:** Google Test (gtest) for C++ core components
+- [ ] **Qt Testing:** Qt Test framework for GUI components
+- [ ] **Mocking:** Google Mock (gmock) for dependency isolation
+- [ ] **Coverage:** gcov/lcov for coverage reporting
+- [ ] **CI Integration:** GitHub Actions for automated testing
+
+### **TDD Test Categories**
+
+#### **Core ETI Processing Tests**
+- [ ] ETI frame parsing validation tests
+- [ ] FIG decoding accuracy tests  
+- [ ] Audio extraction functionality tests
+- [ ] Error detection algorithm tests
+- [ ] Performance benchmark tests
+
+#### **GUI Component Tests**
+- [ ] Widget rendering and layout tests
+- [ ] User interaction simulation tests
+- [ ] Data binding and model tests
+- [ ] Real-time update mechanism tests
+- [ ] Memory leak detection tests
+
+#### **Integration Tests**
+- [ ] End-to-end ETI processing pipeline tests
+- [ ] File I/O operations tests
+- [ ] Network stream handling tests
+- [ ] Multi-threading safety tests
+- [ ] Cross-platform compatibility tests
+
+## 🔧 TDD Development Workflow
+
+### **Pre-Development Setup**
+```bash
+# Test framework setup commands
+git submodule add https://github.com/google/googletest.git third_party/googletest
+cmake -DBUILD_TESTING=ON -B build -S .
+```
+
+### **TDD Cycle for Each Feature**
+1. **🔴 Red:** Write failing test for new feature
+2. **🟢 Green:** Write minimal code to pass test  
+3. **🔵 Refactor:** Improve code while keeping tests green
+4. **🔄 Repeat:** Continue cycle for next feature
+
+### **Test Structure Requirements**
+- [ ] **Test Organization:** Separate test files for each component
+- [ ] **Test Naming:** Descriptive test names following Given_When_Then pattern
+- [ ] **Test Data:** Sample ETI files and mock data for testing
+- [ ] **Test Isolation:** Each test runs independently
+- [ ] **Test Documentation:** Clear test descriptions and expectations
+
+## 🔍 Quality Assurance (TDD-Driven)
 
 ### **Testing Strategy**
-- [ ] **Unit Tests** - Core ETI processing functions
-- [ ] **Integration Tests** - GUI and processing pipeline
+- [ ] **Unit Tests** - Core ETI processing functions (TDD approach)
+- [ ] **Integration Tests** - GUI and processing pipeline (BDD scenarios)
 - [ ] **Performance Tests** - Memory and CPU usage validation
 - [ ] **Compatibility Tests** - Cross-platform verification
 - [ ] **User Acceptance Tests** - Professional workflow validation
 
 ### **Quality Metrics**
-- [ ] Code coverage > 80%
+- [ ] Code coverage > 80% (enforced by CI/CD)
 - [ ] Memory leak detection (Valgrind/sanitizers)
 - [ ] Performance benchmarking against ETISnoop
-- [ ] UI responsiveness testing
+- [ ] UI responsiveness testing (automated)
 - [ ] Cross-platform compatibility verification
+
+### **TDD Quality Gates**
+- [ ] **Pre-commit:** All tests must pass before code commit
+- [ ] **Pull Request:** Code review + test coverage validation
+- [ ] **CI Pipeline:** Automated testing on multiple platforms
+- [ ] **Release:** Full test suite + performance validation
 
 ## 📦 Deployment & Distribution
 
