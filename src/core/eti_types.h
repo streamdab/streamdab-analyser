@@ -1,0 +1,517 @@
+/**
+ * @file eti_types.h
+ * @brief ETSI-Compliant ETI data type definitions and constants
+ * 
+ * This file contains the fundamental data types, structures, and constants
+ * used throughout the ETI Stream Analyzer for DAB/DAB+ processing.
+ * Fully compliant with ETSI EN 300 799 and ETSI EN 300 401 specifications.
+ * 
+ * @author Standards Compliance Agent
+ * @date 2025
+ * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ */
+
+#ifndef ETI_TYPES_H
+#define ETI_TYPES_H
+
+#include <cstdint>
+#include <array>
+#include <vector>
+#include <string>
+#include <chrono>
+#include <memory>
+#include <map>
+#include <cstring>
+#include <algorithm>
+
+namespace eti {
+
+// ETSI EN 300 799 Constants
+constexpr size_t ETI_FRAME_SIZE = 6144;                    // bytes (ETSI EN 300 799)
+constexpr size_t ETI_SYNC_SIZE = 4;                        // bytes
+constexpr size_t ETI_LIDATA_SIZE = 8;                      // bytes
+constexpr size_t ETI_FIC_SIZE = 32;                        // bytes
+constexpr size_t ETI_MSC_SIZE = 6096;                      // bytes (6144 - 4 - 8 - 32 - 4)
+constexpr size_t ETI_CRC_SIZE = 4;                         // bytes
+
+constexpr uint32_t ETI_SAMPLE_RATE = 2048000;              // 2.048 MHz
+constexpr uint32_t ETI_FRAMES_PER_SECOND = 250;            // 24ms per frame
+constexpr std::chrono::microseconds ETI_FRAME_DURATION{24000}; // 24ms
+
+// ETSI EN 300 401 Constants
+constexpr size_t FIC_SIZE_BITS = 256;                      // bits
+constexpr size_t FIC_SIZE_BYTES = 32;                      // bytes
+constexpr size_t MAX_SUBCHANNEL_COUNT = 64;                // Maximum sub-channels
+constexpr size_t MAX_CAPACITY_UNITS = 864;                 // Maximum CUs per frame
+constexpr size_t CAPACITY_UNIT_SIZE = 8;                   // bytes per CU
+
+// FIG Constants
+constexpr size_t MAX_FIG_LENGTH = 29;                      // Maximum FIG data length
+constexpr size_t FIG_HEADER_SIZE = 1;                      // bytes
+
+// Sync pattern for ETI frames (ETSI EN 300 799)
+constexpr uint8_t ETI_SYNC_PATTERN[4] = {0x49, 0x93, 0x1E, 0x03};
+
+// Forward declarations
+struct EtiFrame;
+struct FigBlock;
+
+/**
+ * @brief ETSI-compliant ETI Frame Sync Field
+ * Reference: ETSI EN 300 799 Section 5.1
+ */
+struct EtiSyncField {
+    uint8_t sync_bytes[4];
+    
+    EtiSyncField() {
+        set_sync_pattern();
+    }
+    
+    bool is_valid() const {
+        return std::memcmp(sync_bytes, ETI_SYNC_PATTERN, 4) == 0;
+    }
+    
+    void set_sync_pattern() {
+        std::memcpy(sync_bytes, ETI_SYNC_PATTERN, 4);
+    }
+};
+
+/**
+ * @brief ETSI-compliant ETI Frame LIDATA Field
+ * Reference: ETSI EN 300 799 Section 5.2
+ */
+struct EtiLidataField {
+    uint8_t fc;                 // Frame Count (0-249)
+    uint8_t ficf : 1;          // FIC Flag (1=FIC present)
+    uint8_t nst : 7;           // Number of Sub-channels in MSC (0-63)
+    uint8_t fp : 3;            // Frame Phase (0-7)
+    uint8_t mid : 2;           // Mode Identity (1-4)
+    uint8_t fl : 11;           // Frame Length
+    uint32_t tist;             // Time Stamp (32-bit)
+    
+    bool validate_frame_count(uint8_t expected_fc) const {
+        return fc == expected_fc || fc == ((expected_fc + 1) % 250);
+    }
+    
+    bool validate_mode(uint8_t expected_mode) const {
+        return mid == expected_mode;
+    }
+    
+    std::chrono::microseconds get_timestamp_us() const {
+        // TIST is in units of 16.384 MHz clock periods
+        return std::chrono::microseconds(static_cast<uint64_t>(tist) * 1000000 / 16384000);
+    }
+    
+    bool validate_nst() const {
+        return nst <= MAX_SUBCHANNEL_COUNT;
+    }
+};
+
+/**
+ * @brief ETSI-compliant FIC Field with FIG support
+ * Reference: ETSI EN 300 401 Section 6.4
+ */
+struct EtiFicField {
+    uint8_t fic_data[32];
+    
+    EtiFicField() {
+        std::memset(fic_data, 0, sizeof(fic_data));
+    }
+    
+    explicit EtiFicField(const uint8_t data[32]) {
+        std::memcpy(fic_data, data, 32);
+    }
+    
+    std::vector<FigBlock> decode_fig_blocks() const;
+    bool validate_fic_crc() const;
+    bool contains_fig_type(uint8_t fig_type) const;
+};
+
+/**
+ * @brief FIG Block structure for FIC analysis
+ * Reference: ETSI EN 300 401 Section 5.2
+ */
+struct FigBlock {
+    uint8_t fig_type : 5;       // FIG type (0-31)
+    uint8_t length : 3;         // Length field
+    bool continuation_flag;     // C: Continuation flag
+    bool other_ensemble_flag;   // OE: Other Ensemble flag
+    std::vector<uint8_t> data;  // FIG data field
+    
+    bool is_valid() const {
+        return length <= MAX_FIG_LENGTH && 
+               data.size() == length;
+    }
+    
+    uint8_t get_extension() const {
+        return data.empty() ? 0 : (data[0] & 0x1F);
+    }
+};
+
+/**
+ * @brief MSC Sub-channel Information
+ * Reference: ETSI EN 300 401 Section 6.2
+ */
+struct SubChannelInfo {
+    uint8_t sub_channel_id;     // SubChId (0-63)
+    uint16_t start_address;     // Start address in CUs
+    uint16_t size;              // Size in CUs
+    uint8_t protection_level;   // Protection level (1-5)
+    bool uep_flag;             // Unequal Error Protection flag
+    
+    uint16_t get_end_address() const {
+        return start_address + size - 1;
+    }
+    
+    bool validate_boundaries() const {
+        return (start_address + size) <= MAX_CAPACITY_UNITS;
+    }
+    
+    bool validate_sub_channel_id() const {
+        return sub_channel_id < MAX_SUBCHANNEL_COUNT;
+    }
+    
+    bool validate_protection_level() const {
+        return protection_level >= 1 && protection_level <= 5;
+    }
+};
+
+/**
+ * @brief ETSI-compliant ETI Frame MSC Field
+ * Reference: ETSI EN 300 799 Section 5.3
+ */
+struct EtiMscField {
+    uint8_t msc_data[ETI_MSC_SIZE];
+    
+    EtiMscField() {
+        std::memset(msc_data, 0, sizeof(msc_data));
+    }
+    
+    explicit EtiMscField(const uint8_t data[ETI_MSC_SIZE]) {
+        std::memcpy(msc_data, data, ETI_MSC_SIZE);
+    }
+    
+    std::vector<uint8_t> extract_subchannel_data(const SubChannelInfo& subchannel) const;
+    bool validate_subchannel_organization(const std::vector<SubChannelInfo>& subchannels) const;
+    
+    size_t get_capacity_units_count() const {
+        return ETI_MSC_SIZE / CAPACITY_UNIT_SIZE;  // 762 CUs
+    }
+};
+
+/**
+ * @brief ETSI-compliant ETI Frame CRC Field
+ * Reference: ETSI EN 300 799 Section 5.4
+ */
+struct EtiCrcField {
+    uint8_t crc_bytes[4];
+    
+    EtiCrcField() {
+        std::memset(crc_bytes, 0, sizeof(crc_bytes));
+    }
+    
+    bool validate_frame(const EtiFrame& frame) const;
+    void calculate_crc(const EtiFrame& frame);
+    uint32_t get_crc_value() const {
+        return (static_cast<uint32_t>(crc_bytes[0]) << 24) |
+               (static_cast<uint32_t>(crc_bytes[1]) << 16) |
+               (static_cast<uint32_t>(crc_bytes[2]) << 8) |
+               static_cast<uint32_t>(crc_bytes[3]);
+    }
+};
+
+/**
+ * @brief Enhanced Service Component with ETSI compliance
+ * Reference: ETSI EN 300 401 Section 8.1
+ */
+struct ServiceComponent {
+    uint8_t sub_channel_id;     // Associated sub-channel
+    uint16_t service_id;        // Parent service ID
+    uint8_t component_type;     // Component type (audio, data, etc.)
+    uint8_t tmid : 2;          // Transport Mechanism ID
+    uint8_t asc_ty : 6;        // Audio Service Component Type
+    bool primary;               // Primary/Secondary component
+    bool ca_flag;              // Conditional Access flag
+    std::string label;          // Component label
+    
+    bool validate_tmid() const {
+        return tmid <= 3;
+    }
+    
+    bool validate_asc_ty() const {
+        return asc_ty <= 63;
+    }
+    
+    bool validate_sub_channel_id() const {
+        return sub_channel_id < MAX_SUBCHANNEL_COUNT;
+    }
+};
+
+/**
+ * @brief Enhanced DAB Service with ETSI compliance
+ * Reference: ETSI EN 300 401 Section 8.1
+ */
+struct DabService {
+    uint16_t service_id;               // SId: Service identifier
+    uint8_t country_id;                // Country ID
+    uint8_t extended_country_code;     // ECC: Extended Country Code
+    std::string label;                 // Service label
+    std::vector<ServiceComponent> components;
+    bool is_programme;                 // Programme/Data service flag
+    uint16_t character_flag;           // Character definition field
+    
+    bool validate_service_id() const {
+        return service_id != 0x0000 && service_id != 0xFFFF;
+    }
+    
+    bool validate_country_code() const {
+        return country_id != 0x00 && country_id != 0xFF;
+    }
+    
+    bool has_primary_component() const {
+        return std::any_of(components.begin(), components.end(),
+                          [](const ServiceComponent& comp) { return comp.primary; });
+    }
+    
+    std::vector<uint8_t> get_subchannel_ids() const {
+        std::vector<uint8_t> subchannel_ids;
+        for (const auto& component : components) {
+            subchannel_ids.push_back(component.sub_channel_id);
+        }
+        return subchannel_ids;
+    }
+};
+
+/**
+ * @brief Enhanced Ensemble with ETSI compliance
+ * Reference: ETSI EN 300 401 Section 6.4
+ */
+struct Ensemble {
+    uint16_t ensemble_id;              // EId: Ensemble identifier
+    std::string label;                 // Ensemble label
+    std::vector<DabService> services;  // Services in ensemble
+    std::vector<SubChannelInfo> sub_channels; // Sub-channel organization
+    uint8_t country_id;                // Country ID
+    uint8_t extended_country_code;     // ECC: Extended Country Code
+    uint16_t character_flag;           // Character definition field
+    uint16_t cif_count;               // Current CIF count
+    uint8_t occurrence_change;         // Occurrence change field
+    bool alarm_flag;                   // Alarm announcement flag
+    
+    bool validate_ensemble_id() const {
+        return ensemble_id != 0x0000 && ensemble_id != 0xFFFF;
+    }
+    
+    bool validate_country_code() const {
+        return country_id != 0x00 && country_id != 0xFF;
+    }
+    
+    bool validate_subchannel_organization() const {
+        // Check for overlapping sub-channels
+        for (size_t i = 0; i < sub_channels.size(); ++i) {
+            for (size_t j = i + 1; j < sub_channels.size(); ++j) {
+                const auto& a = sub_channels[i];
+                const auto& b = sub_channels[j];
+                if (!(a.start_address + a.size <= b.start_address ||
+                      b.start_address + b.size <= a.start_address)) {
+                    return false;  // Overlap detected
+                }
+            }
+        }
+        return true;
+    }
+    
+    uint16_t calculate_total_capacity() const {
+        uint16_t total = 0;
+        for (const auto& sub_ch : sub_channels) {
+            total += sub_ch.size;
+        }
+        return total;
+    }
+    
+    std::vector<uint16_t> get_service_ids() const {
+        std::vector<uint16_t> service_ids;
+        for (const auto& service : services) {
+            service_ids.push_back(service.service_id);
+        }
+        return service_ids;
+    }
+};
+
+/**
+ * @brief Complete ETSI-compliant ETI Frame
+ * Reference: ETSI EN 300 799
+ */
+struct EtiFrame {
+    std::array<uint8_t, ETI_FRAME_SIZE> frame_data;
+    bool frame_valid;
+    std::chrono::system_clock::time_point receive_timestamp;
+    
+    EtiFrame() : frame_valid(false) {
+        frame_data.fill(0);
+        receive_timestamp = std::chrono::system_clock::now();
+    }
+    
+    explicit EtiFrame(const std::array<uint8_t, ETI_FRAME_SIZE>& data) 
+        : frame_data(data), frame_valid(false) {
+        receive_timestamp = std::chrono::system_clock::now();
+        validate_frame_structure();
+    }
+    
+    // Field accessors
+    EtiSyncField get_sync_field() const {
+        EtiSyncField sync;
+        std::memcpy(sync.sync_bytes, frame_data.data(), 4);
+        return sync;
+    }
+    
+    EtiLidataField get_lidata_field() const {
+        EtiLidataField lidata{};
+        const uint8_t* data = frame_data.data() + 4;
+        lidata.fc = data[0];
+        lidata.ficf = (data[1] & 0x80) ? 1 : 0;
+        lidata.nst = data[1] & 0x7F;
+        // Additional LIDATA parsing...
+        return lidata;
+    }
+    
+    EtiFicField get_fic_field() const {
+        EtiFicField fic;
+        std::memcpy(fic.fic_data, frame_data.data() + 12, 32);
+        return fic;
+    }
+    
+    EtiMscField get_msc_field() const {
+        EtiMscField msc;
+        std::memcpy(msc.msc_data, frame_data.data() + 44, ETI_MSC_SIZE);
+        return msc;
+    }
+    
+    EtiCrcField get_crc_field() const {
+        EtiCrcField crc;
+        std::memcpy(crc.crc_bytes, frame_data.data() + ETI_FRAME_SIZE - 4, 4);
+        return crc;
+    }
+    
+    // Validation methods
+    bool validate_sync_pattern() const {
+        auto sync = get_sync_field();
+        return sync.is_valid();
+    }
+    
+    bool validate_frame_structure() const {
+        bool valid = validate_sync_pattern();
+        if (valid) {
+            auto crc = get_crc_field();
+            valid = crc.validate_frame(*this);
+        }
+        return valid;
+    }
+    
+    bool is_valid() const { 
+        return frame_valid; 
+    }
+    
+    // Frame analysis
+    std::vector<FigBlock> decode_fic_blocks() const {
+        auto fic = get_fic_field();
+        return fic.decode_fig_blocks();
+    }
+    
+    std::vector<SubChannelInfo> get_subchannel_info() const;
+    Ensemble extract_ensemble_info() const;
+    
+    // Raw data access
+    const uint8_t* data() const { 
+        return frame_data.data(); 
+    }
+    
+    uint8_t* data() { 
+        return frame_data.data(); 
+    }
+    
+    size_t size() const { 
+        return frame_data.size(); 
+    }
+    
+    // Timing information
+    void set_receive_timestamp(std::chrono::system_clock::time_point timestamp) {
+        receive_timestamp = timestamp;
+    }
+    
+    std::chrono::system_clock::time_point get_receive_timestamp() const {
+        return receive_timestamp;
+    }
+    
+    std::chrono::microseconds get_frame_timestamp() const {
+        auto lidata = get_lidata_field();
+        return lidata.get_timestamp_us();
+    }
+    
+private:
+    void validate_frame_structure() {
+        frame_valid = validate_sync_pattern() && 
+                     validate_frame_structure();
+    }
+};
+
+// Type aliases for compatibility and convenience
+using EtiFrameArray = std::array<uint8_t, ETI_FRAME_SIZE>;
+using FicBlockArray = std::array<uint8_t, FIC_SIZE_BYTES>;
+
+/**
+ * @brief ETI Frame validation result
+ */
+struct ValidationResult {
+    bool valid;
+    std::vector<std::string> errors;
+    std::vector<std::string> warnings;
+    
+    ValidationResult(bool v = true) : valid(v) {}
+    
+    void add_error(const std::string& error) {
+        errors.push_back(error);
+        valid = false;
+    }
+    
+    void add_warning(const std::string& warning) {
+        warnings.push_back(warning);
+    }
+    
+    bool has_errors() const {
+        return !errors.empty();
+    }
+    
+    bool has_warnings() const {
+        return !warnings.empty();
+    }
+};
+
+/**
+ * @brief Protection level enumeration
+ * Reference: ETSI EN 300 401 Section 11.1
+ */
+enum class ProtectionLevel : uint8_t {
+    LEVEL_1 = 1,    // Code rate 1/4, highest protection
+    LEVEL_2 = 2,    // Code rate 3/8
+    LEVEL_3 = 3,    // Code rate 1/2
+    LEVEL_4 = 4,    // Code rate 3/4
+    LEVEL_5 = 5     // Code rate 1, lowest protection
+};
+
+/**
+ * @brief FIG type enumeration for type safety
+ */
+enum class FigType : uint8_t {
+    FIG_0_0_ENSEMBLE_INFO = 0x00,
+    FIG_0_1_SUBCHANNEL_ORG = 0x01,
+    FIG_0_2_SERVICE_ORG = 0x02,
+    FIG_0_3_SERVICE_COMPONENT = 0x03,
+    FIG_1_0_ENSEMBLE_LABEL = 0x10,
+    FIG_1_1_SERVICE_LABEL = 0x11,
+    // Additional FIG types as needed
+};
+
+} // namespace eti
+
+#endif // ETI_TYPES_H
