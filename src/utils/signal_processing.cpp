@@ -882,3 +882,127 @@ void SignalProcessing::setError(const QString& error)
     s_lastError = error;
     qWarning() << "SignalProcessing error:" << error;
 }
+
+// Missing static function implementations for test compatibility
+
+double SignalProcessing::calculateSnr(const RealVector& signal, const RealVector& noise)
+{
+    if (signal.isEmpty() || noise.isEmpty()) {
+        setError("Signal or noise vector is empty");
+        return 0.0;
+    }
+    
+    if (signal.size() != noise.size()) {
+        setError("Signal and noise vectors must have the same size");
+        return 0.0;
+    }
+    
+    // Calculate signal power (RMS squared)
+    double signalPower = 0.0;
+    for (const auto& sample : signal) {
+        signalPower += sample * sample;
+    }
+    signalPower /= signal.size();
+    
+    // Calculate noise power (RMS squared)
+    double noisePower = 0.0;
+    for (const auto& sample : noise) {
+        noisePower += sample * sample;
+    }
+    noisePower /= noise.size();
+    
+    // Avoid division by zero
+    if (noisePower <= 0.0) {
+        return 100.0; // Very high SNR when no noise
+    }
+    
+    // SNR in dB = 10 * log10(signal_power / noise_power)
+    double snrLinear = signalPower / noisePower;
+    return 10.0 * std::log10(snrLinear);
+}
+
+double SignalProcessing::calculateCrossCorrelation(const RealVector& signal1, const RealVector& signal2)
+{
+    if (signal1.isEmpty() || signal2.isEmpty()) {
+        setError("Signal vectors cannot be empty");
+        return 0.0;
+    }
+    
+    if (signal1.size() != signal2.size()) {
+        setError("Signal vectors must have the same size");
+        return 0.0;
+    }
+    
+    int n = signal1.size();
+    
+    // Calculate means
+    double mean1 = std::accumulate(signal1.begin(), signal1.end(), 0.0) / n;
+    double mean2 = std::accumulate(signal2.begin(), signal2.end(), 0.0) / n;
+    
+    // Calculate cross-correlation coefficient (Pearson correlation)
+    double numerator = 0.0;
+    double sum1Squared = 0.0;
+    double sum2Squared = 0.0;
+    
+    for (int i = 0; i < n; ++i) {
+        double dev1 = signal1[i] - mean1;
+        double dev2 = signal2[i] - mean2;
+        
+        numerator += dev1 * dev2;
+        sum1Squared += dev1 * dev1;
+        sum2Squared += dev2 * dev2;
+    }
+    
+    // Avoid division by zero
+    double denominator = std::sqrt(sum1Squared * sum2Squared);
+    if (denominator <= 0.0) {
+        return 0.0;
+    }
+    
+    return numerator / denominator;
+}
+
+SignalProcessing::RealVector SignalProcessing::calculateAutoCorrelation(const RealVector& signal, int maxLag)
+{
+    if (signal.isEmpty()) {
+        setError("Signal vector cannot be empty");
+        return RealVector();
+    }
+    
+    if (maxLag <= 0) {
+        maxLag = signal.size() / 4; // Default to quarter of signal length
+    }
+    
+    maxLag = std::min(maxLag, static_cast<int>(signal.size()) - 1);
+    
+    RealVector autocorr(maxLag + 1);
+    int n = signal.size();
+    
+    // Calculate mean
+    double mean = std::accumulate(signal.begin(), signal.end(), 0.0) / n;
+    
+    // Calculate variance (autocorrelation at lag 0)
+    double variance = 0.0;
+    for (const auto& sample : signal) {
+        double dev = sample - mean;
+        variance += dev * dev;
+    }
+    variance /= n;
+    
+    // Calculate autocorrelation for each lag
+    for (int lag = 0; lag <= maxLag; ++lag) {
+        double correlation = 0.0;
+        int count = n - lag;
+        
+        for (int i = 0; i < count; ++i) {
+            correlation += (signal[i] - mean) * (signal[i + lag] - mean);
+        }
+        
+        correlation /= count;
+        
+        // Normalize by variance to get correlation coefficient
+        autocorr[lag] = (variance > 0.0) ? correlation / variance : 0.0;
+    }
+    
+    return autocorr;
+}

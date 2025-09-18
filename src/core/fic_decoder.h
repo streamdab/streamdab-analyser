@@ -56,7 +56,8 @@ public:
         Idle = 0,
         Processing = 1,
         Error = 2,
-        Ready = 3
+        Ready = 3,
+        Synchronized = 4
     };
     Q_ENUM(DecoderStatus)
 
@@ -86,9 +87,11 @@ public:
         QString shortLabel;
         quint8 countryId;
         quint8 extendedCountryCode;
+        quint8 cifCount;
+        QString label;  // Test-compatible alias for ensembleLabel
         QDateTime lastUpdated;
         
-        EnsembleInfo() : ensembleId(0), countryId(0), extendedCountryCode(0) {}
+        EnsembleInfo() : ensembleId(0), countryId(0), extendedCountryCode(0), cifCount(0) {}
     };
 
     /**
@@ -105,6 +108,43 @@ public:
         
         ComponentInfo() : serviceId(0), subChannelId(0), startAddress(0), 
                          length(0), protectionLevel(0), isProtected(false) {}
+    };
+
+    /**
+     * @brief Service information structure (test-compatible)
+     */
+    struct Service {
+        quint32 serviceId;
+        QString label;
+        quint8 nbServiceComp;
+        QList<ComponentInfo> components;
+        
+        Service() : serviceId(0), nbServiceComp(0) {}
+    };
+
+    /**
+     * @brief Sub-channel information structure (test-compatible)
+     */
+    struct SubChannel {
+        quint8 subChannelId;
+        quint16 startAddress;
+        quint16 subChannelSize;
+        quint8 protectionLevel;
+        bool isValid;
+        
+        SubChannel() : subChannelId(0), startAddress(0), subChannelSize(0), 
+                      protectionLevel(0), isValid(false) {}
+    };
+
+    /**
+     * @brief Ensemble information structure (test-compatible)
+     */
+    struct EnsembleData {
+        quint16 ensembleId;
+        QString label;
+        quint8 cifCount;
+        
+        EnsembleData() : ensembleId(0), cifCount(0) {}
     };
 
     explicit FicDecoder(QObject *parent = nullptr);
@@ -137,6 +177,19 @@ public:
     quint32 getProcessedFicCount() const { return m_ficCount; }
     double getErrorRate() const { return m_errorRate; }
     quint32 getFigTypeCount(FigType type) const;
+    
+    // Test-compatible interface methods
+    quint32 getFibCount() const { return m_ficCount; }
+    quint32 getErrorCount() const { return m_errorCount; }
+    int getSyncLevel() const { return m_syncLevel; }
+    void reset();
+    QList<Service> getServices() const;
+    QList<SubChannel> getSubChannels() const;
+    EnsembleData getEnsembleData() const;
+    Service getServiceById(quint32 serviceId) const;
+    SubChannel getSubChannelById(quint8 subChannelId) const;
+    bool isServiceAvailable(quint32 serviceId) const;
+    bool isSubChannelConfigured(quint8 subChannelId) const;
 
     // Configuration
     void setErrorThreshold(double threshold) { m_errorThreshold = threshold; }
@@ -173,6 +226,21 @@ signals:
      */
     void serviceLabelUpdated(quint32 serviceId, const QString& label);
 
+    /**
+     * @brief Emitted when FIC data is processed
+     */
+    void ficDataProcessed();
+
+    /**
+     * @brief Emitted when service information is updated
+     */
+    void serviceInfoUpdated(quint32 serviceId);
+
+    /**
+     * @brief Emitted when sub-channel information is updated
+     */
+    void subchannelInfoUpdated(quint8 subChannelId);
+
 private slots:
     void handleFicProcessed();
     void handleFicError(const QString& error);
@@ -207,12 +275,18 @@ private:
     double m_errorRate;
     double m_errorThreshold;
     quint32 m_errorCount;
+    int m_syncLevel;
 
     // Information storage
     QMap<quint32, ServiceInfo> m_services;
     QMap<quint32, QList<ComponentInfo>> m_serviceComponents;
     EnsembleInfo m_ensembleInfo;
     bool m_hasEnsembleInfo;
+    
+    // Test-compatible data structures
+    QMap<quint32, Service> m_testServices;
+    QMap<quint8, SubChannel> m_subChannels;
+    EnsembleData m_ensembleData;
 
     // Statistics and monitoring
     QHash<FigType, quint32> m_figTypeStats;

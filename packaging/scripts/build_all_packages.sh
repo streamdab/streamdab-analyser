@@ -106,7 +106,7 @@ configure_build() {
             ;;
         macos)
             cmake_args+=("-G" "Unix Makefiles")
-            cmake_args+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=10.15")
+            cmake_args+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0")
             if [ "$(uname -m)" = "arm64" ]; then
                 cmake_args+=("-DCMAKE_OSX_ARCHITECTURES=arm64")
             else

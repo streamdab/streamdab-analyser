@@ -749,7 +749,7 @@ TEST_F(SignalProcessingTest, CompleteAudioProcessingWorkflow)
     
     // 4. Verify recovery (within quantization error)
     EXPECT_EQ(recovered.size(), original.size());
-    for (int i = 0; i < std::min(original.size(), 100); ++i) { // Check first 100 samples
+    for (int i = 0; i < std::min(static_cast<int>(original.size()), 100); ++i) { // Check first 100 samples
         EXPECT_NEAR(recovered[i], original[i], 1.0/32768.0);
     }
     

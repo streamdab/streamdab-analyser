@@ -3,8 +3,10 @@
 #include <QWidget>
 #include <QTimer>
 
-GuiTestFramework::GuiTestFramework() {
+GuiTestFramework::GuiTestFramework(QObject* parent) : QObject(parent) {
     // Initialize GUI test framework
+    m_initialized = false;
+    m_performanceTimer = new QTimer(this);
 }
 
 GuiTestFramework::~GuiTestFramework() {

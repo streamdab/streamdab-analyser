@@ -1,117 +1,86 @@
 #pragma once
 
-#include <vector>
+#include <QByteArray>
 #include <cstdint>
 
+/**
+ * @brief Sample ETI frame data for testing
+ * 
+ * Provides realistic ETI frame samples for GUI testing and validation
+ */
 namespace TestFixtures {
-    namespace EtiStreams {
-        /**
-         * @brief Sample ETI frame data for testing
-         * 
-         * This represents a minimal valid ETI-NI frame structure
-         * according to ETSI EN 300 799 standards for testing purposes.
-         */
-        const std::vector<uint8_t> SAMPLE_ETI_FRAME = {
-            // ETI-NI Frame Header (ETSI EN 300 799 Section 5.3.1)
-            0x49, 0x89, 0xAB, 0x96,  // ERR/FSYNC - Error level & Frame sync pattern
-            
-            // LIDATA field
-            0x00, 0x00, 0x00, 0x00,  // FC (Frame Characterization) - 4 bytes
-            0x00, 0x00, 0x00, 0x00,  // NST, FL, reserved fields
-            
-            // STC (Stream Time Code) - 4 bytes  
-            0x00, 0x00, 0x00, 0x00,
-            
-            // EOH (End of Header) - 4 bytes
-            0x00, 0x00, 0x00, 0x00,
-            
-            // MST (Main Service Transport) - minimal content
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            
-            // EOF (End of Frame) - 4 bytes
-            0xFF, 0xFF, 0xFF, 0xFF
-        };
-        
-        /**
-         * @brief Sample FIC (Fast Information Channel) data
-         * 
-         * Contains test FIG (Fast Information Group) data for parsing tests
-         */
-        const std::vector<uint8_t> SAMPLE_FIC_DATA = {
-            // FIG Type 0/0 - Ensemble information
-            0x00, 0x08,  // FIG header (Type 0, Length 8)
-            0x12, 0x34,  // EId (Ensemble Identifier)
-            0x00, 0x01,  // Change flag, Alarm flag, CIF count
-            
-            // FIG Type 0/1 - Service information
-            0x01, 0x0C,  // FIG header (Type 1, Length 12)
-            0x56, 0x78,  // SId (Service Identifier)
-            0x10,        // Service flags
-            0x20, 0x00,  // Subchannel info
-        };
-        
-        /**
-         * @brief Sample MSC (Main Service Channel) data
-         * 
-         * Contains test audio stream data for processing tests
-         */
-        const std::vector<uint8_t> SAMPLE_MSC_DATA = {
-            // DAB+ AAC frame header
-            0xFF, 0xF1, 0x50, 0x80, 0x01, 0x1F, 0xFC,
-            
-            // Sample AAC payload (simplified)
-            0x21, 0x10, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-        };
-        
-        /**
-         * @brief Create a valid ETI frame for testing
-         * @return Vector containing complete ETI frame
-         */
-        std::vector<uint8_t> createValidEtiFrame() {
-            return SAMPLE_ETI_FRAME;
-        }
-        
-        /**
-         * @brief Create an invalid ETI frame for error testing
-         * @return Vector containing invalid ETI frame
-         */
-        std::vector<uint8_t> createInvalidEtiFrame() {
-            std::vector<uint8_t> invalid_frame = SAMPLE_ETI_FRAME;
-            // Corrupt the sync pattern to make it invalid
-            invalid_frame[0] = 0x00;
-            invalid_frame[1] = 0x00;
-            return invalid_frame;
-        }
-        
-        /**
-         * @brief Create test FIG data of specific type
-         * @param figType FIG type to create
-         * @return Vector containing FIG data
-         */
-        std::vector<uint8_t> createTestFigData(uint8_t figType) {
-            std::vector<uint8_t> fig_data;
-            
-            // FIG header
-            fig_data.push_back(figType);
-            fig_data.push_back(0x08); // Length
-            
-            // Add type-specific test data
-            switch (figType) {
-                case 0: // Ensemble info
-                    fig_data.insert(fig_data.end(), {0x12, 0x34, 0x00, 0x01});
-                    break;
-                case 1: // Service info
-                    fig_data.insert(fig_data.end(), {0x56, 0x78, 0x10, 0x20});
-                    break;
-                default:
-                    fig_data.insert(fig_data.end(), {0x00, 0x00, 0x00, 0x00});
-                    break;
-            }
-            
-            return fig_data;
-        }
-    }
+
+/**
+ * @brief Sample ETI frame header (24 bytes)
+ */
+const QByteArray SAMPLE_ETI_HEADER = QByteArray::fromHex(
+    "E0E1"   // ERR + STAT fields  
+    "FFFF"   // LIDATA (dummy)
+    "0001"   // FC
+    "0000"   // NST
+    "00"     // FP
+    "0000"   // MID
+    "00"     // FL
+    "000000" // Reserved
+    "000000" // Reserved
+    "000000" // Reserved
+    "000000" // Reserved
+    "0000"   // CRC (dummy)
+);
+
+/**
+ * @brief Sample FIC data (32 bytes)
+ */
+const QByteArray SAMPLE_FIC_DATA = QByteArray::fromHex(
+    "00001234" // FIG 0/0: Ensemble ID 0x1234
+    "00"       // Flags
+    "56"       // CIF count
+    "FF"       // End marker
+    "00000000000000000000000000000000" // Padding
+    "00000000000000000000000000000000" // Padding
+    "0000"     // CRC
+);
+
+/**
+ * @brief Complete sample ETI frame
+ */
+const QByteArray SAMPLE_ETI_FRAME = SAMPLE_ETI_HEADER + SAMPLE_FIC_DATA;
+
+/**
+ * @brief Sample service data for constellation testing
+ */
+const QByteArray SAMPLE_SERVICE_DATA = QByteArray::fromHex(
+    "ABCDABCDABCDABCDABCDABCDABCDABCD" // 32 bytes of sample audio data
+    "1234567890ABCDEF1234567890ABCDEF" // Another 32 bytes
+);
+
+/**
+ * @brief Get a sample ETI frame with specified service ID
+ */
+inline QByteArray getSampleEtiFrame(uint16_t serviceId = 0xABCD) {
+    QByteArray frame = SAMPLE_ETI_FRAME;
+    // Insert service ID at appropriate location
+    frame[24] = (serviceId >> 8) & 0xFF;
+    frame[25] = serviceId & 0xFF;
+    return frame;
 }
+
+/**
+ * @brief Get sample constellation data for visualization testing
+ */
+inline QByteArray getSampleConstellationData(int samples = 256) {
+    QByteArray data;
+    data.reserve(samples * 2); // I/Q samples
+    
+    for (int i = 0; i < samples; ++i) {
+        // Generate simple constellation pattern
+        int8_t i_val = static_cast<int8_t>(127 * std::cos(2.0 * M_PI * i / samples));
+        int8_t q_val = static_cast<int8_t>(127 * std::sin(2.0 * M_PI * i / samples));
+        data.append(i_val);
+        data.append(q_val);
+    }
+    
+    return data;
+}
+
+} // namespace TestFixtures

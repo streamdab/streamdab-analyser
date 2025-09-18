@@ -12,6 +12,7 @@ FicDecoder::FicDecoder(QObject *parent)
     , m_errorRate(0.0)
     , m_errorThreshold(DEFAULT_ERROR_THRESHOLD)
     , m_errorCount(0)
+    , m_syncLevel(0)
     , m_hasEnsembleInfo(false)
     , m_processingActive(false)
 {
@@ -123,8 +124,26 @@ bool FicDecoder::processFicData(const QByteArray& ficData)
     updateErrorStatistics(!success);
     m_lastProcessTime = QDateTime::currentDateTime();
     
-    m_status = DecoderStatus::Ready;
-    emit statusChanged(m_status);
+    // Update sync level based on processing success
+    if (success) {
+        m_syncLevel = qMin(100, m_syncLevel + 2);
+        if (m_syncLevel >= 75 && m_status != DecoderStatus::Synchronized) {
+            m_status = DecoderStatus::Synchronized;
+            emit statusChanged(m_status);
+        } else if (m_status == DecoderStatus::Processing) {
+            m_status = DecoderStatus::Ready;
+            emit statusChanged(m_status);
+        }
+    } else {
+        m_syncLevel = qMax(0, m_syncLevel - 1);
+        if (m_syncLevel < 25 && m_status == DecoderStatus::Synchronized) {
+            m_status = DecoderStatus::Ready;
+            emit statusChanged(m_status);
+        }
+    }
+    
+    // Emit ficDataProcessed signal
+    emit ficDataProcessed();
     
     return success;
 }
@@ -221,6 +240,23 @@ bool FicDecoder::processFig0(const QByteArray& figData)
     quint8 extension = figData[1] & 0x1F;
     
     switch (extension) {
+        case 0:
+            // Process ensemble information (FIG 0/0)
+            if (figData.size() >= 6) {
+                m_ensembleData.ensembleId = (figData[2] << 8) | figData[3];
+                if (figData.size() > 5) {
+                    m_ensembleData.cifCount = figData[5];
+                }
+                
+                // Update main EnsembleInfo structure
+                m_ensembleInfo.ensembleId = m_ensembleData.ensembleId;
+                m_ensembleInfo.cifCount = m_ensembleData.cifCount;
+                m_hasEnsembleInfo = true;
+                
+                emit ensembleInfoUpdated(m_ensembleInfo);
+                return true;
+            }
+            return false;
         case 1:
             return processFig0Type1(figData.mid(2)); // Service info
         case 2:
@@ -240,6 +276,25 @@ bool FicDecoder::processFig1(const QByteArray& figData)
     quint8 extension = figData[1] & 0x1F;
     
     switch (extension) {
+        case 0:
+            // Process ensemble label (FIG 1/0)
+            if (figData.size() >= 18) {
+                quint16 ensembleId = (figData[2] << 8) | figData[3];
+                QString label = extractLabel(figData, 4, qMin(figData.size() - 4, 16));
+                m_ensembleData.ensembleId = ensembleId;
+                m_ensembleData.label = label;
+                
+                // Update main EnsembleInfo structure
+                m_ensembleInfo.ensembleId = ensembleId;
+                m_ensembleInfo.ensembleLabel = label;
+                m_ensembleInfo.label = label; // Test-compatible alias
+                m_ensembleInfo.shortLabel = extractShortLabel(label);
+                m_hasEnsembleInfo = true;
+                
+                emit ensembleInfoUpdated(m_ensembleInfo);
+                return true;
+            }
+            return false;
         case 1:
             return processFig1Type1(figData.mid(2)); // Service labels
         default:
@@ -264,6 +319,14 @@ bool FicDecoder::processFig0Type1(const QByteArray& data)
     
     addOrUpdateService(service);
     
+    // Also update test-compatible service structure
+    Service testService;
+    testService.serviceId = service.serviceId;
+    testService.nbServiceComp = 1; // Default to 1 component
+    m_testServices[service.serviceId] = testService;
+    
+    emit serviceInfoUpdated(service.serviceId);
+    
     m_figTypeStats[FigType::BasicServiceInfo]++;
     
     qDebug() << "Processed service info for ID:" << Qt::hex << service.serviceId;
@@ -282,10 +345,23 @@ bool FicDecoder::processFig0Type2(const QByteArray& data)
     component.subChannelId = (data[2] >> 2) & 0x3F;
     component.startAddress = ((data[2] & 0x03) << 8) | data[3];
     component.length = (data[4] << 8) | data[5];
-    component.protectionLevel = (data[6] >> 2) & 0x03;
-    component.isProtected = (data[6] >> 1) & 0x01;
+    if (data.size() > 6) {
+        component.protectionLevel = (data[6] >> 2) & 0x03;
+        component.isProtected = (data[6] >> 1) & 0x01;
+    }
     
     addOrUpdateComponent(component);
+    
+    // Also update test-compatible sub-channel structure
+    SubChannel subChannel;
+    subChannel.subChannelId = component.subChannelId;
+    subChannel.startAddress = component.startAddress;
+    subChannel.subChannelSize = component.length;
+    subChannel.protectionLevel = component.protectionLevel;
+    subChannel.isValid = true;
+    m_subChannels[component.subChannelId] = subChannel;
+    
+    emit subchannelInfoUpdated(component.subChannelId);
     
     m_figTypeStats[FigType::ServiceComponent]++;
     
@@ -310,6 +386,11 @@ bool FicDecoder::processFig1Type1(const QByteArray& data)
         
         emit serviceLabelUpdated(serviceId, label);
         emit servicesUpdated(getDiscoveredServices());
+    }
+    
+    // Update test-compatible service structure
+    if (m_testServices.contains(serviceId)) {
+        m_testServices[serviceId].label = label;
     }
     
     m_figTypeStats[FigType::ServiceLabel]++;
@@ -439,9 +520,63 @@ void FicDecoder::resetDecoder()
     m_ficCount = 0;
     m_errorCount = 0;
     m_errorRate = 0.0;
+    m_syncLevel = 0;
     m_figTypeStats.clear();
     m_ficBuffer.clear();
     m_processingActive = false;
     
+    // Reset test-compatible data structures
+    m_testServices.clear();
+    m_subChannels.clear();
+    m_ensembleData = EnsembleData();
+    
     qDebug() << "FIC Decoder reset completed";
+}
+
+// Test-compatible interface methods implementation
+void FicDecoder::reset()
+{
+    resetDecoder();
+    m_status = DecoderStatus::Idle;
+    emit statusChanged(m_status);
+}
+
+QList<FicDecoder::Service> FicDecoder::getServices() const
+{
+    return m_testServices.values();
+}
+
+QList<FicDecoder::SubChannel> FicDecoder::getSubChannels() const
+{
+    return m_subChannels.values();
+}
+
+FicDecoder::EnsembleData FicDecoder::getEnsembleData() const
+{
+    return m_ensembleData;
+}
+
+FicDecoder::Service FicDecoder::getServiceById(quint32 serviceId) const
+{
+    return m_testServices.value(serviceId, Service());
+}
+
+FicDecoder::SubChannel FicDecoder::getSubChannelById(quint8 subChannelId) const
+{
+    return m_subChannels.value(subChannelId, SubChannel());
+}
+
+bool FicDecoder::isServiceAvailable(quint32 serviceId) const
+{
+    if (!m_testServices.contains(serviceId)) {
+        return false;
+    }
+    
+    const Service& service = m_testServices[serviceId];
+    return !service.label.isEmpty() && service.nbServiceComp > 0;
+}
+
+bool FicDecoder::isSubChannelConfigured(quint8 subChannelId) const
+{
+    return m_subChannels.contains(subChannelId) && m_subChannels[subChannelId].isValid;
 }

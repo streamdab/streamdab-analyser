@@ -205,6 +205,110 @@ ETIStreamAnalyzer/fast:
 .PHONY : ETIStreamAnalyzer/fast
 
 #=============================================================================
+# Target rules for targets named tdd-red
+
+# Build rule for target.
+tdd-red: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tdd-red
+.PHONY : tdd-red
+
+# fast build rule for target.
+tdd-red/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-red.dir/build.make CMakeFiles/tdd-red.dir/build
+.PHONY : tdd-red/fast
+
+#=============================================================================
+# Target rules for targets named tdd-green
+
+# Build rule for target.
+tdd-green: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tdd-green
+.PHONY : tdd-green
+
+# fast build rule for target.
+tdd-green/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-green.dir/build.make CMakeFiles/tdd-green.dir/build
+.PHONY : tdd-green/fast
+
+#=============================================================================
+# Target rules for targets named tdd-refactor
+
+# Build rule for target.
+tdd-refactor: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tdd-refactor
+.PHONY : tdd-refactor
+
+# fast build rule for target.
+tdd-refactor/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-refactor.dir/build.make CMakeFiles/tdd-refactor.dir/build
+.PHONY : tdd-refactor/fast
+
+#=============================================================================
+# Target rules for targets named tdd-cycle
+
+# Build rule for target.
+tdd-cycle: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tdd-cycle
+.PHONY : tdd-cycle
+
+# fast build rule for target.
+tdd-cycle/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-cycle.dir/build.make CMakeFiles/tdd-cycle.dir/build
+.PHONY : tdd-cycle/fast
+
+#=============================================================================
+# Target rules for targets named run_all_tests
+
+# Build rule for target.
+run_all_tests: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run_all_tests
+.PHONY : run_all_tests
+
+# fast build rule for target.
+run_all_tests/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run_all_tests.dir/build.make CMakeFiles/run_all_tests.dir/build
+.PHONY : run_all_tests/fast
+
+#=============================================================================
+# Target rules for targets named coverage
+
+# Build rule for target.
+coverage: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 coverage
+.PHONY : coverage
+
+# fast build rule for target.
+coverage/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/coverage.dir/build.make CMakeFiles/coverage.dir/build
+.PHONY : coverage/fast
+
+#=============================================================================
+# Target rules for targets named coverage-check
+
+# Build rule for target.
+coverage-check: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 coverage-check
+.PHONY : coverage-check
+
+# fast build rule for target.
+coverage-check/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/coverage-check.dir/build.make CMakeFiles/coverage-check.dir/build
+.PHONY : coverage-check/fast
+
+#=============================================================================
+# Target rules for targets named quality-gate
+
+# Build rule for target.
+quality-gate: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 quality-gate
+.PHONY : quality-gate
+
+# fast build rule for target.
+quality-gate/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/quality-gate.dir/build.make CMakeFiles/quality-gate.dir/build
+.PHONY : quality-gate/fast
+
+#=============================================================================
 # Target rules for targets named package-windows
 
 # Build rule for target.
@@ -346,6 +450,201 @@ ETIStreamAnalyzer_autogen: cmake_check_build_system
 ETIStreamAnalyzer_autogen/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ETIStreamAnalyzer_autogen.dir/build.make CMakeFiles/ETIStreamAnalyzer_autogen.dir/build
 .PHONY : ETIStreamAnalyzer_autogen/fast
+
+#=============================================================================
+# Target rules for targets named eti_analyzer_unit_tests
+
+# Build rule for target.
+eti_analyzer_unit_tests: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 eti_analyzer_unit_tests
+.PHONY : eti_analyzer_unit_tests
+
+# fast build rule for target.
+eti_analyzer_unit_tests/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/eti_analyzer_unit_tests.dir/build.make tests/CMakeFiles/eti_analyzer_unit_tests.dir/build
+.PHONY : eti_analyzer_unit_tests/fast
+
+#=============================================================================
+# Target rules for targets named eti_analyzer_gui_tests
+
+# Build rule for target.
+eti_analyzer_gui_tests: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 eti_analyzer_gui_tests
+.PHONY : eti_analyzer_gui_tests
+
+# fast build rule for target.
+eti_analyzer_gui_tests/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/eti_analyzer_gui_tests.dir/build.make tests/CMakeFiles/eti_analyzer_gui_tests.dir/build
+.PHONY : eti_analyzer_gui_tests/fast
+
+#=============================================================================
+# Target rules for targets named tdd_red_phase
+
+# Build rule for target.
+tdd_red_phase: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tdd_red_phase
+.PHONY : tdd_red_phase
+
+# fast build rule for target.
+tdd_red_phase/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/tdd_red_phase.dir/build.make tests/CMakeFiles/tdd_red_phase.dir/build
+.PHONY : tdd_red_phase/fast
+
+#=============================================================================
+# Target rules for targets named tdd_green_phase
+
+# Build rule for target.
+tdd_green_phase: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tdd_green_phase
+.PHONY : tdd_green_phase
+
+# fast build rule for target.
+tdd_green_phase/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/tdd_green_phase.dir/build.make tests/CMakeFiles/tdd_green_phase.dir/build
+.PHONY : tdd_green_phase/fast
+
+#=============================================================================
+# Target rules for targets named run_tests
+
+# Build rule for target.
+run_tests: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run_tests
+.PHONY : run_tests
+
+# fast build rule for target.
+run_tests/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_tests.dir/build.make tests/CMakeFiles/run_tests.dir/build
+.PHONY : run_tests/fast
+
+#=============================================================================
+# Target rules for targets named run_tests_quiet
+
+# Build rule for target.
+run_tests_quiet: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run_tests_quiet
+.PHONY : run_tests_quiet
+
+# fast build rule for target.
+run_tests_quiet/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_tests_quiet.dir/build.make tests/CMakeFiles/run_tests_quiet.dir/build
+.PHONY : run_tests_quiet/fast
+
+#=============================================================================
+# Target rules for targets named run_unit_tests_only
+
+# Build rule for target.
+run_unit_tests_only: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run_unit_tests_only
+.PHONY : run_unit_tests_only
+
+# fast build rule for target.
+run_unit_tests_only/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_unit_tests_only.dir/build.make tests/CMakeFiles/run_unit_tests_only.dir/build
+.PHONY : run_unit_tests_only/fast
+
+#=============================================================================
+# Target rules for targets named run_gui_tests_only
+
+# Build rule for target.
+run_gui_tests_only: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run_gui_tests_only
+.PHONY : run_gui_tests_only
+
+# fast build rule for target.
+run_gui_tests_only/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_gui_tests_only.dir/build.make tests/CMakeFiles/run_gui_tests_only.dir/build
+.PHONY : run_gui_tests_only/fast
+
+#=============================================================================
+# Target rules for targets named tdd_coverage_generate
+
+# Build rule for target.
+tdd_coverage_generate: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tdd_coverage_generate
+.PHONY : tdd_coverage_generate
+
+# fast build rule for target.
+tdd_coverage_generate/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/tdd_coverage_generate.dir/build.make tests/CMakeFiles/tdd_coverage_generate.dir/build
+.PHONY : tdd_coverage_generate/fast
+
+#=============================================================================
+# Target rules for targets named tdd_coverage_check
+
+# Build rule for target.
+tdd_coverage_check: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tdd_coverage_check
+.PHONY : tdd_coverage_check
+
+# fast build rule for target.
+tdd_coverage_check/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/tdd_coverage_check.dir/build.make tests/CMakeFiles/tdd_coverage_check.dir/build
+.PHONY : tdd_coverage_check/fast
+
+#=============================================================================
+# Target rules for targets named tdd_quality_gate
+
+# Build rule for target.
+tdd_quality_gate: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tdd_quality_gate
+.PHONY : tdd_quality_gate
+
+# fast build rule for target.
+tdd_quality_gate/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/tdd_quality_gate.dir/build.make tests/CMakeFiles/tdd_quality_gate.dir/build
+.PHONY : tdd_quality_gate/fast
+
+#=============================================================================
+# Target rules for targets named eti_analyzer_unit_tests_autogen_timestamp_deps
+
+# Build rule for target.
+eti_analyzer_unit_tests_autogen_timestamp_deps: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 eti_analyzer_unit_tests_autogen_timestamp_deps
+.PHONY : eti_analyzer_unit_tests_autogen_timestamp_deps
+
+# fast build rule for target.
+eti_analyzer_unit_tests_autogen_timestamp_deps/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/eti_analyzer_unit_tests_autogen_timestamp_deps.dir/build.make tests/CMakeFiles/eti_analyzer_unit_tests_autogen_timestamp_deps.dir/build
+.PHONY : eti_analyzer_unit_tests_autogen_timestamp_deps/fast
+
+#=============================================================================
+# Target rules for targets named eti_analyzer_unit_tests_autogen
+
+# Build rule for target.
+eti_analyzer_unit_tests_autogen: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 eti_analyzer_unit_tests_autogen
+.PHONY : eti_analyzer_unit_tests_autogen
+
+# fast build rule for target.
+eti_analyzer_unit_tests_autogen/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/eti_analyzer_unit_tests_autogen.dir/build.make tests/CMakeFiles/eti_analyzer_unit_tests_autogen.dir/build
+.PHONY : eti_analyzer_unit_tests_autogen/fast
+
+#=============================================================================
+# Target rules for targets named eti_analyzer_gui_tests_autogen_timestamp_deps
+
+# Build rule for target.
+eti_analyzer_gui_tests_autogen_timestamp_deps: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 eti_analyzer_gui_tests_autogen_timestamp_deps
+.PHONY : eti_analyzer_gui_tests_autogen_timestamp_deps
+
+# fast build rule for target.
+eti_analyzer_gui_tests_autogen_timestamp_deps/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/eti_analyzer_gui_tests_autogen_timestamp_deps.dir/build.make tests/CMakeFiles/eti_analyzer_gui_tests_autogen_timestamp_deps.dir/build
+.PHONY : eti_analyzer_gui_tests_autogen_timestamp_deps/fast
+
+#=============================================================================
+# Target rules for targets named eti_analyzer_gui_tests_autogen
+
+# Build rule for target.
+eti_analyzer_gui_tests_autogen: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 eti_analyzer_gui_tests_autogen
+.PHONY : eti_analyzer_gui_tests_autogen
+
+# fast build rule for target.
+eti_analyzer_gui_tests_autogen/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/eti_analyzer_gui_tests_autogen.dir/build.make tests/CMakeFiles/eti_analyzer_gui_tests_autogen.dir/build
+.PHONY : eti_analyzer_gui_tests_autogen/fast
 
 ETIStreamAnalyzer_autogen/3YJK5W5UP7/qrc_application.o: ETIStreamAnalyzer_autogen/3YJK5W5UP7/qrc_application.cpp.o
 .PHONY : ETIStreamAnalyzer_autogen/3YJK5W5UP7/qrc_application.o
@@ -820,6 +1119,12 @@ help:
 	@echo "... test"
 	@echo "... ETIStreamAnalyzer_autogen"
 	@echo "... ETIStreamAnalyzer_autogen_timestamp_deps"
+	@echo "... coverage"
+	@echo "... coverage-check"
+	@echo "... eti_analyzer_gui_tests_autogen"
+	@echo "... eti_analyzer_gui_tests_autogen_timestamp_deps"
+	@echo "... eti_analyzer_unit_tests_autogen"
+	@echo "... eti_analyzer_unit_tests_autogen_timestamp_deps"
 	@echo "... package-all"
 	@echo "... package-linux-appimage"
 	@echo "... package-linux-deb"
@@ -828,8 +1133,25 @@ help:
 	@echo "... package-source"
 	@echo "... package-windows"
 	@echo "... prepare-deployment"
+	@echo "... quality-gate"
+	@echo "... run_all_tests"
+	@echo "... run_gui_tests_only"
+	@echo "... run_tests"
+	@echo "... run_tests_quiet"
+	@echo "... run_unit_tests_only"
+	@echo "... tdd-cycle"
+	@echo "... tdd-green"
+	@echo "... tdd-red"
+	@echo "... tdd-refactor"
+	@echo "... tdd_coverage_check"
+	@echo "... tdd_coverage_generate"
+	@echo "... tdd_green_phase"
+	@echo "... tdd_quality_gate"
+	@echo "... tdd_red_phase"
 	@echo "... validate-packages"
 	@echo "... ETIStreamAnalyzer"
+	@echo "... eti_analyzer_gui_tests"
+	@echo "... eti_analyzer_unit_tests"
 	@echo "... ETIStreamAnalyzer_autogen/3YJK5W5UP7/qrc_application.o"
 	@echo "... ETIStreamAnalyzer_autogen/3YJK5W5UP7/qrc_application.i"
 	@echo "... ETIStreamAnalyzer_autogen/3YJK5W5UP7/qrc_application.s"

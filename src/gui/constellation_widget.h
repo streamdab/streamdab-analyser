@@ -136,6 +136,16 @@ public:
     bool isRealTimeEnabled() const { return m_realTimeEnabled; }
 
     /**
+     * @brief Start real-time updates
+     */
+    void startRealTimeUpdates();
+
+    /**
+     * @brief Stop real-time updates
+     */
+    void stopRealTimeUpdates();
+
+    /**
      * @brief Get current signal quality
      * @return Signal quality percentage (0-100)
      */

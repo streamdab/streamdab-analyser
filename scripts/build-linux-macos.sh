@@ -267,6 +267,8 @@ install_dependencies_linux() {
 install_dependencies_macos() {
     step "Installing macOS dependencies"
 
+    # Detect Qt version and set deployment target dynamically
+    detect_qt_version_and_deployment_target
     # Check for Homebrew
     if ! command -v brew &> /dev/null; then
         error "Homebrew not found. Please install Homebrew first:"
@@ -308,6 +310,81 @@ install_dependencies() {
             exit 1
             ;;
     esac
+}
+
+# ============================================================================
+# Qt version detection for macOS deployment target
+# ============================================================================
+
+detect_qt_version_and_deployment_target() {
+    if [[ "$OS" != "macos" ]]; then
+        return 0
+    fi
+
+    step "Detecting Qt version for macOS deployment target"
+
+    # Try multiple methods to detect Qt version
+    local qt_version=""
+
+    # Method 1: qmake -query
+    if command -v qmake &> /dev/null; then
+        qt_version=$(qmake -query QT_VERSION 2>/dev/null)
+    fi
+
+    # Method 2: qmake6 -query (for explicit Qt6)
+    if [[ -z "$qt_version" ]] && command -v qmake6 &> /dev/null; then
+        qt_version=$(qmake6 -query QT_VERSION 2>/dev/null)
+    fi
+
+    # Method 3: pkg-config
+    if [[ -z "$qt_version" ]] && command -v pkg-config &> /dev/null; then
+        qt_version=$(pkg-config --modversion Qt6Core 2>/dev/null)
+    fi
+
+    # Method 4: Homebrew Qt6 qmake
+    if [[ -z "$qt_version" ]] && [[ -x "$(brew --prefix qt6 2>/dev/null)/bin/qmake" ]]; then
+        qt_version=$("$(brew --prefix qt6)/bin/qmake" -query QT_VERSION 2>/dev/null)
+    fi
+
+    if [[ -z "$qt_version" ]]; then
+        warning "Could not detect Qt version. Using default macOS deployment target 11.0"
+        export MACOSX_DEPLOYMENT_TARGET="11.0"
+        CMAKE_OSX_DEPLOYMENT_TARGET="11.0"
+        return 0
+    fi
+
+    success "Detected Qt version: $qt_version"
+
+    # Parse version components
+    local major minor patch
+    IFS='.' read -r major minor patch <<< "$qt_version"
+
+    # Determine macOS deployment target based on Qt version
+    local deployment_target
+    if [[ $major -gt 6 ]] || [[ $major -eq 6 && $minor -ge 9 ]]; then
+        # Qt 6.9+ requires macOS 14.0+
+        deployment_target="14.0"
+    elif [[ $major -eq 6 && $minor -ge 8 ]]; then
+        # Qt 6.8+ requires macOS 12.0+
+        deployment_target="12.0"
+    elif [[ $major -eq 6 && $minor -ge 5 ]]; then
+        # Qt 6.5+ requires macOS 11.0+
+        deployment_target="11.0"
+    elif [[ $major -eq 6 && $minor -ge 3 ]]; then
+        # Qt 6.3-6.4 requires macOS 10.15+
+        deployment_target="10.15"
+    elif [[ $major -eq 6 && $minor -ge 0 ]]; then
+        # Qt 6.0-6.2 requires macOS 10.14+
+        deployment_target="10.14"
+    else
+        # Fallback for unknown/older versions
+        deployment_target="10.14"
+    fi
+
+    export MACOSX_DEPLOYMENT_TARGET="$deployment_target"
+    CMAKE_OSX_DEPLOYMENT_TARGET="$deployment_target"
+
+    success "Set macOS deployment target to: $deployment_target (based on Qt $qt_version)"
 }
 
 # ============================================================================
@@ -392,8 +469,12 @@ configure_build() {
     # Platform-specific configurations
     case "$OS" in
         macos)
+            # Ensure Qt version detection has been run
+            if [[ -z "${CMAKE_OSX_DEPLOYMENT_TARGET:-}" ]]; then
+                detect_qt_version_and_deployment_target
+            fi
             cmake_args+=(
-                "-DCMAKE_OSX_DEPLOYMENT_TARGET=10.15"
+                "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}"
                 "-DCMAKE_MACOSX_BUNDLE=ON"
             )
             ;;

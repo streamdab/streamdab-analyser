@@ -316,7 +316,7 @@ configure_build() {
             CMAKE_ARGS+=("-A" "x64")
             ;;
         macOS)
-            CMAKE_ARGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=10.15")
+            CMAKE_ARGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0")
             ;;
     esac
 
