@@ -1,1 +1,166 @@
-// Placeholder implementation for about_dialog
+#pragma once
+
+#include <QDialog>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QGridLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QTextEdit>
+#include <QTabWidget>
+#include <QGroupBox>
+#include <QDialogButtonBox>
+#include <QScrollArea>
+#include <QPixmap>
+#include <QIcon>
+#include <QString>
+#include <QStringList>
+
+/**
+ * @class AboutDialog
+ * @brief Professional about dialog for ETI Stream Analyzer
+ * 
+ * This dialog provides comprehensive information about the ETI Stream Analyzer
+ * application including version details, credits, license information, and
+ * system information for professional broadcast environments.
+ */
+class AboutDialog : public QDialog
+{
+    Q_OBJECT
+
+public:
+    /**
+     * @brief Constructor
+     * @param parent Parent widget
+     */
+    explicit AboutDialog(QWidget *parent = nullptr);
+
+    /**
+     * @brief Destructor
+     */
+    ~AboutDialog();
+
+    /**
+     * @brief Initialize the about dialog
+     * @return true if successful
+     */
+    bool initialize();
+
+    /**
+     * @brief Get application version string
+     * @return Version string
+     */
+    static QString getVersionString();
+
+    /**
+     * @brief Get build information
+     * @return Build info string
+     */
+    static QString getBuildInfo();
+
+    /**
+     * @brief Get system information
+     * @return System info string
+     */
+    static QString getSystemInfo();
+
+private slots:
+    /**
+     * @brief Handle close button click
+     */
+    void handleClose();
+
+    /**
+     * @brief Handle copy info button click
+     */
+    void handleCopyInfo();
+
+private:
+    /**
+     * @brief Create the UI layout
+     */
+    void createUI();
+
+    /**
+     * @brief Create about tab
+     */
+    void createAboutTab();
+
+    /**
+     * @brief Create credits tab
+     */
+    void createCreditsTab();
+
+    /**
+     * @brief Create license tab
+     */
+    void createLicenseTab();
+
+    /**
+     * @brief Create system info tab
+     */
+    void createSystemInfoTab();
+
+    /**
+     * @brief Create button box
+     */
+    void createButtonBox();
+
+    /**
+     * @brief Get application logo
+     * @return Application logo pixmap
+     */
+    QPixmap getApplicationLogo() const;
+
+    /**
+     * @brief Get credits information
+     * @return Credits text
+     */
+    QString getCreditsText() const;
+
+    /**
+     * @brief Get license text
+     * @return License text
+     */
+    QString getLicenseText() const;
+
+    /**
+     * @brief Get detailed system information
+     * @return Detailed system info
+     */
+    QString getDetailedSystemInfo() const;
+
+    // Main layout
+    QVBoxLayout *m_mainLayout;
+    QTabWidget *m_tabWidget;
+    QDialogButtonBox *m_buttonBox;
+    QPushButton *m_copyInfoButton;
+
+    // About tab
+    QWidget *m_aboutTab;
+    QLabel *m_logoLabel;
+    QLabel *m_titleLabel;
+    QLabel *m_versionLabel;
+    QLabel *m_copyrightLabel;
+    QLabel *m_descriptionLabel;
+    QLabel *m_websiteLabel;
+
+    // Credits tab
+    QWidget *m_creditsTab;
+    QTextEdit *m_creditsText;
+
+    // License tab
+    QWidget *m_licenseTab;
+    QTextEdit *m_licenseText;
+
+    // System info tab
+    QWidget *m_systemInfoTab;
+    QTextEdit *m_systemInfoText;
+
+    // Application information
+    static constexpr const char* APP_NAME = "ETI Stream Analyzer";
+    static constexpr const char* APP_VERSION = "1.0.0";
+    static constexpr const char* APP_BUILD = "Professional Edition";
+    static constexpr const char* APP_COPYRIGHT = "Copyright © 2024 ETI Stream Analyzer Team";
+    static constexpr const char* APP_WEBSITE = "https://github.com/eti-stream-analyzer";
+};
