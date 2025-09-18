@@ -1,0 +1,352 @@
+/**
+ * @file network_stream_receiver.h
+ * @brief Professional Network Stream Receiver for ETI-over-IP multicast capture
+ * 
+ * Implements high-performance, real-time ETI stream reception from network sources
+ * with professional broadcast-grade reliability and error handling.
+ * Supports multicast UDP reception with automatic failover and quality monitoring.
+ * 
+ * @author Network/Stream Agent
+ * @date 2025
+ * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ */
+
+#ifndef NETWORK_STREAM_RECEIVER_H
+#define NETWORK_STREAM_RECEIVER_H
+
+#include <QObject>
+#include <QUdpSocket>
+#include <QNetworkInterface>
+#include <QTimer>
+#include <QMutex>
+#include <QWaitCondition>
+#include <QThread>
+#include <QQueue>
+#include <memory>
+#include <atomic>
+#include <chrono>
+#include <functional>
+#include <vector>
+#include <string>
+
+#include "eti_types.h"
+
+namespace eti {
+
+/**
+ * @brief Network stream configuration for ETI-over-IP reception
+ */
+struct NetworkStreamConfig {
+    QString multicast_address = "239.192.0.1";  // Default DAB multicast
+    quint16 port = 9200;                        // Default ETI port
+    QString interface_name;                      // Network interface (auto if empty)
+    size_t buffer_size = 1000;                  // Frame buffer size
+    std::chrono::milliseconds timeout{5000};    // Reception timeout
+    bool enable_flow_control = true;            // Enable flow control
+    bool auto_reconnect = true;                 // Automatic reconnection
+    size_t max_reconnect_attempts = 10;         // Maximum reconnection attempts
+    std::chrono::milliseconds reconnect_delay{1000}; // Delay between reconnections
+    
+    // Quality thresholds
+    double min_frame_rate = 200.0;              // Minimum acceptable frame rate
+    double max_frame_loss = 0.01;               // Maximum acceptable frame loss (1%)
+    std::chrono::milliseconds max_latency{100}; // Maximum acceptable latency
+};
+
+/**
+ * @brief Real-time network stream statistics
+ */
+struct NetworkStreamStatistics {
+    std::atomic<size_t> frames_received{0};
+    std::atomic<size_t> frames_processed{0};
+    std::atomic<size_t> frames_dropped{0};
+    std::atomic<size_t> bytes_received{0};
+    std::atomic<size_t> network_errors{0};
+    std::atomic<size_t> buffer_overflows{0};
+    std::atomic<size_t> buffer_underflows{0};
+    
+    std::atomic<double> current_frame_rate{0.0};
+    std::atomic<double> average_frame_rate{0.0};
+    std::atomic<double> frame_loss_rate{0.0};
+    std::atomic<int64_t> average_latency_us{0};
+    std::atomic<int64_t> max_latency_us{0};
+    
+    std::chrono::steady_clock::time_point start_time;
+    std::chrono::steady_clock::time_point last_update;
+    
+    void reset() {
+        frames_received = 0;
+        frames_processed = 0;
+        frames_dropped = 0;
+        bytes_received = 0;
+        network_errors = 0;
+        buffer_overflows = 0;
+        buffer_underflows = 0;
+        current_frame_rate = 0.0;
+        average_frame_rate = 0.0;
+        frame_loss_rate = 0.0;
+        average_latency_us = 0;
+        max_latency_us = 0;
+        start_time = std::chrono::steady_clock::now();
+        last_update = start_time;
+    }
+};
+
+/**
+ * @brief Network packet container for ETI frame data
+ */
+struct NetworkPacket {
+    std::vector<uint8_t> data;
+    std::chrono::steady_clock::time_point timestamp;
+    size_t sequence_number = 0;
+    QString source_address;
+    quint16 source_port = 0;
+    bool is_valid = true;
+    size_t expected_size = ETI_FRAME_SIZE;
+    
+    bool contains_eti_frame() const {
+        return data.size() >= ETI_FRAME_SIZE && is_valid;
+    }
+    
+    EtiFrame extract_eti_frame() const {
+        if (!contains_eti_frame()) {
+            return EtiFrame{};
+        }
+        
+        std::array<uint8_t, ETI_FRAME_SIZE> frame_data;
+        std::copy(data.begin(), data.begin() + ETI_FRAME_SIZE, frame_data.begin());
+        
+        EtiFrame frame(frame_data);
+        frame.set_receive_timestamp(std::chrono::system_clock::now());
+        return frame;
+    }
+};
+
+/**
+ * @brief High-performance network stream receiver worker thread
+ */
+class NetworkStreamWorker : public QObject {
+    Q_OBJECT
+
+public:
+    explicit NetworkStreamWorker(const NetworkStreamConfig& config, QObject* parent = nullptr);
+    ~NetworkStreamWorker();
+
+public slots:
+    void start_reception();
+    void stop_reception();
+    void process_pending_datagrams();
+    void update_statistics();
+
+signals:
+    void frame_received(const eti::EtiFrame& frame);
+    void packet_received(const eti::NetworkPacket& packet);
+    void error_occurred(const QString& error);
+    void statistics_updated(const eti::NetworkStreamStatistics& stats);
+    void connection_status_changed(bool connected);
+
+private slots:
+    void handle_socket_error(QAbstractSocket::SocketError error);
+    void handle_datagram_ready();
+
+private:
+    void initialize_socket();
+    void join_multicast_group();
+    void leave_multicast_group();
+    bool validate_eti_packet(const QByteArray& data) const;
+    void update_frame_rate();
+    void check_quality_thresholds();
+    
+    NetworkStreamConfig m_config;
+    std::unique_ptr<QUdpSocket> m_socket;
+    std::unique_ptr<QTimer> m_statistics_timer;
+    NetworkStreamStatistics m_statistics;
+    QMutex m_statistics_mutex;
+    
+    std::atomic<bool> m_receiving{false};
+    std::atomic<bool> m_connected{false};
+    std::atomic<size_t> m_sequence_number{0};
+    
+    QQueue<NetworkPacket> m_packet_queue;
+    QMutex m_queue_mutex;
+    QWaitCondition m_queue_condition;
+    
+    std::chrono::steady_clock::time_point m_last_frame_time;
+    std::vector<double> m_frame_rate_history;
+    static constexpr size_t FRAME_RATE_HISTORY_SIZE = 100;
+};
+
+/**
+ * @brief Professional Network Stream Receiver for ETI-over-IP
+ * 
+ * Thread-safe, high-performance receiver for multicast ETI streams with:
+ * - Real-time frame processing (>900 frames/second capability)
+ * - Automatic failover and reconnection
+ * - Quality monitoring and threshold enforcement
+ * - Buffer management with overflow/underflow detection
+ * - Professional broadcast-grade error handling
+ */
+class NetworkStreamReceiver : public QObject {
+    Q_OBJECT
+
+public:
+    explicit NetworkStreamReceiver(QObject* parent = nullptr);
+    explicit NetworkStreamReceiver(const NetworkStreamConfig& config, QObject* parent = nullptr);
+    ~NetworkStreamReceiver();
+
+    // Connection management
+    bool connect_to_stream(const QString& multicast_address, quint16 port);
+    bool connect_with_config(const NetworkStreamConfig& config);
+    void disconnect_from_stream();
+    bool is_connected() const;
+    bool is_receiving() const;
+
+    // Configuration
+    void set_config(const NetworkStreamConfig& config);
+    NetworkStreamConfig get_config() const;
+    void set_buffer_size(size_t buffer_frames);
+    void set_quality_thresholds(double min_frame_rate, double max_frame_loss, 
+                               std::chrono::milliseconds max_latency);
+
+    // Stream control
+    void start_reception();
+    void stop_reception();
+    void pause_reception();
+    void resume_reception();
+
+    // Data access
+    bool has_pending_frames() const;
+    std::vector<EtiFrame> get_pending_frames();
+    std::vector<NetworkPacket> get_pending_packets();
+    size_t get_available_frame_count() const;
+
+    // Statistics and monitoring
+    NetworkStreamStatistics get_statistics() const;
+    double get_current_frame_rate() const;
+    double get_average_frame_rate() const;
+    double get_frame_loss_rate() const;
+    std::chrono::microseconds get_average_latency() const;
+    std::chrono::microseconds get_max_latency() const;
+    bool is_quality_acceptable() const;
+
+    // Network interface management
+    QStringList get_available_interfaces() const;
+    bool set_network_interface(const QString& interface_name);
+    QString get_current_interface() const;
+
+    // Error handling
+    QStringList get_error_messages() const;
+    void clear_error_messages();
+    bool has_errors() const;
+    QString get_last_error() const;
+
+    // Callback registration for real-time processing
+    using FrameCallback = std::function<void(const EtiFrame&)>;
+    using PacketCallback = std::function<void(const NetworkPacket&)>;
+    using ErrorCallback = std::function<void(const QString&)>;
+    using StatisticsCallback = std::function<void(const NetworkStreamStatistics&)>;
+
+    void set_frame_callback(FrameCallback callback);
+    void set_packet_callback(PacketCallback callback);
+    void set_error_callback(ErrorCallback callback);
+    void set_statistics_callback(StatisticsCallback callback);
+
+    // Advanced features
+    void enable_automatic_reconnection(bool enabled, size_t max_attempts = 10);
+    void set_reconnection_delay(std::chrono::milliseconds delay);
+    void enable_quality_monitoring(bool enabled);
+    void enable_flow_control(bool enabled);
+
+signals:
+    void frame_received(const eti::EtiFrame& frame);
+    void packet_received(const eti::NetworkPacket& packet);
+    void error_occurred(const QString& error);
+    void statistics_updated(const eti::NetworkStreamStatistics& stats);
+    void connection_status_changed(bool connected);
+    void quality_threshold_violated(const QString& violation);
+    void reconnection_attempted(int attempt_number);
+    void buffer_overflow_detected();
+    void buffer_underflow_detected();
+
+private slots:
+    void handle_worker_frame(const eti::EtiFrame& frame);
+    void handle_worker_packet(const eti::NetworkPacket& packet);
+    void handle_worker_error(const QString& error);
+    void handle_worker_statistics(const eti::NetworkStreamStatistics& stats);
+    void handle_connection_status(bool connected);
+    void attempt_reconnection();
+
+private:
+    void initialize_worker_thread();
+    void cleanup_worker_thread();
+    void validate_config(const NetworkStreamConfig& config);
+    void setup_reconnection_timer();
+    void check_quality_violations(const NetworkStreamStatistics& stats);
+
+    NetworkStreamConfig m_config;
+    std::unique_ptr<QThread> m_worker_thread;
+    std::unique_ptr<NetworkStreamWorker> m_worker;
+    
+    mutable QMutex m_mutex;
+    std::atomic<bool> m_connected{false};
+    std::atomic<bool> m_receiving{false};
+    std::atomic<bool> m_paused{false};
+    
+    NetworkStreamStatistics m_current_statistics;
+    QStringList m_error_messages;
+    
+    std::unique_ptr<QTimer> m_reconnection_timer;
+    std::atomic<size_t> m_reconnection_attempts{0};
+    
+    // Frame and packet queues for buffering
+    QQueue<EtiFrame> m_frame_queue;
+    QQueue<NetworkPacket> m_packet_queue;
+    QMutex m_queue_mutex;
+    
+    // Callbacks for real-time processing
+    FrameCallback m_frame_callback;
+    PacketCallback m_packet_callback;
+    ErrorCallback m_error_callback;
+    StatisticsCallback m_statistics_callback;
+    
+    static constexpr size_t DEFAULT_BUFFER_SIZE = 1000;
+    static constexpr size_t MAX_BUFFER_SIZE = 10000;
+    static constexpr size_t MAX_ERROR_MESSAGES = 100;
+};
+
+/**
+ * @brief Factory for creating pre-configured network receivers
+ */
+class NetworkStreamReceiverFactory {
+public:
+    /**
+     * @brief Create receiver for standard DAB ETI multicast
+     */
+    static std::unique_ptr<NetworkStreamReceiver> create_dab_multicast_receiver(
+        const QString& multicast_address = "239.192.0.1",
+        quint16 port = 9200);
+
+    /**
+     * @brief Create high-performance receiver for professional broadcasting
+     */
+    static std::unique_ptr<NetworkStreamReceiver> create_professional_receiver(
+        const NetworkStreamConfig& config);
+
+    /**
+     * @brief Create receiver with automatic failover configuration
+     */
+    static std::unique_ptr<NetworkStreamReceiver> create_failover_receiver(
+        const QStringList& multicast_addresses,
+        quint16 port = 9200);
+
+    /**
+     * @brief Create receiver optimized for low-latency applications
+     */
+    static std::unique_ptr<NetworkStreamReceiver> create_low_latency_receiver(
+        const QString& multicast_address,
+        quint16 port = 9200);
+};
+
+} // namespace eti
+
+#endif // NETWORK_STREAM_RECEIVER_H
