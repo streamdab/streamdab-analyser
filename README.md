@@ -135,6 +135,54 @@ eti-analyzer-desktop/
 - ✅ **Professional Documentation:** Complete user and technical guides
 - ✅ **Production Infrastructure:** Automated deployment pipeline ready
 
+## 🚀 Quick Start & Build Instructions
+
+### **Prerequisites**
+```bash
+# Ubuntu/Debian
+sudo apt-get install qt6-base-dev libfaad-dev libfftw3-dev libyaml-cpp-dev cmake build-essential
+
+# macOS
+brew install qt6 faad2 fftw yaml-cpp cmake
+
+# Windows
+# Install Qt 6.x from qt.io and use vcpkg for dependencies
+```
+
+### **Build Process with Diagnostic Checks**
+```bash
+# 1. Clone and setup
+git clone <repository-url>
+cd streamdab-analyzer
+
+# 2. Configure build
+cmake -B build -S .
+
+# 3. Build with diagnostic verification
+cmake --build build 2>&1
+
+# ✅ Expected result: Clean build with exit code 0
+# ❌ If errors/warnings appear, follow DEVELOPMENT_WORKFLOW.md
+
+# 4. Verify clean build (zero warnings policy)
+echo $?  # Should output: 0
+
+# 5. Run application
+./build/ETIStreamAnalyzer
+```
+
+### **IDE Diagnostic Integration**
+```bash
+# For development with diagnostic resolution
+pm-agent: communicate with [IDE] to resolve project diagnostic errors/warnings
+
+# Supported IDEs with full diagnostic integration:
+# - Zed Editor (recommended)
+# - VS Code with C++ extension
+# - CLion
+# - Qt Creator
+```
+
 ## 🔍 Competitive Analysis - **MARKET LEADER ACHIEVED**
 
 ### vs Commercial ETI Analyzers

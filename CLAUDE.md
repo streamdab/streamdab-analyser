@@ -181,12 +181,58 @@ eti-analyzer-desktop/
 - ✅ **Test Coverage Goals** - 80%+ code coverage achieved and maintained
 - ✅ **Integration Testing** - End-to-end workflow validation complete
 
+### **✅ IDE Diagnostic Resolution Practice (IMPLEMENTED)**
+- ✅ **Zero-Warning Policy** - All diagnostic errors and warnings resolved systematically
+- ✅ **Build Verification** - Code compiles cleanly with exit code 0 (no errors/warnings)
+- ✅ **IDE Integration** - Diagnostic checks validated with Zed editor and other IDEs
+- ✅ **Type Safety** - All type mismatches and conversion errors fixed
+- ✅ **Code Quality** - Unused variables, parameters, and includes cleaned up
+- ✅ **Cross-Platform Compatibility** - Diagnostic resolution ensures portability
+
 ### **✅ Testing Framework Stack (OPERATIONAL)**
 - ✅ **Unit Testing:** Google Test (gtest) for C++ core components
 - ✅ **Qt Testing:** Qt Test framework for GUI components
 - ✅ **Mocking:** Google Mock (gmock) for dependency isolation
 - ✅ **Coverage:** gcov/lcov for coverage reporting
 - ✅ **CI Integration:** GitHub Actions for automated testing
+
+## 🔧 Professional Development Practices
+
+### **✅ IDE Diagnostic Resolution Workflow (ESTABLISHED)**
+
+```bash
+# Standard Diagnostic Check Process
+pm-agent: communicate with [IDE] to resolve project diagnostic errors/warnings
+
+# 1. Build Status Check
+cmake --build . 2>&1
+
+# 2. Systematic Error Resolution by Priority:
+# HIGH PRIORITY (Build-Breaking):
+# - Compilation errors (missing includes, type mismatches)
+# - Linker errors (missing dependencies)
+# - Header/implementation signature mismatches
+
+# MEDIUM PRIORITY (Code Quality):
+# - Type conversion warnings (int vs qsizetype)
+# - Unused parameter warnings (use Q_UNUSED for placeholders)
+# - Missing virtual destructors
+
+# LOW PRIORITY (Cleanup):
+# - Unused variables and constants
+# - Redundant includes
+# - Code style inconsistencies
+
+# 3. Verification
+cmake --build . 2>&1  # Must exit with code 0, zero warnings
+```
+
+### **✅ Cross-Platform Compatibility Checklist**
+- ✅ **Header Includes:** All Qt includes properly specified
+- ✅ **Type Safety:** Qt types (qsizetype) vs standard types (int/size_t)
+- ✅ **Build System:** CMake cross-platform configuration
+- ✅ **Dependencies:** Consistent library versions across platforms
+- ✅ **IDE Integration:** Compatible with Zed, VSCode, CLion, Qt Creator
 
 ## 📦 Deployment & Distribution
 
