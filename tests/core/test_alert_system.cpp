@@ -1,9 +1,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <QTest>
 #include <QSignalSpy>
 #include <QApplication>
-#include <QTimer>
 #include <QTime>
 #include "../../src/core/alert_system.h"
 #include "../../src/core/eti_types.h"
