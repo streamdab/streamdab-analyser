@@ -349,5 +349,3 @@ public:
     static QList<qint64> generateFrameTimings(int frameCount, double targetFps = 60.0);
 };
 
-// Include Qt MOC support
-#include "mock_gui_components.moc"
