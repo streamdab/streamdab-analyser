@@ -72,6 +72,7 @@ target_link_libraries(eti_analyzer_unit_tests
     GTest::GTest
     GTest::Main
     Qt6::Core
+    Qt6::Test
 )
 # TDD REQUIREMENT: Link to main project components for testing
 target_include_directories(eti_analyzer_unit_tests PRIVATE
@@ -157,13 +158,13 @@ find_package(yaml-cpp REQUIRED)
 target_link_libraries(eti_analyzer_unit_tests
     ${pkgcfg_lib_FAAD2_faad}
     ${pkgcfg_lib_FFTW3_fftw3}
-    /opt/homebrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.0.8.0.dylib
+    yaml-cpp::yaml-cpp
 )
 # Link dependencies to GUI tests
 target_link_libraries(eti_analyzer_gui_tests
     ${pkgcfg_lib_FAAD2_faad}
     ${pkgcfg_lib_FFTW3_fftw3}
-    /opt/homebrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.0.8.0.dylib
+    yaml-cpp::yaml-cpp
 )
 # Include directories for dependencies
 target_include_directories(eti_analyzer_unit_tests PRIVATE
