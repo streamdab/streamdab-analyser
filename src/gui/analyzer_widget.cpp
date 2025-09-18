@@ -11,7 +11,7 @@
 #include "constellation_widget.h"
 #include "core/eti_processor.h"
 #include "core/dab_decoder.h"
-#include "utils/logger.h"
+#include "utils/logger_compat.h"
 
 #include <QApplication>
 #include <QHeaderView>

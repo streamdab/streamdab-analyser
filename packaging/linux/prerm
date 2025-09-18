@@ -1,0 +1,54 @@
+#!/bin/bash
+# ETI Stream Analyzer - Debian/Ubuntu Pre-Removal Script
+# Professional cleanup for broadcast engineering applications
+
+set -e
+
+case "$1" in
+    remove|upgrade|deconfigure)
+        echo "Preparing to remove ETI Stream Analyzer professional configuration..."
+
+        # Remove professional desktop integration
+        if [ -f "/usr/share/applications/eti-stream-analyzer.desktop" ]; then
+            rm -f /usr/share/applications/eti-stream-analyzer.desktop
+        fi
+
+        # Remove professional MIME type registration
+        if [ -f "/usr/share/mime/packages/eti-stream-analyzer.xml" ]; then
+            rm -f /usr/share/mime/packages/eti-stream-analyzer.xml
+        fi
+
+        # Clean professional configuration files (preserve user data)
+        if [ -d "/etc/eti-stream-analyzer" ]; then
+            # Backup important configuration files
+            if [ -f "/etc/eti-stream-analyzer/global.conf" ]; then
+                cp /etc/eti-stream-analyzer/global.conf /etc/eti-stream-analyzer/global.conf.backup
+            fi
+        fi
+
+        # Update databases for clean removal
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database /usr/share/applications
+        fi
+
+        if command -v update-mime-database >/dev/null 2>&1; then
+            update-mime-database /usr/share/mime
+        fi
+
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+        fi
+
+        echo "ETI Stream Analyzer professional removal preparation complete."
+        ;;
+
+    failed-upgrade)
+        ;;
+
+    *)
+        echo "prerm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

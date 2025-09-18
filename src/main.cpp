@@ -50,7 +50,7 @@ static const QString APP_ORGANIZATION = "ETI Analyzer Team";
 static const QString APP_DOMAIN = "etianalyzer.com";
 
 // Logging category
-Q_LOGGING_CATEGORY(main, "eti.main")
+Q_LOGGING_CATEGORY(etiMain, "eti.main")
 
 /**
  * @brief Temporary main window for testing the build system
@@ -142,7 +142,7 @@ void initializeApplicationDirectories()
     QDir().mkpath(appDataPath + "/config");
     QDir().mkpath(appDataPath + "/temp");
 
-    qCDebug(main) << "Application data directory:" << appDataPath;
+    qCDebug(etiMain) << "Application data directory:" << appDataPath;
 }
 
 /**
@@ -152,7 +152,7 @@ void setupApplicationStyle(QApplication &app)
 {
     // Set application style
     QStringList availableStyles = QStyleFactory::keys();
-    qCDebug(main) << "Available styles:" << availableStyles;
+    qCDebug(etiMain) << "Available styles:" << availableStyles;
 
 #ifdef Q_OS_WIN
     if (availableStyles.contains("WindowsVista")) {
@@ -196,12 +196,12 @@ void parseCommandLineArguments(QApplication &app)
 
     if (parser.isSet(debugOption)) {
         QLoggingCategory::setFilterRules("*.debug=true");
-        qCDebug(main) << "Debug mode enabled";
+        qCDebug(etiMain) << "Debug mode enabled";
     }
 
     if (parser.isSet(configOption)) {
         QString configFile = parser.value(configOption);
-        qCDebug(main) << "Using config file:" << configFile;
+        qCDebug(etiMain) << "Using config file:" << configFile;
         // TODO: Pass to ConfigManager in next phase
     }
 }
@@ -265,9 +265,9 @@ int main(int argc, char *argv[])
     setupApplicationStyle(app);
 
     // Log startup information
-    qCInfo(main) << "Starting" << APP_NAME << "version" << APP_VERSION;
-    qCInfo(main) << "Qt version:" << QT_VERSION_STR;
-    qCInfo(main) << "Platform:" << QGuiApplication::platformName();
+    qCInfo(etiMain) << "Starting" << APP_NAME << "version" << APP_VERSION;
+    qCInfo(etiMain) << "Qt version:" << QT_VERSION_STR;
+    qCInfo(etiMain) << "Platform:" << QGuiApplication::platformName();
 
     try {
         // Initialize core components (placeholder for next phase)
@@ -278,16 +278,16 @@ int main(int argc, char *argv[])
         TemporaryMainWindow mainWindow;
         mainWindow.show();
 
-        qCInfo(main) << "Application initialized successfully";
+        qCInfo(etiMain) << "Application initialized successfully";
 
         // Run application event loop
         int result = app.exec();
 
-        qCInfo(main) << "Application shutting down with code:" << result;
+        qCInfo(etiMain) << "Application shutting down with code:" << result;
         return result;
 
     } catch (const std::exception &e) {
-        qCCritical(main) << "Fatal error during application startup:" << e.what();
+        qCCritical(etiMain) << "Fatal error during application startup:" << e.what();
         QMessageBox::critical(nullptr, "Fatal Error",
             QString("Application failed to start:\n%1").arg(e.what()));
         return -1;

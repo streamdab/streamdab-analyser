@@ -1,0 +1,184 @@
+/****************************************************************************
+** Meta object code from reading C++ file 'test_constellation_widget.cpp'
+**
+** Created by: The Qt Meta Object Compiler version 69 (Qt 6.9.2)
+**
+** WARNING! All changes made in this file will be lost!
+*****************************************************************************/
+
+#include <QtCore/qmetatype.h>
+
+#include <QtCore/qtmochelpers.h>
+
+#include <memory>
+
+
+#include <QtCore/qxptype_traits.h>
+#if !defined(Q_MOC_OUTPUT_REVISION)
+#error "The header file 'test_constellation_widget.cpp' doesn't include <QObject>."
+#elif Q_MOC_OUTPUT_REVISION != 69
+#error "This file was generated using the moc from 6.9.2. It"
+#error "cannot be used with the include files from this version of Qt."
+#error "(The moc has changed too much.)"
+#endif
+
+#ifndef Q_CONSTINIT
+#define Q_CONSTINIT
+#endif
+
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
+QT_WARNING_DISABLE_GCC("-Wuseless-cast")
+namespace {
+struct qt_meta_tag_ZN23TestConstellationWidgetE_t {};
+} // unnamed namespace
+
+template <> constexpr inline auto TestConstellationWidget::qt_create_metaobjectdata<qt_meta_tag_ZN23TestConstellationWidgetE_t>()
+{
+    namespace QMC = QtMocConstants;
+    QtMocHelpers::StringRefStorage qt_stringData {
+        "TestConstellationWidget",
+        "initTestCase",
+        "",
+        "cleanupTestCase",
+        "init",
+        "cleanup",
+        "testWidgetConstruction",
+        "testWidgetInitialization",
+        "testMinimumSizeRequirements",
+        "testConstellationPointRendering",
+        "testRealTimeVisualizationUpdates",
+        "testSignalQualityVisualization",
+        "testZoomAndPanFunctionality",
+        "testSixtyFpsRenderingPerformance",
+        "testMemoryUsageUnderContinuousUpdates",
+        "testLargeDataSetVisualization",
+        "testMouseInteractionHandling",
+        "testKeyboardShortcuts",
+        "testContextMenuFunctionality",
+        "testSignalDataProcessing",
+        "testConstellationDataValidation",
+        "testErrorHandlingInVisualization"
+    };
+
+    QtMocHelpers::UintData qt_methods {
+        // Slot 'initTestCase'
+        QtMocHelpers::SlotData<void()>(1, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'cleanupTestCase'
+        QtMocHelpers::SlotData<void()>(3, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'init'
+        QtMocHelpers::SlotData<void()>(4, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'cleanup'
+        QtMocHelpers::SlotData<void()>(5, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testWidgetConstruction'
+        QtMocHelpers::SlotData<void()>(6, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testWidgetInitialization'
+        QtMocHelpers::SlotData<void()>(7, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testMinimumSizeRequirements'
+        QtMocHelpers::SlotData<void()>(8, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testConstellationPointRendering'
+        QtMocHelpers::SlotData<void()>(9, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testRealTimeVisualizationUpdates'
+        QtMocHelpers::SlotData<void()>(10, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testSignalQualityVisualization'
+        QtMocHelpers::SlotData<void()>(11, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testZoomAndPanFunctionality'
+        QtMocHelpers::SlotData<void()>(12, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testSixtyFpsRenderingPerformance'
+        QtMocHelpers::SlotData<void()>(13, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testMemoryUsageUnderContinuousUpdates'
+        QtMocHelpers::SlotData<void()>(14, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testLargeDataSetVisualization'
+        QtMocHelpers::SlotData<void()>(15, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testMouseInteractionHandling'
+        QtMocHelpers::SlotData<void()>(16, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testKeyboardShortcuts'
+        QtMocHelpers::SlotData<void()>(17, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testContextMenuFunctionality'
+        QtMocHelpers::SlotData<void()>(18, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testSignalDataProcessing'
+        QtMocHelpers::SlotData<void()>(19, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testConstellationDataValidation'
+        QtMocHelpers::SlotData<void()>(20, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testErrorHandlingInVisualization'
+        QtMocHelpers::SlotData<void()>(21, 2, QMC::AccessPrivate, QMetaType::Void),
+    };
+    QtMocHelpers::UintData qt_properties {
+    };
+    QtMocHelpers::UintData qt_enums {
+    };
+    return QtMocHelpers::metaObjectData<TestConstellationWidget, qt_meta_tag_ZN23TestConstellationWidgetE_t>(QMC::MetaObjectFlag{}, qt_stringData,
+            qt_methods, qt_properties, qt_enums);
+}
+Q_CONSTINIT const QMetaObject TestConstellationWidget::staticMetaObject = { {
+    QMetaObject::SuperData::link<QObject::staticMetaObject>(),
+    qt_staticMetaObjectStaticContent<qt_meta_tag_ZN23TestConstellationWidgetE_t>.stringdata,
+    qt_staticMetaObjectStaticContent<qt_meta_tag_ZN23TestConstellationWidgetE_t>.data,
+    qt_static_metacall,
+    nullptr,
+    qt_staticMetaObjectRelocatingContent<qt_meta_tag_ZN23TestConstellationWidgetE_t>.metaTypes,
+    nullptr
+} };
+
+void TestConstellationWidget::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+{
+    auto *_t = static_cast<TestConstellationWidget *>(_o);
+    if (_c == QMetaObject::InvokeMetaMethod) {
+        switch (_id) {
+        case 0: _t->initTestCase(); break;
+        case 1: _t->cleanupTestCase(); break;
+        case 2: _t->init(); break;
+        case 3: _t->cleanup(); break;
+        case 4: _t->testWidgetConstruction(); break;
+        case 5: _t->testWidgetInitialization(); break;
+        case 6: _t->testMinimumSizeRequirements(); break;
+        case 7: _t->testConstellationPointRendering(); break;
+        case 8: _t->testRealTimeVisualizationUpdates(); break;
+        case 9: _t->testSignalQualityVisualization(); break;
+        case 10: _t->testZoomAndPanFunctionality(); break;
+        case 11: _t->testSixtyFpsRenderingPerformance(); break;
+        case 12: _t->testMemoryUsageUnderContinuousUpdates(); break;
+        case 13: _t->testLargeDataSetVisualization(); break;
+        case 14: _t->testMouseInteractionHandling(); break;
+        case 15: _t->testKeyboardShortcuts(); break;
+        case 16: _t->testContextMenuFunctionality(); break;
+        case 17: _t->testSignalDataProcessing(); break;
+        case 18: _t->testConstellationDataValidation(); break;
+        case 19: _t->testErrorHandlingInVisualization(); break;
+        default: ;
+        }
+    }
+    (void)_a;
+}
+
+const QMetaObject *TestConstellationWidget::metaObject() const
+{
+    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
+}
+
+void *TestConstellationWidget::qt_metacast(const char *_clname)
+{
+    if (!_clname) return nullptr;
+    if (!strcmp(_clname, qt_staticMetaObjectStaticContent<qt_meta_tag_ZN23TestConstellationWidgetE_t>.strings))
+        return static_cast<void*>(this);
+    return QObject::qt_metacast(_clname);
+}
+
+int TestConstellationWidget::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+{
+    _id = QObject::qt_metacall(_c, _id, _a);
+    if (_id < 0)
+        return _id;
+    if (_c == QMetaObject::InvokeMetaMethod) {
+        if (_id < 20)
+            qt_static_metacall(this, _c, _id, _a);
+        _id -= 20;
+    }
+    if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
+        if (_id < 20)
+            *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
+        _id -= 20;
+    }
+    return _id;
+}
+QT_WARNING_POP

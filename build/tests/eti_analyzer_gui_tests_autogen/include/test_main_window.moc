@@ -1,0 +1,352 @@
+/****************************************************************************
+** Meta object code from reading C++ file 'test_main_window.cpp'
+**
+** Created by: The Qt Meta Object Compiler version 69 (Qt 6.9.2)
+**
+** WARNING! All changes made in this file will be lost!
+*****************************************************************************/
+
+#include <QtCore/qmetatype.h>
+
+#include <QtCore/qtmochelpers.h>
+
+#include <memory>
+
+
+#include <QtCore/qxptype_traits.h>
+#if !defined(Q_MOC_OUTPUT_REVISION)
+#error "The header file 'test_main_window.cpp' doesn't include <QObject>."
+#elif Q_MOC_OUTPUT_REVISION != 69
+#error "This file was generated using the moc from 6.9.2. It"
+#error "cannot be used with the include files from this version of Qt."
+#error "(The moc has changed too much.)"
+#endif
+
+#ifndef Q_CONSTINIT
+#define Q_CONSTINIT
+#endif
+
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
+QT_WARNING_DISABLE_GCC("-Wuseless-cast")
+namespace {
+struct qt_meta_tag_ZN14TestMainWindowE_t {};
+} // unnamed namespace
+
+template <> constexpr inline auto TestMainWindow::qt_create_metaobjectdata<qt_meta_tag_ZN14TestMainWindowE_t>()
+{
+    namespace QMC = QtMocConstants;
+    QtMocHelpers::StringRefStorage qt_stringData {
+        "TestMainWindow",
+        "initTestCase",
+        "",
+        "cleanupTestCase",
+        "init",
+        "cleanup",
+        "testConstructorAndInitialization",
+        "testInitializeMethod",
+        "testWindowGeometry",
+        "testCentralWidgetCreation",
+        "testMenuBarCreation",
+        "testFileMenuActions",
+        "testAnalysisMenuActions",
+        "testViewMenuActions",
+        "testToolBarCreation",
+        "testToolBarActions",
+        "testDockWidgetCreation",
+        "testFileExplorerDock",
+        "testYamlViewerDock",
+        "testFigAnalysisDock",
+        "testAudioMonitorDock",
+        "testErrorLogDock",
+        "testDockVisibilityToggling",
+        "testDockLayoutManagement",
+        "testStatusBarCreation",
+        "testStatusMessageDisplay",
+        "testProgressBarFunctionality",
+        "testRealTimeInfoDisplay",
+        "testEtiFileOpening",
+        "testEtiFileClosing",
+        "testInvalidEtiFileHandling",
+        "testLargeEtiFilePerformance",
+        "testRealTimeAnalysisControl",
+        "testRealTimeDisplayUpdates",
+        "testSixtyFpsPerformance",
+        "testRealTimeTimerManagement",
+        "testMouseInteractions",
+        "testKeyboardInteractions",
+        "testWindowResizeHandling",
+        "testFullScreenMode",
+        "testFileOperationSignals",
+        "testRealTimeModeSignals",
+        "testSettingsChangeSignals",
+        "testErrorHandlingSignals",
+        "testMemoryManagement",
+        "testWidgetHierarchyCleanup",
+        "testTimerAndResourceCleanup",
+        "testGuiResponsivenessUnderLoad",
+        "testMemoryUsageOptimization",
+        "testStartupShutdownPerformance",
+        "testCrossPlatformLayoutConsistency",
+        "testPlatformSpecificFeatures",
+        "testWidgetAppearanceAndStyling",
+        "testLayoutConsistencyAcrossResolutions",
+        "testProfessionalWorkflowSupport",
+        "testBroadcastIndustryCompliance",
+        "testGracefulErrorRecovery",
+        "testInvalidInputHandling",
+        "testAnalyzerWidgetIntegration",
+        "testConstellationWidgetIntegration",
+        "testServiceBrowserIntegration",
+        "testSettingsPersistence",
+        "testLayoutStatePersistence",
+        "testConfigurationValidation"
+    };
+
+    QtMocHelpers::UintData qt_methods {
+        // Slot 'initTestCase'
+        QtMocHelpers::SlotData<void()>(1, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'cleanupTestCase'
+        QtMocHelpers::SlotData<void()>(3, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'init'
+        QtMocHelpers::SlotData<void()>(4, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'cleanup'
+        QtMocHelpers::SlotData<void()>(5, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testConstructorAndInitialization'
+        QtMocHelpers::SlotData<void()>(6, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testInitializeMethod'
+        QtMocHelpers::SlotData<void()>(7, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testWindowGeometry'
+        QtMocHelpers::SlotData<void()>(8, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testCentralWidgetCreation'
+        QtMocHelpers::SlotData<void()>(9, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testMenuBarCreation'
+        QtMocHelpers::SlotData<void()>(10, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testFileMenuActions'
+        QtMocHelpers::SlotData<void()>(11, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testAnalysisMenuActions'
+        QtMocHelpers::SlotData<void()>(12, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testViewMenuActions'
+        QtMocHelpers::SlotData<void()>(13, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testToolBarCreation'
+        QtMocHelpers::SlotData<void()>(14, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testToolBarActions'
+        QtMocHelpers::SlotData<void()>(15, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testDockWidgetCreation'
+        QtMocHelpers::SlotData<void()>(16, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testFileExplorerDock'
+        QtMocHelpers::SlotData<void()>(17, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testYamlViewerDock'
+        QtMocHelpers::SlotData<void()>(18, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testFigAnalysisDock'
+        QtMocHelpers::SlotData<void()>(19, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testAudioMonitorDock'
+        QtMocHelpers::SlotData<void()>(20, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testErrorLogDock'
+        QtMocHelpers::SlotData<void()>(21, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testDockVisibilityToggling'
+        QtMocHelpers::SlotData<void()>(22, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testDockLayoutManagement'
+        QtMocHelpers::SlotData<void()>(23, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testStatusBarCreation'
+        QtMocHelpers::SlotData<void()>(24, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testStatusMessageDisplay'
+        QtMocHelpers::SlotData<void()>(25, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testProgressBarFunctionality'
+        QtMocHelpers::SlotData<void()>(26, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testRealTimeInfoDisplay'
+        QtMocHelpers::SlotData<void()>(27, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testEtiFileOpening'
+        QtMocHelpers::SlotData<void()>(28, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testEtiFileClosing'
+        QtMocHelpers::SlotData<void()>(29, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testInvalidEtiFileHandling'
+        QtMocHelpers::SlotData<void()>(30, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testLargeEtiFilePerformance'
+        QtMocHelpers::SlotData<void()>(31, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testRealTimeAnalysisControl'
+        QtMocHelpers::SlotData<void()>(32, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testRealTimeDisplayUpdates'
+        QtMocHelpers::SlotData<void()>(33, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testSixtyFpsPerformance'
+        QtMocHelpers::SlotData<void()>(34, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testRealTimeTimerManagement'
+        QtMocHelpers::SlotData<void()>(35, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testMouseInteractions'
+        QtMocHelpers::SlotData<void()>(36, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testKeyboardInteractions'
+        QtMocHelpers::SlotData<void()>(37, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testWindowResizeHandling'
+        QtMocHelpers::SlotData<void()>(38, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testFullScreenMode'
+        QtMocHelpers::SlotData<void()>(39, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testFileOperationSignals'
+        QtMocHelpers::SlotData<void()>(40, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testRealTimeModeSignals'
+        QtMocHelpers::SlotData<void()>(41, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testSettingsChangeSignals'
+        QtMocHelpers::SlotData<void()>(42, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testErrorHandlingSignals'
+        QtMocHelpers::SlotData<void()>(43, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testMemoryManagement'
+        QtMocHelpers::SlotData<void()>(44, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testWidgetHierarchyCleanup'
+        QtMocHelpers::SlotData<void()>(45, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testTimerAndResourceCleanup'
+        QtMocHelpers::SlotData<void()>(46, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testGuiResponsivenessUnderLoad'
+        QtMocHelpers::SlotData<void()>(47, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testMemoryUsageOptimization'
+        QtMocHelpers::SlotData<void()>(48, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testStartupShutdownPerformance'
+        QtMocHelpers::SlotData<void()>(49, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testCrossPlatformLayoutConsistency'
+        QtMocHelpers::SlotData<void()>(50, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testPlatformSpecificFeatures'
+        QtMocHelpers::SlotData<void()>(51, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testWidgetAppearanceAndStyling'
+        QtMocHelpers::SlotData<void()>(52, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testLayoutConsistencyAcrossResolutions'
+        QtMocHelpers::SlotData<void()>(53, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testProfessionalWorkflowSupport'
+        QtMocHelpers::SlotData<void()>(54, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testBroadcastIndustryCompliance'
+        QtMocHelpers::SlotData<void()>(55, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testGracefulErrorRecovery'
+        QtMocHelpers::SlotData<void()>(56, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testInvalidInputHandling'
+        QtMocHelpers::SlotData<void()>(57, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testAnalyzerWidgetIntegration'
+        QtMocHelpers::SlotData<void()>(58, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testConstellationWidgetIntegration'
+        QtMocHelpers::SlotData<void()>(59, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testServiceBrowserIntegration'
+        QtMocHelpers::SlotData<void()>(60, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testSettingsPersistence'
+        QtMocHelpers::SlotData<void()>(61, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testLayoutStatePersistence'
+        QtMocHelpers::SlotData<void()>(62, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testConfigurationValidation'
+        QtMocHelpers::SlotData<void()>(63, 2, QMC::AccessPrivate, QMetaType::Void),
+    };
+    QtMocHelpers::UintData qt_properties {
+    };
+    QtMocHelpers::UintData qt_enums {
+    };
+    return QtMocHelpers::metaObjectData<TestMainWindow, qt_meta_tag_ZN14TestMainWindowE_t>(QMC::MetaObjectFlag{}, qt_stringData,
+            qt_methods, qt_properties, qt_enums);
+}
+Q_CONSTINIT const QMetaObject TestMainWindow::staticMetaObject = { {
+    QMetaObject::SuperData::link<QObject::staticMetaObject>(),
+    qt_staticMetaObjectStaticContent<qt_meta_tag_ZN14TestMainWindowE_t>.stringdata,
+    qt_staticMetaObjectStaticContent<qt_meta_tag_ZN14TestMainWindowE_t>.data,
+    qt_static_metacall,
+    nullptr,
+    qt_staticMetaObjectRelocatingContent<qt_meta_tag_ZN14TestMainWindowE_t>.metaTypes,
+    nullptr
+} };
+
+void TestMainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+{
+    auto *_t = static_cast<TestMainWindow *>(_o);
+    if (_c == QMetaObject::InvokeMetaMethod) {
+        switch (_id) {
+        case 0: _t->initTestCase(); break;
+        case 1: _t->cleanupTestCase(); break;
+        case 2: _t->init(); break;
+        case 3: _t->cleanup(); break;
+        case 4: _t->testConstructorAndInitialization(); break;
+        case 5: _t->testInitializeMethod(); break;
+        case 6: _t->testWindowGeometry(); break;
+        case 7: _t->testCentralWidgetCreation(); break;
+        case 8: _t->testMenuBarCreation(); break;
+        case 9: _t->testFileMenuActions(); break;
+        case 10: _t->testAnalysisMenuActions(); break;
+        case 11: _t->testViewMenuActions(); break;
+        case 12: _t->testToolBarCreation(); break;
+        case 13: _t->testToolBarActions(); break;
+        case 14: _t->testDockWidgetCreation(); break;
+        case 15: _t->testFileExplorerDock(); break;
+        case 16: _t->testYamlViewerDock(); break;
+        case 17: _t->testFigAnalysisDock(); break;
+        case 18: _t->testAudioMonitorDock(); break;
+        case 19: _t->testErrorLogDock(); break;
+        case 20: _t->testDockVisibilityToggling(); break;
+        case 21: _t->testDockLayoutManagement(); break;
+        case 22: _t->testStatusBarCreation(); break;
+        case 23: _t->testStatusMessageDisplay(); break;
+        case 24: _t->testProgressBarFunctionality(); break;
+        case 25: _t->testRealTimeInfoDisplay(); break;
+        case 26: _t->testEtiFileOpening(); break;
+        case 27: _t->testEtiFileClosing(); break;
+        case 28: _t->testInvalidEtiFileHandling(); break;
+        case 29: _t->testLargeEtiFilePerformance(); break;
+        case 30: _t->testRealTimeAnalysisControl(); break;
+        case 31: _t->testRealTimeDisplayUpdates(); break;
+        case 32: _t->testSixtyFpsPerformance(); break;
+        case 33: _t->testRealTimeTimerManagement(); break;
+        case 34: _t->testMouseInteractions(); break;
+        case 35: _t->testKeyboardInteractions(); break;
+        case 36: _t->testWindowResizeHandling(); break;
+        case 37: _t->testFullScreenMode(); break;
+        case 38: _t->testFileOperationSignals(); break;
+        case 39: _t->testRealTimeModeSignals(); break;
+        case 40: _t->testSettingsChangeSignals(); break;
+        case 41: _t->testErrorHandlingSignals(); break;
+        case 42: _t->testMemoryManagement(); break;
+        case 43: _t->testWidgetHierarchyCleanup(); break;
+        case 44: _t->testTimerAndResourceCleanup(); break;
+        case 45: _t->testGuiResponsivenessUnderLoad(); break;
+        case 46: _t->testMemoryUsageOptimization(); break;
+        case 47: _t->testStartupShutdownPerformance(); break;
+        case 48: _t->testCrossPlatformLayoutConsistency(); break;
+        case 49: _t->testPlatformSpecificFeatures(); break;
+        case 50: _t->testWidgetAppearanceAndStyling(); break;
+        case 51: _t->testLayoutConsistencyAcrossResolutions(); break;
+        case 52: _t->testProfessionalWorkflowSupport(); break;
+        case 53: _t->testBroadcastIndustryCompliance(); break;
+        case 54: _t->testGracefulErrorRecovery(); break;
+        case 55: _t->testInvalidInputHandling(); break;
+        case 56: _t->testAnalyzerWidgetIntegration(); break;
+        case 57: _t->testConstellationWidgetIntegration(); break;
+        case 58: _t->testServiceBrowserIntegration(); break;
+        case 59: _t->testSettingsPersistence(); break;
+        case 60: _t->testLayoutStatePersistence(); break;
+        case 61: _t->testConfigurationValidation(); break;
+        default: ;
+        }
+    }
+    (void)_a;
+}
+
+const QMetaObject *TestMainWindow::metaObject() const
+{
+    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
+}
+
+void *TestMainWindow::qt_metacast(const char *_clname)
+{
+    if (!_clname) return nullptr;
+    if (!strcmp(_clname, qt_staticMetaObjectStaticContent<qt_meta_tag_ZN14TestMainWindowE_t>.strings))
+        return static_cast<void*>(this);
+    return QObject::qt_metacast(_clname);
+}
+
+int TestMainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+{
+    _id = QObject::qt_metacall(_c, _id, _a);
+    if (_id < 0)
+        return _id;
+    if (_c == QMetaObject::InvokeMetaMethod) {
+        if (_id < 62)
+            qt_static_metacall(this, _c, _id, _a);
+        _id -= 62;
+    }
+    if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
+        if (_id < 62)
+            *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
+        _id -= 62;
+    }
+    return _id;
+}
+QT_WARNING_POP

@@ -1,0 +1,5 @@
+
+# Per-language clean rules from dependency scanning.
+foreach(lang )
+  include(CMakeFiles/eti_analyzer_unit_tests_autogen_timestamp_deps.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()
