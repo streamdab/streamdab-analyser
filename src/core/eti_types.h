@@ -23,6 +23,8 @@
 #include <map>
 #include <cstring>
 #include <algorithm>
+#include <QTime>
+#include <QByteArray>
 
 namespace eti {
 
@@ -86,7 +88,7 @@ struct EtiLidataField {
     uint8_t nst : 7;           // Number of Sub-channels in MSC (0-63)
     uint8_t fp : 3;            // Frame Phase (0-7)
     uint8_t mid : 2;           // Mode Identity (1-4)
-    uint8_t fl : 11;           // Frame Length
+    uint16_t fl : 11;          // Frame Length (11 bits fits in uint16_t)
     uint32_t tist;             // Time Stamp (32-bit)
     
     bool validate_frame_count(uint8_t expected_fc) const {
@@ -450,14 +452,26 @@ struct EtiFrame {
     
 private:
     void validate_frame_structure() {
-        frame_valid = validate_sync_pattern() && 
-                     validate_frame_structure();
+        // Basic validation - check if frame has minimum required size
+        frame_valid = (frame_data.size() >= ETI_SYNC_SIZE + ETI_LIDATA_SIZE);
     }
 };
 
 // Type aliases for compatibility and convenience
 using EtiFrameArray = std::array<uint8_t, ETI_FRAME_SIZE>;
 using FicBlockArray = std::array<uint8_t, FIC_SIZE_BYTES>;
+
+/**
+ * @brief Simple ETI frame data structure for decoder interfaces
+ */
+struct EtiFrameData {
+    quint32 frameNumber;
+    QTime timestamp;
+    QByteArray data;
+    bool isValid;
+    
+    EtiFrameData() : frameNumber(0), isValid(false) {}
+};
 
 /**
  * @brief ETI Frame validation result

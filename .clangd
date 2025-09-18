@@ -1,0 +1,33 @@
+CompileFlags:
+  Add:
+    - -I/opt/homebrew/Cellar/googletest/1.17.0/include
+    - -I/opt/homebrew/lib/QtCore.framework/Headers
+    - -I/opt/homebrew/lib/QtWidgets.framework/Headers
+    - -I/opt/homebrew/lib/QtGui.framework/Headers
+    - -I/opt/homebrew/lib/QtTest.framework/Headers
+    - -I/opt/homebrew/include
+    - -std=c++17
+    - -DQT_CORE_LIB
+    - -DQT_GUI_LIB
+    - -DQT_WIDGETS_LIB
+    - -DQT_TEST_LIB
+  Remove:
+    - -W*
+    - -w
+  CompilationDatabase: build/
+
+Diagnostics:
+  Suppress:
+    - unused-includes
+    - missing-prototypes
+  ClangTidy:
+    Add:
+      - readability-*
+      - modernize-*
+      - performance-*
+    Remove:
+      - readability-magic-numbers
+      - modernize-use-trailing-return-type
+
+Index:
+  Background: Build
