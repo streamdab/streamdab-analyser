@@ -1,6 +1,0 @@
-set(__QT_DEPLOY_TARGET_eti_analyzer_unit_tests_FILE /Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_unit_tests.app/Contents/MacOS/eti_analyzer_unit_tests)
-set(__QT_DEPLOY_TARGET_eti_analyzer_unit_tests_TYPE EXECUTABLE)
-set(__QT_DEPLOY_TARGET_eti_analyzer_gui_tests_FILE /Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_gui_tests.app/Contents/MacOS/eti_analyzer_gui_tests)
-set(__QT_DEPLOY_TARGET_eti_analyzer_gui_tests_TYPE EXECUTABLE)
-set(__QT_DEPLOY_TARGET_ETIStreamAnalyzer_FILE /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer.app/Contents/MacOS/ETIStreamAnalyzer)
-set(__QT_DEPLOY_TARGET_ETIStreamAnalyzer_TYPE EXECUTABLE)

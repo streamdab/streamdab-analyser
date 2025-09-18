@@ -1,5 +1,0 @@
-if(EXISTS "/Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_unit_tests[1]_tests.cmake")
-  include("/Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_unit_tests[1]_tests.cmake")
-else()
-  add_test(eti_analyzer_unit_tests_NOT_BUILT eti_analyzer_unit_tests_NOT_BUILT)
-endif()
