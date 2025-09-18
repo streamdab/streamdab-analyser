@@ -8,7 +8,7 @@
  */
 
 #include "about_dialog.h"
-#include "utils/logger.h"
+#include "utils/logger_compat.h"
 
 #include <QApplication>
 #include <QClipboard>

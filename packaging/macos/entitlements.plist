@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Professional Network Access for ETI Stream Processing -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <key>com.apple.security.network.server</key>
+    <true/>
+
+    <!-- Professional File System Access for Broadcast Files -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <key>com.apple.security.files.downloads.read-write</key>
+    <true/>
+
+    <!-- Professional Audio Access for Stream Monitoring -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+
+    <key>com.apple.security.device.microphone</key>
+    <true/>
+
+    <!-- Professional Hardware Access for Broadcast Equipment -->
+    <key>com.apple.security.device.usb</key>
+    <true/>
+
+    <!-- Professional Automation for Broadcast Workflows -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+
+    <!-- Professional Application Sandbox (Recommended for Distribution) -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+
+    <!-- Professional Code Signing and Notarization -->
+    <key>com.apple.security.get-task-allow</key>
+    <false/>
+
+    <!-- Professional Runtime Hardening -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <false/>
+
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <false/>
+
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <false/>
+
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <false/>
+</dict>
+</plist>

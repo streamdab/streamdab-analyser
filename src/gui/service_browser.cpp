@@ -11,7 +11,7 @@
 #include "core/eti_processor.h"
 #include "core/ensemble_manager.h"
 #include "core/service_manager.h"
-#include "utils/logger.h"
+#include "utils/logger_compat.h"
 
 #include <QApplication>
 #include <QDateTime>

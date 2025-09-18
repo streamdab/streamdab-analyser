@@ -22,10 +22,10 @@
 #include "about_dialog.h"
 #include "core/eti_processor.h"
 #include "utils/config_manager.h"
-#include "utils/logger.h"
+#include "utils/logger_compat.h"
 
 #include <QApplication>
-#include <QDesktopWidget>
+#include <QScreen>
 #include <QScreen>
 #include <QFileInfo>
 #include <QDir>

@@ -332,6 +332,11 @@ private:
     void calculateFrameRate();
 
     /**
+     * @brief Update control state
+     */
+    void updateControlState();
+
+    /**
      * @brief Validate widget state
      * @return true if state is valid
      */

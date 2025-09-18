@@ -304,7 +304,7 @@ if(BUILD_TESTING)
     )
 
     # Standard test targets
-    add_custom_target(test
+    add_custom_target(run_all_tests
         COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --verbose
         COMMENT "Run all tests"
     )
@@ -413,3 +413,6 @@ message(STATUS "Architecture: ${CMAKE_SYSTEM_PROCESSOR}")
 message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "Install Prefix: ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "===============================================")
+
+# Include professional cross-platform packaging configuration
+include(cmake/packaging.cmake)
