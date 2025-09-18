@@ -323,7 +323,7 @@ export PATH="$(brew --prefix qt6)/bin:$PATH"
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release \
          -DBUILD_TESTING=ON \
-         -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
+         -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
          -DCMAKE_MACOSX_BUNDLE=ON
 
 # 3. Build

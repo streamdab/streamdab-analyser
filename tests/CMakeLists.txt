@@ -38,6 +38,11 @@ set(GTEST_UNIT_SOURCES
     utils/test_file_utils.cpp
     utils/test_signal_processing.cpp
 )
+
+# Test fixtures and test data - only working files
+set(TEST_FIXTURE_SOURCES
+    fixtures/eti_test_data.cpp
+)
 # Qt GUI Test Framework - Professional broadcast testing
 set(QT_GUI_TEST_SOURCES
     gui/test_main_window.cpp
@@ -60,12 +65,14 @@ set(GUI_MOCK_SOURCES
 # TDD REQUIREMENT: Create separate test executables for different frameworks
 add_executable(eti_analyzer_unit_tests
     ${GTEST_UNIT_SOURCES}
+    ${TEST_FIXTURE_SOURCES}
 )
 # TDD GUI TESTING: Professional Qt Test Framework Integration
 add_executable(eti_analyzer_gui_tests
     ${QT_GUI_TEST_SOURCES}
     ${GUI_TEST_FRAMEWORK_SOURCES}
     ${GUI_MOCK_SOURCES}
+    ${TEST_FIXTURE_SOURCES}
 )
 # TDD FRAMEWORK: Link Google Test for unit tests
 target_link_libraries(eti_analyzer_unit_tests
@@ -77,6 +84,9 @@ target_link_libraries(eti_analyzer_unit_tests
 # TDD REQUIREMENT: Link to main project components for testing
 target_include_directories(eti_analyzer_unit_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+    ${CMAKE_CURRENT_SOURCE_DIR}/mocks
 )
 # TDD FRAMEWORK: Link Qt Test for GUI tests with comprehensive framework
 target_link_libraries(eti_analyzer_gui_tests
@@ -86,10 +96,14 @@ target_link_libraries(eti_analyzer_gui_tests
     Qt6::Gui
     Qt6::Network
     GTest::GTest
+    GTest::gmock
 )
 # TDD REQUIREMENT: Link to main project components for GUI testing
 target_include_directories(eti_analyzer_gui_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+    ${CMAKE_CURRENT_SOURCE_DIR}/mocks
 )
 # TDD FRAMEWORK: Compile main project sources with test executables
 # This creates a more integrated testing approach
@@ -189,11 +203,13 @@ add_test(NAME unit_tests
          COMMAND eti_analyzer_unit_tests)
 add_test(NAME gui_tests
          COMMAND eti_analyzer_gui_tests)
-# TDD FRAMEWORK: Google Test discovery integration
+# TDD FRAMEWORK: Test discovery integration
+# Note: eti_analyzer_unit_tests uses Qt Test framework, not Google Test
+# Google Test discovery is not applicable for Qt Test executables
 if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.10)
     include(GoogleTest)
-    gtest_discover_tests(eti_analyzer_unit_tests)
-    message(STATUS "TDD: Google Test discovery enabled")
+    # gtest_discover_tests() removed - eti_analyzer_unit_tests uses Qt Test framework
+    message(STATUS "TDD: Test discovery configured for Qt Test framework")
 endif()
 # TDD MANDATE: Custom test targets for Red-Green-Refactor workflow
 add_custom_target(tdd_red_phase
@@ -345,11 +361,11 @@ message(STATUS "  - run_unit_tests_only: Unit tests with Google Test")
 message(STATUS "  - run_gui_tests_only: GUI tests with Qt Test")
 message(STATUS "  - run_tests_quiet: Minimal output testing")
 if(ENABLE_COVERAGE)
-message(STATUS "  - tdd_coverage_generate: Generate coverage reports")
-message(STATUS "  - tdd_coverage_check: Enforce coverage requirements")
+    message(STATUS "  - tdd_coverage_generate: Generate coverage reports")
+    message(STATUS "  - tdd_coverage_check: Enforce coverage requirements")
 endif()
 if(UNIX AND NOT APPLE AND VALGRIND_EXECUTABLE)
-message(STATUS "  - tdd_memcheck_all: Memory leak detection")
+    message(STATUS "  - tdd_memcheck_all: Memory leak detection")
 endif()
 message(STATUS "")
 message(STATUS "TDD QUALITY GATES: ACTIVE")

@@ -4,6 +4,13 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <QByteArray>
+#include <QString>
+
+// Include actual type definitions from core headers
+#include "../../src/core/eti_types.h"
+#include "../../src/core/fic_decoder.h"
+#include "../../src/core/eti_processor.h"
 
 /**
  * @file mock_eti_processor.h
@@ -13,11 +20,19 @@
  * Used for Red-Green-Refactor cycles with dependency isolation.
  */
 
-// Forward declarations for interfaces (to be defined in actual implementation)
-struct EtiFrame;
-struct ProcessResult;
-struct ServiceInfo;
-struct EnsembleInfo;
+// Type aliases from the actual implementation
+using EtiFrame = eti::EtiFrame;
+using EtiFrameData = eti::EtiFrameData;
+using ServiceInfo = FicDecoder::ServiceInfo;
+using EnsembleInfo = FicDecoder::EnsembleInfo;
+
+// Define ProcessResult for mock compatibility
+struct ProcessResult {
+    bool success = false;
+    std::string errorMessage;
+    size_t framesProcessed = 0;
+    size_t servicesFound = 0;
+};
 
 /**
  * @brief Mock ETI Processor for TDD unit testing
@@ -25,8 +40,9 @@ struct EnsembleInfo;
  * This mock allows testing of components that depend on ETI processing
  * without requiring actual ETI processing implementation.
  */
-class MockEtiProcessor {
+class MockEtiProcessor : public EtiProcessor {
 public:
+    MockEtiProcessor(QObject *parent = nullptr) : EtiProcessor(parent) {}
     virtual ~MockEtiProcessor() = default;
     
     // Mock methods using Google Mock
@@ -41,6 +57,10 @@ public:
     MOCK_METHOD(size_t, getFrameCount, (), (const));
     MOCK_METHOD(bool, hasErrors, (), (const));
     MOCK_METHOD(std::vector<std::string>, getErrorMessages, (), (const));
+    
+    // Test helper methods
+    MOCK_METHOD(void, setTestFrame, (const EtiFrame& frame), ());
+    MOCK_METHOD(EtiFrame, getTestFrame, (), (const));
 };
 
 /**
@@ -213,39 +233,7 @@ public:
     > createCompletePipeline();
 };
 
-/**
- * @brief TDD Test Data Structures (simplified for mocking)
- */
-struct ProcessResult {
-    bool success = false;
-    std::string errorMessage;
-    size_t framesProcessed = 0;
-    size_t servicesFound = 0;
-};
-
-struct ServiceInfo {
-    uint32_t serviceId = 0;
-    std::string label;
-    uint8_t subChannelId = 0;
-    std::string audioType; // "DAB" or "DAB+"
-    int bitRate = 0;
-    bool isActive = false;
-};
-
-struct EnsembleInfo {
-    uint16_t ensembleId = 0;
-    std::string label;
-    uint8_t serviceCount = 0;
-    std::string country;
-    bool isValid = false;
-};
-
-struct EtiFrame {
-    std::vector<uint8_t> data;
-    uint32_t frameNumber = 0;
-    bool isValid = false;
-    
-    EtiFrame() : data(6144, 0) {} // Standard ETI frame size
-};
-
-} // namespace
+// Note: Type definitions are imported from actual core headers
+// - eti::EtiFrame and eti::EtiFrameData from eti_types.h
+// - FicDecoder::ServiceInfo and FicDecoder::EnsembleInfo from fic_decoder.h
+// - ProcessResult defined above for mock compatibility

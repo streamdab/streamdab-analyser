@@ -199,6 +199,12 @@ public:
      */
     bool isRealTimeEnabled() const { return m_realTimeEnabled; }
 
+    /**
+     * @brief Get total number of services
+     * @return Total service count
+     */
+    int getServiceCount() const { return m_totalServices; }
+
 public slots:
     /**
      * @brief Update service browser with new data

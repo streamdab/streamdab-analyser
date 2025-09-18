@@ -237,6 +237,16 @@ void ConstellationWidget::setRealTimeEnabled(bool enabled)
     }
 }
 
+void ConstellationWidget::startRealTimeUpdates()
+{
+    setRealTimeEnabled(true);
+}
+
+void ConstellationWidget::stopRealTimeUpdates()
+{
+    setRealTimeEnabled(false);
+}
+
 void ConstellationWidget::updateDisplay()
 {
     if (!m_isInitialized) {

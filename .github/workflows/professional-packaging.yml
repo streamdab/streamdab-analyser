@@ -2,22 +2,22 @@ name: Professional Cross-Platform Packaging
 
 on:
   push:
-    branches: [ main, develop, release/* ]
-    tags: [ 'v*' ]
+    branches: [main, develop, release/*]
+    tags: ["v*"]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
     inputs:
       release_type:
-        description: 'Release type (alpha, beta, rc, release)'
+        description: "Release type (alpha, beta, rc, release)"
         required: false
-        default: 'alpha'
+        default: "alpha"
         type: choice
         options:
-        - alpha
-        - beta
-        - rc
-        - release
+          - alpha
+          - beta
+          - rc
+          - release
 
 env:
   BUILD_TYPE: Release
@@ -38,77 +38,77 @@ jobs:
         qt_arch: [win64_msvc2019_64]
 
     steps:
-    - name: "Professional Checkout"
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        fetch-depth: 0
+      - name: "Professional Checkout"
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
-    - name: "Professional Build Environment Setup"
-      uses: microsoft/setup-msbuild@v1.3
+      - name: "Professional Build Environment Setup"
+        uses: microsoft/setup-msbuild@v1.3
 
-    - name: "Install Professional Qt Framework"
-      uses: jurplel/install-qt-action@v3
-      with:
-        version: ${{ env.QT_VERSION }}
-        host: windows
-        target: desktop
-        arch: ${{ matrix.qt_arch }}
-        cache: true
-        cache-key-prefix: qt-windows-professional
+      - name: "Install Professional Qt Framework"
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: ${{ matrix.qt_arch }}
+          cache: true
+          cache-key-prefix: qt-windows-professional
 
-    - name: "Install Professional Dependencies"
-      run: |
-        # Install vcpkg for professional dependency management
-        git clone https://github.com/Microsoft/vcpkg.git vcpkg
-        .\vcpkg\bootstrap-vcpkg.bat
+      - name: "Install Professional Dependencies"
+        run: |
+          # Install vcpkg for professional dependency management
+          git clone https://github.com/Microsoft/vcpkg.git vcpkg
+          .\vcpkg\bootstrap-vcpkg.bat
 
-        # Install professional broadcast dependencies
-        .\vcpkg\vcpkg install faad2:x64-windows
-        .\vcpkg\vcpkg install fftw3:x64-windows
-        .\vcpkg\vcpkg install yaml-cpp:x64-windows
+          # Install professional broadcast dependencies
+          .\vcpkg\vcpkg install faad2:x64-windows
+          .\vcpkg\vcpkg install fftw3:x64-windows
+          .\vcpkg\vcpkg install yaml-cpp:x64-windows
 
-    - name: "Professional CMake Configuration"
-      run: |
-        cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
-          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
-          -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake `
-          -DBUILD_TESTING=ON `
-          -DENABLE_COVERAGE=OFF
+      - name: "Professional CMake Configuration"
+        run: |
+          cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+            -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake `
+            -DBUILD_TESTING=ON `
+            -DENABLE_COVERAGE=OFF
 
-    - name: "Professional Build Execution"
-      run: |
-        cmake --build build --config ${{ env.BUILD_TYPE }} --parallel 4
+      - name: "Professional Build Execution"
+        run: |
+          cmake --build build --config ${{ env.BUILD_TYPE }} --parallel 4
 
-    - name: "Professional Test Execution"
-      run: |
-        cd build
-        ctest --build-config ${{ env.BUILD_TYPE }} --output-on-failure --verbose
+      - name: "Professional Test Execution"
+        run: |
+          cd build
+          ctest --build-config ${{ env.BUILD_TYPE }} --output-on-failure --verbose
 
-    - name: "Professional Windows Packaging"
-      run: |
-        cd build
-        cpack -G NSIS -C ${{ env.BUILD_TYPE }}
+      - name: "Professional Windows Packaging"
+        run: |
+          cd build
+          cpack -G NSIS -C ${{ env.BUILD_TYPE }}
 
-    - name: "Professional Package Validation"
-      run: |
-        # Validate NSIS installer
-        if (Test-Path "build\*.exe") {
-          Write-Host "Professional Windows installer created successfully"
-          Get-ChildItem build\*.exe | ForEach-Object {
-            Write-Host "Package: $($_.Name) - Size: $([math]::Round($_.Length/1MB, 2)) MB"
+      - name: "Professional Package Validation"
+        run: |
+          # Validate NSIS installer
+          if (Test-Path "build\*.exe") {
+            Write-Host "Professional Windows installer created successfully"
+            Get-ChildItem build\*.exe | ForEach-Object {
+              Write-Host "Package: $($_.Name) - Size: $([math]::Round($_.Length/1MB, 2)) MB"
+            }
+          } else {
+            Write-Error "Professional Windows installer creation failed"
+            exit 1
           }
-        } else {
-          Write-Error "Professional Windows installer creation failed"
-          exit 1
-        }
 
-    - name: "Upload Professional Windows Package"
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-professional-installer-${{ matrix.arch }}
-        path: build/*.exe
-        retention-days: 30
+      - name: "Upload Professional Windows Package"
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-professional-installer-${{ matrix.arch }}
+          path: build/*.exe
+          retention-days: 30
 
   # =============================================================================
   # PROFESSIONAL LINUX PACKAGING
@@ -122,129 +122,129 @@ jobs:
         distro: [ubuntu-22.04, ubuntu-20.04]
 
     steps:
-    - name: "Professional Checkout"
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        fetch-depth: 0
+      - name: "Professional Checkout"
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
-    - name: "Professional Linux Environment Setup"
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          cmake \
-          ninja-build \
-          qt6-base-dev \
-          qt6-tools-dev \
-          qt6-tools-dev-tools \
-          libqt6network6 \
-          libfaad-dev \
-          libfftw3-dev \
-          libyaml-cpp-dev \
-          libasound2-dev \
-          libpulse-dev \
-          pkg-config \
-          desktop-file-utils \
-          appstream \
-          rpm \
-          alien
+      - name: "Professional Linux Environment Setup"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            qt6-base-dev \
+            qt6-tools-dev \
+            qt6-tools-dev-tools \
+            libqt6network6 \
+            libfaad-dev \
+            libfftw3-dev \
+            libyaml-cpp-dev \
+            libasound2-dev \
+            libpulse-dev \
+            pkg-config \
+            desktop-file-utils \
+            appstream \
+            rpm \
+            alien
 
-    - name: "Install Professional AppImage Tools"
-      run: |
-        # Install linuxdeploy for professional AppImage creation
-        wget -c -nv "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
-        chmod +x linuxdeploy-x86_64.AppImage
-        sudo mv linuxdeploy-x86_64.AppImage /usr/local/bin/linuxdeploy
+      - name: "Install Professional AppImage Tools"
+        run: |
+          # Install linuxdeploy for professional AppImage creation
+          wget -c -nv "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          chmod +x linuxdeploy-x86_64.AppImage
+          sudo mv linuxdeploy-x86_64.AppImage /usr/local/bin/linuxdeploy
 
-        # Install appimagetool for professional packaging
-        wget -c -nv "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
-        chmod +x appimagetool-x86_64.AppImage
-        sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
+          # Install appimagetool for professional packaging
+          wget -c -nv "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool-x86_64.AppImage
+          sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
 
-    - name: "Professional CMake Configuration"
-      run: |
-        cmake -B build -S . -G Ninja \
-          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-          -DBUILD_TESTING=ON \
-          -DENABLE_COVERAGE=ON \
-          -DCMAKE_INSTALL_PREFIX=/usr
+      - name: "Professional CMake Configuration"
+        run: |
+          cmake -B build -S . -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DBUILD_TESTING=ON \
+            -DENABLE_COVERAGE=ON \
+            -DCMAKE_INSTALL_PREFIX=/usr
 
-    - name: "Professional Build Execution"
-      run: |
-        cmake --build build --parallel $(nproc)
+      - name: "Professional Build Execution"
+        run: |
+          cmake --build build --parallel $(nproc)
 
-    - name: "Professional Test Execution"
-      run: |
-        cd build
-        ctest --output-on-failure --verbose
+      - name: "Professional Test Execution"
+        run: |
+          cd build
+          ctest --output-on-failure --verbose
 
-    - name: "Professional Linux Packaging (DEB/RPM)"
-      run: |
-        cd build
-        # Create professional DEB package
-        cpack -G DEB
+      - name: "Professional Linux Packaging (DEB/RPM)"
+        run: |
+          cd build
+          # Create professional DEB package
+          cpack -G DEB
 
-        # Create professional RPM package
-        cpack -G RPM
+          # Create professional RPM package
+          cpack -G RPM
 
-        # Create professional tarball
-        cpack -G TGZ
+          # Create professional tarball
+          cpack -G TGZ
 
-    - name: "Professional AppImage Creation"
-      run: |
-        cd build
-        make install DESTDIR=AppDir
+      - name: "Professional AppImage Creation"
+        run: |
+          cd build
+          make install DESTDIR=AppDir
 
-        # Create professional AppImage
-        export CMAKE_SOURCE_DIR=${{ github.workspace }}
-        export CMAKE_BINARY_DIR=${{ github.workspace }}/build
-        export PROJECT_VERSION=$(cmake --build . --target version --config ${{ env.BUILD_TYPE }} | grep "Project version" | cut -d: -f2 | tr -d ' ')
+          # Create professional AppImage
+          export CMAKE_SOURCE_DIR=${{ github.workspace }}
+          export CMAKE_BINARY_DIR=${{ github.workspace }}/build
+          export PROJECT_VERSION=$(cmake --build . --target version --config ${{ env.BUILD_TYPE }} | grep "Project version" | cut -d: -f2 | tr -d ' ')
 
-        chmod +x ../packaging/linux/create_appimage.sh
-        ../packaging/linux/create_appimage.sh
+          chmod +x ../packaging/linux/create_appimage.sh
+          ../packaging/linux/create_appimage.sh
 
-    - name: "Professional Package Validation"
-      run: |
-        echo "=== Professional Linux Package Validation ==="
+      - name: "Professional Package Validation"
+        run: |
+          echo "=== Professional Linux Package Validation ==="
 
-        # Validate DEB packages
-        for deb in build/*.deb; do
-          if [ -f "$deb" ]; then
-            echo "DEB Package: $(basename $deb)"
-            dpkg-deb -I "$deb"
-            lintian "$deb" || true
-          fi
-        done
+          # Validate DEB packages
+          for deb in build/*.deb; do
+            if [ -f "$deb" ]; then
+              echo "DEB Package: $(basename $deb)"
+              dpkg-deb -I "$deb"
+              lintian "$deb" || true
+            fi
+          done
 
-        # Validate RPM packages
-        for rpm in build/*.rpm; do
-          if [ -f "$rpm" ]; then
-            echo "RPM Package: $(basename $rpm)"
-            rpm -qip "$rpm"
-          fi
-        done
+          # Validate RPM packages
+          for rpm in build/*.rpm; do
+            if [ -f "$rpm" ]; then
+              echo "RPM Package: $(basename $rpm)"
+              rpm -qip "$rpm"
+            fi
+          done
 
-        # Validate AppImage
-        for appimage in build/*.AppImage; do
-          if [ -f "$appimage" ]; then
-            echo "AppImage: $(basename $appimage)"
-            file "$appimage"
-            chmod +x "$appimage"
-            "$appimage" --appimage-help || true
-          fi
-        done
+          # Validate AppImage
+          for appimage in build/*.AppImage; do
+            if [ -f "$appimage" ]; then
+              echo "AppImage: $(basename $appimage)"
+              file "$appimage"
+              chmod +x "$appimage"
+              "$appimage" --appimage-help || true
+            fi
+          done
 
-    - name: "Upload Professional Linux Packages"
-      uses: actions/upload-artifact@v4
-      with:
-        name: linux-professional-packages-${{ matrix.distro }}
-        path: |
-          build/*.deb
-          build/*.rpm
-          build/*.tar.gz
-          build/*.AppImage
-        retention-days: 30
+      - name: "Upload Professional Linux Packages"
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-professional-packages-${{ matrix.distro }}
+          path: |
+            build/*.deb
+            build/*.rpm
+            build/*.tar.gz
+            build/*.AppImage
+          retention-days: 30
 
   # =============================================================================
   # PROFESSIONAL MACOS PACKAGING
@@ -258,100 +258,100 @@ jobs:
         arch: [x86_64, arm64]
 
     steps:
-    - name: "Professional Checkout"
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        fetch-depth: 0
+      - name: "Professional Checkout"
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
-    - name: "Professional macOS Environment Setup"
-      run: |
-        # Install professional dependencies via Homebrew
-        brew update
-        brew install cmake ninja qt@6 faad2 fftw yaml-cpp pkg-config
+      - name: "Professional macOS Environment Setup"
+        run: |
+          # Install professional dependencies via Homebrew
+          brew update
+          brew install cmake ninja qt@6 faad2 fftw yaml-cpp pkg-config
 
-        # Setup professional Qt environment
-        echo "$(brew --prefix qt@6)/bin" >> $GITHUB_PATH
-        echo "Qt6_DIR=$(brew --prefix qt@6)/lib/cmake/Qt6" >> $GITHUB_ENV
+          # Setup professional Qt environment
+          echo "$(brew --prefix qt@6)/bin" >> $GITHUB_PATH
+          echo "Qt6_DIR=$(brew --prefix qt@6)/lib/cmake/Qt6" >> $GITHUB_ENV
 
-    - name: "Professional CMake Configuration"
-      run: |
-        cmake -B build -S . -G Ninja \
-          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-          -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
-          -DBUILD_TESTING=ON \
-          -DENABLE_COVERAGE=OFF
+      - name: "Professional CMake Configuration"
+        run: |
+          cmake -B build -S . -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
+            -DBUILD_TESTING=ON \
+            -DENABLE_COVERAGE=OFF
 
-    - name: "Professional Build Execution"
-      run: |
-        cmake --build build --parallel $(sysctl -n hw.ncpu)
+      - name: "Professional Build Execution"
+        run: |
+          cmake --build build --parallel $(sysctl -n hw.ncpu)
 
-    - name: "Professional Test Execution"
-      run: |
-        cd build
-        ctest --output-on-failure --verbose
+      - name: "Professional Test Execution"
+        run: |
+          cd build
+          ctest --output-on-failure --verbose
 
-    - name: "Professional macOS Bundle Creation"
-      run: |
-        cd build
+      - name: "Professional macOS Bundle Creation"
+        run: |
+          cd build
 
-        # Create professional macOS bundle
-        make install
+          # Create professional macOS bundle
+          make install
 
-        # Professional Qt framework deployment
-        macdeployqt ETIStreamAnalyzer.app -dmg -verbose=2
+          # Professional Qt framework deployment
+          macdeployqt ETIStreamAnalyzer.app -dmg -verbose=2
 
-    - name: "Professional Code Signing Preparation"
-      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-      env:
-        APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-        APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      run: |
-        if [ ! -z "$APPLE_CERTIFICATE" ]; then
-          echo "Professional code signing setup..."
-          # Code signing will be implemented when certificates are available
-        else
-          echo "Professional code signing skipped (no certificates)"
-        fi
-
-    - name: "Professional DMG Creation"
-      run: |
-        cd build
-        cpack -G DragNDrop
-
-    - name: "Professional Package Validation"
-      run: |
-        echo "=== Professional macOS Package Validation ==="
-
-        # Validate DMG
-        for dmg in build/*.dmg; do
-          if [ -f "$dmg" ]; then
-            echo "DMG Package: $(basename $dmg)"
-            hdiutil imageinfo "$dmg"
-
-            # Mount and verify contents
-            hdiutil attach "$dmg" -readonly -mountpoint /tmp/dmg_mount
-            ls -la /tmp/dmg_mount/
-            hdiutil detach /tmp/dmg_mount
+      - name: "Professional Code Signing Preparation"
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ ! -z "$APPLE_CERTIFICATE" ]; then
+            echo "Professional code signing setup..."
+            # Code signing will be implemented when certificates are available
+          else
+            echo "Professional code signing skipped (no certificates)"
           fi
-        done
 
-        # Validate app bundle
-        if [ -d "build/ETIStreamAnalyzer.app" ]; then
-          echo "App Bundle Structure:"
-          find build/ETIStreamAnalyzer.app -type f | head -20
-        fi
+      - name: "Professional DMG Creation"
+        run: |
+          cd build
+          cpack -G DragNDrop
 
-    - name: "Upload Professional macOS Package"
-      uses: actions/upload-artifact@v4
-      with:
-        name: macos-professional-package-${{ matrix.arch }}
-        path: |
-          build/*.dmg
-          build/*.app
-        retention-days: 30
+      - name: "Professional Package Validation"
+        run: |
+          echo "=== Professional macOS Package Validation ==="
+
+          # Validate DMG
+          for dmg in build/*.dmg; do
+            if [ -f "$dmg" ]; then
+              echo "DMG Package: $(basename $dmg)"
+              hdiutil imageinfo "$dmg"
+
+              # Mount and verify contents
+              hdiutil attach "$dmg" -readonly -mountpoint /tmp/dmg_mount
+              ls -la /tmp/dmg_mount/
+              hdiutil detach /tmp/dmg_mount
+            fi
+          done
+
+          # Validate app bundle
+          if [ -d "build/ETIStreamAnalyzer.app" ]; then
+            echo "App Bundle Structure:"
+            find build/ETIStreamAnalyzer.app -type f | head -20
+          fi
+
+      - name: "Upload Professional macOS Package"
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-professional-package-${{ matrix.arch }}
+          path: |
+            build/*.dmg
+            build/*.app
+          retention-days: 30
 
   # =============================================================================
   # PROFESSIONAL RELEASE DEPLOYMENT
@@ -363,55 +363,55 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
 
     steps:
-    - name: "Professional Checkout"
-      uses: actions/checkout@v4
+      - name: "Professional Checkout"
+        uses: actions/checkout@v4
 
-    - name: "Download Professional Packages"
-      uses: actions/download-artifact@v4
-      with:
-        path: professional-packages
+      - name: "Download Professional Packages"
+        uses: actions/download-artifact@v4
+        with:
+          path: professional-packages
 
-    - name: "Professional Release Preparation"
-      run: |
-        echo "=== Professional Release Package Summary ==="
-        find professional-packages -type f -name "*.exe" -o -name "*.deb" -o -name "*.rpm" -o -name "*.dmg" -o -name "*.AppImage" | while read file; do
-          echo "Package: $(basename $file) - Size: $(du -h "$file" | cut -f1)"
-        done
+      - name: "Professional Release Preparation"
+        run: |
+          echo "=== Professional Release Package Summary ==="
+          find professional-packages -type f -name "*.exe" -o -name "*.deb" -o -name "*.rpm" -o -name "*.dmg" -o -name "*.AppImage" | while read file; do
+            echo "Package: $(basename $file) - Size: $(du -h "$file" | cut -f1)"
+          done
 
-    - name: "Create Professional GitHub Release"
-      uses: softprops/action-gh-release@v1
-      with:
-        name: "ETI Stream Analyzer Professional ${{ github.ref_name }}"
-        body: |
-          ## ETI Stream Analyzer Professional Release ${{ github.ref_name }}
+      - name: "Create Professional GitHub Release"
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "ETI Stream Analyzer Professional ${{ github.ref_name }}"
+          body: |
+            ## ETI Stream Analyzer Professional Release ${{ github.ref_name }}
 
-          Professional desktop application for ETI/DAB stream analysis designed for broadcast engineers.
+            Professional desktop application for ETI/DAB stream analysis designed for broadcast engineers.
 
-          ### 🚀 Professional Features
-          - Real-time ETI stream capture and analysis
-          - ETSI EN 300 799 compliance validation
-          - Professional Qt-based GUI interface
-          - Multi-stream support with audio extraction
-          - Report generation (PDF/HTML) for broadcast documentation
-          - Stream recording with time-based segmentation
+            ### 🚀 Professional Features
+            - Real-time ETI stream capture and analysis
+            - ETSI EN 300 799 compliance validation
+            - Professional Qt-based GUI interface
+            - Multi-stream support with audio extraction
+            - Report generation (PDF/HTML) for broadcast documentation
+            - Stream recording with time-based segmentation
 
-          ### 📦 Professional Packages
-          - **Windows**: Professional NSIS installer with broadcast file associations
-          - **Linux**: DEB, RPM, and AppImage for universal compatibility
-          - **macOS**: Professional DMG with native bundle and code signing
+            ### 📦 Professional Packages
+            - **Windows**: Professional NSIS installer with broadcast file associations
+            - **Linux**: DEB, RPM, and AppImage for universal compatibility
+            - **macOS**: Professional DMG with native bundle and code signing
 
-          ### 🔧 Installation Instructions
-          See [Installation Guide](https://github.com/eti-analyzer/desktop/wiki/Installation) for detailed platform-specific instructions.
+            ### 🔧 Installation Instructions
+            See [Installation Guide](https://github.com/eti-analyzer/desktop/wiki/Installation) for detailed platform-specific instructions.
 
-          ### 📋 System Requirements
-          - **Windows**: Windows 10/11 (x64)
-          - **Linux**: Ubuntu 20.04+ / Fedora 35+ / equivalent
-          - **macOS**: macOS 10.15+ (Intel/Apple Silicon)
+            ### 📋 System Requirements
+            - **Windows**: Windows 10/11 (x64)
+            - **Linux**: Ubuntu 20.04+ / Fedora 35+ / equivalent
+            - **macOS**: macOS 10.15+ (Intel/Apple Silicon)
 
-          ### 🎯 Professional Support
-          For broadcast engineering support: support@eti-analyzer.org
-        files: professional-packages/**/*
-        draft: false
-        prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            ### 🎯 Professional Support
+            For broadcast engineering support: support@eti-analyzer.org
+          files: professional-packages/**/*
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

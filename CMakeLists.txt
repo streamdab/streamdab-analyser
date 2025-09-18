@@ -26,7 +26,7 @@ if(WIN32)
     # Enable static linking for Windows distribution
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 elseif(APPLE)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "macOS deployment target")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "macOS deployment target")
     set(CMAKE_MACOSX_BUNDLE ON)
 endif()
 

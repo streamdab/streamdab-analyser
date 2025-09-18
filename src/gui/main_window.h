@@ -117,6 +117,13 @@ public:
      */
     int getUpdateRate() const { return m_updateRate; }
 
+    // Public constants for testing access
+    static constexpr int DEFAULT_WINDOW_WIDTH = 1200;
+    static constexpr int DEFAULT_WINDOW_HEIGHT = 800;
+    static constexpr int TARGET_FPS = 60;
+    static constexpr int UPDATE_INTERVAL_MS = 1000 / TARGET_FPS;  // ~16.67ms for 60 FPS
+    static constexpr int STATUS_MESSAGE_TIMEOUT = 5000;  // 5 seconds
+
 public slots:
     /**
      * @brief Open ETI file for analysis
@@ -378,11 +385,4 @@ private:
     // Dialog instances
     SettingsDialog *m_settingsDialog;
     AboutDialog *m_aboutDialog;
-
-    // Constants
-    static constexpr int DEFAULT_WINDOW_WIDTH = 1200;
-    static constexpr int DEFAULT_WINDOW_HEIGHT = 800;
-    static constexpr int TARGET_FPS = 60;
-    static constexpr int UPDATE_INTERVAL_MS = 1000 / TARGET_FPS;  // ~16.67ms for 60 FPS
-    static constexpr int STATUS_MESSAGE_TIMEOUT = 5000;  // 5 seconds
 };
