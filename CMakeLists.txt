@@ -187,7 +187,7 @@ target_link_libraries(${PROJECT_NAME}
     Qt6::Network
     ${pkgcfg_lib_FAAD2_faad}
     ${pkgcfg_lib_FFTW3_fftw3}
-    /opt/homebrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.0.8.0.dylib
+    yaml-cpp::yaml-cpp
 )
 
 # Platform-specific linking
