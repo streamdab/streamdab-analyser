@@ -22,7 +22,7 @@
 #include "about_dialog.h"
 #include "core/eti_processor.h"
 #include "utils/config_manager.h"
-#include "utils/logger_compat.h"
+#include "utils/logger.h"
 
 #include <QApplication>
 #include <QScreen>

@@ -342,6 +342,18 @@ private:
      */
     bool validateState() const;
 
+    /**
+     * @brief Update frame rate display
+     */
+    void updateFrameRateDisplay();
+
+    /**
+     * @brief Add debug message to debug log
+     * @param component Component name
+     * @param message Debug message
+     */
+    void addDebugMessage(const QString& component, const QString& message);
+
     // Core components
     EtiProcessor *m_etiProcessor;
     DabDecoder *m_dabDecoder;

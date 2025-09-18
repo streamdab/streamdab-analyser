@@ -11,7 +11,7 @@
  */
 
 #include <QtTest/QtTest>
-#include <QApplication>
+#include <QCoreApplication>
 #include <QDir>
 #include <QStandardPaths>
 #include <QLoggingCategory>
@@ -171,8 +171,8 @@ private:
  */
 int main(int argc, char *argv[])
 {
-    // Create Qt application for GUI tests
-    QApplication app(argc, argv);
+    // Create Qt Core application for unit tests (no GUI needed)
+    QCoreApplication app(argc, argv);
     
     // Set application properties for testing
     app.setApplicationName("ETI Stream Analyzer Tests");

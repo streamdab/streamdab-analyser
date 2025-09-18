@@ -185,9 +185,9 @@ target_link_libraries(${PROJECT_NAME}
     Qt6::Widgets
     Qt6::Gui
     Qt6::Network
-    ${FAAD2_LIBRARIES}
-    ${FFTW3_LIBRARIES}
-    yaml-cpp
+    ${pkgcfg_lib_FAAD2_faad}
+    ${pkgcfg_lib_FFTW3_fftw3}
+    /opt/homebrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.0.8.0.dylib
 )
 
 # Platform-specific linking
