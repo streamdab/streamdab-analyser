@@ -4,6 +4,15 @@
 /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/tdd-refactor.dir
 /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/tdd-cycle.dir
 /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/run_all_tests.dir
+/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/package-windows.dir
+/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/package-linux-deb.dir
+/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/package-linux-rpm.dir
+/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/package-linux-appimage.dir
+/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/package-macos.dir
+/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/package-source.dir
+/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/package-all.dir
+/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/validate-packages.dir
+/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/prepare-deployment.dir
 /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/package.dir
 /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/package_source.dir
 /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/test.dir

@@ -155,15 +155,15 @@ pkg_check_modules(FFTW3 REQUIRED fftw3)
 find_package(yaml-cpp REQUIRED)
 # Link dependencies to unit tests
 target_link_libraries(eti_analyzer_unit_tests
-    ${FAAD2_LIBRARIES}
-    ${FFTW3_LIBRARIES}
-    yaml-cpp
+    ${pkgcfg_lib_FAAD2_faad}
+    ${pkgcfg_lib_FFTW3_fftw3}
+    /opt/homebrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.0.8.0.dylib
 )
 # Link dependencies to GUI tests
 target_link_libraries(eti_analyzer_gui_tests
-    ${FAAD2_LIBRARIES}
-    ${FFTW3_LIBRARIES}
-    yaml-cpp
+    ${pkgcfg_lib_FAAD2_faad}
+    ${pkgcfg_lib_FFTW3_fftw3}
+    /opt/homebrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.0.8.0.dylib
 )
 # Include directories for dependencies
 target_include_directories(eti_analyzer_unit_tests PRIVATE

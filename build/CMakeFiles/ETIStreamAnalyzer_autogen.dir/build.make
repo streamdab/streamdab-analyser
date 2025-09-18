@@ -72,7 +72,7 @@ ETIStreamAnalyzer_autogen/timestamp: /opt/homebrew/share/qt/libexec/moc
 ETIStreamAnalyzer_autogen/timestamp: /opt/homebrew/share/qt/libexec/uic
 ETIStreamAnalyzer_autogen/timestamp: CMakeFiles/ETIStreamAnalyzer_autogen.dir/compiler_depend.ts
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Automatic MOC and UIC for target ETIStreamAnalyzer"
-	/opt/homebrew/bin/cmake -E cmake_autogen /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/ETIStreamAnalyzer_autogen.dir/AutogenInfo.json Debug
+	/opt/homebrew/bin/cmake -E cmake_autogen /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/ETIStreamAnalyzer_autogen.dir/AutogenInfo.json Release
 	/opt/homebrew/bin/cmake -E touch /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/timestamp
 
 CMakeFiles/ETIStreamAnalyzer_autogen.dir/codegen:

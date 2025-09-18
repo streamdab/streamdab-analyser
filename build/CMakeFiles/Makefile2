@@ -83,6 +83,15 @@ clean: CMakeFiles/tdd-green.dir/clean
 clean: CMakeFiles/tdd-refactor.dir/clean
 clean: CMakeFiles/tdd-cycle.dir/clean
 clean: CMakeFiles/run_all_tests.dir/clean
+clean: CMakeFiles/package-windows.dir/clean
+clean: CMakeFiles/package-linux-deb.dir/clean
+clean: CMakeFiles/package-linux-rpm.dir/clean
+clean: CMakeFiles/package-linux-appimage.dir/clean
+clean: CMakeFiles/package-macos.dir/clean
+clean: CMakeFiles/package-source.dir/clean
+clean: CMakeFiles/package-all.dir/clean
+clean: CMakeFiles/validate-packages.dir/clean
+clean: CMakeFiles/prepare-deployment.dir/clean
 clean: CMakeFiles/ETIStreamAnalyzer_autogen_timestamp_deps.dir/clean
 clean: CMakeFiles/ETIStreamAnalyzer_autogen.dir/clean
 clean: tests/clean
@@ -161,7 +170,7 @@ CMakeFiles/ETIStreamAnalyzer.dir/clean:
 CMakeFiles/tdd-red.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-red.dir/build.make CMakeFiles/tdd-red.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-red.dir/build.make CMakeFiles/tdd-red.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=77 "Built target tdd-red"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=84 "Built target tdd-red"
 .PHONY : CMakeFiles/tdd-red.dir/all
 
 # Build rule for subdir invocation for target.
@@ -178,7 +187,7 @@ tdd-red: CMakeFiles/tdd-red.dir/rule
 # codegen rule for target.
 CMakeFiles/tdd-red.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-red.dir/build.make CMakeFiles/tdd-red.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=77 "Finished codegen for target tdd-red"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=84 "Finished codegen for target tdd-red"
 .PHONY : CMakeFiles/tdd-red.dir/codegen
 
 # clean rule for target.
@@ -193,7 +202,7 @@ CMakeFiles/tdd-red.dir/clean:
 CMakeFiles/tdd-green.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-green.dir/build.make CMakeFiles/tdd-green.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-green.dir/build.make CMakeFiles/tdd-green.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=76 "Built target tdd-green"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=83 "Built target tdd-green"
 .PHONY : CMakeFiles/tdd-green.dir/all
 
 # Build rule for subdir invocation for target.
@@ -210,7 +219,7 @@ tdd-green: CMakeFiles/tdd-green.dir/rule
 # codegen rule for target.
 CMakeFiles/tdd-green.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-green.dir/build.make CMakeFiles/tdd-green.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=76 "Finished codegen for target tdd-green"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=83 "Finished codegen for target tdd-green"
 .PHONY : CMakeFiles/tdd-green.dir/codegen
 
 # clean rule for target.
@@ -225,7 +234,7 @@ CMakeFiles/tdd-green.dir/clean:
 CMakeFiles/tdd-refactor.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-refactor.dir/build.make CMakeFiles/tdd-refactor.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-refactor.dir/build.make CMakeFiles/tdd-refactor.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=78 "Built target tdd-refactor"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=85 "Built target tdd-refactor"
 .PHONY : CMakeFiles/tdd-refactor.dir/all
 
 # Build rule for subdir invocation for target.
@@ -242,7 +251,7 @@ tdd-refactor: CMakeFiles/tdd-refactor.dir/rule
 # codegen rule for target.
 CMakeFiles/tdd-refactor.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-refactor.dir/build.make CMakeFiles/tdd-refactor.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=78 "Finished codegen for target tdd-refactor"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=85 "Finished codegen for target tdd-refactor"
 .PHONY : CMakeFiles/tdd-refactor.dir/codegen
 
 # clean rule for target.
@@ -259,7 +268,7 @@ CMakeFiles/tdd-cycle.dir/all: CMakeFiles/tdd-green.dir/all
 CMakeFiles/tdd-cycle.dir/all: CMakeFiles/tdd-refactor.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-cycle.dir/build.make CMakeFiles/tdd-cycle.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-cycle.dir/build.make CMakeFiles/tdd-cycle.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=75 "Built target tdd-cycle"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=82 "Built target tdd-cycle"
 .PHONY : CMakeFiles/tdd-cycle.dir/all
 
 # Build rule for subdir invocation for target.
@@ -278,7 +287,7 @@ CMakeFiles/tdd-cycle.dir/codegen: CMakeFiles/tdd-red.dir/all
 CMakeFiles/tdd-cycle.dir/codegen: CMakeFiles/tdd-green.dir/all
 CMakeFiles/tdd-cycle.dir/codegen: CMakeFiles/tdd-refactor.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tdd-cycle.dir/build.make CMakeFiles/tdd-cycle.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=75 "Finished codegen for target tdd-cycle"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=82 "Finished codegen for target tdd-cycle"
 .PHONY : CMakeFiles/tdd-cycle.dir/codegen
 
 # clean rule for target.
@@ -293,7 +302,7 @@ CMakeFiles/tdd-cycle.dir/clean:
 CMakeFiles/run_all_tests.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/run_all_tests.dir/build.make CMakeFiles/run_all_tests.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/run_all_tests.dir/build.make CMakeFiles/run_all_tests.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=70 "Built target run_all_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=77 "Built target run_all_tests"
 .PHONY : CMakeFiles/run_all_tests.dir/all
 
 # Build rule for subdir invocation for target.
@@ -310,13 +319,305 @@ run_all_tests: CMakeFiles/run_all_tests.dir/rule
 # codegen rule for target.
 CMakeFiles/run_all_tests.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/run_all_tests.dir/build.make CMakeFiles/run_all_tests.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=70 "Finished codegen for target run_all_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=77 "Finished codegen for target run_all_tests"
 .PHONY : CMakeFiles/run_all_tests.dir/codegen
 
 # clean rule for target.
 CMakeFiles/run_all_tests.dir/clean:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/run_all_tests.dir/build.make CMakeFiles/run_all_tests.dir/clean
 .PHONY : CMakeFiles/run_all_tests.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/package-windows.dir
+
+# All Build rule for target.
+CMakeFiles/package-windows.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-windows.dir/build.make CMakeFiles/package-windows.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-windows.dir/build.make CMakeFiles/package-windows.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=75 "Built target package-windows"
+.PHONY : CMakeFiles/package-windows.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/package-windows.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 1
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/package-windows.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 0
+.PHONY : CMakeFiles/package-windows.dir/rule
+
+# Convenience name for target.
+package-windows: CMakeFiles/package-windows.dir/rule
+.PHONY : package-windows
+
+# codegen rule for target.
+CMakeFiles/package-windows.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-windows.dir/build.make CMakeFiles/package-windows.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=75 "Finished codegen for target package-windows"
+.PHONY : CMakeFiles/package-windows.dir/codegen
+
+# clean rule for target.
+CMakeFiles/package-windows.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-windows.dir/build.make CMakeFiles/package-windows.dir/clean
+.PHONY : CMakeFiles/package-windows.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/package-linux-deb.dir
+
+# All Build rule for target.
+CMakeFiles/package-linux-deb.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-deb.dir/build.make CMakeFiles/package-linux-deb.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-deb.dir/build.make CMakeFiles/package-linux-deb.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=71 "Built target package-linux-deb"
+.PHONY : CMakeFiles/package-linux-deb.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/package-linux-deb.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 1
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/package-linux-deb.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 0
+.PHONY : CMakeFiles/package-linux-deb.dir/rule
+
+# Convenience name for target.
+package-linux-deb: CMakeFiles/package-linux-deb.dir/rule
+.PHONY : package-linux-deb
+
+# codegen rule for target.
+CMakeFiles/package-linux-deb.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-deb.dir/build.make CMakeFiles/package-linux-deb.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=71 "Finished codegen for target package-linux-deb"
+.PHONY : CMakeFiles/package-linux-deb.dir/codegen
+
+# clean rule for target.
+CMakeFiles/package-linux-deb.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-deb.dir/build.make CMakeFiles/package-linux-deb.dir/clean
+.PHONY : CMakeFiles/package-linux-deb.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/package-linux-rpm.dir
+
+# All Build rule for target.
+CMakeFiles/package-linux-rpm.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-rpm.dir/build.make CMakeFiles/package-linux-rpm.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-rpm.dir/build.make CMakeFiles/package-linux-rpm.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=72 "Built target package-linux-rpm"
+.PHONY : CMakeFiles/package-linux-rpm.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/package-linux-rpm.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 1
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/package-linux-rpm.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 0
+.PHONY : CMakeFiles/package-linux-rpm.dir/rule
+
+# Convenience name for target.
+package-linux-rpm: CMakeFiles/package-linux-rpm.dir/rule
+.PHONY : package-linux-rpm
+
+# codegen rule for target.
+CMakeFiles/package-linux-rpm.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-rpm.dir/build.make CMakeFiles/package-linux-rpm.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=72 "Finished codegen for target package-linux-rpm"
+.PHONY : CMakeFiles/package-linux-rpm.dir/codegen
+
+# clean rule for target.
+CMakeFiles/package-linux-rpm.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-rpm.dir/build.make CMakeFiles/package-linux-rpm.dir/clean
+.PHONY : CMakeFiles/package-linux-rpm.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/package-linux-appimage.dir
+
+# All Build rule for target.
+CMakeFiles/package-linux-appimage.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-appimage.dir/build.make CMakeFiles/package-linux-appimage.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-appimage.dir/build.make CMakeFiles/package-linux-appimage.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=70 "Built target package-linux-appimage"
+.PHONY : CMakeFiles/package-linux-appimage.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/package-linux-appimage.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 1
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/package-linux-appimage.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 0
+.PHONY : CMakeFiles/package-linux-appimage.dir/rule
+
+# Convenience name for target.
+package-linux-appimage: CMakeFiles/package-linux-appimage.dir/rule
+.PHONY : package-linux-appimage
+
+# codegen rule for target.
+CMakeFiles/package-linux-appimage.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-appimage.dir/build.make CMakeFiles/package-linux-appimage.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=70 "Finished codegen for target package-linux-appimage"
+.PHONY : CMakeFiles/package-linux-appimage.dir/codegen
+
+# clean rule for target.
+CMakeFiles/package-linux-appimage.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-appimage.dir/build.make CMakeFiles/package-linux-appimage.dir/clean
+.PHONY : CMakeFiles/package-linux-appimage.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/package-macos.dir
+
+# All Build rule for target.
+CMakeFiles/package-macos.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-macos.dir/build.make CMakeFiles/package-macos.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-macos.dir/build.make CMakeFiles/package-macos.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=73 "Built target package-macos"
+.PHONY : CMakeFiles/package-macos.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/package-macos.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 1
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/package-macos.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 0
+.PHONY : CMakeFiles/package-macos.dir/rule
+
+# Convenience name for target.
+package-macos: CMakeFiles/package-macos.dir/rule
+.PHONY : package-macos
+
+# codegen rule for target.
+CMakeFiles/package-macos.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-macos.dir/build.make CMakeFiles/package-macos.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=73 "Finished codegen for target package-macos"
+.PHONY : CMakeFiles/package-macos.dir/codegen
+
+# clean rule for target.
+CMakeFiles/package-macos.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-macos.dir/build.make CMakeFiles/package-macos.dir/clean
+.PHONY : CMakeFiles/package-macos.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/package-source.dir
+
+# All Build rule for target.
+CMakeFiles/package-source.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-source.dir/build.make CMakeFiles/package-source.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-source.dir/build.make CMakeFiles/package-source.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=74 "Built target package-source"
+.PHONY : CMakeFiles/package-source.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/package-source.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 1
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/package-source.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 0
+.PHONY : CMakeFiles/package-source.dir/rule
+
+# Convenience name for target.
+package-source: CMakeFiles/package-source.dir/rule
+.PHONY : package-source
+
+# codegen rule for target.
+CMakeFiles/package-source.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-source.dir/build.make CMakeFiles/package-source.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=74 "Finished codegen for target package-source"
+.PHONY : CMakeFiles/package-source.dir/codegen
+
+# clean rule for target.
+CMakeFiles/package-source.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-source.dir/build.make CMakeFiles/package-source.dir/clean
+.PHONY : CMakeFiles/package-source.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/package-all.dir
+
+# All Build rule for target.
+CMakeFiles/package-all.dir/all: CMakeFiles/package-macos.dir/all
+CMakeFiles/package-all.dir/all: CMakeFiles/package-source.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-all.dir/build.make CMakeFiles/package-all.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-all.dir/build.make CMakeFiles/package-all.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num= "Built target package-all"
+.PHONY : CMakeFiles/package-all.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/package-all.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 2
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/package-all.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 0
+.PHONY : CMakeFiles/package-all.dir/rule
+
+# Convenience name for target.
+package-all: CMakeFiles/package-all.dir/rule
+.PHONY : package-all
+
+# codegen rule for target.
+CMakeFiles/package-all.dir/codegen: CMakeFiles/package-macos.dir/all
+CMakeFiles/package-all.dir/codegen: CMakeFiles/package-source.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-all.dir/build.make CMakeFiles/package-all.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num= "Finished codegen for target package-all"
+.PHONY : CMakeFiles/package-all.dir/codegen
+
+# clean rule for target.
+CMakeFiles/package-all.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-all.dir/build.make CMakeFiles/package-all.dir/clean
+.PHONY : CMakeFiles/package-all.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/validate-packages.dir
+
+# All Build rule for target.
+CMakeFiles/validate-packages.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/validate-packages.dir/build.make CMakeFiles/validate-packages.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/validate-packages.dir/build.make CMakeFiles/validate-packages.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=88 "Built target validate-packages"
+.PHONY : CMakeFiles/validate-packages.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/validate-packages.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 1
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/validate-packages.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 0
+.PHONY : CMakeFiles/validate-packages.dir/rule
+
+# Convenience name for target.
+validate-packages: CMakeFiles/validate-packages.dir/rule
+.PHONY : validate-packages
+
+# codegen rule for target.
+CMakeFiles/validate-packages.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/validate-packages.dir/build.make CMakeFiles/validate-packages.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=88 "Finished codegen for target validate-packages"
+.PHONY : CMakeFiles/validate-packages.dir/codegen
+
+# clean rule for target.
+CMakeFiles/validate-packages.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/validate-packages.dir/build.make CMakeFiles/validate-packages.dir/clean
+.PHONY : CMakeFiles/validate-packages.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/prepare-deployment.dir
+
+# All Build rule for target.
+CMakeFiles/prepare-deployment.dir/all: CMakeFiles/package-all.dir/all
+CMakeFiles/prepare-deployment.dir/all: CMakeFiles/validate-packages.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/prepare-deployment.dir/build.make CMakeFiles/prepare-deployment.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/prepare-deployment.dir/build.make CMakeFiles/prepare-deployment.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=76 "Built target prepare-deployment"
+.PHONY : CMakeFiles/prepare-deployment.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/prepare-deployment.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 4
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/prepare-deployment.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles 0
+.PHONY : CMakeFiles/prepare-deployment.dir/rule
+
+# Convenience name for target.
+prepare-deployment: CMakeFiles/prepare-deployment.dir/rule
+.PHONY : prepare-deployment
+
+# codegen rule for target.
+CMakeFiles/prepare-deployment.dir/codegen: CMakeFiles/package-all.dir/all
+CMakeFiles/prepare-deployment.dir/codegen: CMakeFiles/validate-packages.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/prepare-deployment.dir/build.make CMakeFiles/prepare-deployment.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=76 "Finished codegen for target prepare-deployment"
+.PHONY : CMakeFiles/prepare-deployment.dir/codegen
+
+# clean rule for target.
+CMakeFiles/prepare-deployment.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/prepare-deployment.dir/build.make CMakeFiles/prepare-deployment.dir/clean
+.PHONY : CMakeFiles/prepare-deployment.dir/clean
 
 #=============================================================================
 # Target rules for target CMakeFiles/ETIStreamAnalyzer_autogen_timestamp_deps.dir
@@ -456,7 +757,7 @@ tests/CMakeFiles/tdd_red_phase.dir/all: tests/CMakeFiles/eti_analyzer_unit_tests
 tests/CMakeFiles/tdd_red_phase.dir/all: tests/CMakeFiles/eti_analyzer_gui_tests.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/tdd_red_phase.dir/build.make tests/CMakeFiles/tdd_red_phase.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/tdd_red_phase.dir/build.make tests/CMakeFiles/tdd_red_phase.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=80 "Built target tdd_red_phase"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=87 "Built target tdd_red_phase"
 .PHONY : tests/CMakeFiles/tdd_red_phase.dir/all
 
 # Build rule for subdir invocation for target.
@@ -474,7 +775,7 @@ tdd_red_phase: tests/CMakeFiles/tdd_red_phase.dir/rule
 tests/CMakeFiles/tdd_red_phase.dir/codegen: tests/CMakeFiles/eti_analyzer_unit_tests.dir/all
 tests/CMakeFiles/tdd_red_phase.dir/codegen: tests/CMakeFiles/eti_analyzer_gui_tests.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/tdd_red_phase.dir/build.make tests/CMakeFiles/tdd_red_phase.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=80 "Finished codegen for target tdd_red_phase"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=87 "Finished codegen for target tdd_red_phase"
 .PHONY : tests/CMakeFiles/tdd_red_phase.dir/codegen
 
 # clean rule for target.
@@ -490,7 +791,7 @@ tests/CMakeFiles/tdd_green_phase.dir/all: tests/CMakeFiles/eti_analyzer_unit_tes
 tests/CMakeFiles/tdd_green_phase.dir/all: tests/CMakeFiles/eti_analyzer_gui_tests.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/tdd_green_phase.dir/build.make tests/CMakeFiles/tdd_green_phase.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/tdd_green_phase.dir/build.make tests/CMakeFiles/tdd_green_phase.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=79 "Built target tdd_green_phase"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=86 "Built target tdd_green_phase"
 .PHONY : tests/CMakeFiles/tdd_green_phase.dir/all
 
 # Build rule for subdir invocation for target.
@@ -508,7 +809,7 @@ tdd_green_phase: tests/CMakeFiles/tdd_green_phase.dir/rule
 tests/CMakeFiles/tdd_green_phase.dir/codegen: tests/CMakeFiles/eti_analyzer_unit_tests.dir/all
 tests/CMakeFiles/tdd_green_phase.dir/codegen: tests/CMakeFiles/eti_analyzer_gui_tests.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/tdd_green_phase.dir/build.make tests/CMakeFiles/tdd_green_phase.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=79 "Finished codegen for target tdd_green_phase"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=86 "Finished codegen for target tdd_green_phase"
 .PHONY : tests/CMakeFiles/tdd_green_phase.dir/codegen
 
 # clean rule for target.
@@ -524,7 +825,7 @@ tests/CMakeFiles/run_tests.dir/all: tests/CMakeFiles/eti_analyzer_unit_tests.dir
 tests/CMakeFiles/run_tests.dir/all: tests/CMakeFiles/eti_analyzer_gui_tests.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_tests.dir/build.make tests/CMakeFiles/run_tests.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_tests.dir/build.make tests/CMakeFiles/run_tests.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=72 "Built target run_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=79 "Built target run_tests"
 .PHONY : tests/CMakeFiles/run_tests.dir/all
 
 # Build rule for subdir invocation for target.
@@ -542,7 +843,7 @@ run_tests: tests/CMakeFiles/run_tests.dir/rule
 tests/CMakeFiles/run_tests.dir/codegen: tests/CMakeFiles/eti_analyzer_unit_tests.dir/all
 tests/CMakeFiles/run_tests.dir/codegen: tests/CMakeFiles/eti_analyzer_gui_tests.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_tests.dir/build.make tests/CMakeFiles/run_tests.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=72 "Finished codegen for target run_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=79 "Finished codegen for target run_tests"
 .PHONY : tests/CMakeFiles/run_tests.dir/codegen
 
 # clean rule for target.
@@ -558,7 +859,7 @@ tests/CMakeFiles/run_tests_quiet.dir/all: tests/CMakeFiles/eti_analyzer_unit_tes
 tests/CMakeFiles/run_tests_quiet.dir/all: tests/CMakeFiles/eti_analyzer_gui_tests.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_tests_quiet.dir/build.make tests/CMakeFiles/run_tests_quiet.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_tests_quiet.dir/build.make tests/CMakeFiles/run_tests_quiet.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=73 "Built target run_tests_quiet"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=80 "Built target run_tests_quiet"
 .PHONY : tests/CMakeFiles/run_tests_quiet.dir/all
 
 # Build rule for subdir invocation for target.
@@ -576,7 +877,7 @@ run_tests_quiet: tests/CMakeFiles/run_tests_quiet.dir/rule
 tests/CMakeFiles/run_tests_quiet.dir/codegen: tests/CMakeFiles/eti_analyzer_unit_tests.dir/all
 tests/CMakeFiles/run_tests_quiet.dir/codegen: tests/CMakeFiles/eti_analyzer_gui_tests.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_tests_quiet.dir/build.make tests/CMakeFiles/run_tests_quiet.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=73 "Finished codegen for target run_tests_quiet"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=80 "Finished codegen for target run_tests_quiet"
 .PHONY : tests/CMakeFiles/run_tests_quiet.dir/codegen
 
 # clean rule for target.
@@ -591,7 +892,7 @@ tests/CMakeFiles/run_tests_quiet.dir/clean:
 tests/CMakeFiles/run_unit_tests_only.dir/all: tests/CMakeFiles/eti_analyzer_unit_tests.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_unit_tests_only.dir/build.make tests/CMakeFiles/run_unit_tests_only.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_unit_tests_only.dir/build.make tests/CMakeFiles/run_unit_tests_only.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=74 "Built target run_unit_tests_only"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=81 "Built target run_unit_tests_only"
 .PHONY : tests/CMakeFiles/run_unit_tests_only.dir/all
 
 # Build rule for subdir invocation for target.
@@ -608,7 +909,7 @@ run_unit_tests_only: tests/CMakeFiles/run_unit_tests_only.dir/rule
 # codegen rule for target.
 tests/CMakeFiles/run_unit_tests_only.dir/codegen: tests/CMakeFiles/eti_analyzer_unit_tests.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_unit_tests_only.dir/build.make tests/CMakeFiles/run_unit_tests_only.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=74 "Finished codegen for target run_unit_tests_only"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=81 "Finished codegen for target run_unit_tests_only"
 .PHONY : tests/CMakeFiles/run_unit_tests_only.dir/codegen
 
 # clean rule for target.
@@ -623,7 +924,7 @@ tests/CMakeFiles/run_unit_tests_only.dir/clean:
 tests/CMakeFiles/run_gui_tests_only.dir/all: tests/CMakeFiles/eti_analyzer_gui_tests.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_gui_tests_only.dir/build.make tests/CMakeFiles/run_gui_tests_only.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_gui_tests_only.dir/build.make tests/CMakeFiles/run_gui_tests_only.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=71 "Built target run_gui_tests_only"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=78 "Built target run_gui_tests_only"
 .PHONY : tests/CMakeFiles/run_gui_tests_only.dir/all
 
 # Build rule for subdir invocation for target.
@@ -640,7 +941,7 @@ run_gui_tests_only: tests/CMakeFiles/run_gui_tests_only.dir/rule
 # codegen rule for target.
 tests/CMakeFiles/run_gui_tests_only.dir/codegen: tests/CMakeFiles/eti_analyzer_gui_tests.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/run_gui_tests_only.dir/build.make tests/CMakeFiles/run_gui_tests_only.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=71 "Finished codegen for target run_gui_tests_only"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=78 "Finished codegen for target run_gui_tests_only"
 .PHONY : tests/CMakeFiles/run_gui_tests_only.dir/codegen
 
 # clean rule for target.

@@ -11,7 +11,7 @@
  */
 
 #include "main_window_alert_integration.h"
-#include "utils/logger_compat.h"
+#include "utils/logger.h"
 
 #include <QApplication>
 #include <QMessageBox>

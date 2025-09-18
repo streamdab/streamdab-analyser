@@ -11,7 +11,7 @@
 #include "core/eti_processor.h"
 #include "core/ensemble_manager.h"
 #include "core/service_manager.h"
-#include "utils/logger_compat.h"
+#include "utils/logger.h"
 
 #include <QApplication>
 #include <QDateTime>
@@ -999,26 +999,28 @@ void ServiceBrowser::generateTestServices()
     m_ensembles[0x5678] = "Commercial Radio";
     m_ensembles[0x9ABC] = "Local DAB Network";
     
-    // Add test services
-    QList<ServiceInfo> testServices = {
-        // BBC National DAB
-        {0x12340001, "BBC Radio 1", "BBC National DAB", ServiceType::DABPlus, 128, ServiceQuality::Excellent, "AAC", "English", "Popular music and entertainment", true, 0},
-        {0x12340002, "BBC Radio 2", "BBC National DAB", ServiceType::DABPlus, 128, ServiceQuality::Excellent, "AAC", "English", "Popular music and culture", true, 0},
-        {0x12340003, "BBC Radio 3", "BBC National DAB", ServiceType::DAB, 192, ServiceQuality::Good, "MP2", "English", "Classical music and arts", true, 0},
-        {0x12340004, "BBC Radio 4", "BBC National DAB", ServiceType::DABPlus, 96, ServiceQuality::Excellent, "AAC", "English", "News, drama and documentaries", true, 0},
-        {0x12340005, "BBC 6 Music", "BBC National DAB", ServiceType::DABPlus, 128, ServiceQuality::Good, "AAC", "English", "Alternative and indie music", true, 0},
-        
-        // Commercial Radio
-        {0x56780001, "Heart FM", "Commercial Radio", ServiceType::DABPlus, 128, ServiceQuality::Good, "AAC", "English", "Hit music station", true, 0},
-        {0x56780002, "Capital FM", "Commercial Radio", ServiceType::DABPlus, 128, ServiceQuality::Fair, "AAC", "English", "Contemporary hit radio", true, 0},
-        {0x56780003, "Classic FM", "Commercial Radio", ServiceType::DAB, 160, ServiceQuality::Excellent, "MP2", "English", "Classical music", true, 0},
-        {0x56780004, "LBC", "Commercial Radio", ServiceType::DABPlus, 64, ServiceQuality::Good, "AAC", "English", "Talk radio", false, 0},
-        
-        // Local DAB Network
-        {0x9ABC0001, "Local News", "Local DAB Network", ServiceType::DABPlus, 64, ServiceQuality::Fair, "AAC", "English", "Local news and information", true, 0},
-        {0x9ABC0002, "Community Radio", "Local DAB Network", ServiceType::DAB, 96, ServiceQuality::Poor, "MP2", "English", "Community programming", true, 0},
-        {0x9ABC0003, "Traffic Info", "Local DAB Network", ServiceType::Data, 32, ServiceQuality::Good, "Data", "English", "Traffic and travel information", true, 0}
-    };
+    // Add test services using individual ServiceInfo objects
+    QList<ServiceInfo> testServices;
+    
+    // BBC National DAB
+    ServiceInfo bbc1; bbc1.serviceId = 0x12340001; bbc1.serviceName = "BBC Radio 1"; bbc1.ensembleName = "BBC National DAB"; bbc1.serviceType = ServiceType::DABPlus; bbc1.bitRate = 128; bbc1.quality = ServiceQuality::Excellent; bbc1.audioFormat = "AAC"; bbc1.language = "English"; bbc1.description = "Popular music and entertainment"; bbc1.isActive = true; bbc1.lastUpdate = 0;
+    testServices.append(bbc1);
+    
+    ServiceInfo bbc2; bbc2.serviceId = 0x12340002; bbc2.serviceName = "BBC Radio 2"; bbc2.ensembleName = "BBC National DAB"; bbc2.serviceType = ServiceType::DABPlus; bbc2.bitRate = 128; bbc2.quality = ServiceQuality::Excellent; bbc2.audioFormat = "AAC"; bbc2.language = "English"; bbc2.description = "Popular music and culture"; bbc2.isActive = true; bbc2.lastUpdate = 0;
+    testServices.append(bbc2);
+    
+    ServiceInfo bbc3; bbc3.serviceId = 0x12340003; bbc3.serviceName = "BBC Radio 3"; bbc3.ensembleName = "BBC National DAB"; bbc3.serviceType = ServiceType::DAB; bbc3.bitRate = 192; bbc3.quality = ServiceQuality::Good; bbc3.audioFormat = "MP2"; bbc3.language = "English"; bbc3.description = "Classical music and arts"; bbc3.isActive = true; bbc3.lastUpdate = 0;
+    testServices.append(bbc3);
+    
+    ServiceInfo bbc4; bbc4.serviceId = 0x12340004; bbc4.serviceName = "BBC Radio 4"; bbc4.ensembleName = "BBC National DAB"; bbc4.serviceType = ServiceType::DABPlus; bbc4.bitRate = 96; bbc4.quality = ServiceQuality::Excellent; bbc4.audioFormat = "AAC"; bbc4.language = "English"; bbc4.description = "News, drama and documentaries"; bbc4.isActive = true; bbc4.lastUpdate = 0;
+    testServices.append(bbc4);
+    
+    ServiceInfo bbc6; bbc6.serviceId = 0x12340005; bbc6.serviceName = "BBC 6 Music"; bbc6.ensembleName = "BBC National DAB"; bbc6.serviceType = ServiceType::DABPlus; bbc6.bitRate = 128; bbc6.quality = ServiceQuality::Good; bbc6.audioFormat = "AAC"; bbc6.language = "English"; bbc6.description = "Alternative and indie music"; bbc6.isActive = true; bbc6.lastUpdate = 0;
+    testServices.append(bbc6);
+    
+    // Commercial Radio
+    ServiceInfo heart; heart.serviceId = 0x56780001; heart.serviceName = "Heart FM"; heart.ensembleName = "Commercial Radio"; heart.serviceType = ServiceType::DABPlus; heart.bitRate = 128; heart.quality = ServiceQuality::Good; heart.audioFormat = "AAC"; heart.language = "English"; heart.description = "Hit music station"; heart.isActive = true; heart.lastUpdate = 0;
+    testServices.append(heart);
     
     // Add services to hash
     for (const ServiceInfo& service : testServices) {

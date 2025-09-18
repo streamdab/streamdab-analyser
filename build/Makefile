@@ -270,6 +270,123 @@ run_all_tests/fast:
 .PHONY : run_all_tests/fast
 
 #=============================================================================
+# Target rules for targets named package-windows
+
+# Build rule for target.
+package-windows: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 package-windows
+.PHONY : package-windows
+
+# fast build rule for target.
+package-windows/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-windows.dir/build.make CMakeFiles/package-windows.dir/build
+.PHONY : package-windows/fast
+
+#=============================================================================
+# Target rules for targets named package-linux-deb
+
+# Build rule for target.
+package-linux-deb: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 package-linux-deb
+.PHONY : package-linux-deb
+
+# fast build rule for target.
+package-linux-deb/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-deb.dir/build.make CMakeFiles/package-linux-deb.dir/build
+.PHONY : package-linux-deb/fast
+
+#=============================================================================
+# Target rules for targets named package-linux-rpm
+
+# Build rule for target.
+package-linux-rpm: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 package-linux-rpm
+.PHONY : package-linux-rpm
+
+# fast build rule for target.
+package-linux-rpm/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-rpm.dir/build.make CMakeFiles/package-linux-rpm.dir/build
+.PHONY : package-linux-rpm/fast
+
+#=============================================================================
+# Target rules for targets named package-linux-appimage
+
+# Build rule for target.
+package-linux-appimage: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 package-linux-appimage
+.PHONY : package-linux-appimage
+
+# fast build rule for target.
+package-linux-appimage/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-linux-appimage.dir/build.make CMakeFiles/package-linux-appimage.dir/build
+.PHONY : package-linux-appimage/fast
+
+#=============================================================================
+# Target rules for targets named package-macos
+
+# Build rule for target.
+package-macos: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 package-macos
+.PHONY : package-macos
+
+# fast build rule for target.
+package-macos/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-macos.dir/build.make CMakeFiles/package-macos.dir/build
+.PHONY : package-macos/fast
+
+#=============================================================================
+# Target rules for targets named package-source
+
+# Build rule for target.
+package-source: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 package-source
+.PHONY : package-source
+
+# fast build rule for target.
+package-source/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-source.dir/build.make CMakeFiles/package-source.dir/build
+.PHONY : package-source/fast
+
+#=============================================================================
+# Target rules for targets named package-all
+
+# Build rule for target.
+package-all: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 package-all
+.PHONY : package-all
+
+# fast build rule for target.
+package-all/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package-all.dir/build.make CMakeFiles/package-all.dir/build
+.PHONY : package-all/fast
+
+#=============================================================================
+# Target rules for targets named validate-packages
+
+# Build rule for target.
+validate-packages: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 validate-packages
+.PHONY : validate-packages
+
+# fast build rule for target.
+validate-packages/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/validate-packages.dir/build.make CMakeFiles/validate-packages.dir/build
+.PHONY : validate-packages/fast
+
+#=============================================================================
+# Target rules for targets named prepare-deployment
+
+# Build rule for target.
+prepare-deployment: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 prepare-deployment
+.PHONY : prepare-deployment
+
+# fast build rule for target.
+prepare-deployment/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/prepare-deployment.dir/build.make CMakeFiles/prepare-deployment.dir/build
+.PHONY : prepare-deployment/fast
+
+#=============================================================================
 # Target rules for targets named ETIStreamAnalyzer_autogen_timestamp_deps
 
 # Build rule for target.
@@ -928,6 +1045,14 @@ help:
 	@echo "... eti_analyzer_gui_tests_autogen_timestamp_deps"
 	@echo "... eti_analyzer_unit_tests_autogen"
 	@echo "... eti_analyzer_unit_tests_autogen_timestamp_deps"
+	@echo "... package-all"
+	@echo "... package-linux-appimage"
+	@echo "... package-linux-deb"
+	@echo "... package-linux-rpm"
+	@echo "... package-macos"
+	@echo "... package-source"
+	@echo "... package-windows"
+	@echo "... prepare-deployment"
 	@echo "... run_all_tests"
 	@echo "... run_gui_tests_only"
 	@echo "... run_tests"
@@ -939,6 +1064,7 @@ help:
 	@echo "... tdd-refactor"
 	@echo "... tdd_green_phase"
 	@echo "... tdd_red_phase"
+	@echo "... validate-packages"
 	@echo "... ETIStreamAnalyzer"
 	@echo "... eti_analyzer_gui_tests"
 	@echo "... eti_analyzer_unit_tests"

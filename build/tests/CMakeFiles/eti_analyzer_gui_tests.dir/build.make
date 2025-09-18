@@ -483,6 +483,9 @@ tests/eti_analyzer_gui_tests.app/Contents/MacOS/eti_analyzer_gui_tests: /opt/hom
 tests/eti_analyzer_gui_tests.app/Contents/MacOS/eti_analyzer_gui_tests: /opt/homebrew/lib/QtWidgets.framework/Versions/A/QtWidgets
 tests/eti_analyzer_gui_tests.app/Contents/MacOS/eti_analyzer_gui_tests: /opt/homebrew/lib/QtGui.framework/Versions/A/QtGui
 tests/eti_analyzer_gui_tests.app/Contents/MacOS/eti_analyzer_gui_tests: /opt/homebrew/lib/QtNetwork.framework/Versions/A/QtNetwork
+tests/eti_analyzer_gui_tests.app/Contents/MacOS/eti_analyzer_gui_tests: /opt/homebrew/Cellar/faad2/2.11.2/lib/libfaad.dylib
+tests/eti_analyzer_gui_tests.app/Contents/MacOS/eti_analyzer_gui_tests: /opt/homebrew/Cellar/fftw/3.3.10_2/lib/libfftw3.dylib
+tests/eti_analyzer_gui_tests.app/Contents/MacOS/eti_analyzer_gui_tests: /opt/homebrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.0.8.0.dylib
 tests/eti_analyzer_gui_tests.app/Contents/MacOS/eti_analyzer_gui_tests: /opt/homebrew/lib/QtCore.framework/Versions/A/QtCore
 tests/eti_analyzer_gui_tests.app/Contents/MacOS/eti_analyzer_gui_tests: /opt/homebrew/lib/libgtest.a
 tests/eti_analyzer_gui_tests.app/Contents/MacOS/eti_analyzer_gui_tests: tests/CMakeFiles/eti_analyzer_gui_tests.dir/link.txt

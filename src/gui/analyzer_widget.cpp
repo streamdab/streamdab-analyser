@@ -11,7 +11,7 @@
 #include "constellation_widget.h"
 #include "core/eti_processor.h"
 #include "core/dab_decoder.h"
-#include "utils/logger_compat.h"
+#include "utils/logger.h"
 
 #include <QApplication>
 #include <QHeaderView>
@@ -398,7 +398,7 @@ void AnalyzerWidget::createDebugTab()
     m_debugLog = new QTextEdit(logGroup);
     m_debugLog->setReadOnly(true);
     m_debugLog->setFont(QFont("Courier", 8));
-    m_debugLog->setMaximumBlockCount(MAX_DEBUG_LINES);
+    m_debugLog->document()->setMaximumBlockCount(MAX_DEBUG_LINES);
     m_debugLog->setPlainText(tr("ETI Stream Analyzer Debug Log\n"
                                 "=====================================\n"
                                 "Ready for analysis...\n"));
@@ -815,7 +815,7 @@ void AnalyzerWidget::updateDetailedDisplay()
         
         QTreeWidgetItem *syncItem = new QTreeWidgetItem(frameItem);
         syncItem->setText(0, tr("Sync Pattern"));
-        syncItem->setText(1, "0x073AB6"));
+        syncItem->setText(1, "0x073AB6");
         syncItem->setText(2, tr("Frame synchronization"));
         
         m_frameTree->expandAll();

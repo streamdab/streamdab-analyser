@@ -8,7 +8,6 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/AvailabilityVersions.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/TargetConditionals.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/__xlocale.h \
-  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_assert.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_bounds.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_locale.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_locale_posix2008.h \
@@ -767,6 +766,7 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
   CMakeFiles/4.1.1/CMakeCXXCompiler.cmake \
   CMakeFiles/4.1.1/CMakeSystem.cmake \
   ETIStreamAnalyzer_autogen/moc_predefs.h \
+  /Users/seksan/workspace/streamdab-analyzer/cmake/packaging.cmake \
   /Users/seksan/workspace/streamdab-analyzer/resources/application.qrc \
   /Users/seksan/workspace/streamdab-analyzer/src/core/audio_decoder.cpp \
   /Users/seksan/workspace/streamdab-analyzer/src/core/audio_decoder.h \
@@ -802,6 +802,7 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
   /Users/seksan/workspace/streamdab-analyzer/src/utils/logger.h \
   /Users/seksan/workspace/streamdab-analyzer/src/utils/signal_processing.cpp \
   /Users/seksan/workspace/streamdab-analyzer/src/utils/signal_processing.h \
+  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QByteArray \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QCommandLineOption \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QCommandLineParser \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QDateTime \
@@ -809,16 +810,11 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QDebug \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QDir \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QFile \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QFileInfo \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QHash \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QJsonArray \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QJsonDocument \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QJsonObject \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QLibraryInfo \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QList \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QLoggingCategory \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QMutex \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QMutexLocker \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QObject \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QPointF \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QQueue \
@@ -862,8 +858,6 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qbytearraylist.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qbytearrayview.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcalendar.h \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcborcommon.h \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcborvalue.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qchar.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcommandlineoption.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcommandlineparser.h \
@@ -909,11 +903,6 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qitemselectionmodel.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qiterable.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qiterator.h \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsonarray.h \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsondocument.h \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsonobject.h \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsonparseerror.h \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsonvalue.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qlatin1stringview.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qlibraryinfo.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qline.h \
@@ -1000,7 +989,6 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qtypes.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qurl.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qutf8stringview.h \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/quuid.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qvariant.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qvarianthash.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qvarlengtharray.h \
@@ -1021,11 +1009,9 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QMouseEvent \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QMoveEvent \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QPaintEvent \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QPainter \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QPen \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QPixmap \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QResizeEvent \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QTextDocument \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QTransform \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QWheelEvent \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qaction.h \
@@ -1048,7 +1034,6 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qinputmethod.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qkeysequence.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qpaintdevice.h \
-  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qpainter.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qpalette.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qpen.h \
   /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qpicture.h \
@@ -1589,6 +1574,8 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
 
 /opt/homebrew/lib/cmake/Qt6Network/Qt6QTlsBackendOpenSSLPluginTargets.cmake:
 
+/opt/homebrew/lib/cmake/Qt6Network/Qt6QTlsBackendOpenSSLPluginConfig.cmake:
+
 /opt/homebrew/share/cmake/Modules/CMakeFindDependencyMacro.cmake:
 
 /opt/homebrew/lib/cmake/Qt6Network/Qt6QTlsBackendCertOnlyPluginTargets.cmake:
@@ -1847,6 +1834,8 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/cmake/Qt6/QtPublicCMakeHelpers.cmake:
 
+/opt/homebrew/Cellar/qt/6.9.2/lib/cmake/Qt6/QtPublicAppleHelpers.cmake:
+
 /opt/homebrew/Cellar/qt/6.9.2/lib/cmake/Qt6/QtPublicSbomDepHelpers.cmake:
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/cmake/Qt6/QtPublicAndroidHelpers.cmake:
@@ -2087,8 +2076,6 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qvariant.h:
 
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/quuid.h:
-
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qurl.h:
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qtypes.h:
@@ -2209,16 +2196,6 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qlatin1stringview.h:
 
-/opt/homebrew/Cellar/qt/6.9.2/lib/cmake/Qt6/QtPublicAppleHelpers.cmake:
-
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsonvalue.h:
-
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsonparseerror.h:
-
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsondocument.h:
-
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsonarray.h:
-
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qiterator.h:
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qitemselectionmodel.h:
@@ -2297,10 +2274,6 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qchar.h:
 
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcborvalue.h:
-
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcborcommon.h:
-
 /opt/homebrew/share/cmake/Modules/FindOpenGL.cmake:
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qbytearrayview.h:
@@ -2375,19 +2348,13 @@ ETIStreamAnalyzer_autogen/timestamp: /Applications/Xcode.app/Contents/Developer/
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QObject:
 
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QMutexLocker:
-
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QMutex:
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QLoggingCategory:
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QLibraryInfo:
 
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QJsonObject:
-
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QHash:
-
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QFileInfo:
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcommandlineoption.h:
 
@@ -3363,8 +3330,6 @@ ETIStreamAnalyzer_autogen/moc_predefs.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__math/min_max.h:
 
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QJsonArray:
-
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__math/inverse_trigonometric_functions.h:
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qtreeview.h:
@@ -3539,15 +3504,11 @@ ETIStreamAnalyzer_autogen/moc_predefs.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/find_if_not.h:
 
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QPainter:
-
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qutf8stringview.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__atomic/is_always_lock_free.h:
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/QVBoxLayout:
-
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QTextDocument:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/unwrap_range.h:
 
@@ -3817,8 +3778,6 @@ ETIStreamAnalyzer_autogen/moc_predefs.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/vector:
 
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsonobject.h:
-
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__locale_dir/support/apple.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__concepts/same_as.h:
@@ -3832,6 +3791,8 @@ ETIStreamAnalyzer_autogen/moc_predefs.h:
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/maybe_const.h:
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qexceptionhandling.h:
+
+/Users/seksan/workspace/streamdab-analyzer/cmake/packaging.cmake:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__numeric/iota.h:
 
@@ -4217,8 +4178,6 @@ CMakeFiles/4.1.1/CMakeCXXCompiler.cmake:
 
 /opt/homebrew/lib/cmake/Qt6CoreTools/Qt6CoreToolsConfig.cmake:
 
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qpainter.h:
-
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/is_aggregate.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__math/fdim.h:
@@ -4301,12 +4260,6 @@ CMakeFiles/4.1.1/CMakeCXXCompiler.cmake:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/cwchar:
 
-/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/next_permutation.h:
-
-/opt/homebrew/lib/cmake/Qt6Network/Qt6QTlsBackendOpenSSLPluginConfig.cmake:
-
-/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_assert.h:
-
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/remove_extent.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__memory/allocator_arg_t.h:
@@ -4373,8 +4326,6 @@ CMakeFiles/4.1.1/CMakeCXXCompiler.cmake:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__iterator/static_bounded_iter.h:
 
-/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QJsonDocument:
-
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/unordered_map:
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qiterable.h:
@@ -4402,6 +4353,8 @@ CMakeFiles/4.1.1/CMakeCXXCompiler.cmake:
 /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/__stdarg___gnuc_va_list.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/copy_n.h:
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/next_permutation.h:
 
 /opt/homebrew/share/cmake/Modules/Compiler/Clang.cmake:
 
@@ -4462,6 +4415,8 @@ CMakeFiles/4.1.1/CMakeCXXCompiler.cmake:
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/qos.h:
 
 /opt/homebrew/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/QMessageBox:
+
+/opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QByteArray:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__memory/shared_count.h:
 

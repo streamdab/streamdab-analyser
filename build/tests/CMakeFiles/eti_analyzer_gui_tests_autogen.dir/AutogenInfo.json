@@ -196,10 +196,11 @@
 	"MOC_COMPILATION_FILE" : "/Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_gui_tests_autogen/mocs_compilation.cpp",
 	"MOC_DEFINITIONS" : 
 	[
-		"DEBUG_BUILD",
+		"NDEBUG",
 		"QT_CORE_LIB",
 		"QT_GUI_LIB",
 		"QT_NETWORK_LIB",
+		"QT_NO_DEBUG",
 		"QT_TESTCASE_BUILDDIR=\"/Users/seksan/workspace/streamdab-analyzer/build/tests\"",
 		"QT_TESTCASE_SOURCEDIR=\"/Users/seksan/workspace/streamdab-analyzer/tests\"",
 		"QT_TESTLIB_LIB",

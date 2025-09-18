@@ -1,150 +1,117 @@
 #pragma once
 
-#include <cstdint>
 #include <vector>
+#include <cstdint>
 
-/**
- * @file sample_eti_frame.h
- * @brief Sample ETI frame data for TDD testing
- * 
- * This file contains sample ETI (Ensemble Transport Interface) frame data
- * compliant with ETSI EN 300 799 for testing purposes.
- */
-
-namespace EtiTestData {
-
-/**
- * @brief Standard ETI frame structure (6144 bytes)
- * 
- * ETI Frame Structure (ETSI EN 300 799):
- * - Frame Synchronization (4 bytes): 0xFF 0xFF 0xFF 0xFF
- * - Frame Header (8 bytes)
- * - Sub-channel Data (varies)
- * - EOF (End of Frame) + CRC (4 bytes)
- */
-struct EtiFrame {
-    static constexpr size_t FRAME_SIZE = 6144;
-    static constexpr size_t SYNC_SIZE = 4;
-    static constexpr size_t HEADER_SIZE = 8;
-    static constexpr size_t EOF_CRC_SIZE = 4;
-    
-    uint8_t data[FRAME_SIZE];
-    
-    EtiFrame();
-    bool isValid() const;
-};
-
-/**
- * @brief Sample compliant ETI frame for TDD RED phase testing
- * 
- * This frame should initially FAIL processing until implementation exists
- */
-extern const EtiFrame SAMPLE_COMPLIANT_FRAME;
-
-/**
- * @brief Sample corrupted ETI frame for error handling tests
- * 
- * This frame has intentional corruption for negative testing
- */
-extern const EtiFrame SAMPLE_CORRUPTED_FRAME;
-
-/**
- * @brief Multi-service ETI frame with multiple audio services
- * 
- * Contains multiple DAB/DAB+ audio services for comprehensive testing
- */
-extern const EtiFrame MULTI_SERVICE_FRAME;
-
-/**
- * @brief Empty ETI frame template
- * 
- * Basic frame structure with no services for minimal testing
- */
-extern const EtiFrame EMPTY_FRAME;
-
-/**
- * @brief Performance test ETI stream (1000 frames)
- * 
- * Large dataset for performance and stress testing
- */
-class PerformanceTestStream {
-public:
-    static constexpr size_t FRAME_COUNT = 1000;
-    static std::vector<EtiFrame> generate();
-    static std::vector<uint8_t> generateRawData();
-};
-
-/**
- * @brief FIC (Fast Information Channel) test data
- * 
- * Sample FIC blocks for FIG (Fast Information Group) testing
- */
-namespace FicTestData {
-    // FIG Type 0/0: Basic ensemble information
-    extern const std::vector<uint8_t> FIG_0_0_ENSEMBLE_INFO;
-    
-    // FIG Type 0/1: Basic sub-channel organization
-    extern const std::vector<uint8_t> FIG_0_1_SUBCHANNEL_ORG;
-    
-    // FIG Type 0/2: Basic service organization
-    extern const std::vector<uint8_t> FIG_0_2_SERVICE_ORG;
-    
-    // FIG Type 1/0: Service labels
-    extern const std::vector<uint8_t> FIG_1_0_SERVICE_LABELS;
-    
-    // Complete FIC block with multiple FIGs
-    extern const std::vector<uint8_t> COMPLETE_FIC_BLOCK;
+namespace TestFixtures {
+    namespace EtiStreams {
+        /**
+         * @brief Sample ETI frame data for testing
+         * 
+         * This represents a minimal valid ETI-NI frame structure
+         * according to ETSI EN 300 799 standards for testing purposes.
+         */
+        const std::vector<uint8_t> SAMPLE_ETI_FRAME = {
+            // ETI-NI Frame Header (ETSI EN 300 799 Section 5.3.1)
+            0x49, 0x89, 0xAB, 0x96,  // ERR/FSYNC - Error level & Frame sync pattern
+            
+            // LIDATA field
+            0x00, 0x00, 0x00, 0x00,  // FC (Frame Characterization) - 4 bytes
+            0x00, 0x00, 0x00, 0x00,  // NST, FL, reserved fields
+            
+            // STC (Stream Time Code) - 4 bytes  
+            0x00, 0x00, 0x00, 0x00,
+            
+            // EOH (End of Header) - 4 bytes
+            0x00, 0x00, 0x00, 0x00,
+            
+            // MST (Main Service Transport) - minimal content
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            
+            // EOF (End of Frame) - 4 bytes
+            0xFF, 0xFF, 0xFF, 0xFF
+        };
+        
+        /**
+         * @brief Sample FIC (Fast Information Channel) data
+         * 
+         * Contains test FIG (Fast Information Group) data for parsing tests
+         */
+        const std::vector<uint8_t> SAMPLE_FIC_DATA = {
+            // FIG Type 0/0 - Ensemble information
+            0x00, 0x08,  // FIG header (Type 0, Length 8)
+            0x12, 0x34,  // EId (Ensemble Identifier)
+            0x00, 0x01,  // Change flag, Alarm flag, CIF count
+            
+            // FIG Type 0/1 - Service information
+            0x01, 0x0C,  // FIG header (Type 1, Length 12)
+            0x56, 0x78,  // SId (Service Identifier)
+            0x10,        // Service flags
+            0x20, 0x00,  // Subchannel info
+        };
+        
+        /**
+         * @brief Sample MSC (Main Service Channel) data
+         * 
+         * Contains test audio stream data for processing tests
+         */
+        const std::vector<uint8_t> SAMPLE_MSC_DATA = {
+            // DAB+ AAC frame header
+            0xFF, 0xF1, 0x50, 0x80, 0x01, 0x1F, 0xFC,
+            
+            // Sample AAC payload (simplified)
+            0x21, 0x10, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        };
+        
+        /**
+         * @brief Create a valid ETI frame for testing
+         * @return Vector containing complete ETI frame
+         */
+        std::vector<uint8_t> createValidEtiFrame() {
+            return SAMPLE_ETI_FRAME;
+        }
+        
+        /**
+         * @brief Create an invalid ETI frame for error testing
+         * @return Vector containing invalid ETI frame
+         */
+        std::vector<uint8_t> createInvalidEtiFrame() {
+            std::vector<uint8_t> invalid_frame = SAMPLE_ETI_FRAME;
+            // Corrupt the sync pattern to make it invalid
+            invalid_frame[0] = 0x00;
+            invalid_frame[1] = 0x00;
+            return invalid_frame;
+        }
+        
+        /**
+         * @brief Create test FIG data of specific type
+         * @param figType FIG type to create
+         * @return Vector containing FIG data
+         */
+        std::vector<uint8_t> createTestFigData(uint8_t figType) {
+            std::vector<uint8_t> fig_data;
+            
+            // FIG header
+            fig_data.push_back(figType);
+            fig_data.push_back(0x08); // Length
+            
+            // Add type-specific test data
+            switch (figType) {
+                case 0: // Ensemble info
+                    fig_data.insert(fig_data.end(), {0x12, 0x34, 0x00, 0x01});
+                    break;
+                case 1: // Service info
+                    fig_data.insert(fig_data.end(), {0x56, 0x78, 0x10, 0x20});
+                    break;
+                default:
+                    fig_data.insert(fig_data.end(), {0x00, 0x00, 0x00, 0x00});
+                    break;
+            }
+            
+            return fig_data;
+        }
+    }
 }
-
-/**
- * @brief Audio test data for DAB/DAB+ decoding
- */
-namespace AudioTestData {
-    // Sample DAB audio frame (MP2)
-    extern const std::vector<uint8_t> SAMPLE_DAB_AUDIO_FRAME;
-    
-    // Sample DAB+ audio frame (AAC)
-    extern const std::vector<uint8_t> SAMPLE_DABPLUS_AUDIO_FRAME;
-    
-    // Corrupted audio frame for error testing
-    extern const std::vector<uint8_t> CORRUPTED_AUDIO_FRAME;
-}
-
-/**
- * @brief Utility functions for test data generation
- */
-class TestDataGenerator {
-public:
-    /**
-     * @brief Generate a valid ETI frame with specified parameters
-     * @param frameNumber Frame counter value
-     * @param serviceCount Number of services to include
-     * @return Generated ETI frame
-     */
-    static EtiFrame generateValidFrame(uint32_t frameNumber, uint8_t serviceCount = 1);
-    
-    /**
-     * @brief Generate an ETI frame with specific error type
-     * @param errorType Type of error to inject
-     * @return Corrupted ETI frame
-     */
-    enum class ErrorType {
-        INVALID_SYNC,
-        CORRUPTED_HEADER,
-        INVALID_CRC,
-        TRUNCATED_FRAME,
-        OVERSIZED_FRAME
-    };
-    
-    static EtiFrame generateErrorFrame(ErrorType errorType);
-    
-    /**
-     * @brief Generate a stream of ETI frames for testing
-     * @param frameCount Number of frames to generate
-     * @param withErrors Whether to include error frames
-     * @return Vector of ETI frames
-     */
-    static std::vector<EtiFrame> generateStream(size_t frameCount, bool withErrors = false);
-};
-
-} // namespace EtiTestData

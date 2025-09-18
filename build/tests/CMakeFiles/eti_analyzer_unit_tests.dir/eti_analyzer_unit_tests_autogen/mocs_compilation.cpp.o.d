@@ -1,7 +1,7 @@
 tests/CMakeFiles/eti_analyzer_unit_tests.dir/eti_analyzer_unit_tests_autogen/mocs_compilation.cpp.o: \
   /Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_unit_tests_autogen/mocs_compilation.cpp \
-  /Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_unit_tests_autogen/7KRDZL6R5E/moc_logger.cpp \
-  /Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_unit_tests_autogen/7KRDZL6R5E/../../../../src/utils/logger.h \
+  /Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_unit_tests_autogen/MV7IEL3DTJ/moc_eti_processor.cpp \
+  /Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_unit_tests_autogen/MV7IEL3DTJ/../../../../src/core/eti_processor.h \
   /opt/homebrew/lib/QtCore.framework/Headers/QObject \
   /opt/homebrew/lib/QtCore.framework/Headers/qobject.h \
   /opt/homebrew/include/QtCore/qobjectdefs.h \
@@ -280,7 +280,6 @@ tests/CMakeFiles/eti_analyzer_unit_tests.dir/eti_analyzer_unit_tests_autogen/moc
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__mbstate_t.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_types/_mbstate_t.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/assert.h \
-  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_assert.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_static_assert.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/stdbool.h \
   /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdbool.h \
@@ -908,19 +907,18 @@ tests/CMakeFiles/eti_analyzer_unit_tests.dir/eti_analyzer_unit_tests_autogen/moc
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/chrono \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__chrono/file_clock.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/forward_list \
-  /opt/homebrew/lib/QtCore.framework/Headers/QTimer \
-  /opt/homebrew/lib/QtCore.framework/Headers/qtimer.h \
-  /opt/homebrew/include/QtCore/qbasictimer.h \
-  /opt/homebrew/include/QtCore/qabstracteventdispatcher.h \
-  /opt/homebrew/include/QtCore/qobject.h \
-  /opt/homebrew/include/QtCore/qeventloop.h \
-  /opt/homebrew/include/QtCore/qdeadlinetimer.h \
-  /opt/homebrew/include/QtCore/qelapsedtimer.h \
-  /opt/homebrew/lib/QtCore.framework/Headers/QDateTime \
-  /opt/homebrew/lib/QtCore.framework/Headers/qdatetime.h \
-  /opt/homebrew/include/QtCore/qcalendar.h \
-  /opt/homebrew/include/QtCore/qlocale.h \
-  /opt/homebrew/include/QtCore/qvariant.h \
+  /opt/homebrew/lib/QtCore.framework/Headers/QString \
+  /opt/homebrew/lib/QtCore.framework/Headers/qstring.h \
+  /opt/homebrew/lib/QtCore.framework/Headers/QByteArray \
+  /opt/homebrew/lib/QtCore.framework/Headers/qbytearray.h \
+  /opt/homebrew/include/QtCore/qtmochelpers.h \
+  /opt/homebrew/include/QtCore/qtmocconstants.h \
+  /opt/homebrew/include/QtCore/q20algorithm.h \
+  /opt/homebrew/include/QtCore/q23type_traits.h \
+  /Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_unit_tests_autogen/7KRDZL6R5E/moc_config_manager.cpp \
+  /Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_unit_tests_autogen/7KRDZL6R5E/../../../../src/utils/config_manager.h \
+  /opt/homebrew/lib/QtCore.framework/Headers/QVariant \
+  /opt/homebrew/lib/QtCore.framework/Headers/qvariant.h \
   /opt/homebrew/include/QtCore/qdebug.h \
   /opt/homebrew/include/QtCore/qtextstream.h \
   /opt/homebrew/include/QtCore/qcontiguouscache.h \
@@ -936,6 +934,23 @@ tests/CMakeFiles/eti_analyzer_unit_tests.dir/eti_analyzer_unit_tests_autogen/moc
   /opt/homebrew/include/QtCore/qvarlengtharray.h \
   /opt/homebrew/include/QtCore/q23utility.h \
   /opt/homebrew/include/QtCore/q20utility.h \
+  /opt/homebrew/include/QtCore/qobject.h \
+  /opt/homebrew/lib/QtCore.framework/Headers/QSettings \
+  /opt/homebrew/lib/QtCore.framework/Headers/qsettings.h \
+  /opt/homebrew/include/QtCore/qvariant.h \
+  /Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_unit_tests_autogen/7KRDZL6R5E/moc_logger.cpp \
+  /Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_unit_tests_autogen/7KRDZL6R5E/../../../../src/utils/logger.h \
+  /opt/homebrew/lib/QtCore.framework/Headers/QTimer \
+  /opt/homebrew/lib/QtCore.framework/Headers/qtimer.h \
+  /opt/homebrew/include/QtCore/qbasictimer.h \
+  /opt/homebrew/include/QtCore/qabstracteventdispatcher.h \
+  /opt/homebrew/include/QtCore/qeventloop.h \
+  /opt/homebrew/include/QtCore/qdeadlinetimer.h \
+  /opt/homebrew/include/QtCore/qelapsedtimer.h \
+  /opt/homebrew/lib/QtCore.framework/Headers/QDateTime \
+  /opt/homebrew/lib/QtCore.framework/Headers/qdatetime.h \
+  /opt/homebrew/include/QtCore/qcalendar.h \
+  /opt/homebrew/include/QtCore/qlocale.h \
   /opt/homebrew/lib/QtCore.framework/Headers/QFile \
   /opt/homebrew/lib/QtCore.framework/Headers/qfile.h \
   /opt/homebrew/include/QtCore/qfiledevice.h \
@@ -1006,10 +1021,7 @@ tests/CMakeFiles/eti_analyzer_unit_tests.dir/eti_analyzer_unit_tests_autogen/moc
   /opt/homebrew/include/QtCore/QHash \
   /opt/homebrew/include/QtCore/QVariant \
   /opt/homebrew/include/QtCore/QString \
-  /opt/homebrew/lib/QtCore.framework/Headers/QString \
   /opt/homebrew/lib/QtCore.framework/Headers/QStringList \
   /opt/homebrew/lib/QtCore.framework/Headers/qstringlist.h \
-  /opt/homebrew/include/QtCore/qtmochelpers.h \
-  /opt/homebrew/include/QtCore/qtmocconstants.h \
-  /opt/homebrew/include/QtCore/q20algorithm.h \
-  /opt/homebrew/include/QtCore/q23type_traits.h
+  /opt/homebrew/lib/QtCore.framework/Headers/QDebug \
+  /opt/homebrew/lib/QtCore.framework/Headers/qdebug.h

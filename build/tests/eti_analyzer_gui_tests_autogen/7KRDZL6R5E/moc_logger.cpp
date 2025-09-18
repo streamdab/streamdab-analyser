@@ -39,74 +39,41 @@ template <> constexpr inline auto Logger::qt_create_metaobjectdata<qt_meta_tag_Z
     namespace QMC = QtMocConstants;
     QtMocHelpers::StringRefStorage qt_stringData {
         "Logger",
-        "loggingStarted",
-        "",
-        "loggingStopped",
         "logMessageAdded",
+        "",
         "LogLevel",
         "level",
         "message",
         "category",
         "timestamp",
         "errorMessageAdded",
-        "logFileRotated",
-        "newFilePath",
-        "configurationChanged",
-        "processPendingMessages",
-        "performMaintenance",
         "Debug",
         "Info",
         "Warning",
         "Error",
-        "Critical",
-        "OutputFormat",
-        "PlainText",
-        "Json",
-        "Xml",
-        "Binary"
+        "Critical"
     };
 
     QtMocHelpers::UintData qt_methods {
-        // Signal 'loggingStarted'
-        QtMocHelpers::SignalData<void()>(1, 2, QMC::AccessPublic, QMetaType::Void),
-        // Signal 'loggingStopped'
-        QtMocHelpers::SignalData<void()>(3, 2, QMC::AccessPublic, QMetaType::Void),
         // Signal 'logMessageAdded'
-        QtMocHelpers::SignalData<void(enum LogLevel, const QString &, const QString &, const QDateTime &)>(4, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { 0x80000000 | 5, 6 }, { QMetaType::QString, 7 }, { QMetaType::QString, 8 }, { QMetaType::QDateTime, 9 },
+        QtMocHelpers::SignalData<void(enum LogLevel, const QString &, const QString &, const QDateTime &)>(1, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { 0x80000000 | 3, 4 }, { QMetaType::QString, 5 }, { QMetaType::QString, 6 }, { QMetaType::QDateTime, 7 },
         }}),
         // Signal 'errorMessageAdded'
-        QtMocHelpers::SignalData<void(const QString &, const QDateTime &)>(10, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QString, 7 }, { QMetaType::QDateTime, 9 },
+        QtMocHelpers::SignalData<void(const QString &, const QDateTime &)>(8, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QString, 5 }, { QMetaType::QDateTime, 7 },
         }}),
-        // Signal 'logFileRotated'
-        QtMocHelpers::SignalData<void(const QString &)>(11, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QString, 12 },
-        }}),
-        // Signal 'configurationChanged'
-        QtMocHelpers::SignalData<void()>(13, 2, QMC::AccessPublic, QMetaType::Void),
-        // Slot 'processPendingMessages'
-        QtMocHelpers::SlotData<void()>(14, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'performMaintenance'
-        QtMocHelpers::SlotData<void()>(15, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
     QtMocHelpers::UintData qt_enums {
         // enum 'LogLevel'
-        QtMocHelpers::EnumData<enum LogLevel>(5, 5, QMC::EnumIsScoped).add({
-            {   16, LogLevel::Debug },
-            {   17, LogLevel::Info },
-            {   18, LogLevel::Warning },
-            {   19, LogLevel::Error },
-            {   20, LogLevel::Critical },
-        }),
-        // enum 'OutputFormat'
-        QtMocHelpers::EnumData<enum OutputFormat>(21, 21, QMC::EnumIsScoped).add({
-            {   22, OutputFormat::PlainText },
-            {   23, OutputFormat::Json },
-            {   24, OutputFormat::Xml },
-            {   25, OutputFormat::Binary },
+        QtMocHelpers::EnumData<enum LogLevel>(3, 3, QMC::EnumIsScoped).add({
+            {    9, LogLevel::Debug },
+            {   10, LogLevel::Info },
+            {   11, LogLevel::Warning },
+            {   12, LogLevel::Error },
+            {   13, LogLevel::Critical },
         }),
     };
     return QtMocHelpers::metaObjectData<Logger, qt_meta_tag_ZN6LoggerE_t>(QMC::MetaObjectFlag{}, qt_stringData,
@@ -127,29 +94,15 @@ void Logger::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void
     auto *_t = static_cast<Logger *>(_o);
     if (_c == QMetaObject::InvokeMetaMethod) {
         switch (_id) {
-        case 0: _t->loggingStarted(); break;
-        case 1: _t->loggingStopped(); break;
-        case 2: _t->logMessageAdded((*reinterpret_cast< std::add_pointer_t<enum LogLevel>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<QDateTime>>(_a[4]))); break;
-        case 3: _t->errorMessageAdded((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QDateTime>>(_a[2]))); break;
-        case 4: _t->logFileRotated((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
-        case 5: _t->configurationChanged(); break;
-        case 6: _t->processPendingMessages(); break;
-        case 7: _t->performMaintenance(); break;
+        case 0: _t->logMessageAdded((*reinterpret_cast< std::add_pointer_t<enum LogLevel>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<QDateTime>>(_a[4]))); break;
+        case 1: _t->errorMessageAdded((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QDateTime>>(_a[2]))); break;
         default: ;
         }
     }
     if (_c == QMetaObject::IndexOfMethod) {
-        if (QtMocHelpers::indexOfMethod<void (Logger::*)()>(_a, &Logger::loggingStarted, 0))
+        if (QtMocHelpers::indexOfMethod<void (Logger::*)(LogLevel , const QString & , const QString & , const QDateTime & )>(_a, &Logger::logMessageAdded, 0))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Logger::*)()>(_a, &Logger::loggingStopped, 1))
-            return;
-        if (QtMocHelpers::indexOfMethod<void (Logger::*)(LogLevel , const QString & , const QString & , const QDateTime & )>(_a, &Logger::logMessageAdded, 2))
-            return;
-        if (QtMocHelpers::indexOfMethod<void (Logger::*)(const QString & , const QDateTime & )>(_a, &Logger::errorMessageAdded, 3))
-            return;
-        if (QtMocHelpers::indexOfMethod<void (Logger::*)(const QString & )>(_a, &Logger::logFileRotated, 4))
-            return;
-        if (QtMocHelpers::indexOfMethod<void (Logger::*)()>(_a, &Logger::configurationChanged, 5))
+        if (QtMocHelpers::indexOfMethod<void (Logger::*)(const QString & , const QDateTime & )>(_a, &Logger::errorMessageAdded, 1))
             return;
     }
 }
@@ -173,51 +126,27 @@ int Logger::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 8)
+        if (_id < 2)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 8;
+        _id -= 2;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 8)
+        if (_id < 2)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 8;
+        _id -= 2;
     }
     return _id;
 }
 
 // SIGNAL 0
-void Logger::loggingStarted()
+void Logger::logMessageAdded(LogLevel _t1, const QString & _t2, const QString & _t3, const QDateTime & _t4)
 {
-    QMetaObject::activate(this, &staticMetaObject, 0, nullptr);
+    QMetaObject::activate<void>(this, &staticMetaObject, 0, nullptr, _t1, _t2, _t3, _t4);
 }
 
 // SIGNAL 1
-void Logger::loggingStopped()
-{
-    QMetaObject::activate(this, &staticMetaObject, 1, nullptr);
-}
-
-// SIGNAL 2
-void Logger::logMessageAdded(LogLevel _t1, const QString & _t2, const QString & _t3, const QDateTime & _t4)
-{
-    QMetaObject::activate<void>(this, &staticMetaObject, 2, nullptr, _t1, _t2, _t3, _t4);
-}
-
-// SIGNAL 3
 void Logger::errorMessageAdded(const QString & _t1, const QDateTime & _t2)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 3, nullptr, _t1, _t2);
-}
-
-// SIGNAL 4
-void Logger::logFileRotated(const QString & _t1)
-{
-    QMetaObject::activate<void>(this, &staticMetaObject, 4, nullptr, _t1);
-}
-
-// SIGNAL 5
-void Logger::configurationChanged()
-{
-    QMetaObject::activate(this, &staticMetaObject, 5, nullptr);
+    QMetaObject::activate<void>(this, &staticMetaObject, 1, nullptr, _t1, _t2);
 }
 QT_WARNING_POP

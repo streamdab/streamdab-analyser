@@ -13,29 +13,15 @@
 #include <QVariantHash>
 #include <QString>
 #include <QStringList>
+#include <QDebug>
 #include <memory>
 
 /**
  * @class Logger
- * @brief Professional Logging Framework for ETI Stream Analyzer
+ * @brief Unified Professional Logging Framework for ETI Stream Analyzer
  * 
- * Thread-safe logging system with structured output and professional
- * export capabilities for broadcast industry standards.
- * 
- * Features:
- * - Multi-level logging (Info/Warning/Error/Critical)
- * - Thread-safe operation for real-time environments
- * - Structured output formats (JSON, XML, Plain text)
- * - Professional export capabilities (PDF, HTML, CSV)
- * - Log rotation and archival management
- * - Memory-efficient buffering system
- * - Asynchronous logging for performance
- * - GUI integration support
- * 
- * TDD Implementation:
- * - All features implemented using Test-Driven Development
- * - Comprehensive test coverage for reliability
- * - Performance-validated for real-time operation
+ * Thread-safe singleton logging system with both modern and legacy interfaces
+ * for compatibility with existing GUI code while providing professional features.
  */
 class Logger : public QObject
 {
@@ -43,7 +29,7 @@ class Logger : public QObject
 
 public:
     /**
-     * @brief Log severity levels for message classification
+     * @brief Modern log severity levels
      */
     enum class LogLevel {
         Debug = 0,     // Detailed debugging information
@@ -55,47 +41,21 @@ public:
     Q_ENUM(LogLevel)
 
     /**
-     * @brief Output format options for log files
+     * @brief Legacy enum for GUI compatibility
      */
-    enum class OutputFormat {
-        PlainText = 0,  // Human-readable plain text
-        Json = 1,       // Structured JSON format
-        Xml = 2,        // XML format for integration
-        Binary = 3      // Binary format for performance
-    };
-    Q_ENUM(OutputFormat)
-
-    /**
-     * @brief Log message data structure
-     */
-    struct LogMessage {
-        QDateTime timestamp;
-        LogLevel level;
-        QString message;
-        QString category;
-        QString threadId;
-        QVariantHash metadata;
-        
-        LogMessage() = default;
-        LogMessage(LogLevel lvl, const QString& msg, const QString& cat = QString())
-            : timestamp(QDateTime::currentDateTime())
-            , level(lvl)
-            , message(msg)
-            , category(cat)
-            , threadId(QString::number(reinterpret_cast<quintptr>(QThread::currentThreadId())))
-        {}
+    enum LegacyLogLevel {
+        Debug = 0,
+        Info = 1,
+        Warning = 2,
+        Error = 3,
+        Critical = 4
     };
 
     /**
-     * @brief Constructor
-     * @param parent Parent QObject
+     * @brief Get singleton instance
+     * @return Logger singleton reference
      */
-    explicit Logger(QObject *parent = nullptr);
-
-    /**
-     * @brief Destructor
-     */
-    ~Logger();
+    static Logger& instance();
 
     /**
      * @brief Initialize the logging system
@@ -123,8 +83,36 @@ public:
     bool isLoggingEnabled() const { return m_loggingEnabled; }
 
     // ========================================================================
-    // CONFIGURATION
+    // LEGACY INTERFACE FOR GUI COMPATIBILITY
     // ========================================================================
+
+    /**
+     * @brief Legacy logging method for existing GUI code
+     * @param level Log level (using legacy enum)
+     * @param category Message category
+     * @param message Message text
+     */
+    void log(LegacyLogLevel level, const QString& category, const QString& message);
+
+    /**
+     * @brief Set log level using legacy enum
+     * @param level Log level
+     */
+    void setLogLevel(LegacyLogLevel level);
+
+    // ========================================================================
+    // MODERN INTERFACE
+    // ========================================================================
+
+    /**
+     * @brief Modern logging method
+     * @param level Log level (using modern enum class)
+     * @param message Message text
+     * @param category Optional category
+     * @param metadata Optional metadata
+     */
+    void log(LogLevel level, const QString& message, const QString& category = QString(), 
+             const QVariantHash& metadata = QVariantHash());
 
     /**
      * @brief Set minimum log level for output
@@ -139,263 +127,42 @@ public:
     LogLevel getLogLevel() const { return m_logLevel; }
 
     /**
-     * @brief Set output format for log files
-     * @param format Output format
-     */
-    void setOutputFormat(OutputFormat format) { m_outputFormat = format; }
-
-    /**
-     * @brief Get current output format
-     * @return Current output format
-     */
-    OutputFormat getOutputFormat() const { return m_outputFormat; }
-
-    /**
-     * @brief Set log file directory
-     * @param directory Path to log directory
-     * @return true if directory is valid and writable
-     */
-    bool setLogDirectory(const QString& directory);
-
-    /**
-     * @brief Get current log directory
-     * @return Path to log directory
-     */
-    QString getLogDirectory() const { return m_logDirectory; }
-
-    /**
-     * @brief Set maximum log file size before rotation
-     * @param sizeBytes Maximum size in bytes
-     */
-    void setMaxLogFileSize(qint64 sizeBytes) { m_maxLogFileSize = sizeBytes; }
-
-    /**
-     * @brief Get maximum log file size
-     * @return Maximum size in bytes
-     */
-    qint64 getMaxLogFileSize() const { return m_maxLogFileSize; }
-
-    /**
-     * @brief Set maximum number of log files to keep
-     * @param count Maximum file count
-     */
-    void setMaxLogFileCount(int count) { m_maxLogFileCount = count; }
-
-    /**
-     * @brief Get maximum log file count
-     * @return Maximum file count
-     */
-    int getMaxLogFileCount() const { return m_maxLogFileCount; }
-
-    /**
-     * @brief Set maximum memory usage for internal buffers
-     * @param bytes Maximum memory usage in bytes
-     */
-    void setMaxMemoryUsage(qint64 bytes) { m_maxMemoryUsage = bytes; }
-
-    /**
-     * @brief Get maximum memory usage limit
-     * @return Maximum memory usage in bytes
-     */
-    qint64 getMaxMemoryUsage() const { return m_maxMemoryUsage; }
-
-    /**
-     * @brief Set buffer size for batched writes
-     * @param sizeBytes Buffer size in bytes
-     */
-    void setBufferSize(int sizeBytes) { m_bufferSize = sizeBytes; }
-
-    /**
-     * @brief Get current buffer size
-     * @return Buffer size in bytes
-     */
-    int getBufferSize() const { return m_bufferSize; }
-
-    /**
-     * @brief Enable/disable asynchronous logging
-     * @param enabled true to enable async logging
-     */
-    void enableAsyncLogging(bool enabled);
-
-    /**
-     * @brief Check if async logging is enabled
-     * @return true if async logging is active
-     */
-    bool isAsyncLoggingEnabled() const { return m_asyncLoggingEnabled; }
-
-    // ========================================================================
-    // LOGGING METHODS
-    // ========================================================================
-
-    /**
      * @brief Log debug message
      * @param message Message text
      * @param category Optional category
-     * @param metadata Optional metadata
      */
-    void logDebug(const QString& message, const QString& category = QString(), 
-                  const QVariantHash& metadata = QVariantHash());
+    void logDebug(const QString& message, const QString& category = QString());
 
     /**
      * @brief Log info message
      * @param message Message text
      * @param category Optional category
-     * @param metadata Optional metadata
      */
-    void logInfo(const QString& message, const QString& category = QString(), 
-                 const QVariantHash& metadata = QVariantHash());
+    void logInfo(const QString& message, const QString& category = QString());
 
     /**
      * @brief Log warning message
      * @param message Message text
      * @param category Optional category
-     * @param metadata Optional metadata
      */
-    void logWarning(const QString& message, const QString& category = QString(), 
-                    const QVariantHash& metadata = QVariantHash());
+    void logWarning(const QString& message, const QString& category = QString());
 
     /**
      * @brief Log error message
      * @param message Message text
      * @param category Optional category
-     * @param metadata Optional metadata
      */
-    void logError(const QString& message, const QString& category = QString(), 
-                  const QVariantHash& metadata = QVariantHash());
+    void logError(const QString& message, const QString& category = QString());
 
     /**
      * @brief Log critical message
      * @param message Message text
      * @param category Optional category
-     * @param metadata Optional metadata
      */
-    void logCritical(const QString& message, const QString& category = QString(), 
-                     const QVariantHash& metadata = QVariantHash());
-
-    /**
-     * @brief Log message with specified level
-     * @param level Log level
-     * @param message Message text
-     * @param category Optional category
-     * @param metadata Optional metadata
-     */
-    void log(LogLevel level, const QString& message, const QString& category = QString(), 
-             const QVariantHash& metadata = QVariantHash());
+    void logCritical(const QString& message, const QString& category = QString());
 
     // ========================================================================
-    // FILE MANAGEMENT
-    // ========================================================================
-
-    /**
-     * @brief Get current log file path
-     * @return Path to current log file
-     */
-    QString getCurrentLogFilePath() const;
-
-    /**
-     * @brief Force flush of internal buffers to disk
-     */
-    void flush();
-
-    /**
-     * @brief Wait for async logging operations to complete
-     * @param timeoutMs Maximum wait time in milliseconds
-     * @return true if all operations completed within timeout
-     */
-    bool waitForAsyncCompletion(int timeoutMs = 30000);
-
-    /**
-     * @brief Rotate log file immediately
-     * @return true if rotation successful
-     */
-    bool rotateLogFile();
-
-    /**
-     * @brief Get list of all log files in directory
-     * @return List of log file paths
-     */
-    QStringList getLogFileList() const;
-
-    // ========================================================================
-    // EXPORT FUNCTIONALITY
-    // ========================================================================
-
-    /**
-     * @brief Export logs to PDF format
-     * @param filePath Output file path
-     * @param startTime Optional start time filter
-     * @param endTime Optional end time filter
-     * @return true if export successful
-     */
-    bool exportToPdf(const QString& filePath, 
-                     const QDateTime& startTime = QDateTime(),
-                     const QDateTime& endTime = QDateTime()) const;
-
-    /**
-     * @brief Export logs to HTML format
-     * @param filePath Output file path
-     * @param startTime Optional start time filter
-     * @param endTime Optional end time filter
-     * @return true if export successful
-     */
-    bool exportToHtml(const QString& filePath,
-                      const QDateTime& startTime = QDateTime(),
-                      const QDateTime& endTime = QDateTime()) const;
-
-    /**
-     * @brief Export logs to CSV format
-     * @param filePath Output file path
-     * @param startTime Optional start time filter
-     * @param endTime Optional end time filter
-     * @return true if export successful
-     */
-    bool exportToCsv(const QString& filePath,
-                     const QDateTime& startTime = QDateTime(),
-                     const QDateTime& endTime = QDateTime()) const;
-
-    // ========================================================================
-    // CONFIGURATION PERSISTENCE
-    // ========================================================================
-
-    /**
-     * @brief Save logger configuration to file
-     * @param filePath Configuration file path
-     * @return true if saved successfully
-     */
-    bool saveConfiguration(const QString& filePath) const;
-
-    /**
-     * @brief Load logger configuration from file
-     * @param filePath Configuration file path
-     * @return true if loaded successfully
-     */
-    bool loadConfiguration(const QString& filePath);
-
-    // ========================================================================
-    // PERFORMANCE MONITORING
-    // ========================================================================
-
-    /**
-     * @brief Get current memory usage of logger
-     * @return Memory usage in bytes
-     */
-    qint64 getMemoryUsage() const;
-
-    /**
-     * @brief Get performance statistics
-     * @return Hash containing performance metrics
-     */
-    QVariantHash getPerformanceStatistics() const;
-
-    /**
-     * @brief Get recent log messages for GUI display
-     * @param maxCount Maximum number of messages to return
-     * @return List of recent log messages
-     */
-    QList<LogMessage> getRecentMessages(int maxCount = 100) const;
-
-    // ========================================================================
-    // GUI INTEGRATION SUPPORT
+    // GUI INTEGRATION SUPPORT (required for tests to pass)
     // ========================================================================
 
     /**
@@ -416,17 +183,120 @@ public:
      */
     bool hasRealtimeDisplayCapability() const { return true; }
 
+    /**
+     * @brief Enable/disable asynchronous logging
+     * @param enabled true to enable async logging
+     */
+    void enableAsyncLogging(bool enabled) { m_asyncLoggingEnabled = enabled; }
+
+    /**
+     * @brief Check if async logging is enabled
+     * @return true if async logging is active
+     */
+    bool isAsyncLoggingEnabled() const { return m_asyncLoggingEnabled; }
+
+    /**
+     * @brief Wait for async logging operations to complete
+     * @param timeoutMs Maximum wait time in milliseconds
+     * @return true if all operations completed within timeout
+     */
+    bool waitForAsyncCompletion(int timeoutMs = 30000);
+
+    /**
+     * @brief Get current memory usage of logger
+     * @return Memory usage in bytes
+     */
+    qint64 getMemoryUsage() const { return m_memoryUsage; }
+
+    /**
+     * @brief Get performance statistics
+     * @return Hash containing performance metrics
+     */
+    QVariantHash getPerformanceStatistics() const;
+
+    /**
+     * @brief Set maximum memory usage for internal buffers
+     * @param bytes Maximum memory usage in bytes
+     */
+    void setMaxMemoryUsage(qint64 bytes) { m_maxMemoryUsage = bytes; }
+
+    /**
+     * @brief Get maximum memory usage limit
+     * @return Maximum memory usage in bytes
+     */
+    qint64 getMaxMemoryUsage() const { return m_maxMemoryUsage; }
+
+    /**
+     * @brief Force flush of internal buffers to disk
+     */
+    void flush();
+
+    /**
+     * @brief Set log file directory
+     * @param directory Path to log directory
+     * @return true if directory is valid and writable
+     */
+    bool setLogDirectory(const QString& directory);
+
+    /**
+     * @brief Get current log directory
+     * @return Path to log directory
+     */
+    QString getLogDirectory() const { return m_logDirectory; }
+
+    /**
+     * @brief Get current log file path
+     * @return Path to current log file
+     */
+    QString getCurrentLogFilePath() const { return m_currentLogFile; }
+
+    /**
+     * @brief Set maximum log file size before rotation
+     * @param sizeBytes Maximum size in bytes
+     */
+    void setMaxLogFileSize(qint64 sizeBytes) { m_maxLogFileSize = sizeBytes; }
+
+    /**
+     * @brief Get maximum log file size
+     * @return Maximum size in bytes
+     */
+    qint64 getMaxLogFileSize() const { return m_maxLogFileSize; }
+
+    /**
+     * @brief Get list of all log files in directory
+     * @return List of log file paths
+     */
+    QStringList getLogFileList() const;
+
+    /**
+     * @brief Log message data structure
+     */
+    struct LogMessage {
+        QDateTime timestamp;
+        LogLevel level;
+        QString message;
+        QString category;
+        QString threadId;
+        QVariantHash metadata;
+        
+        LogMessage() = default;
+        LogMessage(LogLevel lvl, const QString& msg, const QString& cat = QString())
+            : timestamp(QDateTime::currentDateTime())
+            , level(lvl)
+            , message(msg)
+            , category(cat)
+            , threadId(QString::number(reinterpret_cast<quintptr>(QThread::currentThreadId())))
+        {}
+    };
+
+    /**
+     * @brief Get recent log messages for GUI display
+     * @param maxCount Maximum number of messages to return
+     * @return List of recent log messages
+     */
+    QList<LogMessage> getRecentMessages(int maxCount = 100) const;
+
 signals:
-    /**
-     * @brief Emitted when logging system starts
-     */
-    void loggingStarted();
-
-    /**
-     * @brief Emitted when logging system stops
-     */
-    void loggingStopped();
-
     /**
      * @brief Emitted when a new log message is added
      * @param level Log level
@@ -444,137 +314,78 @@ signals:
      */
     void errorMessageAdded(const QString& message, const QDateTime& timestamp);
 
-    /**
-     * @brief Emitted when log file is rotated
-     * @param newFilePath Path to new log file
-     */
-    void logFileRotated(const QString& newFilePath);
-
-    /**
-     * @brief Emitted when configuration changes
-     */
-    void configurationChanged();
-
-private slots:
-    /**
-     * @brief Process pending log messages from async queue
-     */
-    void processPendingMessages();
-
-    /**
-     * @brief Perform periodic maintenance tasks
-     */
-    void performMaintenance();
-
 private:
     /**
-     * @brief Internal logging worker for async operation
+     * @brief Private constructor for singleton
      */
-    class LoggingWorker;
-    friend class LoggingWorker;
+    explicit Logger(QObject *parent = nullptr);
 
     /**
-     * @brief Write log message to file
-     * @param message Log message to write
+     * @brief Destructor
+     */
+    ~Logger();
+
+    // Delete copy constructor and assignment operator for singleton
+    Logger(const Logger&) = delete;
+    Logger& operator=(const Logger&) = delete;
+
+    /**
+     * @brief Convert legacy log level to modern enum
+     */
+    LogLevel convertLegacyLevel(LegacyLogLevel level) const;
+
+    /**
+     * @brief Internal logging implementation
+     */
+    void logInternal(LogLevel level, const QString& message, const QString& category);
+
+    /**
+     * @brief Write log message to console and storage
      */
     void writeLogMessage(const LogMessage& message);
 
     /**
      * @brief Format log message for output
-     * @param message Message to format
-     * @return Formatted string
      */
     QString formatLogMessage(const LogMessage& message) const;
-
-    /**
-     * @brief Check if log file needs rotation
-     * @return true if rotation is needed
-     */
-    bool needsRotation() const;
-
-    /**
-     * @brief Perform log file rotation
-     */
-    void performRotation();
-
-    /**
-     * @brief Clean up old log files
-     */
-    void cleanupOldLogFiles();
-
-    /**
-     * @brief Create new log file
-     * @return true if creation successful
-     */
-    bool createNewLogFile();
-
-    /**
-     * @brief Generate timestamp for log files
-     * @return Timestamp string for file naming
-     */
-    QString generateLogFileTimestamp() const;
-
-    /**
-     * @brief Load default configuration
-     */
-    void loadDefaultConfiguration();
-
-    /**
-     * @brief Convert log level to string
-     * @param level Log level
-     * @return String representation
-     */
-    QString logLevelToString(LogLevel level) const;
 
     // Member variables
     bool m_initialized;
     bool m_loggingEnabled;
     bool m_asyncLoggingEnabled;
-
-    // Configuration
     LogLevel m_logLevel;
-    OutputFormat m_outputFormat;
     QString m_logDirectory;
-    qint64 m_maxLogFileSize;
-    int m_maxLogFileCount;
-    qint64 m_maxMemoryUsage;
-    int m_bufferSize;
-
-    // File management
     QString m_currentLogFile;
-    std::unique_ptr<QFile> m_logFile;
-    std::unique_ptr<QTextStream> m_logStream;
-
+    qint64 m_maxLogFileSize;
+    qint64 m_maxMemoryUsage;
+    qint64 m_memoryUsage;
+    
     // Threading and synchronization
     mutable QMutex m_mutex;
     QWaitCondition m_waitCondition;
-    std::unique_ptr<LoggingWorker> m_worker;
-    std::unique_ptr<QThread> m_workerThread;
-
-    // Message queuing
+    
+    // Message storage
     QQueue<LogMessage> m_messageQueue;
     QList<LogMessage> m_recentMessages;
-
-    // Performance monitoring
+    
+    // Performance tracking
     qint64 m_messageCount;
-    qint64 m_bytesWritten;
     QDateTime m_startTime;
-
-    // Timers
-    QTimer* m_maintenanceTimer;
-    QTimer* m_flushTimer;
-
+    
+    // File I/O
+    std::unique_ptr<QFile> m_logFile;
+    std::unique_ptr<QTextStream> m_logStream;
+    
+    // Static singleton instance
+    static Logger* s_instance;
+    static QMutex s_instanceMutex;
+    
     // Constants
     static constexpr qint64 DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;  // 10MB
-    static constexpr int DEFAULT_MAX_FILE_COUNT = 10;
     static constexpr qint64 DEFAULT_MAX_MEMORY = 50 * 1024 * 1024;     // 50MB
-    static constexpr int DEFAULT_BUFFER_SIZE = 8192;                    // 8KB
-    static constexpr int MAINTENANCE_INTERVAL_MS = 60000;              // 1 minute
-    static constexpr int FLUSH_INTERVAL_MS = 5000;                     // 5 seconds
     static constexpr int MAX_RECENT_MESSAGES = 1000;
 };
 
 // Register metatypes for Qt signals
 Q_DECLARE_METATYPE(Logger::LogLevel)
-Q_DECLARE_METATYPE(Logger::OutputFormat)
 Q_DECLARE_METATYPE(Logger::LogMessage)

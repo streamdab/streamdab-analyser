@@ -368,6 +368,9 @@ tests/eti_analyzer_unit_tests.app/Contents/MacOS/eti_analyzer_unit_tests: tests/
 tests/eti_analyzer_unit_tests.app/Contents/MacOS/eti_analyzer_unit_tests: tests/CMakeFiles/eti_analyzer_unit_tests.dir/__/src/utils/signal_processing.cpp.o
 tests/eti_analyzer_unit_tests.app/Contents/MacOS/eti_analyzer_unit_tests: tests/CMakeFiles/eti_analyzer_unit_tests.dir/build.make
 tests/eti_analyzer_unit_tests.app/Contents/MacOS/eti_analyzer_unit_tests: /opt/homebrew/lib/QtCore.framework/Versions/A/QtCore
+tests/eti_analyzer_unit_tests.app/Contents/MacOS/eti_analyzer_unit_tests: /opt/homebrew/Cellar/faad2/2.11.2/lib/libfaad.dylib
+tests/eti_analyzer_unit_tests.app/Contents/MacOS/eti_analyzer_unit_tests: /opt/homebrew/Cellar/fftw/3.3.10_2/lib/libfftw3.dylib
+tests/eti_analyzer_unit_tests.app/Contents/MacOS/eti_analyzer_unit_tests: /opt/homebrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.0.8.0.dylib
 tests/eti_analyzer_unit_tests.app/Contents/MacOS/eti_analyzer_unit_tests: /opt/homebrew/lib/libgtest_main.a
 tests/eti_analyzer_unit_tests.app/Contents/MacOS/eti_analyzer_unit_tests: /opt/homebrew/lib/libgtest.a
 tests/eti_analyzer_unit_tests.app/Contents/MacOS/eti_analyzer_unit_tests: tests/CMakeFiles/eti_analyzer_unit_tests.dir/link.txt

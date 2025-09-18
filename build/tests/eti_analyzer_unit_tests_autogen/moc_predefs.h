@@ -1,6 +1,7 @@
 #define ARCHITECTURE_ID "arm64"
-#define DEBUG_BUILD 1
+#define NDEBUG 1
 #define QT_CORE_LIB 1
+#define QT_NO_DEBUG 1
 #define SIZEOF_DPTR (sizeof(void*))
 #define TARGET_IPHONE_SIMULATOR 0
 #define TARGET_OS_ARROW 1

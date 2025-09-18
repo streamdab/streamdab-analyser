@@ -9,7 +9,6 @@
  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/AvailabilityVersions.h
  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/TargetConditionals.h
  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/__xlocale.h
- /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_assert.h
  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_bounds.h
  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_locale.h
  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_locale_posix2008.h
@@ -768,6 +767,7 @@
  /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/4.1.1/CMakeCXXCompiler.cmake
  /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/4.1.1/CMakeSystem.cmake
  /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/moc_predefs.h
+ /Users/seksan/workspace/streamdab-analyzer/cmake/packaging.cmake
  /Users/seksan/workspace/streamdab-analyzer/resources/application.qrc
  /Users/seksan/workspace/streamdab-analyzer/src/core/audio_decoder.cpp
  /Users/seksan/workspace/streamdab-analyzer/src/core/audio_decoder.h
@@ -803,6 +803,7 @@
  /Users/seksan/workspace/streamdab-analyzer/src/utils/logger.h
  /Users/seksan/workspace/streamdab-analyzer/src/utils/signal_processing.cpp
  /Users/seksan/workspace/streamdab-analyzer/src/utils/signal_processing.h
+ /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QByteArray
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QCommandLineOption
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QCommandLineParser
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QDateTime
@@ -810,16 +811,11 @@
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QDebug
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QDir
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QFile
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QFileInfo
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QHash
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QJsonArray
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QJsonDocument
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QJsonObject
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QLibraryInfo
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QList
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QLoggingCategory
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QMutex
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QMutexLocker
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QObject
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QPointF
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/QQueue
@@ -863,8 +859,6 @@
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qbytearraylist.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qbytearrayview.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcalendar.h
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcborcommon.h
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcborvalue.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qchar.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcommandlineoption.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qcommandlineparser.h
@@ -910,11 +904,6 @@
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qitemselectionmodel.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qiterable.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qiterator.h
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsonarray.h
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsondocument.h
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsonobject.h
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsonparseerror.h
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qjsonvalue.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qlatin1stringview.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qlibraryinfo.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qline.h
@@ -1001,7 +990,6 @@
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qtypes.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qurl.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qutf8stringview.h
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/quuid.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qvariant.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qvarianthash.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qvarlengtharray.h
@@ -1022,11 +1010,9 @@
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QMouseEvent
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QMoveEvent
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QPaintEvent
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QPainter
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QPen
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QPixmap
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QResizeEvent
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QTextDocument
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QTransform
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QWheelEvent
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qaction.h
@@ -1049,7 +1035,6 @@
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qinputmethod.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qkeysequence.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qpaintdevice.h
- /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qpainter.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qpalette.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qpen.h
  /opt/homebrew/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qpicture.h

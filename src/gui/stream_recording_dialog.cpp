@@ -11,7 +11,7 @@
  */
 
 #include "stream_recording_dialog.h"
-#include "utils/logger_compat.h"
+#include "utils/logger.h"
 
 #include <QApplication>
 #include <QScreen>

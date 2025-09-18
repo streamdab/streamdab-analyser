@@ -1,11 +1,11 @@
 CMakeFiles/ETIStreamAnalyzer.dir/ETIStreamAnalyzer_autogen/mocs_compilation.cpp.o: \
   /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/mocs_compilation.cpp \
-  /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/MXUWEOXILK/moc_about_dialog.cpp \
-  /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/MXUWEOXILK/../../../src/gui/about_dialog.h \
-  /opt/homebrew/lib/QtWidgets.framework/Headers/QDialog \
-  /opt/homebrew/lib/QtWidgets.framework/Headers/qdialog.h \
-  /opt/homebrew/include/QtWidgets/qtwidgetsglobal.h \
-  /opt/homebrew/include/QtGui/qtguiglobal.h \
+  /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/PRMOGMWJPH/moc_eti_processor.cpp \
+  /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/PRMOGMWJPH/../../../src/core/eti_processor.h \
+  /opt/homebrew/lib/QtCore.framework/Headers/QObject \
+  /opt/homebrew/lib/QtCore.framework/Headers/qobject.h \
+  /opt/homebrew/include/QtCore/qobjectdefs.h \
+  /opt/homebrew/include/QtCore/qnamespace.h \
   /opt/homebrew/include/QtCore/qglobal.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/type_traits \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__config \
@@ -280,7 +280,6 @@ CMakeFiles/ETIStreamAnalyzer.dir/ETIStreamAnalyzer_autogen/mocs_compilation.cpp.
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__mbstate_t.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_types/_mbstate_t.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/assert.h \
-  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_assert.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_static_assert.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/stdbool.h \
   /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdbool.h \
@@ -701,14 +700,6 @@ CMakeFiles/ETIStreamAnalyzer.dir/ETIStreamAnalyzer_autogen/mocs_compilation.cpp.
   /opt/homebrew/include/QtCore/qtresource.h \
   /opt/homebrew/include/QtCore/qttranslation.h \
   /opt/homebrew/include/QtCore/qversiontagging.h \
-  /opt/homebrew/include/QtGui/qtgui-config.h \
-  /opt/homebrew/include/QtGui/qtguiexports.h \
-  /opt/homebrew/include/QtWidgets/qtwidgets-config.h \
-  /opt/homebrew/include/QtWidgets/qtwidgetsexports.h \
-  /opt/homebrew/include/QtWidgets/qwidget.h \
-  /opt/homebrew/include/QtGui/qwindowdefs.h \
-  /opt/homebrew/include/QtCore/qobjectdefs.h \
-  /opt/homebrew/include/QtCore/qnamespace.h \
   /opt/homebrew/include/QtCore/qcompare.h \
   /opt/homebrew/include/QtCore/qstdlibdetection.h \
   /opt/homebrew/include/QtCore/qcomparehelpers.h \
@@ -848,7 +839,6 @@ CMakeFiles/ETIStreamAnalyzer.dir/ETIStreamAnalyzer_autogen/mocs_compilation.cpp.
   /opt/homebrew/include/QtCore/qtmetamacros.h \
   /opt/homebrew/include/QtCore/qobjectdefs_impl.h \
   /opt/homebrew/include/QtCore/qfunctionaltools_impl.h \
-  /opt/homebrew/include/QtCore/qobject.h \
   /opt/homebrew/include/QtCore/qstring.h \
   /opt/homebrew/include/QtCore/qchar.h \
   /opt/homebrew/include/QtCore/qstringview.h \
@@ -917,6 +907,27 @@ CMakeFiles/ETIStreamAnalyzer.dir/ETIStreamAnalyzer_autogen/mocs_compilation.cpp.
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/chrono \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__chrono/file_clock.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/forward_list \
+  /opt/homebrew/lib/QtCore.framework/Headers/QString \
+  /opt/homebrew/lib/QtCore.framework/Headers/qstring.h \
+  /opt/homebrew/lib/QtCore.framework/Headers/QByteArray \
+  /opt/homebrew/lib/QtCore.framework/Headers/qbytearray.h \
+  /opt/homebrew/include/QtCore/qtmochelpers.h \
+  /opt/homebrew/include/QtCore/qtmocconstants.h \
+  /opt/homebrew/include/QtCore/q20algorithm.h \
+  /opt/homebrew/include/QtCore/q23type_traits.h \
+  /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/MXUWEOXILK/moc_about_dialog.cpp \
+  /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/MXUWEOXILK/../../../src/gui/about_dialog.h \
+  /opt/homebrew/lib/QtWidgets.framework/Headers/QDialog \
+  /opt/homebrew/lib/QtWidgets.framework/Headers/qdialog.h \
+  /opt/homebrew/include/QtWidgets/qtwidgetsglobal.h \
+  /opt/homebrew/include/QtGui/qtguiglobal.h \
+  /opt/homebrew/include/QtGui/qtgui-config.h \
+  /opt/homebrew/include/QtGui/qtguiexports.h \
+  /opt/homebrew/include/QtWidgets/qtwidgets-config.h \
+  /opt/homebrew/include/QtWidgets/qtwidgetsexports.h \
+  /opt/homebrew/include/QtWidgets/qwidget.h \
+  /opt/homebrew/include/QtGui/qwindowdefs.h \
+  /opt/homebrew/include/QtCore/qobject.h \
   /opt/homebrew/include/QtCore/qmargins.h \
   /opt/homebrew/include/QtCore/q23utility.h \
   /opt/homebrew/include/QtCore/q20utility.h \
@@ -1002,14 +1013,8 @@ CMakeFiles/ETIStreamAnalyzer.dir/ETIStreamAnalyzer_autogen/mocs_compilation.cpp.
   /opt/homebrew/lib/QtGui.framework/Headers/qpixmap.h \
   /opt/homebrew/lib/QtGui.framework/Headers/QIcon \
   /opt/homebrew/lib/QtGui.framework/Headers/qicon.h \
-  /opt/homebrew/lib/QtCore.framework/Headers/QString \
-  /opt/homebrew/lib/QtCore.framework/Headers/qstring.h \
   /opt/homebrew/lib/QtCore.framework/Headers/QStringList \
   /opt/homebrew/lib/QtCore.framework/Headers/qstringlist.h \
-  /opt/homebrew/include/QtCore/qtmochelpers.h \
-  /opt/homebrew/include/QtCore/qtmocconstants.h \
-  /opt/homebrew/include/QtCore/q20algorithm.h \
-  /opt/homebrew/include/QtCore/q23type_traits.h \
   /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/MXUWEOXILK/moc_analyzer_widget.cpp \
   /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/MXUWEOXILK/../../../src/gui/analyzer_widget.h \
   /opt/homebrew/lib/QtWidgets.framework/Headers/QWidget \
@@ -1202,9 +1207,12 @@ CMakeFiles/ETIStreamAnalyzer.dir/ETIStreamAnalyzer_autogen/mocs_compilation.cpp.
   /opt/homebrew/lib/QtWidgets.framework/Headers/qcolordialog.h \
   /opt/homebrew/lib/QtWidgets.framework/Headers/QFontDialog \
   /opt/homebrew/lib/QtWidgets.framework/Headers/qfontdialog.h \
+  /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/VSCBVMNR7M/moc_config_manager.cpp \
+  /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/VSCBVMNR7M/../../../src/utils/config_manager.h \
+  /opt/homebrew/lib/QtCore.framework/Headers/QVariant \
+  /opt/homebrew/lib/QtCore.framework/Headers/qvariant.h \
   /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/VSCBVMNR7M/moc_logger.cpp \
   /Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/VSCBVMNR7M/../../../src/utils/logger.h \
-  /opt/homebrew/lib/QtCore.framework/Headers/QObject \
   /opt/homebrew/lib/QtCore.framework/Headers/QDateTime \
   /opt/homebrew/lib/QtCore.framework/Headers/qdatetime.h \
   /opt/homebrew/lib/QtCore.framework/Headers/QFile \
@@ -1222,4 +1230,6 @@ CMakeFiles/ETIStreamAnalyzer.dir/ETIStreamAnalyzer_autogen/mocs_compilation.cpp.
   /opt/homebrew/lib/QtCore.framework/Headers/qvarianthash.h \
   /opt/homebrew/include/QtCore/QHash \
   /opt/homebrew/include/QtCore/QVariant \
-  /opt/homebrew/include/QtCore/QString
+  /opt/homebrew/include/QtCore/QString \
+  /opt/homebrew/lib/QtCore.framework/Headers/QDebug \
+  /opt/homebrew/lib/QtCore.framework/Headers/qdebug.h

@@ -1,8 +1,9 @@
 #define ARCHITECTURE_ID "arm64"
-#define DEBUG_BUILD 1
+#define NDEBUG 1
 #define QT_CORE_LIB 1
 #define QT_GUI_LIB 1
 #define QT_NETWORK_LIB 1
+#define QT_NO_DEBUG 1
 #define QT_TESTCASE_BUILDDIR "/Users/seksan/workspace/streamdab-analyzer/build/tests"
 #define QT_TESTCASE_SOURCEDIR "/Users/seksan/workspace/streamdab-analyzer/tests"
 #define QT_TESTLIB_LIB 1

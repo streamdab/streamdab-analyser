@@ -463,6 +463,12 @@
 		"/opt/homebrew/share/cmake/Modules/CPackComponent.cmake",
 		"/opt/homebrew/share/cmake/Templates/CPackConfig.cmake.in",
 		"/opt/homebrew/share/cmake/Templates/CPackConfig.cmake.in",
+		"/Users/seksan/workspace/streamdab-analyzer/cmake/packaging.cmake",
+		"/opt/homebrew/share/cmake/Modules/InstallRequiredSystemLibraries.cmake",
+		"/opt/homebrew/share/cmake/Modules/CPack.cmake",
+		"/opt/homebrew/share/cmake/Modules/CPackComponent.cmake",
+		"/opt/homebrew/share/cmake/Templates/CPackConfig.cmake.in",
+		"/opt/homebrew/share/cmake/Templates/CPackConfig.cmake.in",
 		"/Users/seksan/workspace/streamdab-analyzer/resources/application.qrc"
 	],
 	"CMAKE_SOURCE_DIR" : "/Users/seksan/workspace/streamdab-analyzer",
@@ -579,10 +585,11 @@
 	"MOC_COMPILATION_FILE" : "/Users/seksan/workspace/streamdab-analyzer/build/ETIStreamAnalyzer_autogen/mocs_compilation.cpp",
 	"MOC_DEFINITIONS" : 
 	[
-		"DEBUG_BUILD",
+		"NDEBUG",
 		"QT_CORE_LIB",
 		"QT_GUI_LIB",
 		"QT_NETWORK_LIB",
+		"QT_NO_DEBUG",
 		"QT_WIDGETS_LIB"
 	],
 	"MOC_DEPEND_FILTERS" : 

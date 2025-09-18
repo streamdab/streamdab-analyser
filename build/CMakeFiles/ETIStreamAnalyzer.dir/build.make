@@ -74,7 +74,7 @@ ETIStreamAnalyzer_autogen/3YJK5W5UP7/qrc_application.cpp: CMakeFiles/ETIStreamAn
 ETIStreamAnalyzer_autogen/3YJK5W5UP7/qrc_application.cpp: /opt/homebrew/share/qt/libexec/rcc
 ETIStreamAnalyzer_autogen/3YJK5W5UP7/qrc_application.cpp: /opt/homebrew/share/qt/libexec/rcc
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Automatic RCC for resources/application.qrc"
-	/opt/homebrew/bin/cmake -E cmake_autorcc /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/ETIStreamAnalyzer_autogen.dir/AutoRcc_application_3YJK5W5UP7_Info.json Debug
+	/opt/homebrew/bin/cmake -E cmake_autorcc /Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles/ETIStreamAnalyzer_autogen.dir/AutoRcc_application_3YJK5W5UP7_Info.json Release
 
 CMakeFiles/ETIStreamAnalyzer.dir/codegen:
 .PHONY : CMakeFiles/ETIStreamAnalyzer.dir/codegen
@@ -393,6 +393,9 @@ ETIStreamAnalyzer.app/Contents/MacOS/ETIStreamAnalyzer: CMakeFiles/ETIStreamAnal
 ETIStreamAnalyzer.app/Contents/MacOS/ETIStreamAnalyzer: /opt/homebrew/lib/QtWidgets.framework/Versions/A/QtWidgets
 ETIStreamAnalyzer.app/Contents/MacOS/ETIStreamAnalyzer: /opt/homebrew/lib/QtGui.framework/Versions/A/QtGui
 ETIStreamAnalyzer.app/Contents/MacOS/ETIStreamAnalyzer: /opt/homebrew/lib/QtNetwork.framework/Versions/A/QtNetwork
+ETIStreamAnalyzer.app/Contents/MacOS/ETIStreamAnalyzer: /opt/homebrew/Cellar/faad2/2.11.2/lib/libfaad.dylib
+ETIStreamAnalyzer.app/Contents/MacOS/ETIStreamAnalyzer: /opt/homebrew/Cellar/fftw/3.3.10_2/lib/libfftw3.dylib
+ETIStreamAnalyzer.app/Contents/MacOS/ETIStreamAnalyzer: /opt/homebrew/Cellar/yaml-cpp/0.8.0/lib/libyaml-cpp.0.8.0.dylib
 ETIStreamAnalyzer.app/Contents/MacOS/ETIStreamAnalyzer: /opt/homebrew/lib/QtCore.framework/Versions/A/QtCore
 ETIStreamAnalyzer.app/Contents/MacOS/ETIStreamAnalyzer: CMakeFiles/ETIStreamAnalyzer.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Linking CXX executable ETIStreamAnalyzer.app/Contents/MacOS/ETIStreamAnalyzer"

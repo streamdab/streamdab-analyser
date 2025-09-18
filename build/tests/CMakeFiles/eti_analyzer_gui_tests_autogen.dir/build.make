@@ -72,7 +72,7 @@ tests/eti_analyzer_gui_tests_autogen/timestamp: /opt/homebrew/share/qt/libexec/m
 tests/eti_analyzer_gui_tests_autogen/timestamp: /opt/homebrew/share/qt/libexec/uic
 tests/eti_analyzer_gui_tests_autogen/timestamp: tests/CMakeFiles/eti_analyzer_gui_tests_autogen.dir/compiler_depend.ts
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/seksan/workspace/streamdab-analyzer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Automatic MOC and UIC for target eti_analyzer_gui_tests"
-	cd /Users/seksan/workspace/streamdab-analyzer/build/tests && /opt/homebrew/bin/cmake -E cmake_autogen /Users/seksan/workspace/streamdab-analyzer/build/tests/CMakeFiles/eti_analyzer_gui_tests_autogen.dir/AutogenInfo.json Debug
+	cd /Users/seksan/workspace/streamdab-analyzer/build/tests && /opt/homebrew/bin/cmake -E cmake_autogen /Users/seksan/workspace/streamdab-analyzer/build/tests/CMakeFiles/eti_analyzer_gui_tests_autogen.dir/AutogenInfo.json Release
 	cd /Users/seksan/workspace/streamdab-analyzer/build/tests && /opt/homebrew/bin/cmake -E touch /Users/seksan/workspace/streamdab-analyzer/build/tests/eti_analyzer_gui_tests_autogen/timestamp
 
 tests/CMakeFiles/eti_analyzer_gui_tests_autogen.dir/codegen:
