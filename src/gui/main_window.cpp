@@ -158,12 +158,12 @@ bool MainWindow::initialize()
     Logger::instance().log(Logger::Info, "MainWindow", "Initialization starting");
     
     try {
-        // Initialize ETI processor - TEMPORARILY DISABLED DUE TO LOGGER HANG
-        // m_etiProcessor = std::make_unique<EtiProcessor>();
-        // if (!m_etiProcessor->initialize()) {
-        //     // Logger::instance().log(Logger::Error, "MainWindow", "Failed to initialize ETI processor");
-        //     return false;
-        // }
+        // Initialize ETI processor
+        m_etiProcessor = std::make_unique<EtiProcessor>();
+        if (!m_etiProcessor->initialize()) {
+            Logger::instance().log(Logger::Error, "MainWindow", "Failed to initialize ETI processor");
+            return false;
+        }
         
         // Create GUI components - TEST MINIMAL FIRST
         qDebug() << "Creating actions...";
