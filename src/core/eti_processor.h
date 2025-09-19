@@ -5,6 +5,7 @@
 #include <QByteArray>
 #include <memory>
 #include "eti_types.h"
+#include "etisnoop_wrapper.h"
 
 /**
  * @class EtiProcessor
@@ -36,18 +37,24 @@ public:
     bool initialize();
 
     /**
-     * @brief Process ETI data from file
+     * @brief Process ETI data from file using ETISnoop backend
      * @param filename Path to ETI file
      * @return true if processing successful
      */
     bool processFile(const QString& filename);
 
     /**
-     * @brief Process ETI data from buffer
+     * @brief Process ETI data from buffer using ETISnoop backend
      * @param data ETI data buffer
      * @return true if processing successful
      */
     bool processData(const QByteArray& data);
+
+    /**
+     * @brief Get ETISnoop wrapper instance for direct access
+     * @return ETISnoop wrapper instance
+     */
+    EtisnoopWrapper* getEtisnoopWrapper() const { return m_etisnoopWrapper.get(); }
 
     /**
      * @brief Check if processor is initialized
@@ -166,7 +173,19 @@ signals:
      */
     void serviceQualityChanged(uint16_t serviceId, const ServiceQuality& quality);
 
+private slots:
+    // ETISnoop wrapper signal handlers
+    void onEtisnoopFrameProcessed(const EtisnoopWrapper::FrameAnalysis& analysis);
+    void onEtisnoopServiceDiscovered(const EtisnoopWrapper::ServiceInfo& service);
+    void onEtisnoopEnsembleUpdated(const EtisnoopWrapper::EnsembleInfo& ensemble);
+    void onEtisnoopError(const QString& error);
+    void onEtisnoopStatsUpdated(const EtisnoopWrapper::ProcessingStats& stats);
+    void onEtisnoopThaiComplianceChanged(const EtisnoopWrapper::ThaiComplianceStatus& status);
+
 private:
+    // ETISnoop integration
+    std::unique_ptr<EtisnoopWrapper> m_etisnoopWrapper;
+    
     bool m_initialized;
     quint64 m_frameCount;
     QString m_status;

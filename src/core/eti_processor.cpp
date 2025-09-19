@@ -10,6 +10,7 @@
 
 EtiProcessor::EtiProcessor(QObject *parent)
     : QObject(parent)
+    , m_etisnoopWrapper(std::make_unique<EtisnoopWrapper>(this))
     , m_initialized(false)
     , m_frameCount(0)
     , m_status("Not initialized")
@@ -19,6 +20,20 @@ EtiProcessor::EtiProcessor(QObject *parent)
     // Initialize compliance status
     m_complianceStatus.etsi_en_300_799_compliant = false;
     m_complianceStatus.etsi_en_300_401_compliant = false;
+    
+    // Connect ETISnoop wrapper signals
+    connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::frameProcessed,
+            this, &EtiProcessor::onEtisnoopFrameProcessed);
+    connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::serviceDiscovered,
+            this, &EtiProcessor::onEtisnoopServiceDiscovered);
+    connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::ensembleUpdated,
+            this, &EtiProcessor::onEtisnoopEnsembleUpdated);
+    connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::processingError,
+            this, &EtiProcessor::onEtisnoopError);
+    connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::statsUpdated,
+            this, &EtiProcessor::onEtisnoopStatsUpdated);
+    connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::thaiComplianceChanged,
+            this, &EtiProcessor::onEtisnoopThaiComplianceChanged);
 }
 
 EtiProcessor::~EtiProcessor()
@@ -28,9 +43,22 @@ EtiProcessor::~EtiProcessor()
 
 bool EtiProcessor::initialize()
 {
-    Logger::instance().log(Logger::Info, "EtiProcessor", "Initializing ETI processor");
+    Logger::instance().log(Logger::Info, "EtiProcessor", "Initializing ETI processor with ETISnoop backend");
     
     try {
+        // Initialize ETISnoop wrapper first
+        if (!m_etisnoopWrapper->initialize(true, true)) { // Enable Thai and StreamDAB support
+            QString error = QString("Failed to initialize ETISnoop wrapper: %1").arg(m_etisnoopWrapper->getLastError());
+            Logger::instance().log(Logger::Error, "EtiProcessor", error);
+            emit errorOccurred(error);
+            return false;
+        }
+        
+        // Configure ETISnoop for optimal performance
+        m_etisnoopWrapper->setTargetFrameRate(900.0); // Target >900 fps
+        m_etisnoopWrapper->setRealTimeMode(true);
+        m_etisnoopWrapper->setBufferSize(100);
+        
         // Initialize ETI processing components
         m_frameCount = 0;
         m_status = "Ready";
@@ -56,7 +84,8 @@ bool EtiProcessor::initialize()
         m_initialized = true;
         emit statusChanged(m_status);
         
-        Logger::instance().log(Logger::Info, "EtiProcessor", "ETI processor initialized successfully with enhanced service discovery");
+        Logger::instance().log(Logger::Info, "EtiProcessor", 
+                              "ETI processor initialized successfully with ETISnoop backend (Thai support enabled)");
         return true;
     }
     catch (const std::exception& e) {
@@ -370,21 +399,32 @@ bool EtiProcessor::processFile(const QString& filename)
     }
     
     Logger::instance().log(Logger::Info, "EtiProcessor", 
-                          QString("Processing ETI file: %1").arg(filename));
-    
-    QFile file(filename);
-    if (!file.open(QIODevice::ReadOnly)) {
-        QString error = QString("Failed to open file: %1").arg(filename);
-        Logger::instance().log(Logger::Error, "EtiProcessor", error);
-        emit errorOccurred(error);
-        return false;
-    }
+                          QString("Processing ETI file with ETISnoop backend: %1").arg(filename));
     
     m_currentFile = filename;
-    QByteArray data = file.readAll();
-    file.close();
     
-    return processData(data);
+    // Use ETISnoop wrapper for file processing
+    bool success = m_etisnoopWrapper->processEtiFile(filename);
+    
+    if (success) {
+        // Update frame count from ETISnoop statistics
+        auto stats = m_etisnoopWrapper->getProcessingStats();
+        m_frameCount = stats.totalFramesProcessed;
+        
+        // Update status
+        m_status = QString("ETISnoop processed %1 frames from file").arg(m_frameCount);
+        emit statusChanged(m_status);
+        
+        Logger::instance().log(Logger::Info, "EtiProcessor", 
+                              QString("ETISnoop file processing completed: %1 frames, %2 fps average")
+                              .arg(m_frameCount).arg(stats.averageFrameRate, 0, 'f', 1));
+    } else {
+        QString error = QString("ETISnoop file processing failed: %1").arg(m_etisnoopWrapper->getLastError());
+        Logger::instance().log(Logger::Error, "EtiProcessor", error);
+        emit errorOccurred(error);
+    }
+    
+    return success;
 }
 
 bool EtiProcessor::processData(const QByteArray& data)
@@ -403,52 +443,33 @@ bool EtiProcessor::processData(const QByteArray& data)
         return false;
     }
     
+    Logger::instance().log(Logger::Info, "EtiProcessor", 
+                          QString("Processing ETI data with ETISnoop backend: %1 bytes").arg(data.size()));
+    
     try {
-        // Process ETI data frame by frame according to ETSI EN 300 799
-        int offset = 0;
-        int processedFrames = 0;
+        // Use ETISnoop wrapper for data processing
+        bool success = m_etisnoopWrapper->processEtiData(data);
         
-        while (offset + eti::ETI_FRAME_SIZE <= data.size()) {
-            // Extract single ETI frame (6144 bytes)
-            QByteArray frameData = data.mid(offset, eti::ETI_FRAME_SIZE);
+        if (success) {
+            // Update frame count from ETISnoop statistics
+            auto stats = m_etisnoopWrapper->getProcessingStats();
+            m_frameCount = stats.totalFramesProcessed;
             
-            if (processEtiFrame(frameData)) {
-                processedFrames++;
-                m_frameCount++;
-                
-                // Emit frame processed signal with frame number and data
-                emit frameProcessed(m_frameCount, frameData);
-                
-                Logger::instance().log(Logger::Debug, "EtiProcessor", 
-                                      QString("Successfully processed ETI frame %1")
-                                      .arg(m_frameCount));
-            } else {
-                Logger::instance().log(Logger::Warning, "EtiProcessor", 
-                                      QString("Failed to process ETI frame at offset %1")
-                                      .arg(offset));
-            }
+            // Update status
+            m_status = QString("ETISnoop processed %1 frames from data buffer")
+                       .arg(stats.totalFramesProcessed);
+            emit statusChanged(m_status);
             
-            offset += eti::ETI_FRAME_SIZE;
+            Logger::instance().log(Logger::Info, "EtiProcessor", 
+                                  QString("ETISnoop data processing completed: %1 frames, %2 fps average")
+                                  .arg(stats.totalFramesProcessed).arg(stats.averageFrameRate, 0, 'f', 1));
+        } else {
+            QString error = QString("ETISnoop data processing failed: %1").arg(m_etisnoopWrapper->getLastError());
+            Logger::instance().log(Logger::Error, "EtiProcessor", error);
+            emit errorOccurred(error);
         }
         
-        // Handle remaining partial data
-        if (offset < data.size()) {
-            int remainingBytes = data.size() - offset;
-            Logger::instance().log(Logger::Warning, "EtiProcessor", 
-                                  QString("Incomplete ETI frame: %1 bytes remaining (need %2)")
-                                  .arg(remainingBytes).arg(eti::ETI_FRAME_SIZE));
-        }
-        
-        // Update status
-        m_status = QString("Processed %1 frames (Total: %2)")
-                   .arg(processedFrames).arg(m_frameCount);
-        emit statusChanged(m_status);
-        
-        Logger::instance().log(Logger::Info, "EtiProcessor", 
-                              QString("Processing completed: %1 frames processed, %2 total")
-                              .arg(processedFrames).arg(m_frameCount));
-        
-        return processedFrames > 0;
+        return success;
     }
     catch (const std::exception& e) {
         QString error = QString("Error processing ETI data: %1").arg(e.what());
@@ -514,4 +535,153 @@ bool EtiProcessor::parseFig11_ServiceLabel(const eti::FigBlock& figBlock)
     Q_UNUSED(figBlock);
     Logger::instance().log(Logger::Debug, "EtiProcessor", "FIG 1/1 Service Label parsing - placeholder");
     return true;
+}
+
+// ========================================================================
+// ETISnoop Wrapper Signal Handlers
+// ========================================================================
+
+void EtiProcessor::onEtisnoopFrameProcessed(const EtisnoopWrapper::FrameAnalysis& analysis)
+{
+    if (analysis.isValid) {
+        // Update frame count and emit standard signal
+        m_frameCount++;
+        emit frameProcessed(analysis.frameNumber, analysis.rawData);
+        
+        // Update performance statistics
+        m_averageFrameRate = m_etisnoopWrapper->getCurrentFrameRate();
+        
+        Logger::instance().log(Logger::Debug, "EtiProcessor", 
+                              QString("ETISnoop frame processed: #%1 (%2ms)")
+                              .arg(analysis.frameNumber)
+                              .arg(analysis.processingTime, 0, 'f', 2));
+        
+        // Check for ETSI compliance issues
+        if (!analysis.compliance.isEmpty()) {
+            double complianceScore = analysis.compliance.value("overall_score", 0.0).toDouble();
+            if (complianceScore < 90.0) {
+                Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                                      QString("Frame %1 compliance score: %2%")
+                                      .arg(analysis.frameNumber).arg(complianceScore, 0, 'f', 1));
+            }
+        }
+    } else {
+        Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                              QString("ETISnoop frame processing failed: %1").arg(analysis.errorMessage));
+        emit errorOccurred(analysis.errorMessage);
+    }
+}
+
+void EtiProcessor::onEtisnoopServiceDiscovered(const EtisnoopWrapper::ServiceInfo& service)
+{
+    Logger::instance().log(Logger::Info, "EtiProcessor", 
+                          QString("Service discovered via ETISnoop: ID=%1, Name=%2 (Thai: %3)")
+                          .arg(service.serviceId)
+                          .arg(service.serviceName)
+                          .arg(service.serviceNameThai));
+    
+    // Convert ETISnoop service info to internal format
+    eti::DabService internalService;
+    internalService.service_id = service.serviceId;
+    internalService.label = service.serviceName.toStdString();
+    internalService.is_programme = true; // Assume programme service for now
+    internalService.country_id = 0; // Will be populated from actual ETI data
+    // Note: program_type and language will be handled through service components
+    
+    // Add to discovered services and emit signal
+    m_discoveredServices.push_back(internalService);
+    emit serviceDiscovered(internalService);
+    
+    // Update service quality tracking
+    ServiceQuality quality;
+    quality.signalStrength = service.signalQuality;
+    quality.errorRate = 0.0; // Would be calculated from ETISnoop data
+    quality.isValid = service.isActive;
+    quality.lastUpdate = std::chrono::system_clock::now();
+    
+    m_serviceQuality[service.serviceId] = quality;
+    emit serviceQualityChanged(service.serviceId, quality);
+}
+
+void EtiProcessor::onEtisnoopEnsembleUpdated(const EtisnoopWrapper::EnsembleInfo& ensemble)
+{
+    Logger::instance().log(Logger::Info, "EtiProcessor", 
+                          QString("Ensemble updated via ETISnoop: ID=%1, Name=%2 (Thai: %3), Services=%4")
+                          .arg(ensemble.ensembleId)
+                          .arg(ensemble.ensembleName)
+                          .arg(ensemble.ensembleNameThai)
+                          .arg(ensemble.services.size()));
+    
+    // Convert ETISnoop ensemble info to internal format
+    m_currentEnsemble.ensemble_id = ensemble.ensembleId;
+    m_currentEnsemble.label = ensemble.ensembleName.toStdString();
+    // Store Thai name and country in metadata
+    // Note: country_id should be set from actual ETI data parsing
+    m_currentEnsemble.country_id = 0; // Will be populated from ETISnoop data
+    
+    emit ensembleDiscovered(m_currentEnsemble);
+}
+
+void EtiProcessor::onEtisnoopError(const QString& error)
+{
+    Logger::instance().log(Logger::Error, "EtiProcessor", 
+                          QString("ETISnoop processing error: %1").arg(error));
+    emit errorOccurred(error);
+}
+
+void EtiProcessor::onEtisnoopStatsUpdated(const EtisnoopWrapper::ProcessingStats& stats)
+{
+    // Update internal performance metrics
+    m_frameCount = stats.totalFramesProcessed;
+    m_averageFrameRate = stats.averageFrameRate;
+    m_totalProcessingTime = stats.totalProcessingTime;
+    
+    // Check performance targets
+    if (stats.averageFrameRate > 0) {
+        if (stats.averageFrameRate >= 900.0) {
+            Logger::instance().log(Logger::Debug, "EtiProcessor", 
+                                  QString("Performance target achieved: %1 fps")
+                                  .arg(stats.averageFrameRate, 0, 'f', 1));
+        } else if (stats.averageFrameRate < 720.0) { // 80% of target
+            Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                                  QString("Performance below target: %1 fps (target: 900+ fps)")
+                                  .arg(stats.averageFrameRate, 0, 'f', 1));
+        }
+    }
+    
+    // Update status
+    m_status = QString("ETISnoop: %1 frames, %2 fps, %3 MB")
+               .arg(stats.totalFramesProcessed)
+               .arg(stats.averageFrameRate, 0, 'f', 1)
+               .arg(stats.memoryUsage, 0, 'f', 1);
+    emit statusChanged(m_status);
+}
+
+void EtiProcessor::onEtisnoopThaiComplianceChanged(const EtisnoopWrapper::ThaiComplianceStatus& status)
+{
+    Logger::instance().log(Logger::Info, "EtiProcessor", 
+                          QString("Thai DAB compliance updated: Score=%1%, Level=%2")
+                          .arg(status.complianceScore, 0, 'f', 1)
+                          .arg(static_cast<int>(status.level)));
+    
+    // Update ETSI compliance status for Thai standards
+    if (status.complianceScore >= 95.0) {
+        m_complianceStatus.etsi_en_300_401_compliant = true;
+        Logger::instance().log(Logger::Info, "EtiProcessor", "Thai DAB standards fully compliant");
+    } else if (status.complianceScore < 70.0) {
+        m_complianceStatus.compliance_errors.push_back(
+            "Thai DAB compliance below acceptable threshold: " + 
+            std::to_string(status.complianceScore) + "%"
+        );
+        Logger::instance().log(Logger::Error, "EtiProcessor", 
+                              QString("Thai DAB compliance critical: %1%")
+                              .arg(status.complianceScore, 0, 'f', 1));
+    }
+    
+    // Log any specific issues
+    for (const QString& issue : status.issues) {
+        Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                              QString("Thai compliance issue: %1").arg(issue));
+        m_complianceStatus.compliance_warnings.push_back(issue.toStdString());
+    }
 }
