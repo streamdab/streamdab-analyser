@@ -30,105 +30,50 @@
 #include <QMenuBar>
 #endif
 
-// Application headers (will be created in next phase)
-// #include "gui/main_window.h"
-// #include "utils/config_manager.h"
-// #include "utils/logger.h"
-
-// Temporary placeholder widget for initial testing
-#include <QMainWindow>
-#include <QLabel>
-#include <QVBoxLayout>
-#include <QWidget>
-#include <QPushButton>
-#include <QStatusBar>
+// Application headers
+#include "gui/main_window.h"
+#include "utils/config_manager.h"
+#include "utils/logger.h"
 
 // Application constants
-static const QString APP_NAME = "ETI Stream Analyzer";
-static const QString APP_VERSION = "1.0.0";
-static const QString APP_ORGANIZATION = "ETI Analyzer Team";
-static const QString APP_DOMAIN = "etianalyzer.com";
+const QString APP_NAME = "ETI Stream Analyzer";
+const QString APP_VERSION = "1.0.0";
+const QString APP_ORGANIZATION = "ETI Analyzer Team";
+const QString APP_DOMAIN = "eti-analyzer.com";
 
 // Logging category
 Q_LOGGING_CATEGORY(etiMain, "eti.main")
 
 /**
- * @brief Temporary main window for testing the build system
- *
- * This is a placeholder implementation that will be replaced with
- * the actual MainWindow class in the next development phase.
+ * @brief Parse command line arguments
  */
-class TemporaryMainWindow : public QMainWindow
+void parseCommandLineArguments(const QApplication& app)
 {
-    Q_OBJECT
+    QCommandLineParser parser;
+    parser.setApplicationDescription("ETI Stream Analyzer - Professional DAB/DAB+ Analysis Tool");
+    parser.addHelpOption();
+    parser.addVersionOption();
 
-public:
-    explicit TemporaryMainWindow(QWidget *parent = nullptr)
-        : QMainWindow(parent)
-    {
-        setupUI();
-        setWindowTitle(QString("%1 v%2").arg(APP_NAME, APP_VERSION));
-        resize(800, 600);
+    QCommandLineOption debugOption(QStringList() << "d" << "debug",
+                                   "Enable debug output");
+    parser.addOption(debugOption);
+
+    QCommandLineOption configOption(QStringList() << "c" << "config",
+                                    "Configuration file path", "file");
+    parser.addOption(configOption);
+
+    parser.process(app);
+
+    if (parser.isSet(debugOption)) {
+        QLoggingCategory::setFilterRules("*.debug=true");
+        qCDebug(etiMain) << "Debug mode enabled";
     }
 
-private slots:
-    void showAbout()
-    {
-        QMessageBox::about(this, "About " + APP_NAME,
-            QString("<h2>%1</h2>"
-                   "<p>Version: %2</p>"
-                   "<p>Professional DAB/DAB+ ETI Stream Analysis Tool</p>"
-                   "<p>Built with Qt %3</p>"
-                   "<p>Build Configuration Test: <b>SUCCESS</b></p>")
-            .arg(APP_NAME, APP_VERSION, QT_VERSION_STR));
+    if (parser.isSet(configOption)) {
+        QString configFile = parser.value(configOption);
+        qCDebug(etiMain) << "Using config file:" << configFile;
     }
-
-private:
-    void setupUI()
-    {
-        // Central widget
-        auto *centralWidget = new QWidget(this);
-        setCentralWidget(centralWidget);
-
-        // Layout
-        auto *layout = new QVBoxLayout(centralWidget);
-
-        // Welcome label
-        auto *welcomeLabel = new QLabel(QString(
-            "<h1>Welcome to %1</h1>"
-            "<p>Professional ETI Stream Analyzer</p>"
-            "<p><b>Build System Test - Phase 1 Complete</b></p>"
-        ).arg(APP_NAME));
-        welcomeLabel->setAlignment(Qt::AlignCenter);
-        welcomeLabel->setStyleSheet("QLabel { padding: 20px; }");
-
-        // Feature status
-        auto *statusLabel = new QLabel(
-            "<h3>Build Configuration Status:</h3>"
-            "<ul>"
-            "<li>✓ Qt6 Integration: Ready</li>"
-            "<li>✓ Cross-platform CMake: Configured</li>"
-            "<li>✓ Dependency Management: Set up</li>"
-            "<li>✓ Build System: Operational</li>"
-            "</ul>"
-            "<p><i>Ready for ETISnoop integration (Phase 2)</i></p>"
-        );
-        statusLabel->setStyleSheet("QLabel { padding: 10px; }");
-
-        // Test button
-        auto *aboutButton = new QPushButton("About / Build Info");
-        connect(aboutButton, &QPushButton::clicked, this, &TemporaryMainWindow::showAbout);
-
-        // Add to layout
-        layout->addWidget(welcomeLabel);
-        layout->addWidget(statusLabel);
-        layout->addWidget(aboutButton);
-        layout->addStretch();
-
-        // Status bar
-        statusBar()->showMessage("ETI Stream Analyzer - Build System Ready");
-    }
-};
+}
 
 /**
  * @brief Initialize application directories and settings
@@ -148,62 +93,34 @@ void initializeApplicationDirectories()
 /**
  * @brief Set up application styling and theme
  */
-void setupApplicationStyle(QApplication &app)
+void setupApplicationStyle(QApplication& app)
 {
     // Set application style
     QStringList availableStyles = QStyleFactory::keys();
     qCDebug(etiMain) << "Available styles:" << availableStyles;
 
-#ifdef Q_OS_WIN
-    if (availableStyles.contains("WindowsVista")) {
-        app.setStyle("WindowsVista");
-    }
-#elif defined(Q_OS_MACOS)
-    if (availableStyles.contains("macOS")) {
-        app.setStyle("macOS");
-    }
-#else
+    // Use Fusion style for consistent cross-platform appearance
     if (availableStyles.contains("Fusion")) {
         app.setStyle("Fusion");
     }
-#endif
 
-    // Set application icon (placeholder for now)
-    // app.setWindowIcon(QIcon(":/icons/app_icon.png"));
-}
-
-/**
- * @brief Parse command line arguments
- */
-void parseCommandLineArguments(QApplication &app)
-{
-    QCommandLineParser parser;
-    parser.setApplicationDescription("ETI Stream Analyzer - Professional DAB/DAB+ Analysis Tool");
-    parser.addHelpOption();
-    parser.addVersionOption();
-
-    // Debug option
-    QCommandLineOption debugOption(QStringList() << "d" << "debug",
-        "Enable debug output");
-    parser.addOption(debugOption);
-
-    // Config file option
-    QCommandLineOption configOption(QStringList() << "c" << "config",
-        "Configuration file path", "file");
-    parser.addOption(configOption);
-
-    parser.process(app);
-
-    if (parser.isSet(debugOption)) {
-        QLoggingCategory::setFilterRules("*.debug=true");
-        qCDebug(etiMain) << "Debug mode enabled";
-    }
-
-    if (parser.isSet(configOption)) {
-        QString configFile = parser.value(configOption);
-        qCDebug(etiMain) << "Using config file:" << configFile;
-        // TODO: Pass to ConfigManager in next phase
-    }
+    // Set professional color scheme
+    QPalette darkPalette;
+    darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
+    darkPalette.setColor(QPalette::WindowText, Qt::white);
+    darkPalette.setColor(QPalette::Base, QColor(25, 25, 25));
+    darkPalette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
+    darkPalette.setColor(QPalette::ToolTipBase, Qt::white);
+    darkPalette.setColor(QPalette::ToolTipText, Qt::white);
+    darkPalette.setColor(QPalette::Text, Qt::white);
+    darkPalette.setColor(QPalette::Button, QColor(53, 53, 53));
+    darkPalette.setColor(QPalette::ButtonText, Qt::white);
+    darkPalette.setColor(QPalette::BrightText, Qt::red);
+    darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
+    darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+    darkPalette.setColor(QPalette::HighlightedText, Qt::black);
+    
+    app.setPalette(darkPalette);
 }
 
 /**
@@ -213,7 +130,6 @@ void platformSpecificInit()
 {
 #ifdef Q_OS_WIN
     // Windows-specific initialization
-    // Enable high DPI support
     SetProcessDPIAware();
 #endif
 
@@ -221,71 +137,69 @@ void platformSpecificInit()
     // macOS-specific initialization
     // Configure dock and menu bar behavior
 #endif
-
-#ifdef Q_OS_LINUX
-    // Linux-specific initialization
-    // Set up any required environment variables
-#endif
 }
 
 /**
  * @brief Main application entry point
- *
- * Initializes Qt application, sets up platform-specific configurations,
- * and launches the main application window.
- *
- * @param argc Command line argument count
- * @param argv Command line arguments
- * @return Application exit code
  */
 int main(int argc, char *argv[])
 {
     // Enable high DPI support (Qt 6)
     QApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
-
+    
     // Create Qt application
     QApplication app(argc, argv);
-
+    
     // Set application metadata
     app.setApplicationName(APP_NAME);
     app.setApplicationVersion(APP_VERSION);
     app.setOrganizationName(APP_ORGANIZATION);
     app.setOrganizationDomain(APP_DOMAIN);
-
+    
     // Platform-specific initialization
     platformSpecificInit();
-
+    
     // Parse command line arguments
     parseCommandLineArguments(app);
-
+    
     // Initialize application directories
     initializeApplicationDirectories();
-
+    
     // Set up application styling
     setupApplicationStyle(app);
-
+    
     // Log startup information
     qCInfo(etiMain) << "Starting" << APP_NAME << "version" << APP_VERSION;
     qCInfo(etiMain) << "Qt version:" << QT_VERSION_STR;
     qCInfo(etiMain) << "Platform:" << QGuiApplication::platformName();
-
+    
     try {
-        // Initialize core components (placeholder for next phase)
-        // ConfigManager::initialize();
-        // Logger::initialize();
-
-        // Create and show main window
-        TemporaryMainWindow mainWindow;
+        // Initialize Logger system with hang protection
+        qCInfo(etiMain) << "Initializing Logger system with hang protection...";
+        Logger::instance().enableLogging(true);
+        Logger::instance().initialize();
+        
+        // Test with actual MainWindow and initialization
+        qCInfo(etiMain) << "Creating MainWindow...";
+        MainWindow mainWindow;
+        qCInfo(etiMain) << "MainWindow created, calling initialize()...";
+        
+        if (!mainWindow.initialize()) {
+            qCCritical(etiMain) << "Failed to initialize main window";
+            QMessageBox::critical(nullptr, "Initialization Error",
+                "Failed to initialize the main window. Please check the logs for details.");
+            return -1;
+        }
+        
+        qCInfo(etiMain) << "MainWindow initialized successfully, showing...";
         mainWindow.show();
-
-        qCInfo(etiMain) << "Application initialized successfully";
-
+        qCInfo(etiMain) << "MainWindow shown with full professional interface";
+        
         // Run application event loop
         int result = app.exec();
-
         qCInfo(etiMain) << "Application shutting down with code:" << result;
         return result;
-
+        
     } catch (const std::exception &e) {
         qCCritical(etiMain) << "Fatal error during application startup:" << e.what();
         QMessageBox::critical(nullptr, "Fatal Error",
@@ -294,5 +208,4 @@ int main(int argc, char *argv[])
     }
 }
 
-// Include MOC file for temporary main window
 #include "main.moc"

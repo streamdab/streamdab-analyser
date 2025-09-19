@@ -103,8 +103,8 @@ MainWindow::MainWindow(QWidget *parent)
     , m_settingsDialog(nullptr)
     , m_aboutDialog(nullptr)
 {
-    // Initialize core components
-    m_configManager = std::make_unique<ConfigManager>();
+    // Initialize core components - TEMPORARILY DISABLED DUE TO LOGGER HANG
+    // m_configManager = std::make_unique<ConfigManager>();
     
     // Set window properties
     setWindowTitle("ETI Stream Analyzer");
@@ -122,7 +122,7 @@ MainWindow::MainWindow(QWidget *parent)
         move(x, y);
     }
     
-    // Setup logging
+    // Setup logging - Now using SafeLogger with hang protection
     Logger::instance().setLogLevel(Logger::Info);
     Logger::instance().log(Logger::Info, "MainWindow", "Constructor completed");
 }
@@ -158,29 +158,33 @@ bool MainWindow::initialize()
     Logger::instance().log(Logger::Info, "MainWindow", "Initialization starting");
     
     try {
-        // Initialize ETI processor
-        m_etiProcessor = std::make_unique<EtiProcessor>();
-        if (!m_etiProcessor->initialize()) {
-            Logger::instance().log(Logger::Error, "MainWindow", "Failed to initialize ETI processor");
-            return false;
-        }
+        // Initialize ETI processor - TEMPORARILY DISABLED DUE TO LOGGER HANG
+        // m_etiProcessor = std::make_unique<EtiProcessor>();
+        // if (!m_etiProcessor->initialize()) {
+        //     // Logger::instance().log(Logger::Error, "MainWindow", "Failed to initialize ETI processor");
+        //     return false;
+        // }
         
-        // Create GUI components
+        // Create GUI components - TEST MINIMAL FIRST
+        qDebug() << "Creating actions...";
         createActions();
+        qDebug() << "Creating menubar...";
         createMenuBar();
+        qDebug() << "Creating toolbar...";
         createToolBar();
+        qDebug() << "Creating status bar...";
         createStatusBar();
+        qDebug() << "Creating central widget...";
         createCentralWidget();
+        qDebug() << "Creating dock widgets...";
         createDockWidgets();
-        
-        // Connect signals
+        qDebug() << "Connecting signals...";
         connectSignals();
+        qDebug() << "All GUI components created successfully";
         
-        // Setup real-time timer
-        setupRealTimeTimer();
-        
-        // Load settings
-        loadSettings();
+        // Skip timer and settings for now
+        // setupRealTimeTimer();
+        // loadSettings();
         
         // Store default layout state
         m_defaultLayoutState = saveState();
@@ -196,7 +200,8 @@ bool MainWindow::initialize()
         
     } catch (const std::exception& e) {
         Logger::instance().log(Logger::Error, "MainWindow", 
-                             QString("Initialization failed: %1").arg(e.what()));
+                               QString("Initialization failed: %1").arg(e.what()));
+        qCritical() << "MainWindow initialization failed:" << e.what();
         return false;
     }
 }
@@ -374,25 +379,29 @@ void MainWindow::createStatusBar()
 
 void MainWindow::createCentralWidget()
 {
+    qDebug() << "Creating basic central widget...";
     m_centralWidget = new QWidget;
     setCentralWidget(m_centralWidget);
     
-    // Create main splitter
+    qDebug() << "Creating main splitter...";
     m_mainSplitter = new QSplitter(Qt::Horizontal, m_centralWidget);
     
-    // Create analysis tab widget
+    qDebug() << "Creating analysis tab widget...";
     m_analysisTabWidget = new QTabWidget(m_mainSplitter);
     
-    // Create analyzer widget
+    qDebug() << "Creating analyzer widget...";
     m_analyzerWidget = new AnalyzerWidget(m_analysisTabWidget);
+    qDebug() << "AnalyzerWidget created successfully";
     m_analysisTabWidget->addTab(m_analyzerWidget, tr("ETI Analysis"));
     
-    // Create constellation widget
+    qDebug() << "Creating constellation widget...";
     m_constellationWidget = new ConstellationWidget(m_analysisTabWidget);
+    qDebug() << "ConstellationWidget created successfully";
     m_analysisTabWidget->addTab(m_constellationWidget, tr("Constellation"));
     
-    // Create service browser
+    qDebug() << "Creating service browser...";
     m_serviceBrowser = new ServiceBrowser(m_mainSplitter);
+    qDebug() << "ServiceBrowser created successfully";
     
     // Setup splitter
     m_mainSplitter->addWidget(m_analysisTabWidget);

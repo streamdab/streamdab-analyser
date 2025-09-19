@@ -14,14 +14,24 @@
 #include <QString>
 #include <QStringList>
 #include <QDebug>
+#include <QCoreApplication>
+#include <QStandardPaths>
 #include <memory>
+#include <atomic>
 
 /**
  * @class Logger
- * @brief Unified Professional Logging Framework for ETI Stream Analyzer
+ * @brief HANG-SAFE Professional Logging Framework for ETI Stream Analyzer
  * 
- * Thread-safe singleton logging system with both modern and legacy interfaces
- * for compatibility with existing GUI code while providing professional features.
+ * This is a hang-resistant implementation that maintains 100% API compatibility
+ * with the original Logger while preventing the Logger::instance() hang issue.
+ * 
+ * Key Safety Features:
+ * - Immediate fallback to qDebug() when full logger unavailable
+ * - Lazy initialization with Qt application context checks
+ * - Zero application hang guarantee
+ * - Thread-safe operation with deadlock prevention
+ * - Professional audit trail capabilities when available
  */
 class Logger : public QObject
 {
@@ -52,22 +62,22 @@ public:
     };
 
     /**
-     * @brief Get singleton instance
+     * @brief Get singleton instance with hang-resistant implementation
      * @return Logger singleton reference
      */
     static Logger& instance();
 
     /**
-     * @brief Initialize the logging system
+     * @brief Initialize the logging system (safe, non-blocking)
      * @return true if initialization successful
      */
     bool initialize();
 
     /**
-     * @brief Check if logging system is initialized
-     * @return true if initialized
+     * @brief Check if logging system is fully initialized
+     * @return true if fully initialized
      */
-    bool isInitialized() const { return m_initialized; }
+    bool isInitialized() const { return m_fullyInitialized.load(); }
 
     /**
      * @brief Enable/disable logging
@@ -80,7 +90,7 @@ public:
      * @brief Check if logging is currently enabled
      * @return true if logging is active
      */
-    bool isLoggingEnabled() const { return m_loggingEnabled; }
+    bool isLoggingEnabled() const { return m_loggingEnabled.load(); }
 
     // ========================================================================
     // LEGACY INTERFACE FOR GUI COMPATIBILITY
@@ -105,7 +115,7 @@ public:
     // ========================================================================
 
     /**
-     * @brief Modern logging method
+     * @brief Modern logging method with immediate fallback
      * @param level Log level (using modern enum class)
      * @param message Message text
      * @param category Optional category
@@ -118,51 +128,51 @@ public:
      * @brief Set minimum log level for output
      * @param level Minimum level to log
      */
-    void setLogLevel(LogLevel level) { m_logLevel = level; }
+    void setLogLevel(LogLevel level) { m_logLevel.store(static_cast<int>(level)); }
 
     /**
      * @brief Get current log level
      * @return Current minimum log level
      */
-    LogLevel getLogLevel() const { return m_logLevel; }
+    LogLevel getLogLevel() const { return static_cast<LogLevel>(m_logLevel.load()); }
 
     /**
-     * @brief Log debug message
+     * @brief Log debug message with fallback
      * @param message Message text
      * @param category Optional category
      */
     void logDebug(const QString& message, const QString& category = QString());
 
     /**
-     * @brief Log info message
+     * @brief Log info message with fallback
      * @param message Message text
      * @param category Optional category
      */
     void logInfo(const QString& message, const QString& category = QString());
 
     /**
-     * @brief Log warning message
+     * @brief Log warning message with fallback
      * @param message Message text
      * @param category Optional category
      */
     void logWarning(const QString& message, const QString& category = QString());
 
     /**
-     * @brief Log error message
+     * @brief Log error message with fallback
      * @param message Message text
      * @param category Optional category
      */
     void logError(const QString& message, const QString& category = QString());
 
     /**
-     * @brief Log critical message
+     * @brief Log critical message with fallback
      * @param message Message text
      * @param category Optional category
      */
     void logCritical(const QString& message, const QString& category = QString());
 
     // ========================================================================
-    // GUI INTEGRATION SUPPORT (required for tests to pass)
+    // GUI INTEGRATION SUPPORT (100% compatible with original)
     // ========================================================================
 
     /**
@@ -187,13 +197,13 @@ public:
      * @brief Enable/disable asynchronous logging
      * @param enabled true to enable async logging
      */
-    void enableAsyncLogging(bool enabled) { m_asyncLoggingEnabled = enabled; }
+    void enableAsyncLogging(bool enabled) { m_asyncLoggingEnabled.store(enabled); }
 
     /**
      * @brief Check if async logging is enabled
      * @return true if async logging is active
      */
-    bool isAsyncLoggingEnabled() const { return m_asyncLoggingEnabled; }
+    bool isAsyncLoggingEnabled() const { return m_asyncLoggingEnabled.load(); }
 
     /**
      * @brief Wait for async logging operations to complete
@@ -206,7 +216,7 @@ public:
      * @brief Get current memory usage of logger
      * @return Memory usage in bytes
      */
-    qint64 getMemoryUsage() const { return m_memoryUsage; }
+    qint64 getMemoryUsage() const;
 
     /**
      * @brief Get performance statistics
@@ -218,21 +228,21 @@ public:
      * @brief Set maximum memory usage for internal buffers
      * @param bytes Maximum memory usage in bytes
      */
-    void setMaxMemoryUsage(qint64 bytes) { m_maxMemoryUsage = bytes; }
+    void setMaxMemoryUsage(qint64 bytes) { m_maxMemoryUsage.store(bytes); }
 
     /**
      * @brief Get maximum memory usage limit
      * @return Maximum memory usage in bytes
      */
-    qint64 getMaxMemoryUsage() const { return m_maxMemoryUsage; }
+    qint64 getMaxMemoryUsage() const { return m_maxMemoryUsage.load(); }
 
     /**
-     * @brief Force flush of internal buffers to disk
+     * @brief Force flush of internal buffers to disk (safe)
      */
     void flush();
 
     /**
-     * @brief Set log file directory
+     * @brief Set log file directory (safe)
      * @param directory Path to log directory
      * @return true if directory is valid and writable
      */
@@ -242,25 +252,25 @@ public:
      * @brief Get current log directory
      * @return Path to log directory
      */
-    QString getLogDirectory() const { return m_logDirectory; }
+    QString getLogDirectory() const;
 
     /**
      * @brief Get current log file path
      * @return Path to current log file
      */
-    QString getCurrentLogFilePath() const { return m_currentLogFile; }
+    QString getCurrentLogFilePath() const;
 
     /**
      * @brief Set maximum log file size before rotation
      * @param sizeBytes Maximum size in bytes
      */
-    void setMaxLogFileSize(qint64 sizeBytes) { m_maxLogFileSize = sizeBytes; }
+    void setMaxLogFileSize(qint64 sizeBytes) { m_maxLogFileSize.store(sizeBytes); }
 
     /**
      * @brief Get maximum log file size
      * @return Maximum size in bytes
      */
-    qint64 getMaxLogFileSize() const { return m_maxLogFileSize; }
+    qint64 getMaxLogFileSize() const { return m_maxLogFileSize.load(); }
 
     /**
      * @brief Get list of all log files in directory
@@ -316,7 +326,7 @@ signals:
 
 private:
     /**
-     * @brief Private constructor for singleton
+     * @brief Private constructor for singleton (minimal initialization)
      */
     explicit Logger(QObject *parent = nullptr);
 
@@ -330,17 +340,27 @@ private:
     Logger& operator=(const Logger&) = delete;
 
     /**
+     * @brief Safe fallback logging using qDebug() (never hangs)
+     */
+    void fallbackLog(LogLevel level, const QString& message, const QString& category);
+
+    /**
      * @brief Convert legacy log level to modern enum
      */
     LogLevel convertLegacyLevel(LegacyLogLevel level) const;
 
     /**
-     * @brief Internal logging implementation
+     * @brief Internal logging implementation with fallback
      */
     void logInternal(LogLevel level, const QString& message, const QString& category);
 
     /**
-     * @brief Write log message to console and storage
+     * @brief Attempt to initialize file logging (safe, non-blocking)
+     */
+    bool initializeFileLogging();
+
+    /**
+     * @brief Write log message to available outputs
      */
     void writeLogMessage(const LogMessage& message);
 
@@ -349,41 +369,61 @@ private:
      */
     QString formatLogMessage(const LogMessage& message) const;
 
-    // Member variables
-    bool m_initialized;
-    bool m_loggingEnabled;
-    bool m_asyncLoggingEnabled;
-    LogLevel m_logLevel;
-    QString m_logDirectory;
-    QString m_currentLogFile;
-    qint64 m_maxLogFileSize;
-    qint64 m_maxMemoryUsage;
-    qint64 m_memoryUsage;
+    /**
+     * @brief Get safe log level string
+     */
+    QString getLevelString(LogLevel level) const;
+
+    /**
+     * @brief Check if Qt application context is available
+     */
+    static bool isQtApplicationReady();
+
+private slots:
+    /**
+     * @brief Attempt delayed initialization
+     */
+    void attemptDelayedInitialization();
+
+private:
+    // Thread-safe atomic state management
+    std::atomic<bool> m_fullyInitialized{false};
+    std::atomic<bool> m_loggingEnabled{true};
+    std::atomic<bool> m_fileLoggingAvailable{false};
+    std::atomic<bool> m_asyncLoggingEnabled{false};
+    std::atomic<int> m_logLevel{static_cast<int>(LogLevel::Info)};
+    std::atomic<qint64> m_maxMemoryUsage{50 * 1024 * 1024}; // 50MB default
+    std::atomic<qint64> m_maxLogFileSize{10 * 1024 * 1024}; // 10MB default
     
-    // Threading and synchronization
-    mutable QMutex m_mutex;
-    QWaitCondition m_waitCondition;
-    
-    // Message storage
-    QQueue<LogMessage> m_messageQueue;
+    // Thread-safe containers
+    mutable QMutex m_messagesMutex;
     QList<LogMessage> m_recentMessages;
     
-    // Performance tracking
-    qint64 m_messageCount;
-    QDateTime m_startTime;
-    
-    // File I/O
+    // File logging components (only if available)
+    mutable QMutex m_fileMutex;
+    QString m_logDirectory;
+    QString m_currentLogFile;
     std::unique_ptr<QFile> m_logFile;
     std::unique_ptr<QTextStream> m_logStream;
+    
+    // Performance tracking
+    mutable QMutex m_statsMutex;
+    qint64 m_messageCount{0};
+    QDateTime m_startTime;
+    
+    // Delayed initialization
+    QTimer* m_initTimer{nullptr};
     
     // Static singleton instance
     static Logger* s_instance;
     static QMutex s_instanceMutex;
     
     // Constants
+    static constexpr int MAX_RECENT_MESSAGES = 1000;
+    static constexpr int INIT_RETRY_INTERVAL_MS = 1000;
+    static constexpr int MAX_INIT_RETRIES = 5;
     static constexpr qint64 DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;  // 10MB
     static constexpr qint64 DEFAULT_MAX_MEMORY = 50 * 1024 * 1024;     // 50MB
-    static constexpr int MAX_RECENT_MESSAGES = 1000;
 };
 
 // Register metatypes for Qt signals

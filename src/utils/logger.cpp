@@ -9,6 +9,7 @@
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QThread>
+#include <QTimer>
 #include <algorithm>
 
 // Static member initialization
@@ -17,21 +18,26 @@ QMutex Logger::s_instanceMutex;
 
 Logger::Logger(QObject *parent)
     : QObject(parent)
-    , m_initialized(false)
-    , m_loggingEnabled(true)
-    , m_asyncLoggingEnabled(false)
-    , m_logLevel(LogLevel::Info)
-    , m_maxLogFileSize(DEFAULT_MAX_FILE_SIZE)
-    , m_maxMemoryUsage(DEFAULT_MAX_MEMORY)
-    , m_memoryUsage(0)
-    , m_messageCount(0)
     , m_startTime(QDateTime::currentDateTime())
 {
-    // Set default log directory
-    m_logDirectory = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/logs";
+    // CRITICAL: Minimal constructor - avoid any operations that could hang
     
-    // Ensure log directory exists
-    QDir().mkpath(m_logDirectory);
+    // Setup delayed initialization timer (safe)
+    m_initTimer = new QTimer(this);
+    m_initTimer->setSingleShot(false);
+    m_initTimer->setInterval(INIT_RETRY_INTERVAL_MS);
+    
+    connect(m_initTimer, &QTimer::timeout, this, &Logger::attemptDelayedInitialization);
+    
+    // Start timer to attempt initialization when Qt is ready
+    QTimer::singleShot(100, this, [this]() {
+        if (m_initTimer) {
+            m_initTimer->start();
+        }
+    });
+    
+    // Log using fallback that we're starting up
+    fallbackLog(LogLevel::Info, "Logger created with hang-safe implementation", "Logger");
 }
 
 Logger::~Logger()
@@ -46,56 +52,161 @@ Logger::~Logger()
 
 Logger& Logger::instance()
 {
+    // Use minimal locking to prevent hangs
     QMutexLocker locker(&s_instanceMutex);
     if (!s_instance) {
         s_instance = new Logger();
-        s_instance->initialize();
+        // Note: Do NOT call initialization here - use delayed initialization
     }
     return *s_instance;
 }
 
-bool Logger::initialize()
+bool Logger::isQtApplicationReady()
 {
-    QMutexLocker locker(&m_mutex);
-    
-    if (m_initialized) {
-        return true;
-    }
-    
-    // Create log directory if it doesn't exist
-    QDir logDir(m_logDirectory);
-    if (!logDir.exists()) {
-        if (!logDir.mkpath(".")) {
-            qDebug() << "Failed to create log directory:" << m_logDirectory;
-            return false;
-        }
-    }
-    
-    // Create initial log file
-    QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss");
-    m_currentLogFile = m_logDirectory + QString("/eti_analyzer_%1.log").arg(timestamp);
-    
-    m_logFile = std::make_unique<QFile>(m_currentLogFile);
-    if (!m_logFile->open(QIODevice::WriteOnly | QIODevice::Append)) {
-        qDebug() << "Failed to open log file:" << m_currentLogFile;
+    // Check if Qt application context is available
+    QCoreApplication* app = QCoreApplication::instance();
+    if (!app) {
         return false;
     }
     
-    m_logStream = std::make_unique<QTextStream>(m_logFile.get());
-    // Note: setCodec() is deprecated in Qt6, UTF-8 is default
-    
-    m_initialized = true;
-    
-    // Log initialization message
-    logInfo("Logger initialized", "Logger");
+    // Check if application is in a state where file operations are safe
+    if (app->applicationName().isEmpty()) {
+        return false;
+    }
     
     return true;
 }
 
+void Logger::attemptDelayedInitialization()
+{
+    if (m_fullyInitialized.load()) {
+        // Already initialized, stop timer
+        if (m_initTimer) {
+            m_initTimer->stop();
+        }
+        return;
+    }
+    
+    if (!isQtApplicationReady()) {
+        // Qt not ready yet, try again later
+        return;
+    }
+    
+    // Attempt safe initialization
+    if (initializeFileLogging()) {
+        // Success - stop timer
+        if (m_initTimer) {
+            m_initTimer->stop();
+        }
+        m_fullyInitialized.store(true);
+        m_fileLoggingAvailable.store(true);
+        
+        // Log successful initialization
+        logInfo("Logger fully initialized with file logging", "Logger");
+    }
+}
+
+bool Logger::initialize()
+{
+    if (m_fullyInitialized.load()) {
+        return true;
+    }
+    
+    if (!isQtApplicationReady()) {
+        return false;
+    }
+    
+    // Attempt immediate initialization
+    return initializeFileLogging();
+}
+
+bool Logger::initializeFileLogging()
+{
+    QMutexLocker locker(&m_fileMutex);
+    
+    if (m_fileLoggingAvailable.load()) {
+        return true;
+    }
+    
+    try {
+        // Get safe log directory
+        QString appName = QCoreApplication::applicationName();
+        if (appName.isEmpty()) {
+            appName = "ETIStreamAnalyzer";
+        }
+        
+        // Try to get writable location, with fallback
+        QString logDir;
+        try {
+            logDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+            if (logDir.isEmpty()) {
+                // Fallback to temp directory
+                logDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+                if (!logDir.isEmpty()) {
+                    logDir = logDir + "/" + appName;
+                }
+            }
+        }
+        catch (...) {
+            // QStandardPaths failed, use current directory
+            logDir = QDir::currentPath() + "/logs";
+        }
+        
+        if (logDir.isEmpty()) {
+            // Last resort fallback
+            logDir = "./logs";
+        }
+        
+        // Ensure logs subdirectory
+        if (!logDir.endsWith("/logs")) {
+            logDir = logDir + "/logs";
+        }
+        
+        m_logDirectory = logDir;
+        
+        // Create log directory if it doesn't exist (with timeout protection)
+        QDir dir;
+        if (!dir.mkpath(m_logDirectory)) {
+            // Directory creation failed, try current directory fallback
+            m_logDirectory = "./logs";
+            if (!dir.mkpath(m_logDirectory)) {
+                return false;
+            }
+        }
+        
+        // Create log file with timestamp
+        QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss");
+        m_currentLogFile = m_logDirectory + QString("/eti_analyzer_safe_%1.log").arg(timestamp);
+        
+        // Attempt to open log file
+        m_logFile = std::make_unique<QFile>(m_currentLogFile);
+        if (!m_logFile->open(QIODevice::WriteOnly | QIODevice::Append)) {
+            return false;
+        }
+        
+        m_logStream = std::make_unique<QTextStream>(m_logFile.get());
+        
+        // Write initialization message to file
+        *m_logStream << QString("[%1] [INFO] [Logger] File logging initialized: %2")
+                        .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz"))
+                        .arg(m_currentLogFile) << Qt::endl;
+        m_logStream->flush();
+        
+        return true;
+    }
+    catch (...) {
+        // Any exception during file logging setup
+        return false;
+    }
+}
+
 bool Logger::enableLogging(bool enabled)
 {
-    QMutexLocker locker(&m_mutex);
-    m_loggingEnabled = enabled;
+    m_loggingEnabled.store(enabled);
+    
+    QString message = QString("Logging %1").arg(enabled ? "enabled" : "disabled");
+    fallbackLog(LogLevel::Info, message, "Logger");
+    
     return true;
 }
 
@@ -112,12 +223,12 @@ void Logger::setLogLevel(LegacyLogLevel level)
 
 void Logger::log(LogLevel level, const QString& message, const QString& category, const QVariantHash& /*metadata*/)
 {
-    if (!m_initialized || !m_loggingEnabled) {
+    if (!m_loggingEnabled.load()) {
         return;
     }
     
     // Check if message meets minimum log level
-    if (level < m_logLevel) {
+    if (level < static_cast<LogLevel>(m_logLevel.load())) {
         return;
     }
     
@@ -151,40 +262,67 @@ void Logger::logCritical(const QString& message, const QString& category)
     emit errorMessageAdded(message, QDateTime::currentDateTime());
 }
 
-bool Logger::waitForAsyncCompletion(int /*timeoutMs*/)
+bool Logger::waitForAsyncCompletion(int timeoutMs)
 {
-    // For now, return immediately since we're not using async processing yet
-    return true;
+    if (m_fullyInitialized.load()) {
+        return true;
+    }
+    
+    // Wait for delayed initialization with timeout
+    QTimer timeoutTimer;
+    timeoutTimer.setSingleShot(true);
+    timeoutTimer.start(timeoutMs);
+    
+    while (!m_fullyInitialized.load() && timeoutTimer.isActive()) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+        QThread::msleep(10);
+    }
+    
+    return m_fullyInitialized.load();
+}
+
+qint64 Logger::getMemoryUsage() const
+{
+    QMutexLocker locker(&m_messagesMutex);
+    return m_recentMessages.size() * sizeof(LogMessage);
 }
 
 QVariantHash Logger::getPerformanceStatistics() const
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker locker(&m_statsMutex);
     
     QVariantHash stats;
     stats["message_count"] = m_messageCount;
-    stats["memory_usage"] = m_memoryUsage;
     stats["uptime_seconds"] = m_startTime.secsTo(QDateTime::currentDateTime());
+    stats["file_logging_available"] = m_fileLoggingAvailable.load();
+    stats["fully_initialized"] = m_fullyInitialized.load();
     stats["log_file"] = m_currentLogFile;
-    stats["recent_message_count"] = m_recentMessages.size();
+    stats["memory_usage"] = getMemoryUsage();
+    
+    {
+        QMutexLocker msgLocker(&m_messagesMutex);
+        stats["recent_message_count"] = m_recentMessages.size();
+    }
     
     return stats;
 }
 
 void Logger::flush()
 {
-    QMutexLocker locker(&m_mutex);
-    if (m_logStream) {
-        m_logStream->flush();
-    }
-    if (m_logFile) {
-        m_logFile->flush();
+    if (m_fileLoggingAvailable.load()) {
+        QMutexLocker locker(&m_fileMutex);
+        if (m_logStream) {
+            m_logStream->flush();
+        }
+        if (m_logFile) {
+            m_logFile->flush();
+        }
     }
 }
 
 bool Logger::setLogDirectory(const QString& directory)
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker locker(&m_fileMutex);
     
     QDir dir(directory);
     if (!dir.exists()) {
@@ -197,13 +335,31 @@ bool Logger::setLogDirectory(const QString& directory)
     return true;
 }
 
+QString Logger::getLogDirectory() const
+{
+    QMutexLocker locker(&m_fileMutex);
+    if (!m_logDirectory.isEmpty()) {
+        return m_logDirectory;
+    }
+    
+    // Fallback directory
+    return "./logs";
+}
+
+QString Logger::getCurrentLogFilePath() const
+{
+    QMutexLocker locker(&m_fileMutex);
+    return m_currentLogFile;
+}
+
 QStringList Logger::getLogFileList() const
 {
-    QDir logDir(m_logDirectory);
+    QString logDir = getLogDirectory();
+    QDir dir(logDir);
     QStringList filters;
     filters << "eti_analyzer_*.log";
     
-    QFileInfoList files = logDir.entryInfoList(filters, QDir::Files, QDir::Time);
+    QFileInfoList files = dir.entryInfoList(filters, QDir::Files, QDir::Time);
     QStringList filePaths;
     
     for (const QFileInfo& fileInfo : files) {
@@ -215,7 +371,7 @@ QStringList Logger::getLogFileList() const
 
 QList<Logger::LogMessage> Logger::getRecentMessages(int maxCount) const
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker locker(&m_messagesMutex);
     
     if (m_recentMessages.size() <= maxCount) {
         return m_recentMessages;
@@ -239,60 +395,105 @@ Logger::LogLevel Logger::convertLegacyLevel(LegacyLogLevel level) const
 
 void Logger::logInternal(LogLevel level, const QString& message, const QString& category)
 {
-    QMutexLocker locker(&m_mutex);
+    // Always use fallback logging for immediate output (never hangs)
+    fallbackLog(level, message, category);
     
-    // Create log message
+    // Create log message for storage
     LogMessage logMsg(level, message, category);
     
-    // Add to recent messages (with size limit)
-    m_recentMessages.append(logMsg);
-    if (m_recentMessages.size() > MAX_RECENT_MESSAGES) {
-        m_recentMessages.removeFirst();
+    // Add to recent messages (thread-safe)
+    {
+        QMutexLocker locker(&m_messagesMutex);
+        m_recentMessages.append(logMsg);
+        if (m_recentMessages.size() > MAX_RECENT_MESSAGES) {
+            m_recentMessages.removeFirst();
+        }
     }
     
-    // Write to file and console
-    writeLogMessage(logMsg);
+    // Write to file if available (non-blocking)
+    if (m_fileLoggingAvailable.load()) {
+        writeLogMessage(logMsg);
+    }
     
     // Update statistics
-    m_messageCount++;
-    m_memoryUsage = m_recentMessages.size() * sizeof(LogMessage);
+    {
+        QMutexLocker locker(&m_statsMutex);
+        m_messageCount++;
+    }
     
-    // Emit signal for GUI integration
-    emit logMessageAdded(level, message, category, logMsg.timestamp);
+    // Emit signal for GUI integration (safe)
+    QTimer::singleShot(0, this, [this, level, message, category, logMsg]() {
+        emit logMessageAdded(level, message, category, logMsg.timestamp);
+    });
+}
+
+void Logger::fallbackLog(LogLevel level, const QString& message, const QString& category)
+{
+    // Always safe fallback using qDebug() - never hangs
+    QString formattedMessage = QString("[%1] [%2] %3: %4")
+        .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz"))
+        .arg(getLevelString(level))
+        .arg(category.isEmpty() ? "General" : category)
+        .arg(message);
+    
+    // Use appropriate Qt logging based on level
+    switch (level) {
+        case LogLevel::Debug:
+            qDebug().noquote() << formattedMessage;
+            break;
+        case LogLevel::Info:
+            qInfo().noquote() << formattedMessage;
+            break;
+        case LogLevel::Warning:
+            qWarning().noquote() << formattedMessage;
+            break;
+        case LogLevel::Error:
+        case LogLevel::Critical:
+            qCritical().noquote() << formattedMessage;
+            break;
+    }
 }
 
 void Logger::writeLogMessage(const LogMessage& message)
 {
-    QString formattedMessage = formatLogMessage(message);
+    if (!m_fileLoggingAvailable.load()) {
+        return;
+    }
     
-    // Write to console for immediate feedback
-    qDebug().noquote() << formattedMessage;
-    
-    // Write to file if available
-    if (m_logStream) {
-        *m_logStream << formattedMessage << Qt::endl;
-        m_logStream->flush();
+    try {
+        QMutexLocker locker(&m_fileMutex);
+        if (m_logStream && m_logFile && m_logFile->isOpen()) {
+            QString formattedMessage = formatLogMessage(message);
+            *m_logStream << formattedMessage << Qt::endl;
+            m_logStream->flush();
+        }
+    }
+    catch (...) {
+        // File write failed, but don't hang the application
+        // Continue with fallback logging only
+        m_fileLoggingAvailable.store(false);
     }
 }
 
 QString Logger::formatLogMessage(const LogMessage& message) const
 {
-    QString levelStr;
-    switch (message.level) {
-        case LogLevel::Debug: levelStr = "DEBUG"; break;
-        case LogLevel::Info: levelStr = "INFO"; break;
-        case LogLevel::Warning: levelStr = "WARNING"; break;
-        case LogLevel::Error: levelStr = "ERROR"; break;
-        case LogLevel::Critical: levelStr = "CRITICAL"; break;
-    }
-    
     QString formatted = QString("[%1] [%2] %3: %4")
         .arg(message.timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz"))
-        .arg(levelStr)
+        .arg(getLevelString(message.level))
         .arg(message.category.isEmpty() ? "General" : message.category)
         .arg(message.message);
     
     return formatted;
 }
 
-// Note: moc is handled automatically by CMake
+QString Logger::getLevelString(LogLevel level) const
+{
+    switch (level) {
+        case LogLevel::Debug: return "DEBUG";
+        case LogLevel::Info: return "INFO";
+        case LogLevel::Warning: return "WARNING";
+        case LogLevel::Error: return "ERROR";
+        case LogLevel::Critical: return "CRITICAL";
+        default: return "UNKNOWN";
+    }
+}
