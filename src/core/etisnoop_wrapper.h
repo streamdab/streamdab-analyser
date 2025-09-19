@@ -283,6 +283,25 @@ public:
      * @param serviceId Service identifier
      * @return Current DLS text or empty string
      */
+    QString getServiceDLS(uint32_t serviceId) const;
+
+    /**
+     * @brief Get complete analysis output in YAML format
+     * @return Full ETI analysis results as YAML string
+     */
+    QString getAnalysisOutput() const;
+
+    /**
+     * @brief Get latest frame analysis results
+     * @return Recent frame analysis data
+     */
+    QString getFrameAnalysisOutput() const;
+
+    /**
+     * @brief Extract Dynamic Label Segment (DLS) text from service (internal method)
+     * @param serviceId Service identifier
+     * @return Current DLS text or empty string
+     */
     QString extractServiceDLS(uint32_t serviceId) const;
 
     /**
