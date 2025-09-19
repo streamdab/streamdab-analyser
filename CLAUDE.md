@@ -756,6 +756,217 @@ void MainWindow::startNetworkAnalysis(const QString& multicastAddress, quint16 p
 3. **Final Testing** - End-to-end workflow validation including real-time processing
 4. **Production Deployment** - Final packaging with real-time capabilities enabled
 
+## 🎨 **PROFESSIONAL UI/UX REDESIGN PLAN - PHASE 5**
+
+### **📋 Current Status: UI Transformation to Professional Broadcasting Standards**
+
+**Project Evolution:** The ETI Stream Analyzer is transitioning from **basic Qt application** to **professional broadcast industry-standard interface** matching Elecard Stream Analyzer and DekTec StreamXpert patterns.
+
+**Redesign Trigger:** Introduction of `claude_code_ui_new_guide.md` with comprehensive professional stream analyzer interface requirements and user workflow specifications.
+
+### **🎯 COMPREHENSIVE UI/UX REDESIGN OBJECTIVES**
+
+#### **Current State vs Target State Analysis**
+- **Current**: Basic QMainWindow with simple dock widgets and generic file processing interface
+- **Target**: Professional three-panel layout with ETI/DAB-specific workflows and real-time processing integration
+- **Gap**: Complete interface overhaul required to match broadcasting industry standards
+
+#### **Key Transformation Requirements**
+1. **Three-Panel Professional Layout** (Elecard/DekTec pattern)
+   - Explorer Panel (Left 25%): ETI service tree with hierarchical DAB organization
+   - Main Content Area (Center 50%): Frame listing with color-coded expandable details
+   - Properties Panel (Right 25%): Parameter display with sync/compare modes
+   - Bottom Tabbed Panel (25% height): Specialist tools (Hex Viewer, Messages, TR101-290)
+
+2. **Broadcasting Industry Aesthetics**
+   - Professional color scheme (#2D2D30 backgrounds, #0078D4 accents)
+   - Typography hierarchy (Segoe UI labels, Consolas technical data)
+   - Service type color coding (Audio=green, Data=orange, Ensemble=blue)
+   - Status indicators and progress displays
+
+3. **ETI/DAB-Specific Workflows**
+   - Service-based organization (not PID-based) with Service ID (SID) identification
+   - FIG analysis integration (Fast Information Groups 0-31)
+   - Audio parameter display (DAB vs DAB+, protection levels, bitrates)
+   - Context menus for service-specific actions (Extract audio, Analyze FIGs)
+
+### **🚀 PHASE 5 IMPLEMENTATION PLAN**
+
+#### **Phase 5.1: Core Layout Transformation (Weeks 1-2)**
+
+**UX/UI Agent (Primary Lead):**
+```cpp
+class MainWindow : public QMainWindow {
+    void setupThreePanelLayout();       // Professional docking framework
+    void createExplorerPanel();         // Service tree with ETI hierarchy  
+    void createMainContentArea();       // Frame listing with color coding
+    void createPropertiesPanel();       // Parameter display with modes
+    void createBottomToolPanels();      // Specialist analysis tools
+};
+```
+
+**Standards Compliance Agent:**
+```cpp
+class EtiServiceTreeModel : public QAbstractItemModel {
+    void updateFromEnsemble(const EnsembleInfo& ensemble);
+    void addService(const ServiceInfo& service);
+    void updateServiceStatus(uint32_t serviceId, bool active);
+};
+```
+
+**Build Manager Agent:**
+- Qt component integration and custom widget compilation
+- Resource file management (icons, stylesheets, UI files)
+- Cross-platform build validation for new components
+
+#### **Phase 5.2: ETI/DAB Integration (Weeks 3-4)**
+
+**Standards Compliance Agent (Lead):**
+- ETI frame display with 6144-byte frame structure and 24ms precision
+- FIG analysis integration from ETISnoop wrapper signals
+- Service parameter display with ETSI compliance validation
+- Real-time processing integration for >900 fps capability
+
+**Network/Stream Agent:**
+```cpp
+class NetworkStreamDialog : public QDialog {
+    void configureMulticastSettings();    // ETI-over-IP configuration
+    void validateNetworkConnection();     // Connection quality testing
+    void startRealTimeAnalysis();         // Seamless mode switching
+};
+```
+
+**UX/UI Agent:**
+- Professional styling implementation with broadcasting color schemes
+- Custom widget design for ETI/DAB service types
+- User interaction flow implementation
+
+#### **Phase 5.3: Advanced Workflows & E2E Testing (Weeks 5-6)**
+
+**Tester Agent (E2E Lead):**
+```cpp
+class E2EWorkflowTests : public QObject {
+    void testFileAnalysisWorkflow();      // File → Analyze → Navigate → Export
+    void testRealTimeAnalysisWorkflow();  // Connect → Stream → Monitor → Record
+    void testErrorDetectionWorkflow();    // Messages → Navigate → Analyze → Report
+    void testDualModeWorkflow();          // File ↔ Real-time switching
+};
+```
+
+**UX/UI Agent:**
+- Search and filtering implementation across ETI frame data
+- Export functionality (YAML, CSV, XML, audio extraction)
+- Session management for analysis state persistence
+
+**Network/Stream Agent:**
+- Real-time status display with connection quality indicators
+- Stream quality monitoring and performance metrics
+- Network statistics display and error notifications
+
+#### **Phase 5.4: Integration & Production Validation (Weeks 7-8)**
+
+**All Agents Coordination:**
+- Cross-component integration testing
+- Performance optimization and memory management
+- ETSI compliance verification with new interface
+- Final packaging and deployment with professional UI
+
+### **🤖 AGENT COORDINATION MATRIX**
+
+| **Agent** | **Primary Focus** | **Key Deliverables** | **Timeline** |
+|-----------|------------------|---------------------|--------------|
+| **UX/UI Agent** | Interface redesign | Three-panel layout, professional styling, user workflows | Week 1-2, 5-6 |
+| **Standards Compliance Agent** | ETI/DAB integration | Service tree model, frame analysis, real-time processing | Week 3-4, 7-8 |
+| **Tester Agent (E2E Lead)** | Comprehensive testing | E2E test suite, performance validation, workflow automation | Week 3-4, 5-8 |
+| **Build Manager Agent** | Infrastructure support | Qt component integration, performance optimization, deployment | Week 1-2, 7-8 |
+| **Network/Stream Agent** | Real-time features | Network configuration, live monitoring, stream quality display | Week 3-4, 5-6 |
+
+### **📊 SUCCESS VALIDATION FRAMEWORK**
+
+#### **Technical Validation Criteria**
+- ✅ **Zero errors, zero warnings** build across all new UI components
+- ✅ **Real-time processing >900 fps** with responsive professional interface
+- ✅ **Memory usage stability** during extended operation with complex layout
+- ✅ **Cross-platform compatibility** (Windows, Linux, macOS) with native appearance
+
+#### **User Experience Validation**
+- ✅ **Professional broadcast tool aesthetics** matching industry standards
+- ✅ **Intuitive ETI/DAB service navigation** with hierarchical organization
+- ✅ **Seamless file/real-time mode switching** without UI corruption
+- ✅ **Comprehensive error detection workflows** with Messages panel integration
+
+#### **Performance Benchmarks**
+- ✅ **<50ms latency** for real-time ETI frame to UI display
+- ✅ **<2 second startup time** with complex three-panel layout
+- ✅ **Stable memory usage** during continuous real-time operation
+- ✅ **60 FPS smooth UI updates** under processing load
+
+### **🎯 CRITICAL USER WORKFLOWS (E2E TESTING PRIORITY)**
+
+#### **1. File Analysis Workflow**
+```
+File → Open → Analyze → Navigate → Export Results
+```
+**E2E Validation:** Complete workflow from file loading through service analysis to professional report generation
+
+#### **2. Real-Time Analysis Workflow**
+```
+Connect Source → Enable Real-time Mode → Stream Processing → Live Updates → Record/Export
+```
+**E2E Validation:** Network stream configuration through live monitoring with performance metrics
+
+#### **3. Error Detection Workflow**
+```
+Open File → Check Messages Panel → Navigate to Errors → Analyze Details → Generate Report
+```
+**E2E Validation:** Comprehensive error analysis with professional broadcasting standards
+
+#### **4. Dual-Mode Workflow**
+```
+File Analysis → Switch to Real-time → Compare Live vs File → Return to File
+```
+**E2E Validation:** Seamless mode switching with UI state preservation and data comparison
+
+### **🏗️ ARCHITECTURAL ENHANCEMENT**
+
+#### **Signal-Driven UI Architecture**
+```
+ETISnoop Wrapper Signals → Qt Signal/Slot → Model Updates → Professional View Refresh
+```
+
+**Enhanced Integration:**
+- **Explorer Panel Updates**: `serviceDiscovered()` → Service tree refresh
+- **Properties Panel Sync**: `frameProcessed()` → Real-time parameter display  
+- **Main Panel Updates**: `ensembleUpdated()` → Content area refresh
+- **Status Panel Monitoring**: `audioStatisticsUpdated()` → Live statistics
+
+#### **Professional Data Models**
+```cpp
+// Qt Model-View architecture for professional interface
+class EtiServiceTreeModel : public QAbstractItemModel;    // Service hierarchy
+class FrameAnalysisModel : public QAbstractTableModel;    // Frame processing display
+class StatisticsModel : public QAbstractItemModel;        // Real-time metrics
+class ErrorLogModel : public QAbstractListModel;          // Professional error tracking
+```
+
+### **📋 IMPLEMENTATION STATUS TRACKING**
+
+#### **Phase 5.1 Status: ⏳ READY TO START**
+- **UX/UI Agent**: Standing by for three-panel layout implementation
+- **Standards Compliance Agent**: Prepared for ETI service tree model development
+- **Build Manager Agent**: Ready for Qt component integration setup
+
+#### **Phase 5.2 Status: 📋 PLANNED**
+- **Standards Compliance Agent**: ETI frame processing and FIG analysis integration
+- **Network/Stream Agent**: Real-time processing UI integration and network configuration
+
+#### **Phase 5.3 Status: 📋 PLANNED**
+- **Tester Agent**: Comprehensive E2E testing suite for professional workflows
+- **UX/UI Agent**: Advanced user workflow implementation and professional polish
+
+#### **Phase 5.4 Status: 📋 PLANNED**
+- **All Agents**: Integration testing, performance optimization, and production validation
+
 ---
 
 ## 🏆 **PROJECT ACHIEVEMENT SUMMARY**
@@ -770,13 +981,13 @@ The **ETI Stream Analyzer** project has successfully achieved:
 - **✅ Logger Issue Resolution** - Critical GUI hang issue completely resolved
 - **✅ Professional Audit Trail** - Full logging and compliance capabilities restored
 
-**Status:** **98% Production Ready** - Logger hang resolution completed, professional GUI fully operational
+**Status:** **95% Production Ready** - Entering Phase 5 Professional UI/UX Redesign
 
-**Recent Critical Resolution:** 
-- **Logger Hang Issue:** ✅ **RESOLVED** - Zero application hangs guaranteed
-- **Professional GUI:** ✅ **OPERATIONAL** - All interface components working
-- **ETSI Compliance:** ✅ **RESTORED** - Full audit trail and logging capabilities
-- **Agent Coordination:** ✅ **SUCCESSFUL** - Multi-agent systematic problem resolution
+**Current Development Phase:** 
+- **Phase 5.1:** ⏳ **STARTING** - Professional three-panel layout transformation
+- **UI/UX Redesign:** 📋 **PLANNED** - Broadcasting industry-standard interface implementation
+- **Agent Coordination:** ✅ **ORGANIZED** - Comprehensive 8-week redesign plan established
+- **E2E Testing Strategy:** ✅ **COORDINATED** - Professional workflow validation framework ready
 
 **Project Risk:** Very Low (all critical issues resolved)  
 **Commercial Viability:** Excellent (professional functionality confirmed)  
