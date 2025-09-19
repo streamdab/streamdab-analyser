@@ -104,7 +104,7 @@ bool EtisnoopWrapper::initializeETISnoop()
     try {
         // Initialize ETISnoop configuration
         m_config = std::make_unique<eti_analyse_config_t>();
-        m_config->ignore_error = false;
+        m_config->ignore_error = true;  // Ignore SYNC errors to prevent segfaults
         m_config->analyse_fic_carousel = true;
         m_config->analyse_fig_rates = true;
         m_config->statistics = true;
@@ -752,6 +752,140 @@ EtisnoopWrapper::EnsembleInfo EtisnoopWrapper::convertToEnsembleInfo(const QVari
     ensemble.totalSubchannels = rawEnsembleData.value("subchannels", 0).toInt();
     ensemble.overallQuality = rawEnsembleData.value("quality", 0.0).toDouble();
     return ensemble;
+}
+
+QString EtisnoopWrapper::getAnalysisOutput() const
+{
+    QString output;
+    output += "# ETI Stream Analysis Report\n\n";
+    
+    // Ensemble Information
+    output += "## Ensemble Information\n";
+    output += QString("- ID: 0x%1\n").arg(m_currentEnsemble.ensembleId, 4, 16, QChar('0'));
+    output += QString("- Name: %1\n").arg(m_currentEnsemble.ensembleName);
+    if (!m_currentEnsemble.ensembleNameThai.isEmpty()) {
+        output += QString("- Thai Name: %1\n").arg(m_currentEnsemble.ensembleNameThai);
+    }
+    output += QString("- Country: %1\n").arg(m_currentEnsemble.country);
+    output += QString("- Subchannels: %1\n").arg(m_currentEnsemble.totalSubchannels);
+    output += QString("- Quality: %1%\n\n").arg(m_currentEnsemble.overallQuality, 0, 'f', 1);
+    
+    // Services
+    output += "## Services\n";
+    for (const auto& service : m_discoveredServices) {
+        output += QString("### Service 0x%1\n").arg(service.serviceId, 4, 16, QChar('0'));
+        output += QString("- Name: %1\n").arg(service.serviceName);
+        if (!service.serviceNameThai.isEmpty()) {
+            output += QString("- Thai Name: %1\n").arg(service.serviceNameThai);
+        }
+        output += QString("- Type: %1\n").arg(service.programType);
+        output += QString("- Language: %1\n").arg(service.language);
+        output += QString("- Active: %1\n").arg(service.isActive ? "Yes" : "No");
+        output += QString("- Quality: %1%\n\n").arg(service.signalQuality, 0, 'f', 1);
+    }
+    
+    // Processing Statistics
+    output += "## Processing Statistics\n";
+    output += QString("- Frames Processed: %1\n").arg(m_stats.totalFramesProcessed);
+    output += QString("- Average Frame Rate: %1 fps\n").arg(m_stats.averageFrameRate, 0, 'f', 1);
+    output += QString("- Average Processing Time: %1 ms\n").arg(m_stats.averageProcessingTime, 0, 'f', 2);
+    output += QString("- Memory Usage: %1 MB\n").arg(m_stats.memoryUsage, 0, 'f', 1);
+    
+    // ETSI Compliance
+    if (getETSIComplianceScore() > 0) {
+        output += "\n## ETSI Compliance\n";
+        output += QString("- Overall Score: %1%\n").arg(getETSIComplianceScore(), 0, 'f', 1);
+        
+        auto details = getETSIComplianceDetails();
+        if (details.contains("standards_checked")) {
+            output += "- Standards Checked:\n";
+            QStringList standards = details["standards_checked"].toStringList();
+            for (const QString& standard : standards) {
+                output += QString("  - %1\n").arg(standard);
+            }
+        }
+    }
+    
+    // Thai Compliance
+    if (m_thaiEnabled) {
+        output += "\n## Thai DAB Compliance\n";
+        output += QString("- Status: %1\n").arg(m_thaiStatus.statusMessage);
+        output += QString("- Score: %1%\n").arg(m_thaiStatus.complianceScore, 0, 'f', 1);
+    }
+    
+    return output;
+}
+
+QString EtisnoopWrapper::getFrameAnalysisOutput() const
+{
+    QString output;
+    output += "# Frame Analysis Summary\n\n";
+    
+    if (m_stats.totalFramesProcessed == 0) {
+        output += "No frames processed yet.\n";
+        return output;
+    }
+    
+    output += QString("## Frame Processing Summary\n");
+    output += QString("- Total Frames: %1\n").arg(m_stats.totalFramesProcessed);
+    output += QString("- Processing Rate: %1 fps\n").arg(m_stats.averageFrameRate, 0, 'f', 2);
+    output += QString("- Average Frame Time: %1 ms\n").arg(m_stats.averageProcessingTime, 0, 'f', 3);
+    
+    if (!m_frameTimes.isEmpty()) {
+        double minTime = *std::min_element(m_frameTimes.begin(), m_frameTimes.end());
+        double maxTime = *std::max_element(m_frameTimes.begin(), m_frameTimes.end());
+        double avgTime = std::accumulate(m_frameTimes.begin(), m_frameTimes.end(), 0.0) / m_frameTimes.size();
+        
+        output += QString("- Min Frame Time: %1 ms\n").arg(minTime, 0, 'f', 3);
+        output += QString("- Max Frame Time: %1 ms\n").arg(maxTime, 0, 'f', 3);
+        output += QString("- Avg Frame Time: %1 ms\n").arg(avgTime, 0, 'f', 3);
+    }
+    
+    output += QString("\n## Performance Metrics\n");
+    output += QString("- Target Rate: %1 fps\n").arg(m_targetFrameRate, 0, 'f', 1);
+    output += QString("- Achieved Rate: %1 fps\n").arg(m_stats.averageFrameRate, 0, 'f', 1);
+    
+    double efficiency = (m_stats.averageFrameRate / m_targetFrameRate) * 100.0;
+    output += QString("- Efficiency: %1%\n").arg(qMin(efficiency, 100.0), 0, 'f', 1);
+    
+    output += QString("- Memory Usage: %1 MB\n").arg(m_stats.memoryUsage, 0, 'f', 2);
+    
+    return output;
+}
+
+QString EtisnoopWrapper::getServiceDLS(uint32_t serviceId) const
+{
+    // Extract DLS (Dynamic Label Segment) for the given service
+    QString dls = extractServiceDLS(serviceId);
+    
+    if (dls.isEmpty()) {
+        return QString("No DLS data available for service 0x%1").arg(serviceId, 4, 16, QChar('0'));
+    }
+    
+    QString output;
+    output += QString("# DLS Data for Service 0x%1\n\n").arg(serviceId, 4, 16, QChar('0'));
+    
+    // Find service info
+    auto service = getServiceById(serviceId);
+    if (service.serviceId != 0) {
+        output += QString("Service: %1\n").arg(service.serviceName);
+        if (!service.serviceNameThai.isEmpty()) {
+            output += QString("Thai Name: %1\n").arg(service.serviceNameThai);
+        }
+        output += QString("Type: %1\n\n").arg(service.programType);
+    }
+    
+    output += QString("DLS Text: %1\n").arg(dls);
+    
+    // Add Thai formatting if enabled
+    if (m_thaiEnabled && service.serviceId != 0) {
+        QString thaiDLS = formatThaiText(dls);
+        if (thaiDLS != dls) {
+            output += QString("Thai Formatted: %1\n").arg(thaiDLS);
+        }
+    }
+    
+    return output;
 }
 
 QString EtisnoopWrapper::formatThaiText(const QString& rawText) const

@@ -595,13 +595,53 @@ void MainWindow::connectSignals()
                     updateStatus(tr("Processing ETI file: %1").arg(QFileInfo(fileName).fileName()));
                     m_progressBar->setVisible(true);
                     m_progressBar->setValue(0);
+                    m_progressBar->setFormat(tr("Processing: %p%"));
+                    
+                    // Clear existing UI content to show processing state
+                    if (m_yamlViewer) {
+                        m_yamlViewer->setPlainText(tr("Processing ETI file...\n\nPlease wait while the file is analyzed.\nResults will appear here once processing is complete."));
+                    }
+                    if (m_figAnalysis) {
+                        m_figAnalysis->setPlainText(tr("Analyzing ETI frames...\n\nFrame analysis results will be displayed here."));
+                    }
+                    if (m_errorLog) {
+                        QString logText = m_errorLog->toPlainText();
+                        logText += QString("\n[%1] Started processing: %2")
+                                  .arg(QDateTime::currentDateTime().toString("hh:mm:ss"))
+                                  .arg(QFileInfo(fileName).fileName());
+                        m_errorLog->setPlainText(logText);
+                        
+                        // Auto-scroll to bottom
+                        QTextCursor cursor = m_errorLog->textCursor();
+                        cursor.movePosition(QTextCursor::End);
+                        m_errorLog->setTextCursor(cursor);
+                    }
+                    
+                    Logger::instance().log(Logger::Info, "MainWindow", 
+                                          QString("Started ETI file processing: %1").arg(fileName));
                 });
         
         connect(m_etiFileWorker.get(), &EtiFileWorker::processingProgress,
                 this, [this](int progress, quint64 frameCount) {
                     m_progressBar->setValue(progress);
+                    m_progressBar->setFormat(tr("Processing: %p% (%1 frames)").arg(frameCount));
+                    
                     if (m_frameCountLabel) {
                         m_frameCountLabel->setText(tr("Frames: %1").arg(frameCount));
+                    }
+                    
+                    // Update status with current progress
+                    updateStatus(tr("Processing ETI file... %1% complete (%2 frames)")
+                               .arg(progress).arg(frameCount));
+                    
+                    // Update YAML viewer with progress information
+                    if (m_yamlViewer && frameCount > 0) {
+                        QString progressText = tr("Processing ETI file...\n\n");
+                        progressText += tr("Progress: %1%\n").arg(progress);
+                        progressText += tr("Frames processed: %1\n").arg(frameCount);
+                        progressText += tr("Processing rate: ~%1 fps\n\n").arg(frameCount > 0 ? frameCount : 0);
+                        progressText += tr("Analysis results will appear here once processing is complete.");
+                        m_yamlViewer->setPlainText(progressText);
                     }
                 });
         
@@ -614,6 +654,100 @@ void MainWindow::connectSignals()
                     // Update service browser with discovered services
                     if (m_serviceBrowser) {
                         m_serviceBrowser->updateServices();
+                    }
+                    
+                    // Display ETI analysis results in UI components
+                    if (m_etiProcessor && m_etiProcessor->getEtisnoopWrapper()) {
+                        auto wrapper = m_etiProcessor->getEtisnoopWrapper();
+                        
+                        // Update YAML viewer with comprehensive analysis
+                        if (m_yamlViewer) {
+                            QString analysisOutput = wrapper->getAnalysisOutput();
+                            m_yamlViewer->setPlainText(analysisOutput);
+                            
+                            // Log the analysis display
+                            Logger::instance().log(Logger::Info, "MainWindow", 
+                                                  QString("Analysis results displayed in YAML viewer (%1 characters)")
+                                                  .arg(analysisOutput.length()));
+                        }
+                        
+                        // Update FIG analysis dock with frame analysis
+                        if (m_figAnalysis) {
+                            QString frameAnalysis = wrapper->getFrameAnalysisOutput();
+                            m_figAnalysis->setPlainText(frameAnalysis);
+                            
+                            Logger::instance().log(Logger::Info, "MainWindow", 
+                                                  "Frame analysis results displayed in FIG analysis dock");
+                        }
+                        
+                        // Update analyzer widget with processing results
+                        if (m_analyzerWidget) {
+                            // For now, just update with basic frame count info
+                            // TODO: Add updateAnalysisResults method to AnalyzerWidget
+                            Logger::instance().log(Logger::Debug, "MainWindow", 
+                                                  "Analyzer widget update skipped - method not yet implemented");
+                        }
+                        
+                        // Update constellation widget if applicable
+                        if (m_constellationWidget) {
+                            auto services = wrapper->getDiscoveredServices();
+                            // TODO: Add updateSignalData method to ConstellationWidget
+                            Logger::instance().log(Logger::Debug, "MainWindow", 
+                                                  QString("Constellation widget update: %1 services discovered")
+                                                  .arg(services.size()));
+                        }
+                        
+                        // Update error log with any processing warnings or errors
+                        if (m_errorLog) {
+                            QString logText = m_errorLog->toPlainText();
+                            logText += QString("\n[%1] ETI file processed: %2 (%3 frames)")
+                                      .arg(QDateTime::currentDateTime().toString("hh:mm:ss"))
+                                      .arg(QFileInfo(fileName).fileName())
+                                      .arg(frameCount);
+                            
+                            // Add ETSI compliance information
+                            double complianceScore = wrapper->getETSIComplianceScore();
+                            if (complianceScore > 0) {
+                                logText += QString("\n[%1] ETSI Compliance Score: %2%")
+                                          .arg(QDateTime::currentDateTime().toString("hh:mm:ss"))
+                                          .arg(complianceScore, 0, 'f', 1);
+                            }
+                            
+                            m_errorLog->setPlainText(logText);
+                            
+                            // Auto-scroll to bottom
+                            QTextCursor cursor = m_errorLog->textCursor();
+                            cursor.movePosition(QTextCursor::End);
+                            m_errorLog->setTextCursor(cursor);
+                        }
+                        
+                        // Update audio monitor if services have audio
+                        if (m_audioMonitor) {
+                            auto services = wrapper->getDiscoveredServices();
+                            QString audioInfo = "Audio Services Detected:\n\n";
+                            
+                            for (const auto& service : services) {
+                                if (service.isActive) {
+                                    audioInfo += QString("Service 0x%1: %2\n")
+                                               .arg(service.serviceId, 4, 16, QChar('0'))
+                                               .arg(service.serviceName);
+                                    audioInfo += QString("  Type: %1\n").arg(service.programType);
+                                    audioInfo += QString("  Quality: %1%\n").arg(service.signalQuality, 0, 'f', 1);
+                                    audioInfo += QString("  Language: %1\n\n").arg(service.language);
+                                }
+                            }
+                            
+                            if (services.isEmpty()) {
+                                audioInfo += "No active audio services found in this ETI stream.";
+                            }
+                            
+                            m_audioMonitor->setPlainText(audioInfo);
+                        }
+                        
+                        // Raise the YAML viewer dock to show results
+                        if (m_yamlViewerDock) {
+                            m_yamlViewerDock->raise();
+                        }
                     }
                     
                     emit etiFileOpened(fileName);
