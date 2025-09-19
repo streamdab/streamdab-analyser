@@ -97,6 +97,7 @@ target_link_libraries(eti_analyzer_unit_tests
     ${GTEST_LIBS}
     Qt6::Core
     Qt6::Test
+    etisnoop_static
 )
 # TDD REQUIREMENT: Link to main project components for testing
 target_include_directories(eti_analyzer_unit_tests PRIVATE
@@ -118,6 +119,7 @@ target_link_libraries(eti_analyzer_gui_tests
     Qt6::Widgets
     Qt6::Gui
     Qt6::Network
+    etisnoop_static
     ${GMOCK_LIBS}
 )
 # TDD REQUIREMENT: Link to main project components for GUI testing
@@ -131,6 +133,7 @@ target_include_directories(eti_analyzer_gui_tests PRIVATE
 # This creates a more integrated testing approach
 set(MAIN_PROJECT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_processor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etisnoop_wrapper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fic_decoder.cpp
