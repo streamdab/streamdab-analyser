@@ -846,17 +846,21 @@ class NetworkStreamDialog : public QDialog {
 **Tester Agent (E2E Lead):**
 ```cpp
 class E2EWorkflowTests : public QObject {
-    void testFileAnalysisWorkflow();      // File → Analyze → Navigate → Export
-    void testRealTimeAnalysisWorkflow();  // Connect → Stream → Monitor → Record
-    void testErrorDetectionWorkflow();    // Messages → Navigate → Analyze → Report
-    void testDualModeWorkflow();          // File ↔ Real-time switching
+    void testFileAnalysisWorkflow();      // Complete professional pattern with 3-phase validation
+    void testRealTimeAnalysisWorkflow();  // ETI-over-IP integration with Qt signal validation
+    void testErrorDetectionWorkflow();    // Professional debugging pattern with ETSI compliance
+    void testDualModeWorkflow();          // Advanced professional integration with state preservation
+    void testPanelInteractionModes();     // Selection, Filtering, Navigation, Context modes
+    void testSignalSlotIntegration();     // Qt signal/slot architecture validation
 };
 ```
 
 **UX/UI Agent:**
-- Search and filtering implementation across ETI frame data
-- Export functionality (YAML, CSV, XML, audio extraction)
-- Session management for analysis state persistence
+- Search and filtering implementation across ETI frame data (Search View state from workflow patterns)
+- Export functionality (YAML, CSV, XML, audio extraction) following professional workflow patterns
+- Session management for analysis state persistence and UI state preservation during mode switching
+- Panel interaction modes implementation: Selection, Filtering, Navigation, and Context modes
+- Professional user workflow implementation based on comprehensive UX flow patterns
 
 **Network/Stream Agent:**
 - Real-time status display with connection quality indicators
@@ -901,31 +905,249 @@ class E2EWorkflowTests : public QObject {
 - ✅ **Stable memory usage** during continuous real-time operation
 - ✅ **60 FPS smooth UI updates** under processing load
 
-### **🎯 CRITICAL USER WORKFLOWS (E2E TESTING PRIORITY)**
+### **🎯 COMPREHENSIVE USER WORKFLOW PATTERNS & UX FLOWS**
 
-#### **1. File Analysis Workflow**
+#### **Primary User Workflows (Professional Broadcasting Standards)**
+
+#### **1. File Analysis Workflow - Complete Professional Pattern**
 ```
 File → Open → Analyze → Navigate → Export Results
 ```
-**E2E Validation:** Complete workflow from file loading through service analysis to professional report generation
 
-#### **2. Real-Time Analysis Workflow**
+**Detailed Implementation Flow:**
+1. **File Loading Phase**:
+   - User opens ETI file via File → Open or drag-and-drop
+   - Application automatically parses ETI stream structure
+   - Explorer panel populates with hierarchical DAB service breakdown
+   - Main panel shows initial ETI frame listing with 24ms precision
+   - Properties panel displays file-level ensemble information
+
+2. **Stream Exploration Phase** (Core Professional Workflow):
+   - User expands Ensemble in Explorer tree
+   - DAB Services become visible with bitrate percentages and Service IDs (SID)
+   - User checks/unchecks services to filter Main panel display
+   - Single-click in Explorer → Properties panel updates with service details
+   - Double-click in Explorer → Opens detailed FIG analysis in Main panel
+
+3. **Detailed Analysis Phase**:
+   - User clicks ETI frames in Main panel → Properties shows frame details
+   - User can expand frame details inline with arrow key navigation
+   - Error/warning indicators guide user to ETSI compliance problems
+   - Right-click → Context menu for ETI-specific actions (Extract Audio, Analyze FIGs, Export Service)
+
+**E2E Validation Requirements:**
+- File loading completes within 3 seconds for typical ETI files
+- Explorer tree automatically reflects all discovered DAB services
+- Properties panel shows real-time service parameters (DAB vs DAB+, protection levels)
+- Main panel frame navigation maintains 24ms audio frame precision
+
+#### **2. Real-Time Analysis Workflow - ETI-over-IP Integration**
 ```
 Connect Source → Enable Real-time Mode → Stream Processing → Live Updates → Record/Export
 ```
-**E2E Validation:** Network stream configuration through live monitoring with performance metrics
 
-#### **3. Error Detection Workflow**
+**Qt-Integrated Flow Implementation:**
+1. **Real-Time Mode Activation**:
+   - User selects real-time mode via UI toggle in toolbar
+   - ETISnoop wrapper switches to `setRealTimeMode(true)`
+   - Network configuration dialog opens for ETI-over-IP settings (239.192.0.1:9200)
+   - Connection quality indicators activate in status bar
+
+2. **Live Stream Processing**:
+   - Incoming ETI data triggers `processEtiFrame()` for each 6144-byte frame
+   - UI receives immediate `frameProcessed()` signals via Qt signal/slot
+   - All panels update automatically without manual refresh
+   - Frame rate counter displays >900 fps processing capability
+
+3. **Live Monitoring & Recording**:
+   - User can record analysis or export results without interrupting stream
+   - Real-time service discovery updates Explorer tree dynamically
+   - Audio quality metrics display in Properties panel with live updates
+   - Error detection provides immediate ETSI compliance alerts
+
+**E2E Validation Requirements:**
+- Real-time mode provides <50ms latency from ETI frame to UI display
+- Network connection dialog validates ETI-over-IP multicast settings
+- Live processing maintains >900 fps without UI blocking
+- Recording functionality captures both stream data and analysis results
+
+#### **3. Error Detection Workflow - Professional Debugging Pattern**
 ```
 Open File → Check Messages Panel → Navigate to Errors → Analyze Details → Generate Report
 ```
-**E2E Validation:** Comprehensive error analysis with professional broadcasting standards
 
-#### **4. Dual-Mode Workflow**
+**Professional Error Analysis Flow:**
+1. **Error Discovery Phase**:
+   - User opens potentially problematic ETI stream
+   - Messages panel automatically populates with detected ETSI compliance issues
+   - Error categories display: Priority 1 (red), Priority 2 (blue), Priority 3 (warnings)
+   - Error count and severity summary appears in status bar
+
+2. **Error Navigation Phase**:
+   - Double-click error in Messages panel → Main panel jumps to problematic frame
+   - Properties panel shows detailed ETSI compliance analysis
+   - Frame context displayed with before/after frames for analysis
+   - Visual indicators highlight error location in Main panel scrollbar
+
+3. **Error Resolution & Reporting**:
+   - User can save comprehensive error report via Save → Stream Info
+   - Report includes frame-level details, ETSI standard references, and severity analysis
+   - Export options: CSV for spreadsheet analysis, XML for integration tools
+   - Error trend analysis shows compliance degradation patterns
+
+**E2E Validation Requirements:**
+- Error detection occurs during initial file processing with immediate display
+- Error navigation jumps to exact frame location within 100ms
+- Error reports include complete ETSI compliance analysis with standard references
+- Professional error categorization matches broadcast industry standards
+
+#### **4. Dual-Mode Workflow - Seamless File/Real-Time Switching**
 ```
 File Analysis → Switch to Real-time → Compare Live vs File → Return to File
 ```
-**E2E Validation:** Seamless mode switching with UI state preservation and data comparison
+
+**Advanced Professional Integration:**
+1. **Mode Preparation Phase**:
+   - User loads ETI file and completes comprehensive analysis
+   - File analysis results cached for comparison purposes
+   - Real-time mode preparation without losing file context
+   - UI state preservation during mode transition
+
+2. **Comparative Analysis Phase**:
+   - User switches to real-time mode while keeping file data visible
+   - UI shows both file and live data in split-view or tabbed interface
+   - Side-by-side service comparison with quality differential display
+   - Live stream validation against reference file parameters
+
+3. **Analysis Integration Phase**:
+   - User can compare live stream against reference file
+   - Deviation alerts for service parameters outside tolerance
+   - Combined analysis conclusions saved encompassing both datasets
+   - Professional report generation with file vs live comparison
+
+**E2E Validation Requirements:**
+- Mode switching preserves complete UI state and analysis context
+- Comparative display shows clear differences between file and live data
+- Performance remains >900 fps during dual-mode operation
+- Combined reports include both file analysis and live monitoring results
+
+### **🔄 Panel Interaction Modes & State Management**
+
+#### **Explorer Panel Interaction States**
+- **Selection Mode**: Single-click selects service, updates all connected panels
+- **Filtering Mode**: Service checkboxes control Main panel content visibility
+- **Navigation Mode**: Tree expansion/collapse for DAB service hierarchy
+- **Context Mode**: Right-click reveals ETI-specific actions per service type
+
+#### **Properties Panel Operational Modes**
+- **Sync Mode** (default): Auto-updates when Explorer selections change
+- **Compare Mode**: Shows differences between selected services or time periods
+- **Pin Mode**: Locks display to specific service for detailed analysis
+- **Export Mode**: Preparation for service-specific data extraction
+
+#### **Main Panel View States**
+- **Frame View**: Sequential ETI frame listing with 24ms precision timing
+- **Service View**: Shows only frames containing selected service data
+- **Error View**: Highlights frames with ETSI compliance issues
+- **Search View**: Displays search results with context highlighting
+
+### **🎛️ Signal-Driven UI Architecture Integration**
+
+#### **Qt Signal/Slot Integration Patterns**
+```cpp
+// Professional UI Controller Pattern
+class AnalysisController : public QObject {
+private slots:
+    void onServiceDiscovered(const ServiceInfo& service) {
+        // Update Explorer panel immediately with DAB service details
+        explorerPanel->addDABService(service);
+        propertyPanel->showServiceParameters(service);
+        statusBar->updateServiceCount();
+    }
+
+    void onFrameProcessed(const FrameAnalysis& frame) {
+        // Update main display in real-time with ETI frame data
+        mainPanel->addETIFrame(frame);
+        if (realTimeMode) {
+            statusBar->updateFrameRate(frame.processingRate);
+            audioMonitor->updateLevels(frame.audioData);
+        }
+    }
+
+    void onEnsembleUpdated(const EnsembleInfo& ensemble) {
+        // Refresh entire DAB ensemble structure
+        explorerPanel->updateEnsemble(ensemble);
+        propertyPanel->showEnsembleDetails(ensemble);
+    }
+
+    void onErrorDetected(const ETSIComplianceError& error) {
+        // Professional error handling with immediate UI feedback
+        messagesPanel->addError(error);
+        mainPanel->highlightErrorFrame(error.frameNumber);
+        statusBar->showErrorIndicator(error.severity);
+    }
+};
+```
+
+#### **State Synchronization Architecture**
+```
+Explorer Selection → Properties Update → Main Panel Filter → Messages Sync → Status Display
+```
+
+**Critical Data Dependencies:**
+1. **DAB Service Structure**: Explorer tree reflects ETI ensemble organization
+2. **Selection State**: Properties panel shows parameters for currently selected service
+3. **Filter State**: Main panel content filtered by service selection and search criteria
+4. **Error State**: Messages panel drives error indicators throughout UI
+5. **Real-Time State**: All panels synchronized for live processing mode
+
+### **📊 E2E Testing Integration Scenarios**
+
+#### **End-to-End Qt Integration Test Patterns**
+1. **File-to-Real-time Transition Flow**:
+   ```
+   Load ETI File → Analyze DAB Services → Switch to Real-time → Compare Live vs File → Export Combined Analysis
+   ```
+   **Validation Criteria:**
+   - Mode switching preserves service analysis context
+   - Real-time updates don't interfere with file data display
+   - Combined analysis includes both datasets
+   - UI remains responsive during transition
+
+2. **Signal/Slot Integration Flow**:
+   ```
+   ETISnoop Backend Signal → Qt Signal/Slot → UI Model Update → View Refresh → User Interaction
+   ```
+   **Validation Criteria:**
+   - All ETISnoop signals properly connected to UI slots
+   - UI updates occur within <1ms of signal emission
+   - No signal loops or blocking operations
+   - Thread safety maintained between backend and UI
+
+3. **Professional Error Handling Flow**:
+   ```
+   ETSI Compliance Error → Error Detection → UI Alert → User Navigation → Analysis → Report Generation
+   ```
+   **Validation Criteria:**
+   - Error detection triggers immediate UI notification
+   - Error navigation jumps to exact frame location
+   - Professional error categorization and reporting
+   - Error trend analysis and compliance tracking
+
+#### **Performance Validation Benchmarks**
+- **Signal Latency**: Backend signals reach UI within <1ms for real-time responsiveness
+- **Memory Efficiency**: Qt model-view architecture optimizes memory usage
+- **Processing Throughput**: Handle >1000 ETI frames/second in real-time mode
+- **UI Responsiveness**: Interface remains interactive during intensive analysis
+
+#### **Success Criteria for Professional Implementation**
+✅ **Real-time mode provides <50ms latency from ETI frame to UI display**
+✅ **Mode switching between file and real-time occurs without data loss**
+✅ **Memory usage remains stable during extended real-time analysis sessions**
+✅ **All UI panels automatically update via Qt signals without manual refresh**
+✅ **Background ETI processing never blocks user interactions**
+✅ **Error handling propagates cleanly from ETISnoop backend to professional UI**
+✅ **Professional workflow efficiency matches broadcast industry standards**
 
 ### **🏗️ ARCHITECTURAL ENHANCEMENT**
 
