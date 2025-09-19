@@ -105,7 +105,7 @@ public:
         QStringList recommendations;
         QVariantMap culturalAnalysis;
         
-        ThaiComplianceStatus() : complianceScore(0.0) {}
+        ThaiComplianceStatus() : level(0), complianceScore(0.0) {}
     };
 
     /**

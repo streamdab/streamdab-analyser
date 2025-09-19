@@ -134,6 +134,7 @@ target_include_directories(eti_analyzer_gui_tests PRIVATE
 set(MAIN_PROJECT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_processor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etisnoop_wrapper.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_file_worker.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fic_decoder.cpp

@@ -144,6 +144,17 @@ void platformSpecificInit()
  */
 int main(int argc, char *argv[])
 {
+    // Aggressive Qt platform optimization for file dialog performance
+    QString desktop = qgetenv("XDG_CURRENT_DESKTOP");
+    if (desktop.contains("KDE", Qt::CaseInsensitive)) {
+        // Disable all platform integrations that can cause slow file dialogs
+        qputenv("QT_QPA_PLATFORMTHEME", "");        // No platform theme
+        qputenv("QT_STYLE_OVERRIDE", "fusion");     // Fast Fusion style
+        qputenv("QT_XDG_DESKTOP_PORTAL", "0");      // Disable xdg-desktop-portal
+        qputenv("QT_QPA_NO_NATIVE_DIALOGS", "1");   // Force non-native dialogs
+        qDebug() << "KDE detected: Applied aggressive platform optimizations for file dialog performance";
+    }
+    
     // Enable high DPI support (Qt 6)
     QApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     
@@ -207,5 +218,3 @@ int main(int argc, char *argv[])
         return -1;
     }
 }
-
-#include "main.moc"
