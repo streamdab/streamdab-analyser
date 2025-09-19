@@ -214,6 +214,31 @@ The project utilized 6 specialized AI agents for comprehensive development cover
 - ✅ **UI Responsiveness:** 60 FPS smooth updates with real-time data display
 - ✅ **Real-time Latency:** <17ms processing delay with optimized ETISnoop wrapper
 
+## ⚠️ **CROSS-PLATFORM INTEGRATION CRITICAL ISSUES**
+
+### **Qt6 File Dialog Performance - KDE/Linux Systems**
+
+**Problem**: QFileDialog taking 12-18 seconds on KDE desktop environments with Qt6
+**Root Cause**: Qt6 using GTK3 platform theme on KDE systems (platform mismatch)
+**Solution Applied**: Environment variable optimization in `src/main.cpp`
+
+```cpp
+// KDE Detection + Platform Optimization (MANDATORY for Linux KDE)
+QString desktop = qgetenv("XDG_CURRENT_DESKTOP");
+if (desktop.contains("KDE", Qt::CaseInsensitive)) {
+    qputenv("QT_QPA_PLATFORMTHEME", "");        // Disable platform theme
+    qputenv("QT_STYLE_OVERRIDE", "fusion");     // Use Fusion style
+    qputenv("QT_XDG_DESKTOP_PORTAL", "0");      // Disable portal integration
+    qputenv("QT_QPA_NO_NATIVE_DIALOGS", "1");   // Force non-native dialogs
+}
+```
+
+**Prevention Rules**:
+1. **ALWAYS** test file dialogs on target Linux distributions
+2. **IMPLEMENT** platform detection before Qt application creation
+3. **FORCE** non-native dialogs when platform integration is problematic
+4. **NEVER** assume platform themes are available across distributions
+
 ## 📁 Project Structure
 
 ```

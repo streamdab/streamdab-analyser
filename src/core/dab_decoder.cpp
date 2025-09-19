@@ -249,8 +249,8 @@ bool DabDecoder::parseServiceInformation(const eti::EtiFrameData& frame)
     }
 
     // Look for FIG Type 0/1 (Basic service and service component definition)
-    const quint8* data = reinterpret_cast<const quint8*>(frame.data.constData());
-    quint32 offset = 8; // Skip ETI header
+    // Note: data and offset will be used in future implementation for actual FIG parsing
+    Q_UNUSED(frame.data) // Suppress unused warning until full implementation
     
     // Basic service discovery simulation
     static bool servicesInitialized = false;

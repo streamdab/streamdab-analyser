@@ -21,6 +21,7 @@
 #include "settings_dialog.h"
 #include "about_dialog.h"
 #include "core/eti_processor.h"
+#include "core/eti_file_worker.h"
 #include "utils/config_manager.h"
 #include "utils/logger.h"
 
@@ -164,6 +165,15 @@ bool MainWindow::initialize()
             Logger::instance().log(Logger::Error, "MainWindow", "Failed to initialize ETI processor");
             return false;
         }
+        
+        // Initialize background ETI file worker
+        m_etiFileWorker = std::make_unique<EtiFileWorker>(m_etiProcessor.get());
+        
+        // Pre-initialize file system for faster dialog opening
+        QTimer::singleShot(100, this, [this]() {
+            // Pre-warm the file dialog system to avoid first-use delay
+            QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+        });
         
         // Create GUI components - TEST MINIMAL FIRST
         qDebug() << "Creating actions...";
@@ -577,6 +587,59 @@ void MainWindow::connectSignals()
             m_serviceBrowser->setEtiProcessor(m_etiProcessor.get());
         }
     }
+    
+    // ETI File Worker signal connections for background processing
+    if (m_etiFileWorker) {
+        connect(m_etiFileWorker.get(), &EtiFileWorker::processingStarted,
+                this, [this](const QString& fileName) {
+                    updateStatus(tr("Processing ETI file: %1").arg(QFileInfo(fileName).fileName()));
+                    m_progressBar->setVisible(true);
+                    m_progressBar->setValue(0);
+                });
+        
+        connect(m_etiFileWorker.get(), &EtiFileWorker::processingProgress,
+                this, [this](int progress, quint64 frameCount) {
+                    m_progressBar->setValue(progress);
+                    if (m_frameCountLabel) {
+                        m_frameCountLabel->setText(tr("Frames: %1").arg(frameCount));
+                    }
+                });
+        
+        connect(m_etiFileWorker.get(), &EtiFileWorker::processingCompleted,
+                this, [this](const QString& fileName, quint64 frameCount) {
+                    m_progressBar->setVisible(false);
+                    updateStatus(tr("ETI file loaded successfully: %1 (%2 frames)")
+                               .arg(QFileInfo(fileName).fileName()).arg(frameCount));
+                    
+                    // Update service browser with discovered services
+                    if (m_serviceBrowser) {
+                        m_serviceBrowser->updateServices();
+                    }
+                    
+                    emit etiFileOpened(fileName);
+                });
+        
+        connect(m_etiFileWorker.get(), &EtiFileWorker::processingFailed,
+                this, [this](const QString& fileName, const QString& errorMessage) {
+                    m_progressBar->setVisible(false);
+                    updateStatus(tr("Failed to process ETI file: %1").arg(QFileInfo(fileName).fileName()));
+                    
+                    // Clear current file state
+                    m_currentFile.clear();
+                    m_closeFileAction->setEnabled(false);
+                    updateWindowTitle();
+                    
+                    QMessageBox::warning(this, tr("ETI Processing Error"), 
+                        tr("Failed to process the ETI file:\n%1\n\nError: %2")
+                        .arg(fileName).arg(errorMessage));
+                });
+        
+        connect(m_etiFileWorker.get(), &EtiFileWorker::processingCancelled,
+                this, [this](const QString& fileName) {
+                    m_progressBar->setVisible(false);
+                    updateStatus(tr("ETI file processing cancelled: %1").arg(QFileInfo(fileName).fileName()));
+                });
+    }
 }
 
 void MainWindow::setupRealTimeTimer()
@@ -637,94 +700,193 @@ void MainWindow::updateWindowTitle()
 
 void MainWindow::openEtiFile()
 {
-    // Create custom file dialog with 50% screen size and centered position
-    QFileDialog dialog(this);
-    dialog.setWindowTitle(tr("Open ETI File"));
-    dialog.setDirectory(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
-    dialog.setNameFilter(tr("ETI Files (*.eti *.ETI);;All Files (*)"));
-    dialog.setFileMode(QFileDialog::ExistingFile);
-    dialog.setAcceptMode(QFileDialog::AcceptOpen);
+    QElapsedTimer timer;
+    timer.start();
     
-    // Get screen geometry and calculate 50% size
-    QScreen *screen = QGuiApplication::primaryScreen();
-    if (screen) {
-        QRect screenGeometry = screen->geometry();
-        int dialogWidth = screenGeometry.width() / 2;
-        int dialogHeight = screenGeometry.height() / 2;
-        
-        // Center the dialog on screen
-        int x = (screenGeometry.width() - dialogWidth) / 2;
-        int y = (screenGeometry.height() - dialogHeight) / 2;
-        
-        dialog.setGeometry(x, y, dialogWidth, dialogHeight);
+    Logger::instance().log(Logger::Info, "MainWindow", "=== DIALOG PERFORMANCE TEST ===");
+    Logger::instance().log(Logger::Info, "MainWindow", "Step 1: Starting openEtiFile() method...");
+    
+    qint64 step1 = timer.elapsed();
+    Logger::instance().log(Logger::Info, "MainWindow", QString("Step 2: Method start completed in %1ms").arg(step1));
+    
+    // Test directory access first
+    QString defaultDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    qint64 step2 = timer.elapsed();
+    Logger::instance().log(Logger::Info, "MainWindow", QString("Step 3: Directory lookup (%1) took %2ms").arg(defaultDir).arg(step2 - step1));
+    
+    // Apply KDE-specific Qt platform optimization
+    Logger::instance().log(Logger::Info, "MainWindow", "Step 4: Applying KDE platform optimization...");
+    
+    // Log platform information
+    QString desktop = qgetenv("XDG_CURRENT_DESKTOP");
+    QString platform = QGuiApplication::platformName();
+    Logger::instance().log(Logger::Info, "MainWindow", QString("Desktop: %1, Platform: %2").arg(desktop, platform));
+    
+    // Optimize dialog for performance
+    QFileDialog::Options dialogOptions = QFileDialog::DontUseNativeDialog;
+    Logger::instance().log(Logger::Info, "MainWindow", "Using optimized non-native dialog for consistent performance");
+    
+    qint64 platformTime = timer.elapsed();
+    Logger::instance().log(Logger::Info, "MainWindow", QString("Platform optimization took %1ms").arg(platformTime - step2));
+    
+    QString fileName = QFileDialog::getOpenFileName(
+        this,
+        tr("Open ETI File"),
+        defaultDir,
+        tr("ETI Files (*.eti *.ETI);;All Files (*)"),
+        nullptr,
+        dialogOptions
+    );
+    
+    qint64 dialogTime = timer.elapsed();
+    Logger::instance().log(Logger::Info, "MainWindow", 
+                          QString("Step 5: QFileDialog completed in %1ms TOTAL").arg(dialogTime));
+    
+    if (fileName.isEmpty()) {
+        Logger::instance().log(Logger::Info, "MainWindow", "Step 6: Dialog cancelled by user");
+        return;
     }
+    Logger::instance().log(Logger::Info, "MainWindow", QString("Step 6: File selected: %1").arg(fileName));
     
-    // Show dialog and get result
-    QString fileName;
-    if (dialog.exec() == QDialog::Accepted) {
-        QStringList selectedFiles = dialog.selectedFiles();
-        if (!selectedFiles.isEmpty()) {
-            fileName = selectedFiles.first();
+    // Process the selected file
+        // Check if worker is available and not already processing
+        if (!m_etiFileWorker) {
+            QMessageBox::critical(this, tr("System Error"), 
+                tr("ETI file worker is not initialized. Please restart the application."));
+            return;
         }
-    }
-    
-    if (!fileName.isEmpty()) {
-        // Update GUI state
+        
+        if (m_etiFileWorker->isProcessing()) {
+            QMessageBox::information(this, tr("Processing in Progress"), 
+                tr("An ETI file is already being processed. Please wait for completion or cancel the current operation."));
+            return;
+        }
+        
+        // Immediately update GUI state (non-blocking)
         m_currentFile = fileName;
         m_closeFileAction->setEnabled(true);
         updateWindowTitle();
-        updateStatus(tr("Opening ETI file: %1").arg(QFileInfo(fileName).fileName()));
         
-        // Process the ETI file
-        if (m_etiProcessor && m_etiProcessor->isInitialized()) {
-            bool success = m_etiProcessor->processFile(fileName);
-            
-            if (success) {
-                updateStatus(tr("ETI file opened successfully: %1").arg(QFileInfo(fileName).fileName()));
-                
-                // Update frame count display
-                m_frameCount = m_etiProcessor->getFrameCount();
-                if (m_frameCountLabel) {
-                    m_frameCountLabel->setText(tr("Frames: %1").arg(m_frameCount));
-                }
-                
-                // Update service browser with discovered services
-                if (m_serviceBrowser) {
-                    m_serviceBrowser->updateServices();
-                }
-                
-                // Update analyzer widget
-                if (m_analyzerWidget) {
-                    // Trigger analyzer widget to refresh with new data
-                    // This will be implemented as part of analyzer widget integration
-                }
-                
-                emit etiFileOpened(fileName);
-                
-                Logger::instance().log(Logger::Info, "MainWindow", 
-                                     QString("ETI file processed successfully: %1 frames").arg(m_frameCount));
-            } else {
-                updateStatus(tr("Failed to process ETI file: %1").arg(QFileInfo(fileName).fileName()));
-                m_currentFile.clear();
-                m_closeFileAction->setEnabled(false);
-                
-                QMessageBox::warning(this, tr("ETI Processing Error"), 
-                    tr("Failed to process the ETI file. Please check if the file is valid."));
-                
-                Logger::instance().log(Logger::Error, "MainWindow", 
-                                     QString("Failed to process ETI file: %1").arg(fileName));
-            }
-        } else {
-            updateStatus(tr("ETI processor not initialized"));
-            m_currentFile.clear();
-            m_closeFileAction->setEnabled(false);
-            
-            QMessageBox::critical(this, tr("System Error"), 
-                tr("ETI processor is not initialized. Please restart the application."));
-                
-            Logger::instance().log(Logger::Error, "MainWindow", "ETI processor not initialized");
+        // Reset frame count display
+        m_frameCount = 0;
+        if (m_frameCountLabel) {
+            m_frameCountLabel->setText(tr("Frames: 0"));
         }
+        
+        qint64 processStartTime = timer.elapsed();
+        Logger::instance().log(Logger::Info, "MainWindow", 
+                              QString("Starting background processing of ETI file: %1 (dialog took %2ms)")
+                              .arg(fileName).arg(processStartTime));
+        
+        // Start background processing (non-blocking, returns immediately)
+        m_etiFileWorker->processEtiFile(fileName);
+        
+        qint64 totalTime = timer.elapsed();
+        Logger::instance().log(Logger::Debug, "MainWindow", 
+                              QString("openEtiFile() method completed in %1ms").arg(totalTime));
+        
+        // The processing status, progress, and completion will be handled 
+        // by the worker signals connected above
+}
+
+QString MainWindow::getFastOpenFileName(const QString& defaultDir)
+{
+    // Create a lightweight, fast dialog using QDialog + QListWidget
+    // This avoids the slow QFileDialog performance issues on some systems
+    
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Open ETI File"));
+    dialog.setModal(true);
+    dialog.resize(600, 400);
+    
+    QVBoxLayout* layout = new QVBoxLayout(&dialog);
+    
+    // Directory navigation
+    QHBoxLayout* dirLayout = new QHBoxLayout();
+    QLineEdit* dirEdit = new QLineEdit(defaultDir);
+    QPushButton* browseBtn = new QPushButton(tr("Browse..."));
+    dirLayout->addWidget(new QLabel(tr("Directory:")));
+    dirLayout->addWidget(dirEdit);
+    dirLayout->addWidget(browseBtn);
+    layout->addLayout(dirLayout);
+    
+    // File list
+    QListWidget* fileList = new QListWidget();
+    layout->addWidget(fileList);
+    
+    // Buttons
+    QHBoxLayout* buttonLayout = new QHBoxLayout();
+    QPushButton* openBtn = new QPushButton(tr("Open"));
+    QPushButton* cancelBtn = new QPushButton(tr("Cancel"));
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(openBtn);
+    buttonLayout->addWidget(cancelBtn);
+    layout->addLayout(buttonLayout);
+    
+    QString selectedFile;
+    
+    // Function to populate file list
+    auto populateFiles = [&](const QString& dirPath) {
+        fileList->clear();
+        QDir dir(dirPath);
+        QStringList filters;
+        filters << "*.eti" << "*.ETI";
+        QStringList files = dir.entryList(filters, QDir::Files, QDir::Name);
+        for (const QString& file : files) {
+            QListWidgetItem* item = new QListWidgetItem(file);
+            item->setData(Qt::UserRole, dir.absoluteFilePath(file));
+            fileList->addItem(item);
+        }
+    };
+    
+    // Initial population
+    populateFiles(defaultDir);
+    
+    // Connect signals with fast directory selection
+    connect(browseBtn, &QPushButton::clicked, [&]() {
+        // Use simple input dialog instead of slow QFileDialog::getExistingDirectory
+        bool ok;
+        QString dir = QInputDialog::getText(&dialog, tr("Select Directory"), 
+                                          tr("Enter directory path:"), QLineEdit::Normal, 
+                                          dirEdit->text(), &ok);
+        if (ok && !dir.isEmpty()) {
+            dirEdit->setText(dir);
+            populateFiles(dir);
+        }
+    });
+    
+    connect(dirEdit, &QLineEdit::returnPressed, [&]() {
+        populateFiles(dirEdit->text());
+    });
+    
+    connect(fileList, &QListWidget::itemDoubleClicked, [&](QListWidgetItem* item) {
+        selectedFile = item->data(Qt::UserRole).toString();
+        dialog.accept();
+    });
+    
+    connect(openBtn, &QPushButton::clicked, [&]() {
+        if (fileList->currentItem()) {
+            selectedFile = fileList->currentItem()->data(Qt::UserRole).toString();
+            dialog.accept();
+        }
+    });
+    
+    connect(cancelBtn, &QPushButton::clicked, [&]() {
+        dialog.reject();
+    });
+    
+    openBtn->setDefault(true);
+    openBtn->setEnabled(false);
+    
+    connect(fileList, &QListWidget::itemSelectionChanged, [&]() {
+        openBtn->setEnabled(fileList->currentItem() != nullptr);
+    });
+    
+    if (dialog.exec() == QDialog::Accepted) {
+        return selectedFile;
     }
+    
+    return QString(); // Empty string if cancelled
 }
 
 void MainWindow::closeEtiFile()

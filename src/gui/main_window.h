@@ -17,6 +17,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QMessageBox>
 #include <QSettings>
 #include <QCloseEvent>
@@ -31,6 +32,7 @@ class ServiceBrowser;
 class SettingsDialog;
 class AboutDialog;
 class EtiProcessor;
+class EtiFileWorker;
 class ConfigManager;
 
 QT_BEGIN_NAMESPACE
@@ -310,8 +312,16 @@ private:
      */
     void setupRealTimeTimer();
 
+    /**
+     * @brief Fast file dialog implementation to avoid Qt performance issues
+     * @param defaultDir Default directory to open
+     * @return Selected file path, empty if cancelled
+     */
+    QString getFastOpenFileName(const QString& defaultDir);
+
     // Core components
     std::unique_ptr<EtiProcessor> m_etiProcessor;
+    std::unique_ptr<EtiFileWorker> m_etiFileWorker;
     std::unique_ptr<ConfigManager> m_configManager;
 
     // Central widget and main layout

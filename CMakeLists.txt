@@ -98,6 +98,8 @@ set(CORE_SOURCE_FILES
     src/core/eti_processor.h
     src/core/etisnoop_wrapper.cpp
     src/core/etisnoop_wrapper.h
+    src/core/eti_file_worker.cpp
+    src/core/eti_file_worker.h
     src/core/eti_types.cpp
     src/core/eti_types.h
     src/core/dab_decoder.cpp
