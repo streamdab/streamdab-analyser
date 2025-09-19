@@ -165,11 +165,13 @@ struct alignas(64) BufferSlot {
     std::atomic<bool> valid{false};        // Data validity flag
     std::atomic<uint32_t> sequence{0};     // Sequence number for ordering
     std::chrono::steady_clock::time_point timestamp; // Frame timestamp
-    EtiFrame frame;                        // ETI frame data
+    std::unique_ptr<EtiFrame> frame;       // ETI frame data (heap allocated)
     
     // Padding to cache line boundary
-    char padding[64 - sizeof(std::atomic<bool>) * 2 - sizeof(std::atomic<uint32_t>) - 
-                sizeof(std::chrono::steady_clock::time_point) - sizeof(EtiFrame)];
+    static constexpr size_t required_size = sizeof(std::atomic<bool>) * 2 + sizeof(std::atomic<uint32_t>) + 
+                                           sizeof(std::chrono::steady_clock::time_point) + sizeof(std::unique_ptr<EtiFrame>);
+    static constexpr size_t padding_size = (required_size <= 64) ? (64 - required_size) : 0;
+    char padding[padding_size > 0 ? padding_size : 1];  // Ensure at least 1 byte
 };
 
 /**

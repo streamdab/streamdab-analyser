@@ -84,7 +84,7 @@ void DabDecoder::shutdown()
     emit statusChanged(m_status);
 }
 
-bool DabDecoder::processEtiFrame(const EtiFrameData& frame)
+bool DabDecoder::processEtiFrame(const eti::EtiFrameData& frame)
 {
     if (!m_initialized) {
         qWarning() << "DabDecoder: Cannot process frame - decoder not initialized";
@@ -239,7 +239,7 @@ quint32 DabDecoder::getBitrate() const
 
 // Private implementation methods
 
-bool DabDecoder::parseServiceInformation(const EtiFrameData& frame)
+bool DabDecoder::parseServiceInformation(const eti::EtiFrameData& frame)
 {
     // Simplified FIC parsing - in real implementation this would be much more complex
     // This is a basic version that demonstrates the concept
@@ -294,7 +294,7 @@ bool DabDecoder::decodeAudioData(const QByteArray& data, AudioCodec codec)
     }
 }
 
-bool DabDecoder::synchronizeToStream(const EtiFrameData& frame)
+bool DabDecoder::synchronizeToStream(const eti::EtiFrameData& frame)
 {
     if (frame.data.size() < 4) {
         return false;
@@ -444,7 +444,7 @@ void DabDecoder::updateServiceComponent(const ServiceComponent& component)
     }
 }
 
-QByteArray DabDecoder::extractSubchannelData(const EtiFrameData& frame, quint8 subChannelId)
+QByteArray DabDecoder::extractSubchannelData(const eti::EtiFrameData& frame, quint8 subChannelId)
 {
     // Simplified subchannel extraction
     // In real implementation, this would parse the ETI frame structure properly

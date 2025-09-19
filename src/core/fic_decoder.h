@@ -9,9 +9,7 @@
 #include <QDateTime>
 #include "eti_types.h"
 
-// Use types from eti namespace
-using eti::EtiFrameData;
-using eti::FigBlock;
+// Forward declarations for ETI types
 
 /**
  * @class FicDecoder
@@ -157,8 +155,8 @@ public:
 
     // FIC processing
     bool processFicData(const QByteArray& ficData);
-    bool processEtiFrame(const EtiFrameData& frame);
-    bool processFigBlock(const FigBlock& figBlock);
+    bool processEtiFrame(const eti::EtiFrameData& frame);
+    bool processFigBlock(const eti::FigBlock& figBlock);
 
     // Information retrieval
     QList<ServiceInfo> getDiscoveredServices() const;

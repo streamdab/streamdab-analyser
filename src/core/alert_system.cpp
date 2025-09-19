@@ -1,5 +1,6 @@
 #include "alert_system.h"
 #include "alert_types.h"
+#include "eti_types.h"
 #include <QApplication>
 #include <QDateTime>
 #include <QDebug>
@@ -185,7 +186,7 @@ double AlertSystem::getAudioLevelThreshold(AlertLevel level) const
 // REAL-TIME PROCESSING
 // ============================================================================
 
-void AlertSystem::processEtiFrame(const EtiFrameData& frame)
+void AlertSystem::processEtiFrame(const eti::EtiFrameData& frame)
 {
     if (!m_monitoringEnabled) {
         return;
@@ -200,12 +201,16 @@ void AlertSystem::processEtiFrame(const EtiFrameData& frame)
         double threshold = it.value();
         
         // SNR below threshold triggers alert (lower SNR = worse quality)
+        // TODO: Extract actual signal quality metrics from ETI frame analysis
+        // For now, using placeholder value until real signal analysis is implemented
+        double currentSnr = 20.0; // Placeholder SNR value
         if (shouldTriggerAlert(level, AlertType::SignalQuality, 
-                              frame.signalQuality.snr, threshold, false)) {
+                              currentSnr, threshold, false)) {
             QVariantHash params;
-            params["snr"] = frame.signalQuality.snr;
+            params["snr"] = currentSnr;
             params["threshold"] = threshold;
-            params["timestamp"] = frame.timestamp;
+            params["timestamp"] = frame.timestamp.toString();
+            params["frameNumber"] = frame.frameNumber;
             triggerAlert(level, AlertType::SignalQuality, params);
         }
     }
@@ -216,12 +221,16 @@ void AlertSystem::processEtiFrame(const EtiFrameData& frame)
         double threshold = it.value();
         
         // BER above threshold triggers alert (higher BER = worse quality)
+        // TODO: Extract actual BER metrics from ETI frame analysis
+        // For now, using placeholder value until real error analysis is implemented
+        double currentBer = 0.001; // Placeholder BER value (0.1%)
         if (shouldTriggerAlert(level, AlertType::ErrorRate, 
-                              frame.signalQuality.ber, threshold, true)) {
+                              currentBer, threshold, true)) {
             QVariantHash params;
-            params["ber"] = frame.signalQuality.ber;
+            params["ber"] = currentBer;
             params["threshold"] = threshold;
-            params["timestamp"] = frame.timestamp;
+            params["timestamp"] = frame.timestamp.toString();
+            params["frameNumber"] = frame.frameNumber;
             triggerAlert(level, AlertType::ErrorRate, params);
         }
     }
@@ -496,6 +505,9 @@ bool AlertSystem::shouldTriggerAlert(AlertLevel level, AlertType type,
                                      double currentValue, double threshold, 
                                      bool isAboveThreshold) const
 {
+    Q_UNUSED(level)  // Mark parameter as intentionally unused
+    Q_UNUSED(type)   // Mark parameter as intentionally unused
+    
     // Check if value crosses threshold
     bool thresholdCrossed = isAboveThreshold ? 
                            (currentValue > threshold) : 

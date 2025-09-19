@@ -7,8 +7,7 @@
 #include <memory>
 #include "eti_types.h"
 
-// Use types from eti namespace
-using eti::EtiFrameData;
+// Forward declaration for ETI types
 
 /**
  * @class DabDecoder
@@ -75,7 +74,7 @@ public:
     bool isInitialized() const { return m_initialized; }
 
     // Frame processing
-    bool processEtiFrame(const EtiFrameData& frame);
+    bool processEtiFrame(const eti::EtiFrameData& frame);
     bool processSubChannel(quint8 subChannelId, const QByteArray& data);
 
     // Service management
@@ -131,9 +130,9 @@ private slots:
 
 private:
     // Internal processing methods
-    bool parseServiceInformation(const EtiFrameData& frame);
+    bool parseServiceInformation(const eti::EtiFrameData& frame);
     bool decodeAudioData(const QByteArray& data, AudioCodec codec);
-    bool synchronizeToStream(const EtiFrameData& frame);
+    bool synchronizeToStream(const eti::EtiFrameData& frame);
     void updateErrorStatistics(bool hasError);
     void resetDecoder();
 
@@ -142,7 +141,7 @@ private:
     bool decodeDabPlus(const QByteArray& data);
     
     // ETI frame parsing helpers
-    QByteArray extractSubchannelData(const EtiFrameData& frame, quint8 subChannelId);
+    QByteArray extractSubchannelData(const eti::EtiFrameData& frame, quint8 subChannelId);
 
     // Service component management
     void addServiceComponent(const ServiceComponent& component);

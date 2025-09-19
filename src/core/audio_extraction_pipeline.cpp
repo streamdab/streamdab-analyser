@@ -375,6 +375,9 @@ bool AudioExtractionWorker::decode_dabplus_audio(const std::vector<uint8_t>& aac
         emit error_occurred(m_service_id, 
                            QString("DAB+ decode exception: %1").arg(e.what()));
     }
+#else
+    Q_UNUSED(aac_data)
+    Q_UNUSED(output)
 #endif
     
     return false;
@@ -440,12 +443,12 @@ void AudioExtractionWorker::update_service_info(const EtiFrame& frame) {
         // Find our service in the ensemble
         for (const auto& service : ensemble.services) {
             if (service.service_id == m_service_id) {
-                m_service_info.service_label = service.label.toStdString();
+                m_service_info.service_label = service.label;
                 
                 // Update service components
                 for (const auto& component : service.components) {
                     m_service_info.sub_channel_id = component.sub_channel_id;
-                    m_service_info.component_label = component.label.toStdString();
+                    m_service_info.component_label = component.label;
                     
                     // Determine audio mode from component type
                     if (component.asc_ty >= 0 && component.asc_ty <= 63) {
@@ -724,9 +727,11 @@ void AudioExtractionPipeline::process_frame(const EtiFrame& frame) {
     
     // Send frame to all active workers
     QMutexLocker locker(&m_services_mutex);
-    for (auto it = m_workers.begin(); it != m_workers.end(); ++it) {
-        if (it->second) {
-            QMetaObject::invokeMethod(it->second.get(), "process_frame", 
+    // Use key-based iteration to avoid unique_ptr copy issues
+    for (auto it = m_workers.keyBegin(); it != m_workers.keyEnd(); ++it) {
+        auto worker = m_workers.value(*it);
+        if (worker) {
+            QMetaObject::invokeMethod(worker.get(), "process_frame", 
                                      Qt::QueuedConnection, Q_ARG(eti::EtiFrame, frame));
         }
     }
@@ -774,37 +779,43 @@ void AudioExtractionPipeline::initialize_service_worker(uint16_t service_id) {
     connect(worker.get(), &AudioExtractionWorker::quality_metrics_updated,
             this, &AudioExtractionPipeline::handle_worker_quality_metrics);
     
-    // Store worker and thread
-    m_workers[service_id] = std::move(worker);
-    m_worker_threads[service_id] = std::move(worker_thread);
+    // Store worker and thread using move semantics
+    m_workers.insert(service_id, std::move(worker));
+    m_worker_threads.insert(service_id, std::move(worker_thread));
     
     // Start worker thread and extraction
-    m_worker_threads[service_id]->start();
-    QMetaObject::invokeMethod(m_workers[service_id].get(), "start_extraction", Qt::QueuedConnection);
+    auto it = m_worker_threads.find(service_id);
+    if (it != m_worker_threads.end() && it.value()) {
+        it.value()->start();
+    }
+    
+    // Use safe access to avoid unique_ptr copy issues
+    auto worker_it = m_workers.find(service_id);
+    if (worker_it != m_workers.end() && worker_it.value()) {
+        QMetaObject::invokeMethod(worker_it.value().get(), "start_extraction", Qt::QueuedConnection);
+    }
 }
 
 void AudioExtractionPipeline::cleanup_service_worker(uint16_t service_id) {
     auto thread_it = m_worker_threads.find(service_id);
-    if (thread_it != m_worker_threads.end() && thread_it->second) {
+    if (thread_it != m_worker_threads.end() && thread_it.value()) {
         // Stop extraction first
         auto worker_it = m_workers.find(service_id);
-        if (worker_it != m_workers.end() && worker_it->second) {
-            QMetaObject::invokeMethod(worker_it->second.get(), "stop_extraction", Qt::QueuedConnection);
+        if (worker_it != m_workers.end() && worker_it.value()) {
+            QMetaObject::invokeMethod(worker_it.value().get(), "stop_extraction", Qt::QueuedConnection);
         }
         
         // Stop thread
-        thread_it->second->quit();
-        if (!thread_it->second->wait(5000)) {
-            thread_it->second->terminate();
-            thread_it->second->wait(1000);
+        thread_it.value()->quit();
+        if (!thread_it.value()->wait(5000)) {
+            thread_it.value()->terminate();
+            thread_it.value()->wait(1000);
         }
-        m_worker_threads.erase(thread_it);
+        m_worker_threads.remove(service_id);
     }
     
-    auto worker_it = m_workers.find(service_id);
-    if (worker_it != m_workers.end()) {
-        m_workers.erase(worker_it);
-    }
+    // Remove worker using key-based erase to avoid unique_ptr copy issues
+    m_workers.remove(service_id);
 }
 
 void AudioExtractionPipeline::validate_config(const AudioExtractionConfig& config) {

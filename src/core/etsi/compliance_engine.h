@@ -187,7 +187,8 @@ public:
         Config() = default;
     };
     
-    explicit EtsiComplianceEngine(const Config& config = Config{});
+    EtsiComplianceEngine(); // Default constructor with default config
+    explicit EtsiComplianceEngine(const Config& config);
     ~EtsiComplianceEngine();
     
     // Disable copy/move for thread safety
@@ -219,21 +220,21 @@ public:
      * @param frame The ETI frame to validate
      * @return Compliance validation result
      */
-    ComplianceResult validate_eti_frame(const EtiFrame& frame);
+    ComplianceResult validate_eti_frame(const eti::EtiFrame& frame);
     
     /**
      * @brief Validate ensemble configuration against standards
      * @param ensemble The ensemble to validate
      * @return Compliance validation result
      */
-    ComplianceResult validate_ensemble_configuration(const Ensemble& ensemble);
+    ComplianceResult validate_ensemble_configuration(const eti::Ensemble& ensemble);
     
     /**
      * @brief Validate DAB service against standards
      * @param service The DAB service to validate
      * @return Compliance validation result
      */
-    ComplianceResult validate_service_configuration(const DabService& service);
+    ComplianceResult validate_service_configuration(const eti::DabService& service);
     
     /**
      * @brief Validate DAB+ audio data against standards
@@ -242,7 +243,7 @@ public:
      * @return Compliance validation result
      */
     ComplianceResult validate_dabplus_audio(const std::vector<uint8_t>& audio_data,
-                                          const SubChannelInfo& sub_channel_info);
+                                          const eti::SubChannelInfo& sub_channel_info);
     
     /**
      * @brief Perform cross-standard consistency validation
@@ -250,8 +251,8 @@ public:
      * @param ensemble Extracted ensemble information
      * @return Compliance validation result
      */
-    ComplianceResult validate_cross_standard_consistency(const EtiFrame& frame,
-                                                       const Ensemble& ensemble);
+    ComplianceResult validate_cross_standard_consistency(const eti::EtiFrame& frame,
+                                                       const eti::Ensemble& ensemble);
     
     /**
      * @brief Set the target compliance level
@@ -362,12 +363,12 @@ private:
     void notify_validation_complete(const ComplianceResult& result);
     
     // Standard-specific validation methods
-    ComplianceResult validate_en300401(const EtiFrame& frame, const Ensemble& ensemble);
+    ComplianceResult validate_en300401(const eti::EtiFrame& frame, const eti::Ensemble& ensemble);
     ComplianceResult validate_en302077(const std::vector<uint8_t>& audio_data,
-                                     const SubChannelInfo& sub_channel_info);
-    ComplianceResult validate_en300799(const EtiFrame& frame);
+                                     const eti::SubChannelInfo& sub_channel_info);
+    ComplianceResult validate_en300799(const eti::EtiFrame& frame);
     ComplianceResult validate_ts102563(const std::vector<uint8_t>& audio_data);
-    ComplianceResult validate_ts101756(const Ensemble& ensemble);
+    ComplianceResult validate_ts101756(const eti::Ensemble& ensemble);
     
     // Utility methods
     static std::string get_standard_name(EtsiStandard standard);

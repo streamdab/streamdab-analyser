@@ -21,6 +21,7 @@
 #include <QQueue>
 #include <QAudioFormat>
 #include <QAudioDevice>
+#include <QFile>
 #include <memory>
 #include <atomic>
 #include <chrono>
@@ -192,6 +193,7 @@ private:
     bool decode_dab_audio(const std::vector<uint8_t>& audio_data, AudioData& output);
     bool decode_dabplus_audio(const std::vector<uint8_t>& aac_data, AudioData& output);
     bool decode_mpeg2_audio(const std::vector<uint8_t>& mpeg_data, AudioData& output);
+    bool decode_audio_data(const std::vector<uint8_t>& audio_data, AudioData& output);
     
     std::vector<uint8_t> extract_service_audio(const EtiFrame& frame);
     AudioServiceInfo extract_service_info(const EtiFrame& frame);

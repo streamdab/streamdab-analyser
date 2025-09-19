@@ -230,7 +230,7 @@ public:
      * @param frame ETI frame to monitor
      * @param ensemble Associated ensemble information
      */
-    void process_eti_frame(const EtiFrame& frame, const Ensemble& ensemble);
+    void process_eti_frame(const eti::EtiFrame& frame, const eti::Ensemble& ensemble);
     
     /**
      * @brief Process audio data for quality monitoring
@@ -382,10 +382,10 @@ private:
     void check_audio_quality_thresholds(const std::vector<float>& audio_data,
                                        uint32_t sample_rate, uint32_t channels,
                                        uint32_t service_id);
-    void check_service_availability_thresholds(const EtiFrame& frame,
-                                              const Ensemble& ensemble);
-    void check_error_correction_thresholds(const EtiFrame& frame);
-    void check_synchronization_thresholds(const EtiFrame& frame);
+    void check_service_availability_thresholds(const eti::EtiFrame& frame,
+                                              const eti::Ensemble& ensemble);
+    void check_error_correction_thresholds(const eti::EtiFrame& frame);
+    void check_synchronization_thresholds(const eti::EtiFrame& frame);
     
     // Audio analysis methods
     double calculate_lufs_loudness(const std::vector<float>& audio_data,
