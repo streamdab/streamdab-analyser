@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
-#include <gmock/gmock.h>
+// #include <gmock/gmock.h> // Temporarily disabled
 #include <QSignalSpy>
 #include <QByteArray>
 #include <QDateTime>
 #include "../../src/core/eti_types.h"
 #include "../../src/core/dab_decoder.h"
 
-using namespace testing;
+// using namespace testing; // Temporarily disabled
 using eti::EtiFrameData;
 
 /**

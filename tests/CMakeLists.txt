@@ -2,8 +2,20 @@
 cmake_minimum_required(VERSION 3.21)
 # TDD MANDATE: All testing frameworks must be operational
 message(STATUS "=== TDD Framework Setup - Phase 1 Priority ===")
-# TDD FRAMEWORK: Use targets from parent CMakeLists.txt
-# Google Test and Mock should be available from parent cmake configuration
+
+# Find Google Test framework
+find_package(GTest QUIET)
+if(NOT GTest_FOUND)
+    message(STATUS "GTest not found, downloading and building from source")
+    include(FetchContent)
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG release-1.12.1
+    )
+    FetchContent_MakeAvailable(googletest)
+endif()
+
 # Find Qt6 Test module for GUI testing
 find_package(Qt6 REQUIRED COMPONENTS Test Core Widgets Gui)
 # Enable Qt test framework
@@ -75,9 +87,14 @@ add_executable(eti_analyzer_gui_tests
     ${TEST_FIXTURE_SOURCES}
 )
 # TDD FRAMEWORK: Link Google Test for unit tests
+if(GTest_FOUND)
+    set(GTEST_LIBS GTest::GTest GTest::Main)
+else()
+    set(GTEST_LIBS gtest gtest_main)
+endif()
+
 target_link_libraries(eti_analyzer_unit_tests
-    GTest::GTest
-    GTest::Main
+    ${GTEST_LIBS}
     Qt6::Core
     Qt6::Test
 )
@@ -89,14 +106,19 @@ target_include_directories(eti_analyzer_unit_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/mocks
 )
 # TDD FRAMEWORK: Link Qt Test for GUI tests with comprehensive framework
+if(GTest_FOUND)
+    set(GMOCK_LIBS GTest::GTest GTest::gmock)
+else()
+    set(GMOCK_LIBS gtest gmock)
+endif()
+
 target_link_libraries(eti_analyzer_gui_tests
     Qt6::Core
     Qt6::Test
     Qt6::Widgets
     Qt6::Gui
     Qt6::Network
-    GTest::GTest
-    GTest::gmock
+    ${GMOCK_LIBS}
 )
 # TDD REQUIREMENT: Link to main project components for GUI testing
 target_include_directories(eti_analyzer_gui_tests PRIVATE
@@ -109,6 +131,7 @@ target_include_directories(eti_analyzer_gui_tests PRIVATE
 # This creates a more integrated testing approach
 set(MAIN_PROJECT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_processor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fic_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/ensemble_manager.cpp
@@ -167,27 +190,31 @@ endif()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FAAD2 REQUIRED faad2)
 pkg_check_modules(FFTW3 REQUIRED fftw3)
-find_package(yaml-cpp REQUIRED)
+find_package(yaml-cpp QUIET)
 # Link dependencies to unit tests
-target_link_libraries(eti_analyzer_unit_tests
+set(TEST_LIBS
     ${pkgcfg_lib_FAAD2_faad}
     ${pkgcfg_lib_FFTW3_fftw3}
-    yaml-cpp::yaml-cpp
+    etisnoop::etisnoop
+)
+if(yaml-cpp_FOUND)
+    list(APPEND TEST_LIBS yaml-cpp::yaml-cpp)
+endif()
+target_link_libraries(eti_analyzer_unit_tests ${TEST_LIBS}
 )
 # Link dependencies to GUI tests
-target_link_libraries(eti_analyzer_gui_tests
-    ${pkgcfg_lib_FAAD2_faad}
-    ${pkgcfg_lib_FFTW3_fftw3}
-    yaml-cpp::yaml-cpp
+target_link_libraries(eti_analyzer_gui_tests ${TEST_LIBS}
 )
 # Include directories for dependencies
 target_include_directories(eti_analyzer_unit_tests PRIVATE
     ${FAAD2_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/etisnoop/src
 )
 target_include_directories(eti_analyzer_gui_tests PRIVATE
     ${FAAD2_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/etisnoop/src
 )
 # Compile definitions for dependencies
 target_compile_definitions(eti_analyzer_unit_tests PRIVATE

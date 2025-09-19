@@ -148,7 +148,7 @@ bool FicDecoder::processFicData(const QByteArray& ficData)
     return success;
 }
 
-bool FicDecoder::processEtiFrame(const EtiFrameData& frame)
+bool FicDecoder::processEtiFrame(const eti::EtiFrameData& frame)
 {
     // Extract FIC data from ETI frame and process
     // ETI frame contains FIC in specific location
@@ -162,7 +162,7 @@ bool FicDecoder::processEtiFrame(const EtiFrameData& frame)
     return processFicData(ficData);
 }
 
-bool FicDecoder::processFigBlock(const FigBlock& figBlock)
+bool FicDecoder::processFigBlock(const eti::FigBlock& figBlock)
 {
     // Convert std::vector<uint8_t> to QByteArray
     QByteArray ficData(reinterpret_cast<const char*>(figBlock.data.data()), figBlock.data.size());

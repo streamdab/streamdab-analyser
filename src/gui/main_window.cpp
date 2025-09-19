@@ -265,6 +265,13 @@ void MainWindow::createActions()
     m_showErrorLogAction = new QAction(tr("&Error Log"), this);
     m_showErrorLogAction->setCheckable(true);
     m_showErrorLogAction->setChecked(true);
+    
+    // Demo menu actions
+    m_createSampleFileAction = new QAction(QIcon(":/icons/demo.png"), tr("&Create Sample ETI File"), this);
+    m_createSampleFileAction->setStatusTip(tr("Create a sample ETI file for testing"));
+    
+    m_loadTestDataAction = new QAction(QIcon(":/icons/test.png"), tr("&Load Test Services"), this);
+    m_loadTestDataAction->setStatusTip(tr("Load test service data into the browser"));
 }
 
 void MainWindow::createMenuBar()
@@ -301,6 +308,11 @@ void MainWindow::createMenuBar()
     // Tools menu
     m_toolsMenu = m_menuBar->addMenu(tr("&Tools"));
     m_toolsMenu->addAction(m_settingsAction);
+    
+    // Demo menu for testing
+    QMenu *demoMenu = m_menuBar->addMenu(tr("&Demo"));
+    demoMenu->addAction(m_createSampleFileAction);
+    demoMenu->addAction(m_loadTestDataAction);
     
     // Help menu
     m_helpMenu = m_menuBar->addMenu(tr("&Help"));
@@ -526,8 +538,36 @@ void MainWindow::connectSignals()
     // Tools actions
     connect(m_settingsAction, &QAction::triggered, this, &MainWindow::showSettings);
     
+    // Demo actions
+    connect(m_createSampleFileAction, &QAction::triggered, this, &MainWindow::createSampleEtiFile);
+    connect(m_loadTestDataAction, &QAction::triggered, this, &MainWindow::loadTestData);
+    
     // Help actions
     connect(m_aboutAction, &QAction::triggered, this, &MainWindow::showAbout);
+    
+    // ETI Processor signal connections
+    if (m_etiProcessor) {
+        connect(m_etiProcessor.get(), &EtiProcessor::statusChanged, 
+                this, [this](const QString& status) {
+                    updateStatus(status);
+                });
+        
+        connect(m_etiProcessor.get(), &EtiProcessor::errorOccurred, 
+                this, &MainWindow::handleEtiError);
+        
+        connect(m_etiProcessor.get(), &EtiProcessor::frameProcessed, 
+                this, [this](quint64 frameNumber, const QByteArray& /*data*/) {
+                    m_frameCount = frameNumber;
+                    if (m_frameCountLabel) {
+                        m_frameCountLabel->setText(tr("Frames: %1").arg(m_frameCount));
+                    }
+                });
+                
+        // Connect service browser to ETI processor
+        if (m_serviceBrowser) {
+            m_serviceBrowser->setEtiProcessor(m_etiProcessor.get());
+        }
+    }
 }
 
 void MainWindow::setupRealTimeTimer()
@@ -596,15 +636,61 @@ void MainWindow::openEtiFile()
     );
     
     if (!fileName.isEmpty()) {
+        // Update GUI state
         m_currentFile = fileName;
         m_closeFileAction->setEnabled(true);
         updateWindowTitle();
-        updateStatus(tr("ETI file opened: %1").arg(QFileInfo(fileName).fileName()));
+        updateStatus(tr("Opening ETI file: %1").arg(QFileInfo(fileName).fileName()));
         
-        emit etiFileOpened(fileName);
-        
-        Logger::instance().log(Logger::Info, "MainWindow", 
-                             QString("ETI file opened: %1").arg(fileName));
+        // Process the ETI file
+        if (m_etiProcessor && m_etiProcessor->isInitialized()) {
+            bool success = m_etiProcessor->processFile(fileName);
+            
+            if (success) {
+                updateStatus(tr("ETI file opened successfully: %1").arg(QFileInfo(fileName).fileName()));
+                
+                // Update frame count display
+                m_frameCount = m_etiProcessor->getFrameCount();
+                if (m_frameCountLabel) {
+                    m_frameCountLabel->setText(tr("Frames: %1").arg(m_frameCount));
+                }
+                
+                // Update service browser with discovered services
+                if (m_serviceBrowser) {
+                    m_serviceBrowser->updateServices();
+                }
+                
+                // Update analyzer widget
+                if (m_analyzerWidget) {
+                    // Trigger analyzer widget to refresh with new data
+                    // This will be implemented as part of analyzer widget integration
+                }
+                
+                emit etiFileOpened(fileName);
+                
+                Logger::instance().log(Logger::Info, "MainWindow", 
+                                     QString("ETI file processed successfully: %1 frames").arg(m_frameCount));
+            } else {
+                updateStatus(tr("Failed to process ETI file: %1").arg(QFileInfo(fileName).fileName()));
+                m_currentFile.clear();
+                m_closeFileAction->setEnabled(false);
+                
+                QMessageBox::warning(this, tr("ETI Processing Error"), 
+                    tr("Failed to process the ETI file. Please check if the file is valid."));
+                
+                Logger::instance().log(Logger::Error, "MainWindow", 
+                                     QString("Failed to process ETI file: %1").arg(fileName));
+            }
+        } else {
+            updateStatus(tr("ETI processor not initialized"));
+            m_currentFile.clear();
+            m_closeFileAction->setEnabled(false);
+            
+            QMessageBox::critical(this, tr("System Error"), 
+                tr("ETI processor is not initialized. Please restart the application."));
+                
+            Logger::instance().log(Logger::Error, "MainWindow", "ETI processor not initialized");
+        }
     }
 }
 
@@ -891,4 +977,84 @@ bool MainWindow::validateLayout() const
             m_statusBar != nullptr &&
             m_realTimeTimer != nullptr &&
             m_isInitialized);
+}
+
+void MainWindow::createSampleEtiFile()
+{
+    QString fileName = QFileDialog::getSaveFileName(
+        this,
+        tr("Create Sample ETI File"),
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/sample.eti",
+        tr("ETI Files (*.eti)")
+    );
+    
+    if (!fileName.isEmpty()) {
+        // Create a sample ETI file using test fixture data
+        QFile file(fileName);
+        if (file.open(QIODevice::WriteOnly)) {
+            // Write a minimal valid ETI frame using test data
+            // For now, just create a placeholder file with basic ETI structure
+            QByteArray sampleData;
+            
+            // Create 100 sample ETI frames
+            for (int i = 0; i < 100; ++i) {
+                // Add ETI frame header (24 bytes)
+                sampleData.append(QByteArray::fromHex("E0E1"));  // ERR + STAT
+                sampleData.append(QByteArray::fromHex("FFFF"));  // LIDATA
+                sampleData.append(QByteArray::fromHex("0001"));  // FC
+                sampleData.append(QByteArray::fromHex("0000"));  // NST
+                sampleData.append(QByteArray::fromHex("00"));    // FP
+                sampleData.append(QByteArray::fromHex("0000"));  // MID
+                sampleData.append(QByteArray::fromHex("00"));    // FL
+                sampleData.append(QByteArray(13, 0));            // Reserved/padding
+                
+                // Add FIC data (32 bytes)
+                sampleData.append(QByteArray::fromHex("00001234")); // Ensemble ID
+                sampleData.append(QByteArray(28, 0));                // FIC padding
+                
+                // Add MSC data to reach 6144 bytes total frame size
+                int remaining = 6144 - sampleData.size() % 6144;
+                if (remaining > 0) {
+                    sampleData.append(QByteArray(remaining, 0));
+                }
+            }
+            
+            file.write(sampleData);
+            file.close();
+            
+            updateStatus(tr("Sample ETI file created: %1").arg(QFileInfo(fileName).fileName()));
+            
+            QMessageBox::information(this, tr("Sample File Created"),
+                tr("Sample ETI file has been created successfully.\n\nFile: %1\nSize: %2 bytes")
+                .arg(fileName)
+                .arg(sampleData.size()));
+                
+            Logger::instance().log(Logger::Info, "MainWindow", 
+                                 QString("Sample ETI file created: %1 (%2 bytes)")
+                                 .arg(fileName).arg(sampleData.size()));
+        } else {
+            QMessageBox::warning(this, tr("File Error"),
+                tr("Could not create sample ETI file:\n%1").arg(file.errorString()));
+        }
+    }
+}
+
+void MainWindow::loadTestData()
+{
+    if (m_serviceBrowser) {
+        // Force generation of test services
+        m_serviceBrowser->clearServices();
+        m_serviceBrowser->updateServices();
+        
+        updateStatus(tr("Test service data loaded"));
+        
+        QMessageBox::information(this, tr("Test Data Loaded"),
+            tr("Test service data has been loaded into the service browser.\n\n"
+               "You can now see sample DAB services organized by ensemble."));
+               
+        Logger::instance().log(Logger::Info, "MainWindow", "Test service data loaded");
+    } else {
+        QMessageBox::warning(this, tr("Error"),
+            tr("Service browser is not available."));
+    }
 }

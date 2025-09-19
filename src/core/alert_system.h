@@ -12,7 +12,9 @@
 #include <memory>
 
 // Forward declarations
-struct EtiFrameData;
+namespace eti {
+    struct EtiFrameData;
+}
 struct AudioLevelData;
 
 /**
@@ -191,7 +193,7 @@ public:
      * @brief Process ETI frame for alert conditions
      * @param frame ETI frame data containing signal quality metrics
      */
-    void processEtiFrame(const EtiFrameData& frame);
+    void processEtiFrame(const eti::EtiFrameData& frame);
 
     /**
      * @brief Process audio data for level alerts

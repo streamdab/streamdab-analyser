@@ -75,37 +75,37 @@ public:
     /**
      * @brief Validate ETI frame and ensemble against EN 300 401
      */
-    ComplianceResult validate(const EtiFrame& frame, const Ensemble& ensemble);
+    ComplianceResult validate(const eti::EtiFrame& frame, const eti::Ensemble& ensemble);
     
     /**
      * @brief Validate transmission mode parameters
      */
-    ComplianceResult validate_transmission_mode(const EtiFrame& frame);
+    ComplianceResult validate_transmission_mode(const eti::EtiFrame& frame);
     
     /**
      * @brief Validate FIC structure and FIG blocks
      */
-    ComplianceResult validate_fic_structure(const EtiFrame& frame, const Ensemble& ensemble);
+    ComplianceResult validate_fic_structure(const eti::EtiFrame& frame, const eti::Ensemble& ensemble);
     
     /**
      * @brief Validate MSC organization and sub-channels
      */
-    ComplianceResult validate_msc_organization(const EtiFrame& frame, const Ensemble& ensemble);
+    ComplianceResult validate_msc_organization(const eti::EtiFrame& frame, const eti::Ensemble& ensemble);
     
     /**
      * @brief Validate error protection parameters
      */
-    ComplianceResult validate_error_protection(const std::vector<SubChannelInfo>& subchannels);
+    ComplianceResult validate_error_protection(const std::vector<eti::SubChannelInfo>& subchannels);
     
     /**
      * @brief Validate ensemble configuration
      */
-    ComplianceResult validate_ensemble_configuration(const Ensemble& ensemble);
+    ComplianceResult validate_ensemble_configuration(const eti::Ensemble& ensemble);
     
     /**
      * @brief Validate service organization
      */
-    ComplianceResult validate_service_organization(const Ensemble& ensemble);
+    ComplianceResult validate_service_organization(const eti::Ensemble& ensemble);
 
 private:
     // EN 300 401 specific constants
@@ -115,16 +115,16 @@ private:
     static constexpr uint32_t SYMBOL_DURATION_US = 1000;
     
     // FIG validation methods
-    bool validate_fig_0_0(const FigBlock& fig, const Ensemble& ensemble) const;
-    bool validate_fig_0_1(const FigBlock& fig, const Ensemble& ensemble) const;
-    bool validate_fig_0_2(const FigBlock& fig, const Ensemble& ensemble) const;
-    bool validate_fig_1_0(const FigBlock& fig, const Ensemble& ensemble) const;
-    bool validate_fig_1_1(const FigBlock& fig, const Ensemble& ensemble) const;
+    bool validate_fig_0_0(const eti::FigBlock& fig, const eti::Ensemble& ensemble) const;
+    bool validate_fig_0_1(const eti::FigBlock& fig, const eti::Ensemble& ensemble) const;
+    bool validate_fig_0_2(const eti::FigBlock& fig, const eti::Ensemble& ensemble) const;
+    bool validate_fig_1_0(const eti::FigBlock& fig, const eti::Ensemble& ensemble) const;
+    bool validate_fig_1_1(const eti::FigBlock& fig, const eti::Ensemble& ensemble) const;
     
     // Helper methods
     bool is_valid_transmission_mode(uint8_t mode) const;
     bool is_valid_protection_level(uint8_t level, bool uep_flag) const;
-    bool validate_capacity_units_allocation(const std::vector<SubChannelInfo>& subchannels) const;
+    bool validate_capacity_units_allocation(const std::vector<eti::SubChannelInfo>& subchannels) const;
 };
 
 /**
@@ -151,7 +151,7 @@ public:
      * @brief Validate DAB+ audio data against EN 302 077
      */
     ComplianceResult validate(const std::vector<uint8_t>& audio_data, 
-                            const SubChannelInfo& subchannel_info);
+                            const eti::SubChannelInfo& subchannel_info);
     
     /**
      * @brief Validate HE-AAC v2 superframe structure
@@ -216,42 +216,42 @@ public:
     /**
      * @brief Validate ETI frame against EN 300 799
      */
-    ComplianceResult validate(const EtiFrame& frame);
+    ComplianceResult validate(const eti::EtiFrame& frame);
     
     /**
      * @brief Validate ETI frame structure
      */
-    ComplianceResult validate_frame_structure(const EtiFrame& frame);
+    ComplianceResult validate_frame_structure(const eti::EtiFrame& frame);
     
     /**
      * @brief Validate SYNC field
      */
-    ComplianceResult validate_sync_field(const EtiFrame& frame);
+    ComplianceResult validate_sync_field(const eti::EtiFrame& frame);
     
     /**
      * @brief Validate LIDATA field
      */
-    ComplianceResult validate_lidata_field(const EtiFrame& frame);
+    ComplianceResult validate_lidata_field(const eti::EtiFrame& frame);
     
     /**
      * @brief Validate FIC field
      */
-    ComplianceResult validate_fic_field(const EtiFrame& frame);
+    ComplianceResult validate_fic_field(const eti::EtiFrame& frame);
     
     /**
      * @brief Validate MSC field
      */
-    ComplianceResult validate_msc_field(const EtiFrame& frame);
+    ComplianceResult validate_msc_field(const eti::EtiFrame& frame);
     
     /**
      * @brief Validate CRC field
      */
-    ComplianceResult validate_crc_field(const EtiFrame& frame);
+    ComplianceResult validate_crc_field(const eti::EtiFrame& frame);
     
     /**
      * @brief Validate timing information (TIST)
      */
-    ComplianceResult validate_timing_information(const EtiFrame& frame, uint32_t expected_fc = 0);
+    ComplianceResult validate_timing_information(const eti::EtiFrame& frame, uint32_t expected_fc = 0);
 
 private:
     // EN 300 799 specific constants
@@ -267,7 +267,7 @@ private:
     bool validate_frame_count_sequence(uint8_t current_fc, uint8_t previous_fc) const;
     bool validate_mode_identity(uint8_t mode_id) const;
     bool validate_frame_length(uint16_t frame_length, uint8_t mode_id) const;
-    uint16_t calculate_eti_crc(const EtiFrame& frame) const;
+    uint16_t calculate_eti_crc(const eti::EtiFrame& frame) const;
     bool validate_tist_timing(uint32_t tist, uint32_t frame_number) const;
     
     // State for sequence validation
@@ -356,37 +356,37 @@ public:
     /**
      * @brief Validate ensemble against registered tables
      */
-    ComplianceResult validate(const Ensemble& ensemble);
+    ComplianceResult validate(const eti::Ensemble& ensemble);
     
     /**
      * @brief Validate country code assignments
      */
-    ComplianceResult validate_country_codes(const Ensemble& ensemble);
+    ComplianceResult validate_country_codes(const eti::Ensemble& ensemble);
     
     /**
      * @brief Validate service type definitions
      */
-    ComplianceResult validate_service_types(const Ensemble& ensemble);
+    ComplianceResult validate_service_types(const eti::Ensemble& ensemble);
     
     /**
      * @brief Validate FIG type registrations
      */
-    ComplianceResult validate_fig_registrations(const std::vector<FigBlock>& fig_blocks);
+    ComplianceResult validate_fig_registrations(const std::vector<eti::FigBlock>& fig_blocks);
     
     /**
      * @brief Validate character encoding specifications
      */
-    ComplianceResult validate_character_encoding(const Ensemble& ensemble);
+    ComplianceResult validate_character_encoding(const eti::Ensemble& ensemble);
     
     /**
      * @brief Validate programme type codes
      */
-    ComplianceResult validate_programme_types(const Ensemble& ensemble);
+    ComplianceResult validate_programme_types(const eti::Ensemble& ensemble);
     
     /**
      * @brief Validate language codes
      */
-    ComplianceResult validate_language_codes(const Ensemble& ensemble);
+    ComplianceResult validate_language_codes(const eti::Ensemble& ensemble);
 
 private:
     // TS 101 756 specific data structures
@@ -445,34 +445,34 @@ public:
     /**
      * @brief Validate consistency between ETI and DAB standards
      */
-    ComplianceResult validate_eti_dab_consistency(const EtiFrame& frame, const Ensemble& ensemble);
+    ComplianceResult validate_eti_dab_consistency(const eti::EtiFrame& frame, const eti::Ensemble& ensemble);
     
     /**
      * @brief Validate consistency between DAB+ audio and ETI transport
      */
-    ComplianceResult validate_dabplus_eti_consistency(const EtiFrame& frame, 
+    ComplianceResult validate_dabplus_eti_consistency(const eti::EtiFrame& frame, 
                                                     const std::vector<uint8_t>& audio_data,
-                                                    const SubChannelInfo& subchannel);
+                                                    const eti::SubChannelInfo& subchannel);
     
     /**
      * @brief Validate consistency of registered tables usage
      */
-    ComplianceResult validate_registered_tables_consistency(const Ensemble& ensemble);
+    ComplianceResult validate_registered_tables_consistency(const eti::Ensemble& ensemble);
     
     /**
      * @brief Validate timing consistency across standards
      */
-    ComplianceResult validate_timing_consistency(const EtiFrame& frame);
+    ComplianceResult validate_timing_consistency(const eti::EtiFrame& frame);
 
 private:
     // Helper methods for cross-validation
-    bool validate_subchannel_audio_mapping(const Ensemble& ensemble, 
+    bool validate_subchannel_audio_mapping(const eti::Ensemble& ensemble, 
                                          const std::vector<uint8_t>& audio_data,
-                                         const SubChannelInfo& subchannel) const;
-    bool validate_service_component_consistency(const DabService& service, 
-                                              const std::vector<SubChannelInfo>& subchannels) const;
-    bool validate_fig_ensemble_consistency(const std::vector<FigBlock>& fig_blocks,
-                                         const Ensemble& ensemble) const;
+                                         const eti::SubChannelInfo& subchannel) const;
+    bool validate_service_component_consistency(const eti::DabService& service, 
+                                              const std::vector<eti::SubChannelInfo>& subchannels) const;
+    bool validate_fig_ensemble_consistency(const std::vector<eti::FigBlock>& fig_blocks,
+                                         const eti::Ensemble& ensemble) const;
 };
 
 } // namespace compliance

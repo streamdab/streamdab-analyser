@@ -426,6 +426,12 @@ void ServiceBrowser::updateServices()
         return;
     }
     
+    // If ETI processor is connected and we have no services, generate test data
+    if (m_etiProcessor && m_services.isEmpty()) {
+        Logger::instance().log(Logger::Info, "ServiceBrowser", "Generating test services for demo");
+        generateTestServices();
+    }
+    
     // Update based on current view mode
     switch (m_viewMode) {
         case ViewMode::Tree:

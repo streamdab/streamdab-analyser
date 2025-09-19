@@ -6,7 +6,7 @@
 /**
  * @brief ETI Frame Data for Alert System processing
  */
-struct EtiFrameData {
+struct AlertEtiFrameData {
     struct SignalQuality {
         double snr = 0.0;      // Signal-to-Noise Ratio in dB
         double ber = 0.0;      // Bit Error Rate (0.0 to 1.0)
@@ -18,7 +18,7 @@ struct EtiFrameData {
     uint32_t frameNumber = 0;
     bool isValid = false;
     
-    EtiFrameData() : timestamp(QTime::currentTime()) {}
+    AlertEtiFrameData() : timestamp(QTime::currentTime()) {}
 };
 
 /**

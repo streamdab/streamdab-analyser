@@ -220,6 +220,9 @@ struct EtiCrcField {
                (static_cast<uint32_t>(crc_bytes[2]) << 8) |
                static_cast<uint32_t>(crc_bytes[3]);
     }
+    
+private:
+    uint32_t calculate_frame_crc(const EtiFrame& frame) const;
 };
 
 /**
@@ -455,6 +458,14 @@ private:
         // Basic validation - check if frame has minimum required size
         frame_valid = (frame_data.size() >= ETI_SYNC_SIZE + ETI_LIDATA_SIZE);
     }
+    
+    // FIG parsing helper methods
+    void parse_fig_0_0(const FigBlock& fig, Ensemble& ensemble) const;
+    void parse_fig_0_1(const FigBlock& fig, std::vector<SubChannelInfo>& subchannels) const;
+    void parse_fig_0_2(const FigBlock& fig, Ensemble& ensemble) const;
+    void parse_fig_0_3(const FigBlock& fig, Ensemble& ensemble) const;
+    void parse_fig_1_0(const FigBlock& fig, Ensemble& ensemble) const;
+    void parse_fig_1_1(const FigBlock& fig, Ensemble& ensemble) const;
 };
 
 // Type aliases for compatibility and convenience

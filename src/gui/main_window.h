@@ -164,6 +164,16 @@ public slots:
      * @brief Reset window layout to default
      */
     void resetLayout();
+    
+    /**
+     * @brief Create sample ETI file for demonstration
+     */
+    void createSampleEtiFile();
+    
+    /**
+     * @brief Load test data into service browser
+     */
+    void loadTestData();
 
     /**
      * @brief Update status bar information
@@ -365,6 +375,10 @@ private:
     QAction *m_showFigAnalysisAction;
     QAction *m_showAudioMonitorAction;
     QAction *m_showErrorLogAction;
+    
+    // Demo actions
+    QAction *m_createSampleFileAction;
+    QAction *m_loadTestDataAction;
 
     // Real-time update system
     QTimer *m_realTimeTimer;
