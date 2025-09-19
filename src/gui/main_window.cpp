@@ -25,7 +25,7 @@
 #include "utils/logger.h"
 
 #include <QApplication>
-#include <QScreen>
+#include <QGuiApplication>
 #include <QScreen>
 #include <QFileInfo>
 #include <QDir>
@@ -637,12 +637,36 @@ void MainWindow::updateWindowTitle()
 
 void MainWindow::openEtiFile()
 {
-    QString fileName = QFileDialog::getOpenFileName(
-        this,
-        tr("Open ETI File"),
-        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
-        tr("ETI Files (*.eti *.ETI);;All Files (*)")
-    );
+    // Create custom file dialog with 50% screen size and centered position
+    QFileDialog dialog(this);
+    dialog.setWindowTitle(tr("Open ETI File"));
+    dialog.setDirectory(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+    dialog.setNameFilter(tr("ETI Files (*.eti *.ETI);;All Files (*)"));
+    dialog.setFileMode(QFileDialog::ExistingFile);
+    dialog.setAcceptMode(QFileDialog::AcceptOpen);
+    
+    // Get screen geometry and calculate 50% size
+    QScreen *screen = QGuiApplication::primaryScreen();
+    if (screen) {
+        QRect screenGeometry = screen->geometry();
+        int dialogWidth = screenGeometry.width() / 2;
+        int dialogHeight = screenGeometry.height() / 2;
+        
+        // Center the dialog on screen
+        int x = (screenGeometry.width() - dialogWidth) / 2;
+        int y = (screenGeometry.height() - dialogHeight) / 2;
+        
+        dialog.setGeometry(x, y, dialogWidth, dialogHeight);
+    }
+    
+    // Show dialog and get result
+    QString fileName;
+    if (dialog.exec() == QDialog::Accepted) {
+        QStringList selectedFiles = dialog.selectedFiles();
+        if (!selectedFiles.isEmpty()) {
+            fileName = selectedFiles.first();
+        }
+    }
     
     if (!fileName.isEmpty()) {
         // Update GUI state
