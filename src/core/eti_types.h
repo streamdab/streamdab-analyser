@@ -373,10 +373,21 @@ struct EtiFrame {
     EtiLidataField get_lidata_field() const {
         EtiLidataField lidata{};
         const uint8_t* data = frame_data.data() + 4;
-        lidata.fc = data[0];
-        lidata.ficf = (data[1] & 0x80) ? 1 : 0;
-        lidata.nst = data[1] & 0x7F;
-        // Additional LIDATA parsing...
+        
+        // Parse LIDATA field according to ETSI EN 300 799 Section 5.2
+        lidata.fc = data[0];                    // Frame Count
+        lidata.ficf = (data[1] & 0x80) ? 1 : 0; // FIC Flag
+        lidata.nst = data[1] & 0x7F;            // Number of Sub-channels
+        lidata.fp = (data[2] >> 5) & 0x07;      // Frame Phase
+        lidata.mid = (data[2] >> 3) & 0x03;     // Mode Identity
+        lidata.fl = ((data[2] & 0x07) << 8) | data[3]; // Frame Length
+        
+        // Time Stamp (TIST) - 32-bit value
+        lidata.tist = (static_cast<uint32_t>(data[4]) << 24) |
+                      (static_cast<uint32_t>(data[5]) << 16) |
+                      (static_cast<uint32_t>(data[6]) << 8) |
+                      static_cast<uint32_t>(data[7]);
+        
         return lidata;
     }
     
