@@ -36,7 +36,7 @@
 #include "utils/logger.h"
 
 // Application constants
-const QString APP_NAME = "ETI Stream Analyzer";
+const QString APP_NAME = "StreamDAB Stream Analyzer";
 const QString APP_VERSION = "1.0.0";
 const QString APP_ORGANIZATION = "ETI Analyzer Team";
 const QString APP_DOMAIN = "eti-analyzer.com";

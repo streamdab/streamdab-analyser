@@ -158,7 +158,7 @@ private:
     QTextEdit *m_systemInfoText;
 
     // Application information
-    static constexpr const char* APP_NAME = "ETI Stream Analyzer";
+    static constexpr const char* APP_NAME = "StreamDAB Stream Analyzer";
     static constexpr const char* APP_VERSION = "1.0.0";
     static constexpr const char* APP_BUILD = "Professional Edition";
     static constexpr const char* APP_COPYRIGHT = "Copyright © 2024 ETI Stream Analyzer Team";

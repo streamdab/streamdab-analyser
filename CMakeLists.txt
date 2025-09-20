@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 # Project configuration
 project(ETIStreamAnalyzer
     VERSION 1.0.0
-    DESCRIPTION "Professional ETI Stream Analyzer for DAB/DAB+ Broadcasting"
+    DESCRIPTION "Professional StreamDAB Stream Analyzer for DAB/DAB+ Broadcasting"
     LANGUAGES CXX
 )
 
@@ -19,7 +19,7 @@ endif()
 # Enable testing from project start (TDD requirement)
 enable_testing()
 
-message(STATUS "=== ETI Stream Analyzer Build Configuration ===")
+message(STATUS "=== StreamDAB Stream Analyzer Build Configuration ===")
 message(STATUS "Project: ${PROJECT_NAME} v${PROJECT_VERSION}")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Platform: ${CMAKE_SYSTEM_NAME}")

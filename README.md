@@ -1,4 +1,4 @@
-# StreamDAB ETI Stream Analyzer - Professional Desktop Application
+# StreamDAB Stream Analyzer - Professional Desktop Application
 
 ## 🏆 **PROJECT STATUS: 100% PRODUCTION COMPLETE - ENHANCED DAB+ CAPABILITIES**
 

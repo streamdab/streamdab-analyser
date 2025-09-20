@@ -138,7 +138,7 @@ MainWindow::MainWindow(QWidget *parent)
     // m_configManager = std::make_unique<ConfigManager>();
     
     // Set window properties
-    setWindowTitle("ETI Stream Analyzer");
+    setWindowTitle("StreamDAB Stream Analyzer");
     setWindowIcon(QIcon(":/icons/application.png"));
     
     // Set default window size
@@ -2539,9 +2539,9 @@ void MainWindow::openEtiFile()
     QString platform = QGuiApplication::platformName();
     Logger::instance().log(Logger::Info, "MainWindow", QString("Desktop: %1, Platform: %2").arg(desktop, platform));
     
-    // Optimize dialog for performance
-    QFileDialog::Options dialogOptions = QFileDialog::DontUseNativeDialog;
-    Logger::instance().log(Logger::Info, "MainWindow", "Using optimized non-native dialog for consistent performance");
+    // Use native system dialogs for better OS integration
+    QFileDialog::Options dialogOptions = QFileDialog::Options(); // Use native dialogs
+    Logger::instance().log(Logger::Info, "MainWindow", "Using native system dialogs for optimal user experience");
     
     qint64 platformTime = timer.elapsed();
     Logger::instance().log(Logger::Info, "MainWindow", QString("Platform optimization took %1ms").arg(platformTime - step2));

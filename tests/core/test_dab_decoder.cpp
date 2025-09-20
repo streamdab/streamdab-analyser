@@ -47,10 +47,10 @@ protected:
         data.resize(256);
         
         // ETI sync pattern
-        data[0] = 0xFF;
-        data[1] = 0x1F;
-        data[2] = 0xEC;
-        data[3] = 0xD6;
+        data[0] = static_cast<char>(0xFF);
+        data[1] = static_cast<char>(0x1F);
+        data[2] = static_cast<char>(0xEC);
+        data[3] = static_cast<char>(0xD6);
         
         // Fill rest with test data
         for (int i = 4; i < data.size(); ++i) {

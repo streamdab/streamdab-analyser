@@ -103,7 +103,7 @@ SettingsDialog::SettingsDialog(QWidget *parent)
 {
     // Set dialog properties
     setObjectName("SettingsDialog");
-    setWindowTitle(tr("ETI Stream Analyzer - Settings"));
+    setWindowTitle(tr("StreamDAB Stream Analyzer - Settings"));
     setWindowIcon(QIcon(":/icons/settings.png"));
     setModal(true);
     setMinimumSize(600, 450);

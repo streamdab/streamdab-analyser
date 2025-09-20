@@ -7,7 +7,7 @@
 include(InstallRequiredSystemLibraries)
 
 # Professional packaging metadata
-set(CPACK_PACKAGE_NAME "ETI Stream Analyzer")
+set(CPACK_PACKAGE_NAME "StreamDAB Stream Analyzer")
 set(CPACK_PACKAGE_VENDOR "Professional Broadcast Tools")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Professional ETI/DAB Stream Analysis Tool for Broadcast Engineers")
@@ -32,8 +32,8 @@ if(WIN32)
     set(CPACK_GENERATOR "NSIS")
 
     # Professional Windows installer configuration
-    set(CPACK_NSIS_PACKAGE_NAME "ETI Stream Analyzer Professional")
-    set(CPACK_NSIS_DISPLAY_NAME "ETI Stream Analyzer v${PROJECT_VERSION}")
+    set(CPACK_NSIS_PACKAGE_NAME "StreamDAB Stream Analyzer Professional")
+    set(CPACK_NSIS_DISPLAY_NAME "StreamDAB Stream Analyzer v${PROJECT_VERSION}")
     set(CPACK_NSIS_HELP_LINK "https://eti-analyzer.org/support")
     set(CPACK_NSIS_URL_INFO_ABOUT "https://eti-analyzer.org")
     set(CPACK_NSIS_CONTACT "support@eti-analyzer.org")
@@ -45,12 +45,12 @@ if(WIN32)
 
     # Desktop and Start Menu shortcuts
     set(CPACK_NSIS_CREATE_ICONS_EXTRA "
-        CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\ETI Stream Analyzer.lnk' '$INSTDIR\\\\bin\\\\${PROJECT_NAME}.exe'
-        CreateShortCut '$DESKTOP\\\\ETI Stream Analyzer.lnk' '$INSTDIR\\\\bin\\\\${PROJECT_NAME}.exe'
+        CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\StreamDAB Stream Analyzer.lnk' '$INSTDIR\\\\bin\\\\${PROJECT_NAME}.exe'
+        CreateShortCut '$DESKTOP\\\\StreamDAB Stream Analyzer.lnk' '$INSTDIR\\\\bin\\\\${PROJECT_NAME}.exe'
     ")
     set(CPACK_NSIS_DELETE_ICONS_EXTRA "
-        Delete '$SMPROGRAMS\\\\$START_MENU\\\\ETI Stream Analyzer.lnk'
-        Delete '$DESKTOP\\\\ETI Stream Analyzer.lnk'
+        Delete '$SMPROGRAMS\\\\$START_MENU\\\\StreamDAB Stream Analyzer.lnk'
+        Delete '$DESKTOP\\\\StreamDAB Stream Analyzer.lnk'
     ")
 
     # Professional file associations for .eti files
@@ -97,14 +97,14 @@ if(WIN32)
     # Component installation for Windows
     set(CPACK_NSIS_COMPONENT_INSTALL ON)
 
-# =============================================================================
-# MACOS PROFESSIONAL DMG CONFIGURATION
-# =============================================================================
+    # =============================================================================
+    # MACOS PROFESSIONAL DMG CONFIGURATION
+    # =============================================================================
 elseif(APPLE)
     set(CPACK_GENERATOR "DragNDrop")
 
     # Professional macOS DMG configuration
-    set(CPACK_DMG_VOLUME_NAME "ETI Stream Analyzer v${PROJECT_VERSION}")
+    set(CPACK_DMG_VOLUME_NAME "StreamDAB Stream Analyzer v${PROJECT_VERSION}")
     set(CPACK_DMG_FORMAT "UDZO")  # Compressed DMG for smaller distribution
     set(CPACK_DMG_SLA_USE_RESOURCE_FILE_LICENSE ON)
 
@@ -117,7 +117,7 @@ elseif(APPLE)
     endif()
 
     # Bundle configuration for professional appearance
-    set(CPACK_BUNDLE_NAME "ETI Stream Analyzer")
+    set(CPACK_BUNDLE_NAME "StreamDAB Stream Analyzer")
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-analyzer.icns")
         set(CPACK_BUNDLE_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-analyzer.icns")
     endif()
@@ -133,9 +133,9 @@ elseif(APPLE)
         set(CPACK_BUNDLE_APPLE_ENTITLEMENTS "${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/entitlements.plist")
     endif()
 
-# =============================================================================
-# LINUX PROFESSIONAL PACKAGE CONFIGURATION
-# =============================================================================
+    # =============================================================================
+    # LINUX PROFESSIONAL PACKAGE CONFIGURATION
+    # =============================================================================
 elseif(UNIX)
     set(CPACK_GENERATOR "DEB;RPM;TGZ")
 
@@ -145,8 +145,8 @@ elseif(UNIX)
     set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "qtbase5-dev | qt6-base-dev, libfaad-dev, libfftw3-dev, libyaml-cpp-dev, libc6 (>= 2.17)")
     set(CPACK_DEBIAN_PACKAGE_SUGGESTS "alsa-utils, pulseaudio")
-    set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "Professional ETI/DAB Stream Analyzer
- The ETI Stream Analyzer is a professional desktop application designed for
+    set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "Professional StreamDAB Stream Analyzer
+ The StreamDAB Stream Analyzer is a professional desktop application designed for
  broadcast engineers to analyze ETI (Ensemble Transport Interface) and DAB/DAB+
  streams. It provides real-time monitoring, offline analysis, ETSI compliance
  validation, and comprehensive reporting capabilities.
@@ -190,7 +190,7 @@ endif()
 set(CPACK_COMPONENTS_ALL Runtime Documentation Samples Development)
 
 # Runtime component (main application) - REQUIRED
-set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "ETI Stream Analyzer Application")
+set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "StreamDAB Stream Analyzer Application")
 set(CPACK_COMPONENT_RUNTIME_DESCRIPTION "Main application executable and required runtime libraries for ETI stream analysis")
 set(CPACK_COMPONENT_RUNTIME_REQUIRED ON)
 set(CPACK_COMPONENT_RUNTIME_GROUP "Core")
