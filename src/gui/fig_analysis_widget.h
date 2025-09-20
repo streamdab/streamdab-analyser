@@ -133,6 +133,14 @@ public:
     void validateETSICompliance(const FigAnalysis& figData);
 
     /**
+     * @brief Enhanced methods for ETSI 300 799 compliance
+     */
+    void validateEtsi300799Compliance();
+    void highlightDabPlusServices();
+    void displayAudioCodecInformation();
+    void setupComplianceValidation();
+
+    /**
      * @brief Get current FIG analysis for type
      * @param figType FIG type
      * @return FIG analysis data
@@ -202,6 +210,12 @@ signals:
      * @param severity Issue severity
      */
     void etsiComplianceIssue(quint8 figType, const QString& issue, const QString& severity);
+
+    /**
+     * @brief Enhanced signals for ETSI 300 799 compliance
+     */
+    void complianceUpdated(int level);
+    void dabPlusServiceDetected(const QString& serviceId);
 
 private slots:
     /**
@@ -344,6 +358,17 @@ private:
      * @return true if state is valid
      */
     bool validateState() const;
+
+    /**
+     * @brief ETSI 300 799 specific validation methods
+     */
+    void addColorCodedIndicators();
+    QColor getComplianceColor(int level);
+    
+    // ETSI 300 799 specific validation
+    bool validateFig00Services();
+    bool validateFig01Subchannels();
+    bool validateFig02ServiceOrg();
 
     // Core components
     EtisnoopWrapper *m_etisnoopWrapper;

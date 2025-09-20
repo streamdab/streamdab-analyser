@@ -1009,3 +1009,549 @@ bool FigAnalysisWidget::validateState() const
     // Basic state validation
     return m_mainTabs != nullptr && m_figTree != nullptr;
 }
+
+// Enhanced ETSI 300 799 compliance validation methods
+void FigAnalysisWidget::validateEtsi300799Compliance()
+{
+    Logger::instance().log(Logger::Info, "FigAnalysisWidget", "Performing enhanced ETSI 300 799 compliance validation");
+    
+    int complianceLevel = 0;
+    int totalChecks = 0;
+    QStringList complianceIssues;
+    QStringList passedChecks;
+    
+    // Core FIG validation (40% of total score)
+    
+    // Validate FIG 0/0 - Ensemble Information (10%)
+    if (validateFig00Services()) {
+        complianceLevel += 10;
+        passedChecks << "FIG 0/0: Ensemble Information - PASSED";
+    } else {
+        complianceIssues << "FIG 0/0: Missing or invalid ensemble information";
+    }
+    totalChecks += 10;
+    
+    // Validate FIG 0/1 - Sub-channel Organization (10%)
+    if (validateFig01Subchannels()) {
+        complianceLevel += 10;
+        passedChecks << "FIG 0/1: Sub-channel Organization - PASSED";
+    } else {
+        complianceIssues << "FIG 0/1: Missing or invalid sub-channel organization";
+    }
+    totalChecks += 10;
+    
+    // Validate FIG 0/2 - Service Organization (20%)
+    if (validateFig02ServiceOrg()) {
+        complianceLevel += 20;
+        passedChecks << "FIG 0/2: Service Organization - PASSED";
+    } else {
+        complianceIssues << "FIG 0/2: Missing or invalid service organization";
+    }
+    totalChecks += 20;
+    
+    // DAB+ specific validation (30% of total score)
+    
+    // Check for DAB+ services presence (15%)
+    int dabPlusServices = 0;
+    int totalServices = 0;
+    
+    for (auto it = m_figAnalyses.begin(); it != m_figAnalyses.end(); ++it) {
+        const FigAnalysis& analysis = it.value();
+        if (analysis.figType == 0 && analysis.figExtension == 2) {
+            QVariantMap figData = analysis.figData;
+            totalServices++;
+            
+            // Check for DAB+ indicators (TMId = 3)
+            QVariant tmId = figData.value("TMId", figData.value("transport_mechanism", 0));
+            if (tmId.toInt() == 3) {
+                dabPlusServices++;
+            }
+        }
+    }
+    
+    if (dabPlusServices > 0) {
+        complianceLevel += 15;
+        passedChecks << QString("DAB+ Services: %1/%2 services detected - PASSED").arg(dabPlusServices).arg(totalServices);
+        emit dabPlusServiceDetected(QString("Multiple services detected: %1").arg(dabPlusServices));
+    } else if (totalServices > 0) {
+        complianceLevel += 5; // Partial credit for legacy DAB
+        complianceIssues << "DAB+ Services: No DAB+ services detected (legacy DAB only)";
+    } else {
+        complianceIssues << "DAB+ Services: No services detected";
+    }
+    totalChecks += 15;
+    
+    // Audio codec compliance (15%)
+    bool hasValidAudioCodec = false;
+    for (auto it = m_figAnalyses.begin(); it != m_figAnalyses.end(); ++it) {
+        const FigAnalysis& analysis = it.value();
+        if (analysis.figData.contains("audio_codec") || analysis.figData.contains("AudioServiceComponentType")) {
+            QString codecType = analysis.figData.value("audio_codec", 
+                                    analysis.figData.value("AudioServiceComponentType", "")).toString();
+            
+            if (codecType.contains("HE-AAC", Qt::CaseInsensitive) || 
+                codecType.contains("AAC", Qt::CaseInsensitive) ||
+                analysis.figData.value("ASCTy", 0).toInt() == 63) { // DAB+ Audio Service Component Type
+                hasValidAudioCodec = true;
+                break;
+            }
+        }
+    }
+    
+    if (hasValidAudioCodec) {
+        complianceLevel += 15;
+        passedChecks << "Audio Codec: Valid DAB+ HE-AAC codec detected - PASSED";
+    } else {
+        complianceLevel += 3; // Minimal credit for any audio
+        complianceIssues << "Audio Codec: DAB+ HE-AAC codec not detected";
+    }
+    totalChecks += 15;
+    
+    // Enhanced technical compliance (30% of total score)
+    
+    // FIG completeness check (10%)
+    QList<quint8> requiredFigs = {0, 1}; // Core required FIGs
+    QList<quint8> optionalFigs = {2, 5, 6}; // Beneficial FIGs
+    
+    int requiredPresent = 0;
+    int optionalPresent = 0;
+    
+    for (quint8 fig : requiredFigs) {
+        if (m_figAnalyses.contains(fig)) {
+            requiredPresent++;
+        }
+    }
+    
+    for (quint8 fig : optionalFigs) {
+        if (m_figAnalyses.contains(fig)) {
+            optionalPresent++;
+        }
+    }
+    
+    int figComplianceScore = (requiredPresent * 7) + (optionalPresent * 1); // Max 10 points
+    complianceLevel += figComplianceScore;
+    
+    if (requiredPresent == requiredFigs.size()) {
+        passedChecks << QString("FIG Completeness: %1/%2 required FIGs present - PASSED").arg(requiredPresent).arg(requiredFigs.size());
+    } else {
+        complianceIssues << QString("FIG Completeness: Only %1/%2 required FIGs present").arg(requiredPresent).arg(requiredFigs.size());
+    }
+    totalChecks += 10;
+    
+    // Data integrity check (10%)
+    bool hasDataIntegrityIssues = false;
+    for (auto it = m_figAnalyses.begin(); it != m_figAnalyses.end(); ++it) {
+        const FigAnalysis& analysis = it.value();
+        if (analysis.complianceStatus == ComplianceStatus::Error || 
+            analysis.complianceStatus == ComplianceStatus::NonCompliant) {
+            hasDataIntegrityIssues = true;
+            complianceIssues << QString("FIG %1: Data integrity issues detected").arg(analysis.figType);
+        }
+    }
+    
+    if (!hasDataIntegrityIssues) {
+        complianceLevel += 10;
+        passedChecks << "Data Integrity: All FIGs pass integrity checks - PASSED";
+    } else {
+        complianceLevel += 3; // Partial credit
+        complianceIssues << "Data Integrity: Some FIGs have integrity issues";
+    }
+    totalChecks += 10;
+    
+    // Service labeling compliance (10%)
+    bool hasServiceLabels = false;
+    for (auto it = m_figAnalyses.begin(); it != m_figAnalyses.end(); ++it) {
+        const FigAnalysis& analysis = it.value();
+        if (analysis.figData.contains("service_label") || 
+            analysis.figData.contains("ServiceLabel") ||
+            (analysis.figType == 1 && analysis.figExtension == 0)) { // FIG 1/0 contains service labels
+            hasServiceLabels = true;
+            break;
+        }
+    }
+    
+    if (hasServiceLabels) {
+        complianceLevel += 10;
+        passedChecks << "Service Labeling: Service labels detected - PASSED";
+    } else {
+        complianceIssues << "Service Labeling: No service labels detected";
+    }
+    totalChecks += 10;
+    
+    // Calculate final compliance percentage
+    int finalComplianceLevel = totalChecks > 0 ? (complianceLevel * 100) / totalChecks : 0;
+    
+    // Update compliance indicators with enhanced information
+    addColorCodedIndicators();
+    
+    // Update compliance progress bar with enhanced styling
+    if (m_complianceProgress) {
+        m_complianceProgress->setValue(finalComplianceLevel);
+        
+        QColor complianceColor = getComplianceColor(finalComplianceLevel);
+        QString progressStyle = QString(
+            "QProgressBar {"
+            "    border: 2px solid #555555;"
+            "    border-radius: 5px;"
+            "    background-color: #2D2D30;"
+            "    text-align: center;"
+            "    color: white;"
+            "    font-weight: bold;"
+            "    font-size: 12px;"
+            "}"
+            "QProgressBar::chunk {"
+            "    background-color: %1;"
+            "    border-radius: 3px;"
+            "    margin: 1px;"
+            "}"
+        ).arg(complianceColor.name());
+        
+        m_complianceProgress->setStyleSheet(progressStyle);
+        m_complianceProgress->setFormat(QString("ETSI 300 799: %p% (%1/%2 checks passed)")
+                                       .arg(complianceLevel).arg(totalChecks));
+    }
+    
+    // Update compliance label with detailed information
+    if (m_complianceScoreLabel) {
+        QString statusText;
+        QColor textColor = getComplianceColor(finalComplianceLevel);
+        
+        if (finalComplianceLevel >= 95) {
+            statusText = "✅ EXCELLENT COMPLIANCE";
+        } else if (finalComplianceLevel >= 85) {
+            statusText = "✅ GOOD COMPLIANCE";
+        } else if (finalComplianceLevel >= 70) {
+            statusText = "⚠️ ACCEPTABLE COMPLIANCE";
+        } else if (finalComplianceLevel >= 50) {
+            statusText = "⚠️ PARTIAL COMPLIANCE";
+        } else {
+            statusText = "❌ POOR COMPLIANCE";
+        }
+        
+        m_complianceScoreLabel->setText(QString("%1 (%2%)").arg(statusText).arg(finalComplianceLevel));
+        m_complianceScoreLabel->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 12px;")
+                                             .arg(textColor.name()));
+    }
+    
+    // Update compliance issues text (if widget exists)
+    if (m_complianceIssuesText) {
+        QString issuesText = "Compliance Issues:\n";
+        for (const QString& issue : complianceIssues) {
+            issuesText += "• " + issue + "\n";
+        }
+        
+        if (complianceIssues.isEmpty()) {
+            issuesText += "No compliance issues detected! ✅\n";
+        }
+        
+        issuesText += "\nPassed Checks:\n";
+        for (const QString& check : passedChecks) {
+            issuesText += "• " + check + "\n";
+        }
+        
+        m_complianceIssuesText->setPlainText(issuesText);
+    }
+    
+    // Emit enhanced compliance update signal
+    emit complianceUpdated(finalComplianceLevel);
+    
+    Logger::instance().log(Logger::Info, "FigAnalysisWidget", 
+                          QString("Enhanced ETSI 300 799 compliance: %1% (%2/%3 points, %4 issues)")
+                          .arg(finalComplianceLevel).arg(complianceLevel).arg(totalChecks).arg(complianceIssues.size()));
+}
+
+void FigAnalysisWidget::highlightDabPlusServices()
+{
+    Logger::instance().log(Logger::Debug, "FigAnalysisWidget", "Highlighting DAB+ services");
+    
+    QMutexLocker locker(&m_dataMutex);
+    
+    // Iterate through FIG analyses to find DAB+ services
+    for (auto it = m_figAnalyses.begin(); it != m_figAnalyses.end(); ++it) {
+        const FigAnalysis& analysis = it.value();
+        
+        // Check for DAB+ indicators in FIG 0/2 (Service Organization)
+        if (analysis.figType == 0 && analysis.figExtension == 2) {
+            QVariantMap figData = analysis.figData;
+            
+            // Look for TMId (Transport Mechanism Identifier)
+            if (figData.contains("TMId") || figData.contains("transport_mechanism")) {
+                QVariant tmId = figData.value("TMId", figData.value("transport_mechanism"));
+                
+                // TMId = 3 indicates DAB+ (HE-AAC v2)
+                if (tmId.toInt() == 3) {
+                    QString serviceId = figData.value("serviceId", 
+                                                    figData.value("service_id", "unknown")).toString();
+                    
+                    // Highlight the service in the tree
+                    for (int i = 0; i < m_figTree->topLevelItemCount(); ++i) {
+                        QTreeWidgetItem* item = m_figTree->topLevelItem(i);
+                        if (item && item->data(0, Qt::UserRole).toString() == serviceId) {
+                            // Set DAB+ indicator styling
+                            QFont font = item->font(0);
+                            font.setBold(true);
+                            item->setFont(0, font);
+                            item->setFont(1, font);
+                            
+                            // Set DAB+ color (green for DAB+)
+                            item->setForeground(0, QBrush(QColor(0, 150, 0)));
+                            item->setForeground(1, QBrush(QColor(0, 150, 0)));
+                            
+                            // Add DAB+ icon/indicator
+                            item->setIcon(0, QIcon(":/icons/dabplus.png")); // Would need to add this icon
+                            
+                            // Set tooltip
+                            item->setToolTip(0, tr("DAB+ Service (HE-AAC v2)"));
+                            item->setToolTip(1, tr("Enhanced audio codec with improved efficiency"));
+                        }
+                    }
+                    
+                    emit dabPlusServiceDetected(serviceId);
+                    
+                    Logger::instance().log(Logger::Info, "FigAnalysisWidget", 
+                                          QString("DAB+ service detected: %1").arg(serviceId));
+                }
+            }
+        }
+        
+        // Check for additional DAB+ indicators in FIG 0/17 (Programme Type)
+        if (analysis.figType == 0 && analysis.figExtension == 17) {
+            QVariantMap figData = analysis.figData;
+            
+            // Look for audio service component types
+            if (figData.contains("ASCTy") || figData.contains("audio_service_component_type")) {
+                QVariant ascTy = figData.value("ASCTy", figData.value("audio_service_component_type"));
+                
+                // ASCTy = 63 (0x3F) indicates DAB+ audio
+                if (ascTy.toInt() == 63) {
+                    QString serviceId = figData.value("serviceId", 
+                                                    figData.value("service_id", "unknown")).toString();
+                    emit dabPlusServiceDetected(serviceId);
+                }
+            }
+        }
+    }
+}
+
+void FigAnalysisWidget::displayAudioCodecInformation()
+{
+    Logger::instance().log(Logger::Debug, "FigAnalysisWidget", "Displaying audio codec information");
+    
+    // Update the parameters table with codec information
+    if (!m_parametersTable) return;
+    
+    // Add codec information section
+    int currentRow = m_parametersTable->rowCount();
+    m_parametersTable->insertRow(currentRow);
+    
+    // Add codec header
+    QTableWidgetItem* codecHeaderItem = new QTableWidgetItem(tr("Audio Codec Information"));
+    codecHeaderItem->setFont(QFont("Arial", 10, QFont::Bold));
+    codecHeaderItem->setBackground(QBrush(QColor(230, 230, 230)));
+    m_parametersTable->setItem(currentRow, 0, codecHeaderItem);
+    m_parametersTable->setItem(currentRow, 1, new QTableWidgetItem(""));
+    m_parametersTable->setItem(currentRow, 2, new QTableWidgetItem(""));
+    
+    // Analyze services for codec information
+    QStringList dabServices;
+    QStringList dabPlusServices;
+    
+    for (auto it = m_figAnalyses.begin(); it != m_figAnalyses.end(); ++it) {
+        const FigAnalysis& analysis = it.value();
+        
+        if (analysis.figType == 0 && analysis.figExtension == 2) {
+            QVariantMap figData = analysis.figData;
+            QString serviceId = figData.value("serviceId", "unknown").toString();
+            int tmId = figData.value("TMId", 0).toInt();
+            
+            if (tmId == 0) {
+                dabServices.append(serviceId);
+            } else if (tmId == 3) {
+                dabPlusServices.append(serviceId);
+            }
+        }
+    }
+    
+    // Add DAB service count
+    currentRow = m_parametersTable->rowCount();
+    m_parametersTable->insertRow(currentRow);
+    m_parametersTable->setItem(currentRow, 0, new QTableWidgetItem(tr("DAB Services (MPEG-1 Layer II)")));
+    m_parametersTable->setItem(currentRow, 1, new QTableWidgetItem(QString::number(dabServices.size())));
+    m_parametersTable->setItem(currentRow, 2, new QTableWidgetItem(dabServices.join(", ")));
+    
+    // Add DAB+ service count
+    currentRow = m_parametersTable->rowCount();
+    m_parametersTable->insertRow(currentRow);
+    QTableWidgetItem* dabPlusItem = new QTableWidgetItem(tr("DAB+ Services (HE-AAC v2)"));
+    dabPlusItem->setForeground(QBrush(QColor(0, 150, 0))); // Green for DAB+
+    dabPlusItem->setFont(QFont("Arial", 9, QFont::Bold));
+    m_parametersTable->setItem(currentRow, 0, dabPlusItem);
+    
+    QTableWidgetItem* dabPlusCountItem = new QTableWidgetItem(QString::number(dabPlusServices.size()));
+    dabPlusCountItem->setForeground(QBrush(QColor(0, 150, 0)));
+    dabPlusCountItem->setFont(QFont("Arial", 9, QFont::Bold));
+    m_parametersTable->setItem(currentRow, 1, dabPlusCountItem);
+    
+    m_parametersTable->setItem(currentRow, 2, new QTableWidgetItem(dabPlusServices.join(", ")));
+    
+    // Add codec efficiency information
+    currentRow = m_parametersTable->rowCount();
+    m_parametersTable->insertRow(currentRow);
+    m_parametersTable->setItem(currentRow, 0, new QTableWidgetItem(tr("Codec Efficiency Ratio")));
+    
+    double efficiencyRatio = dabServices.isEmpty() ? 0.0 : 
+                           static_cast<double>(dabPlusServices.size()) / (dabServices.size() + dabPlusServices.size()) * 100.0;
+    m_parametersTable->setItem(currentRow, 1, new QTableWidgetItem(QString("%1%").arg(efficiencyRatio, 0, 'f', 1)));
+    m_parametersTable->setItem(currentRow, 2, new QTableWidgetItem(tr("Percentage of bandwidth-efficient services")));
+}
+
+void FigAnalysisWidget::setupComplianceValidation()
+{
+    Logger::instance().log(Logger::Debug, "FigAnalysisWidget", "Setting up compliance validation framework");
+    
+    // Initialize compliance validation framework
+    if (m_complianceProgress) {
+        m_complianceProgress->setRange(0, 100);
+        m_complianceProgress->setValue(0);
+        m_complianceProgress->setTextVisible(true);
+        m_complianceProgress->setFormat("%p%");
+    }
+    
+    // Set up compliance tree structure
+    if (m_complianceTree) {
+        m_complianceTree->clear();
+        
+        // Add ETSI standard categories
+        QTreeWidgetItem* etsi300799Item = new QTreeWidgetItem(m_complianceTree);
+        etsi300799Item->setText(0, tr("ETSI EN 300 799"));
+        etsi300799Item->setText(1, tr("Digital Audio Broadcasting (DAB) System"));
+        etsi300799Item->setText(2, tr("Pending"));
+        
+        // Add sub-categories
+        QTreeWidgetItem* figStructureItem = new QTreeWidgetItem(etsi300799Item);
+        figStructureItem->setText(0, tr("FIG Structure"));
+        figStructureItem->setText(1, tr("Fast Information Group compliance"));
+        figStructureItem->setText(2, tr("Checking..."));
+        
+        QTreeWidgetItem* serviceOrgItem = new QTreeWidgetItem(etsi300799Item);
+        serviceOrgItem->setText(0, tr("Service Organization"));
+        serviceOrgItem->setText(1, tr("Service and component organization"));
+        serviceOrgItem->setText(2, tr("Checking..."));
+        
+        QTreeWidgetItem* audioCodecItem = new QTreeWidgetItem(etsi300799Item);
+        audioCodecItem->setText(0, tr("Audio Codecs"));
+        audioCodecItem->setText(1, tr("DAB and DAB+ codec compliance"));
+        audioCodecItem->setText(2, tr("Checking..."));
+        
+        m_complianceTree->expandAll();
+    }
+}
+
+void FigAnalysisWidget::addColorCodedIndicators()
+{
+    // Update tree items with color-coded compliance indicators
+    for (int i = 0; i < m_figTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* item = m_figTree->topLevelItem(i);
+        if (!item) continue;
+        
+        quint8 figType = item->data(0, Qt::UserRole).toUInt();
+        if (m_figAnalyses.contains(figType)) {
+            const FigAnalysis& analysis = m_figAnalyses[figType];
+            QColor statusColor = getComplianceColor(analysis.complianceStatus);
+            
+            // Update item appearance based on compliance
+            item->setForeground(2, QBrush(statusColor));
+            item->setText(2, formatComplianceScore(analysis.completeness));
+            
+            // Add compliance icon
+            item->setIcon(0, getComplianceIcon(analysis.complianceStatus));
+        }
+    }
+}
+
+QColor FigAnalysisWidget::getComplianceColor(int level)
+{
+    if (level >= 90) return QColor(0, 150, 0);      // Dark green - Excellent
+    if (level >= 75) return QColor(100, 200, 0);    // Light green - Good  
+    if (level >= 50) return QColor(255, 165, 0);    // Orange - Fair
+    if (level >= 25) return QColor(255, 100, 0);    // Red-orange - Poor
+    return QColor(200, 0, 0);                       // Dark red - Critical
+}
+
+bool FigAnalysisWidget::validateFig00Services()
+{
+    // Validate FIG 0/0 (Ensemble Information) compliance
+    if (!m_figAnalyses.contains(0)) {
+        Logger::instance().log(Logger::Warning, "FigAnalysisWidget", "FIG 0/0 not found - ensemble information missing");
+        return false;
+    }
+    
+    const FigAnalysis& fig00 = m_figAnalyses[0];
+    const QVariantMap& figData = fig00.figData;
+    
+    // Check mandatory fields per ETSI EN 300 799
+    bool hasEnsembleId = figData.contains("ensembleId") || figData.contains("ensemble_id");
+    bool hasEnsembleLabel = figData.contains("ensembleLabel") || figData.contains("ensemble_label");
+    bool hasCountryId = figData.contains("countryId") || figData.contains("country_id");
+    
+    if (!hasEnsembleId || !hasEnsembleLabel || !hasCountryId) {
+        Logger::instance().log(Logger::Warning, "FigAnalysisWidget", 
+                              "FIG 0/0 missing mandatory fields for ETSI compliance");
+        return false;
+    }
+    
+    Logger::instance().log(Logger::Info, "FigAnalysisWidget", "FIG 0/0 validation passed");
+    return true;
+}
+
+bool FigAnalysisWidget::validateFig01Subchannels()
+{
+    // Validate FIG 0/1 (Sub-channel Organization) compliance
+    if (!m_figAnalyses.contains(1)) {
+        Logger::instance().log(Logger::Warning, "FigAnalysisWidget", "FIG 0/1 not found - subchannel organization missing");
+        return false;
+    }
+    
+    const FigAnalysis& fig01 = m_figAnalyses[1];
+    const QVariantMap& figData = fig01.figData;
+    
+    // Check for valid subchannel configuration
+    bool hasSubchannelId = figData.contains("subchannelId") || figData.contains("subchannel_id");
+    bool hasStartAddress = figData.contains("startAddress") || figData.contains("start_address");
+    bool hasSubchannelSize = figData.contains("subchannelSize") || figData.contains("subchannel_size");
+    
+    if (!hasSubchannelId || !hasStartAddress || !hasSubchannelSize) {
+        Logger::instance().log(Logger::Warning, "FigAnalysisWidget", 
+                              "FIG 0/1 missing mandatory subchannel fields");
+        return false;
+    }
+    
+    Logger::instance().log(Logger::Info, "FigAnalysisWidget", "FIG 0/1 validation passed");
+    return true;
+}
+
+bool FigAnalysisWidget::validateFig02ServiceOrg()
+{
+    // Validate FIG 0/2 (Service Organization) compliance
+    if (!m_figAnalyses.contains(2)) {
+        Logger::instance().log(Logger::Warning, "FigAnalysisWidget", "FIG 0/2 not found - service organization missing");
+        return false;
+    }
+    
+    const FigAnalysis& fig02 = m_figAnalyses[2];
+    const QVariantMap& figData = fig02.figData;
+    
+    // Check for valid service organization
+    bool hasServiceId = figData.contains("serviceId") || figData.contains("service_id");
+    bool hasComponentCount = figData.contains("componentCount") || figData.contains("component_count");
+    bool hasTransportMechanism = figData.contains("TMId") || figData.contains("transport_mechanism");
+    
+    if (!hasServiceId || !hasComponentCount || !hasTransportMechanism) {
+        Logger::instance().log(Logger::Warning, "FigAnalysisWidget", 
+                              "FIG 0/2 missing mandatory service organization fields");
+        return false;
+    }
+    
+    Logger::instance().log(Logger::Info, "FigAnalysisWidget", "FIG 0/2 validation passed");
+    return true;
+}

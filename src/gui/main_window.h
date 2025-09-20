@@ -44,6 +44,8 @@ class ConfigManager;
 class EtisnoopWrapper;
 class EtiServiceTreeModel;
 class EtiFrameListModel;
+class AudioMonitoringWidget;
+class FigAnalysisWidget;
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -200,6 +202,12 @@ public slots:
      */
     void updateProgress(int value);
 
+    /**
+     * @brief Handle DAB+ service detection
+     * @param serviceId Detected DAB+ service ID
+     */
+    void onDabPlusServiceDetected(const QString& serviceId);
+
 signals:
     /**
      * @brief Emitted when ETI file is opened
@@ -211,6 +219,19 @@ signals:
      * @brief Emitted when ETI file is closed
      */
     void etiFileClosed();
+    
+    /**
+     * @brief Emitted when DAB+ service is selected
+     * @param serviceId Selected service ID
+     */
+    void dabPlusServiceSelected(quint32 serviceId);
+    
+    /**
+     * @brief Emitted when DAB+ service is detected
+     * @param serviceId Service ID
+     * @param codecInfo Codec information
+     */
+    void dabPlusServiceDetected(quint32 serviceId, const QString& codecInfo);
 
     /**
      * @brief Emitted when real-time mode changes
@@ -327,6 +348,11 @@ private:
     void connectSignals();
 
     /**
+     * @brief Setup DAB+ enhancements and signal connections
+     */
+    void setupDabPlusEnhancements();
+
+    /**
      * @brief Load window settings from config
      */
     void loadSettings();
@@ -351,6 +377,31 @@ private:
      * @brief Setup real-time update timer
      */
     void setupRealTimeTimer();
+    
+    /**
+     * @brief Setup DAB+ signal connections between components
+     */
+    void setupDabPlusSignalConnections();
+    
+    /**
+     * @brief Handle DAB+ service selection
+     * @param serviceId Selected service ID
+     */
+    void handleDabPlusServiceSelection(quint32 serviceId);
+    
+    /**
+     * @brief Handle audio quality changes
+     * @param serviceId Service ID
+     * @param quality New audio quality (0=Unknown, 1=Poor, 2=Fair, 3=Good, 4=Excellent)
+     */
+    void handleAudioQualityChanged(quint32 serviceId, int quality);
+    
+    /**
+     * @brief Handle DAB+ service detection
+     * @param serviceId Service ID
+     * @param codecInfo Codec information
+     */
+    void handleDabPlusServiceDetected(quint32 serviceId, const QString& codecInfo);
 
     /**
      * @brief Fast file dialog implementation to avoid Qt performance issues
@@ -420,8 +471,8 @@ private:
     // Dock contents
     QTextEdit *m_fileExplorer;
     QTextEdit *m_yamlViewer;
-    QTextEdit *m_figAnalysis;
-    QTextEdit *m_audioMonitor;
+    FigAnalysisWidget *m_figAnalysis;
+    AudioMonitoringWidget *m_audioMonitor;
     QTextEdit *m_errorLog;
 
     // Menu bar

@@ -205,6 +205,13 @@ public:
      */
     int getServiceCount() const { return m_totalServices; }
 
+    /**
+     * @brief Enhanced DAB+ file handling methods
+     */
+    void setupDabPlusFilters();
+    bool validateDabPlusFile(const QString& filename);
+    void showFileMetadataPreview(const QString& filename);
+
 public slots:
     /**
      * @brief Update service browser with new data
@@ -242,6 +249,12 @@ public slots:
      * @param filterText Filter text
      */
     void filterServices(const QString& filterText);
+
+    /**
+     * @brief Enhanced DAB+ file handling slots
+     */
+    void onDabPlusFileSelected(const QString& filename);
+    void onFileDropped(const QStringList& filenames);
 
 signals:
     /**
@@ -464,6 +477,14 @@ private:
      */
     bool validateState() const;
 
+    /**
+     * @brief DAB+ file handling private methods
+     */
+    void addFileTypeRecognition();
+    void createMetadataPreview();
+    QString extractDabPlusInfo(const QString& filename);
+    QString formatFileSize(qint64 bytes);
+
     // Core components
     EtiProcessor *m_etiProcessor;
     EnsembleManager *m_ensembleManager;
@@ -513,6 +534,10 @@ private:
     int m_totalServices;
     int m_activeServices;
     int m_filteredServices;
+
+    // DAB+ file handling
+    QStringList m_dabPlusExtensions;
+    QLabel *m_metadataPreview;
 
     // Constants
     static constexpr int UPDATE_INTERVAL_MS = 1000;  // 1 second updates

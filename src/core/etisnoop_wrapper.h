@@ -14,6 +14,9 @@ struct eti_analyse_config_t;
 class ETI_Analyser;
 class FIGalyser;
 
+// Forward declaration for DAB+ audio decoder
+class DabAudioDecoder;
+
 #ifdef HAVE_NLOHMANN_JSON
 namespace StreamDAB {
     class StreamDABIntegrationEngine;
@@ -269,11 +272,29 @@ public:
      */
     double getServiceSignalQuality(uint32_t serviceId) const;
 
-    // Audio and Content Extraction
+    // Enhanced DAB+ Audio and Content Extraction
     /**
-     * @brief Extract audio data from service
+     * @brief Enable/disable audio decoding for services
+     * @param enabled Enable audio decoding
+     */
+    void enableAudioDecoding(bool enabled);
+    
+    /**
+     * @brief Get current audio levels for all active services
+     * @return Map of service ID to audio level (0-100)
+     */
+    QMap<QString, int> getAudioLevels() const;
+    
+    /**
+     * @brief Get audio codec information for all active services
+     * @return Map of service ID to codec information string
+     */
+    QMap<QString, QString> getAudioCodecInfo() const;
+    
+    /**
+     * @brief Extract audio data from service using DAB+ decoder
      * @param serviceId Service identifier
-     * @param outputFormat Output format ("wav", "mp3", "aac")
+     * @param outputFormat Output format ("wav", "mp3", "aac", "pcm")
      * @return Extracted audio data or empty if extraction failed
      */
     QByteArray extractServiceAudio(uint32_t serviceId, const QString& outputFormat = "wav");
@@ -394,6 +415,19 @@ signals:
     void processingError(const QString& error);
 
     /**
+     * @brief Emitted when audio levels are updated for services
+     * @param levels Map of service ID to audio level (0-100)
+     */
+    void audioLevelsUpdated(const QMap<QString, int>& levels);
+    
+    /**
+     * @brief Emitted when DAB+ service is detected
+     * @param serviceId Service identifier as string
+     * @param codecInfo Codec information string
+     */
+    void dabPlusServiceDetected(const QString& serviceId, const QString& codecInfo);
+    
+    /**
      * @brief Emitted when audio is extracted from service
      * @param serviceId Service identifier
      * @param audioData Extracted audio data
@@ -434,6 +468,10 @@ private:
     int m_bufferSize;
     double m_targetFrameRate;
     QString m_lastError;
+    
+    // Audio processing state
+    bool m_audioDecodingEnabled;
+    QMap<QString, DabAudioDecoder*> m_audioDecoders;
 
     // Cached data
     EnsembleInfo m_currentEnsemble;
@@ -461,6 +499,11 @@ private:
     void emitSignalsForUpdates();
     QString formatThaiText(const QString& rawText) const;
     bool validateFrameData(const QByteArray& data) const;
+    
+    // Audio processing methods
+    void processAudioData(const QByteArray& audioData, const QString& serviceId);
+    DabAudioDecoder* getOrCreateAudioDecoder(const QString& serviceId);
+    void cleanupAudioDecoders();
 };
 
 Q_DECLARE_METATYPE(EtisnoopWrapper::ServiceInfo)
