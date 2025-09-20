@@ -17,6 +17,11 @@ set(E2E_TEST_SOURCES
     test_eti_file_opening.cpp
     test_comprehensive_workflows.cpp
     test_mandatory_workflow_coverage.cpp
+    # New comprehensive E2E test cases from CLAUDE.md requirements
+    test_eti_file_processing.cpp
+    test_service_discovery.cpp
+    test_gui_integration.cpp
+    test_frame_analysis.cpp
     # Include main application sources for testing (EXCLUDE main.cpp to avoid multiple main() definitions)
     ../../src/gui/main_window.cpp
     ../../src/gui/analyzer_widget.cpp
@@ -133,3 +138,58 @@ set_tests_properties(MandatoryWorkflowCoverage PROPERTIES ENVIRONMENT "QT_QPA_PL
 
 # Enable verbose test output for debugging
 set(CMAKE_CTEST_ARGUMENTS "--output-on-failure")
+
+# Create individual test targets for comprehensive E2E test cases
+# ETI File Processing Test
+add_executable(test_eti_file_processing_workflow test_eti_file_processing.cpp ${E2E_LIB_SOURCES})
+set_target_properties(test_eti_file_processing_workflow PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(test_eti_file_processing_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport etisnoop::etisnoop ${CMAKE_DL_LIBS})
+target_include_directories(test_eti_file_processing_workflow PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils ../../external/etisnoop/src)
+target_compile_definitions(test_eti_file_processing_workflow PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
+
+add_test(NAME ETIFileProcessingWorkflow COMMAND test_eti_file_processing_workflow)
+set_tests_properties(ETIFileProcessingWorkflow PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 120)
+
+# Service Discovery Test
+add_executable(test_service_discovery_workflow test_service_discovery.cpp ${E2E_LIB_SOURCES})
+set_target_properties(test_service_discovery_workflow PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(test_service_discovery_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport etisnoop::etisnoop ${CMAKE_DL_LIBS})
+target_include_directories(test_service_discovery_workflow PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils ../../external/etisnoop/src)
+target_compile_definitions(test_service_discovery_workflow PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
+
+add_test(NAME ServiceDiscoveryWorkflow COMMAND test_service_discovery_workflow)
+set_tests_properties(ServiceDiscoveryWorkflow PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 120)
+
+# GUI Integration Test
+add_executable(test_gui_integration_workflow test_gui_integration.cpp ${E2E_LIB_SOURCES})
+set_target_properties(test_gui_integration_workflow PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(test_gui_integration_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport etisnoop::etisnoop ${CMAKE_DL_LIBS})
+target_include_directories(test_gui_integration_workflow PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils ../../external/etisnoop/src)
+target_compile_definitions(test_gui_integration_workflow PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
+
+add_test(NAME GUIIntegrationWorkflow COMMAND test_gui_integration_workflow)
+set_tests_properties(GUIIntegrationWorkflow PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 120)
+
+# Frame Analysis Test
+add_executable(test_frame_analysis_workflow test_frame_analysis.cpp ${E2E_LIB_SOURCES})
+set_target_properties(test_frame_analysis_workflow PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(test_frame_analysis_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport etisnoop::etisnoop ${CMAKE_DL_LIBS})
+target_include_directories(test_frame_analysis_workflow PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils ../../external/etisnoop/src)
+target_compile_definitions(test_frame_analysis_workflow PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
+
+add_test(NAME FrameAnalysisWorkflow COMMAND test_frame_analysis_workflow)
+set_tests_properties(FrameAnalysisWorkflow PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 120)
+
+# Comprehensive Test Suite Target
+add_custom_target(run_comprehensive_e2e_tests
+    COMMAND ${CMAKE_CTEST_COMMAND} -R "ETIFileProcessingWorkflow|ServiceDiscoveryWorkflow|GUIIntegrationWorkflow|FrameAnalysisWorkflow" --verbose
+    DEPENDS test_eti_file_processing_workflow test_service_discovery_workflow test_gui_integration_workflow test_frame_analysis_workflow
+    COMMENT "Running comprehensive E2E test suite for CLAUDE.md requirements"
+)
+
+# Performance Validation Target
+add_custom_target(run_performance_validation
+    COMMAND ${CMAKE_CTEST_COMMAND} -R "ETIFileProcessingWorkflow|FrameAnalysisWorkflow" --verbose
+    DEPENDS test_eti_file_processing_workflow test_frame_analysis_workflow
+    COMMENT "Running performance validation tests (3s file load, <50ms latency, 24ms frame precision)"
+)

@@ -21,6 +21,7 @@
 #include <QTextEdit>
 #include <QScrollArea>
 #include <memory>
+#include "core/eti_types.h"
 
 // Forward declarations
 class EtiProcessor;
@@ -236,6 +237,31 @@ private slots:
      * @brief Handle constellation data update
      */
     void handleConstellationUpdate();
+    
+    /**
+     * @brief Handle frame processing from ETI processor
+     * @param frameNumber Frame number
+     * @param data Frame data
+     */
+    void onFrameProcessed(quint64 frameNumber, const QByteArray& data);
+    
+    /**
+     * @brief Handle ensemble discovery from ETI processor
+     * @param ensemble Discovered ensemble information
+     */
+    void onEnsembleDiscovered(const eti::Ensemble& ensemble);
+    
+    /**
+     * @brief Handle status change from ETI processor
+     * @param status New status message
+     */
+    void onStatusChanged(const QString& status);
+    
+    /**
+     * @brief Handle error from ETI processor
+     * @param error Error message
+     */
+    void onErrorOccurred(const QString& error);
 
 private:
     /**

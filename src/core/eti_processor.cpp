@@ -961,7 +961,7 @@ void EtiProcessor::onEtisnoopServiceDiscovered(const EtisnoopWrapper::ServiceInf
     quality.lastUpdate = std::chrono::system_clock::now();
     
     m_serviceQuality[service.serviceId] = quality;
-    emit serviceQualityChanged(service.serviceId, quality);
+    emit serviceQualityChanged(service.serviceId, quality.signalStrength, quality.errorRate);
 }
 
 void EtiProcessor::onEtisnoopEnsembleUpdated(const EtisnoopWrapper::EnsembleInfo& ensemble)
