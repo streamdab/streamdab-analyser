@@ -24,7 +24,6 @@ target_link_libraries(test_network_streaming
     Qt6::Test
     ${FAAD2_LIBRARIES}
     ${FFTW3_LIBRARIES}
-    yaml-cpp
 )
 
 # Include directories

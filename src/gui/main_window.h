@@ -46,6 +46,8 @@ class EtiServiceTreeModel;
 class EtiFrameListModel;
 class AudioMonitoringWidget;
 class FigAnalysisWidget;
+class ServiceExplorerPanel;
+class EtiAnalysisWidget;
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -428,7 +430,7 @@ private:
     // Three-panel professional layout components
     QSplitter *m_horizontalSplitter;        // Main horizontal splitter
     QSplitter *m_verticalSplitter;          // Vertical splitter for bottom panels
-    QWidget *m_explorerPanel;               // Left panel (25%)
+    ServiceExplorerPanel *m_serviceExplorerPanel;  // Left panel (25%) - Professional DAB Service Explorer
     QWidget *m_mainContentArea;             // Center panel (50%)
     QWidget *m_propertiesPanel;             // Right panel (25%)
     QTabWidget *m_bottomToolTabs;           // Bottom tabbed panel (25% height)
@@ -437,6 +439,7 @@ private:
     QPushButton *m_refreshServicesBtn;      // Refresh services button
 
     // Main Content Area components
+    EtiAnalysisWidget *m_etiAnalysisWidget; // Professional ETI analysis widget with integrated constellation
     QTableWidget *m_frameListTable;         // Professional ETI frame listing table
     QSplitter *m_contentSplitter;           // Split analyzer and constellation widgets
 

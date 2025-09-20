@@ -239,6 +239,19 @@ struct ServiceComponent {
     bool ca_flag;              // Conditional Access flag
     std::string label;          // Component label
     
+    // Default constructor with proper initialization
+    ServiceComponent() 
+        : sub_channel_id(0)
+        , service_id(0)
+        , component_type(0)
+        , tmid(0)
+        , asc_ty(0)
+        , primary(false)
+        , ca_flag(false)
+        , label()
+    {
+    }
+    
     bool validate_tmid() const {
         return tmid <= 3;
     }

@@ -44,11 +44,11 @@ ConstellationWidget::ConstellationWidget(QWidget *parent)
     , m_errorVectorMagnitude(0.0)
     , m_signalToNoiseRatio(0.0)
     , m_bitErrorRate(0.0)
-    , m_backgroundColor(QColor(20, 20, 30))      // Dark blue background
-    , m_gridColor(QColor(60, 60, 80))            // Subtle grid
-    , m_axisColor(QColor(120, 120, 140))         // Axis lines
-    , m_signalColor(QColor(0, 255, 128))         // Bright green signals
-    , m_textColor(QColor(200, 200, 220))         // Light text
+    , m_backgroundColor(QColor(45, 45, 48))      // Professional dark background (#2D2D30)
+    , m_gridColor(QColor(62, 62, 66))            // Subtle professional grid (#3E3E42)
+    , m_axisColor(QColor(0, 120, 212))           // Microsoft blue axes (#0078D4)
+    , m_signalColor(QColor(76, 175, 80))         // Professional green signals (#4CAF50)
+    , m_textColor(QColor(255, 255, 255))         // Pure white text for broadcast clarity
     , m_mousePressed(false)
     , m_lastMousePos(0.0, 0.0)
     , m_mousePressPos(0.0, 0.0)
@@ -490,38 +490,144 @@ void ConstellationWidget::handleSignalDataUpdate()
 void ConstellationWidget::paintConstellation(QPainter& painter)
 {
     if (m_constellationPoints.isEmpty()) {
+        // Draw "No Signal" indicator for professional appearance
+        painter.setPen(QPen(m_textColor, 1));
+        painter.setFont(QFont("Segoe UI", 12, QFont::Bold));
+        QRect textRect = rect().adjusted(20, 20, -20, -20);
+        painter.drawText(textRect, Qt::AlignCenter, tr("No Signal Data\nAwaiting ETI Stream"));
         return;
     }
     
     QMutexLocker locker(&m_dataMutex);
     
-    // Set constellation rendering properties
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(m_signalBrush);
+    // Professional constellation rendering with enhanced visualization
     
-    // Draw constellation points
+    // 1. Draw constellation density heat map for professional analysis
+    painter.setCompositionMode(QPainter::CompositionMode_Screen);
+    painter.setPen(Qt::NoPen);
+    
+    // Create density-based color mapping for signal quality visualization
+    QHash<QString, int> densityMap;
+    for (const QPointF& point : m_constellationPoints) {
+        QPointF widgetPoint = transformToWidget(point);
+        QPoint gridPoint(static_cast<int>(widgetPoint.x() / 4) * 4, 
+                        static_cast<int>(widgetPoint.y() / 4) * 4);
+        QString key = QString("%1,%2").arg(gridPoint.x()).arg(gridPoint.y());
+        densityMap[key]++;
+    }
+    
+    // Render density heat map with professional color coding
+    for (auto it = densityMap.begin(); it != densityMap.end(); ++it) {
+        int density = it.value();
+        QColor heatColor;
+        
+        // Professional heat map coloring: Blue (low) -> Green (medium) -> Yellow (high) -> Red (very high)
+        if (density <= 2) {
+            heatColor = QColor(0, 120, 212, 80);  // Microsoft Blue with transparency
+        } else if (density <= 5) {
+            heatColor = QColor(76, 175, 80, 120);  // Professional Green
+        } else if (density <= 10) {
+            heatColor = QColor(255, 193, 7, 160);  // Professional Amber
+        } else {
+            heatColor = QColor(244, 67, 54, 200);  // Professional Red
+        }
+        
+        // Parse coordinates back from key
+        QStringList coords = it.key().split(',');
+        if (coords.size() == 2) {
+            QPoint gridPoint(coords[0].toInt(), coords[1].toInt());
+            painter.setBrush(QBrush(heatColor));
+            painter.drawEllipse(gridPoint, 8, 8);
+        }
+    }
+    
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    
+    // 2. Draw individual constellation points with signal quality visualization
     for (const QPointF& point : m_constellationPoints) {
         QPointF widgetPoint = transformToWidget(point);
         
         // Only draw points within widget bounds
         if (rect().contains(widgetPoint.toPoint())) {
-            painter.drawEllipse(widgetPoint, 2.0, 2.0);
+            // Calculate point quality based on distance from ideal positions
+            double minDistance = 1.0;
+            QVector<QPointF> idealPoints = {
+                QPointF(-0.7071, -0.7071), QPointF(0.7071, -0.7071),  // QPSK ideal positions (normalized)
+                QPointF(-0.7071, 0.7071), QPointF(0.7071, 0.7071)
+            };
+            
+            for (const QPointF& ideal : idealPoints) {
+                double distance = QLineF(point, ideal).length();
+                minDistance = qMin(minDistance, distance);
+            }
+            
+            // Color code points based on error vector magnitude
+            QColor pointColor;
+            if (minDistance < 0.1) {
+                pointColor = QColor(76, 175, 80);   // Excellent signal (Green)
+            } else if (minDistance < 0.2) {
+                pointColor = QColor(139, 195, 74);  // Good signal (Light Green)
+            } else if (minDistance < 0.3) {
+                pointColor = QColor(255, 193, 7);   // Fair signal (Amber)
+            } else if (minDistance < 0.4) {
+                pointColor = QColor(255, 152, 0);   // Poor signal (Orange)
+            } else {
+                pointColor = QColor(244, 67, 54);   // Bad signal (Red)
+            }
+            
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(QBrush(pointColor));
+            painter.drawEllipse(widgetPoint, 3.0, 3.0);
+            
+            // Add subtle glow effect for professional appearance
+            painter.setBrush(QBrush(QColor(pointColor.red(), pointColor.green(), pointColor.blue(), 60)));
+            painter.drawEllipse(widgetPoint, 6.0, 6.0);
         }
     }
     
-    // Draw ideal constellation positions (for reference)
-    painter.setPen(QPen(m_gridColor, 1, Qt::DashLine));
+    // 3. Draw ideal constellation reference positions with professional styling
+    painter.setPen(QPen(m_axisColor, 2, Qt::DashLine));
     painter.setBrush(Qt::NoBrush);
     
-    // Draw QPSK ideal positions
-    QVector<QPointF> idealPoints = {
-        QPointF(-0.7, -0.7), QPointF(0.7, -0.7),
-        QPointF(-0.7, 0.7), QPointF(0.7, 0.7)
+    QVector<QPointF> idealPositions = {
+        QPointF(-0.7071, -0.7071), QPointF(0.7071, -0.7071),
+        QPointF(-0.7071, 0.7071), QPointF(0.7071, 0.7071)
     };
     
-    for (const QPointF& ideal : idealPoints) {
+    for (const QPointF& ideal : idealPositions) {
         QPointF widgetPoint = transformToWidget(ideal);
-        painter.drawEllipse(widgetPoint, 6.0, 6.0);
+        
+        // Draw ideal position with professional circle and cross
+        painter.drawEllipse(widgetPoint, 12.0, 12.0);
+        painter.drawLine(widgetPoint + QPointF(-6, 0), widgetPoint + QPointF(6, 0));
+        painter.drawLine(widgetPoint + QPointF(0, -6), widgetPoint + QPointF(0, 6));
+    }
+    
+    // 4. Draw error vector visualization for advanced analysis
+    if (m_signalQuality < 95.0) {  // Only show when signal has noticeable errors
+        painter.setPen(QPen(QColor(255, 152, 0, 180), 1, Qt::DashLine));
+        
+        // Draw error vectors from actual points to nearest ideal positions
+        for (const QPointF& point : m_constellationPoints) {
+            if (QLineF(QPointF(0, 0), point).length() > 0.5) {  // Only for significant points
+                QPointF nearestIdeal;
+                double minDist = 2.0;
+                
+                for (const QPointF& ideal : idealPositions) {
+                    double dist = QLineF(point, ideal).length();
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestIdeal = ideal;
+                    }
+                }
+                
+                if (minDist < 1.0) {  // Draw error vector if reasonable
+                    QPointF actualWidget = transformToWidget(point);
+                    QPointF idealWidget = transformToWidget(nearestIdeal);
+                    painter.drawLine(actualWidget, idealWidget);
+                }
+            }
+        }
     }
 }
 
@@ -632,27 +738,103 @@ void ConstellationWidget::paintWaterfall(QPainter& painter)
 
 void ConstellationWidget::paintGrid(QPainter& painter)
 {
-    painter.setPen(m_gridPen);
+    // Professional broadcast grid system with precise scaling
     
-    // Calculate grid spacing based on zoom level
-    double gridSpacing = 50.0 / m_zoomLevel;
-    if (gridSpacing < 10.0) gridSpacing = 10.0;
-    if (gridSpacing > 100.0) gridSpacing = 100.0;
+    // Calculate adaptive grid spacing for optimal visualization
+    double baseSpacing = 40.0;
+    double gridSpacing = baseSpacing / m_zoomLevel;
     
-    // Draw vertical grid lines
-    for (double x = 0; x < width(); x += gridSpacing) {
-        painter.drawLine(static_cast<int>(x), 0, static_cast<int>(x), height());
+    // Snap to professional grid increments
+    if (gridSpacing < 20.0) gridSpacing = 20.0;
+    else if (gridSpacing > 80.0) gridSpacing = 80.0;
+    
+    // Draw fine grid lines (subtle)
+    painter.setPen(QPen(m_gridColor, 1, Qt::DotLine));
+    painter.setOpacity(0.3);
+    
+    for (double x = fmod(width() / 2.0 + m_panOffset.x(), gridSpacing); x < width(); x += gridSpacing) {
+        if (x > 0) painter.drawLine(static_cast<int>(x), 0, static_cast<int>(x), height());
+    }
+    for (double x = fmod(width() / 2.0 + m_panOffset.x(), gridSpacing); x >= 0; x -= gridSpacing) {
+        if (x < width()) painter.drawLine(static_cast<int>(x), 0, static_cast<int>(x), height());
     }
     
-    // Draw horizontal grid lines
-    for (double y = 0; y < height(); y += gridSpacing) {
-        painter.drawLine(0, static_cast<int>(y), width(), static_cast<int>(y));
+    for (double y = fmod(height() / 2.0 + m_panOffset.y(), gridSpacing); y < height(); y += gridSpacing) {
+        if (y > 0) painter.drawLine(0, static_cast<int>(y), width(), static_cast<int>(y));
+    }
+    for (double y = fmod(height() / 2.0 + m_panOffset.y(), gridSpacing); y >= 0; y -= gridSpacing) {
+        if (y < height()) painter.drawLine(0, static_cast<int>(y), width(), static_cast<int>(y));
     }
     
-    // Draw center axes
-    painter.setPen(m_axisPen);
-    painter.drawLine(width() / 2, 0, width() / 2, height());  // Vertical center
-    painter.drawLine(0, height() / 2, width(), height() / 2); // Horizontal center
+    painter.setOpacity(1.0);
+    
+    // Draw major grid lines (professional broadcast standard)
+    painter.setPen(QPen(m_gridColor, 1, Qt::DashLine));
+    painter.setOpacity(0.6);
+    
+    double majorSpacing = gridSpacing * 2.0;
+    for (double x = fmod(width() / 2.0 + m_panOffset.x(), majorSpacing); x < width(); x += majorSpacing) {
+        if (x > 0) painter.drawLine(static_cast<int>(x), 0, static_cast<int>(x), height());
+    }
+    for (double x = fmod(width() / 2.0 + m_panOffset.x(), majorSpacing); x >= 0; x -= majorSpacing) {
+        if (x < width()) painter.drawLine(static_cast<int>(x), 0, static_cast<int>(x), height());
+    }
+    
+    for (double y = fmod(height() / 2.0 + m_panOffset.y(), majorSpacing); y < height(); y += majorSpacing) {
+        if (y > 0) painter.drawLine(0, static_cast<int>(y), width(), static_cast<int>(y));
+    }
+    for (double y = fmod(height() / 2.0 + m_panOffset.y(), majorSpacing); y >= 0; y -= majorSpacing) {
+        if (y < height()) painter.drawLine(0, static_cast<int>(y), width(), static_cast<int>(y));
+    }
+    
+    painter.setOpacity(1.0);
+    
+    // Draw professional center axes with broadcast industry styling
+    painter.setPen(QPen(m_axisColor, 2, Qt::SolidLine));
+    
+    // Center axes (I and Q axes)
+    int centerX = static_cast<int>(width() / 2.0 + m_panOffset.x());
+    int centerY = static_cast<int>(height() / 2.0 + m_panOffset.y());
+    
+    if (centerX >= 0 && centerX < width()) {
+        painter.drawLine(centerX, 0, centerX, height());  // I (vertical) axis
+    }
+    if (centerY >= 0 && centerY < height()) {
+        painter.drawLine(0, centerY, width(), centerY);   // Q (horizontal) axis
+    }
+    
+    // Draw axis markers for professional calibration
+    painter.setPen(QPen(m_axisColor, 3, Qt::SolidLine));
+    
+    // I-axis markers
+    if (centerX >= 10 && centerX < width() - 10) {
+        painter.drawLine(centerX - 5, 10, centerX + 5, 10);         // Top marker
+        painter.drawLine(centerX - 5, height() - 10, centerX + 5, height() - 10); // Bottom marker
+    }
+    
+    // Q-axis markers  
+    if (centerY >= 10 && centerY < height() - 10) {
+        painter.drawLine(10, centerY - 5, 10, centerY + 5);         // Left marker
+        painter.drawLine(width() - 10, centerY - 5, width() - 10, centerY + 5); // Right marker
+    }
+    
+    // Draw unit circle for QPSK reference (professional broadcast standard)
+    painter.setPen(QPen(m_axisColor, 1, Qt::DashLine));
+    painter.setOpacity(0.7);
+    
+    QPointF center = transformToWidget(QPointF(0, 0));
+    QPointF unitPoint = transformToWidget(QPointF(1, 0));
+    double radius = QLineF(center, unitPoint).length();
+    
+    if (radius > 10 && radius < 1000) {  // Only draw if reasonable size
+        painter.drawEllipse(center, radius, radius);
+        
+        // Draw 0.5 radius circle for additional reference
+        painter.setOpacity(0.4);
+        painter.drawEllipse(center, radius * 0.5, radius * 0.5);
+    }
+    
+    painter.setOpacity(1.0);
 }
 
 void ConstellationWidget::paintScale(QPainter& painter)
@@ -690,32 +872,159 @@ void ConstellationWidget::paintScale(QPainter& painter)
 
 void ConstellationWidget::paintQualityIndicators(QPainter& painter)
 {
+    // Professional broadcast-quality indicators with enhanced styling
+    
+    // Quality indicators background panel for professional appearance
+    QRect indicatorPanel(8, 30, 200, 120);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QBrush(QColor(45, 45, 48, 220)));  // Semi-transparent dark background
+    painter.drawRoundedRect(indicatorPanel, 4, 4);
+    
+    // Professional border
+    painter.setPen(QPen(QColor(0, 120, 212), 1));  // Microsoft Blue border
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(indicatorPanel, 4, 4);
+    
+    // Professional typography setup
+    QFont headerFont("Segoe UI", 9, QFont::Bold);
+    QFont dataFont("Consolas", 9, QFont::Normal);
+    painter.setFont(headerFont);
     painter.setPen(QPen(m_textColor));
-    painter.setFont(m_labelFont);
     
-    // Quality indicators area
-    int indicatorY = 40;
-    int lineHeight = 15;
+    int indicatorY = 45;
+    int lineHeight = 16;
+    int labelX = 15;
+    int valueX = 100;
     
-    // Signal quality
-    QColor qualityColor = (m_signalQuality > 80.0) ? Qt::green : 
-                         (m_signalQuality > 60.0) ? Qt::yellow : Qt::red;
+    // Signal Quality with professional color coding and progress indicator
+    painter.setFont(headerFont);
+    painter.setPen(QPen(m_textColor));
+    painter.drawText(labelX, indicatorY, tr("Signal Quality:"));
+    
+    painter.setFont(dataFont);
+    QColor qualityColor;
+    QString qualityStatus;
+    
+    if (m_signalQuality >= 95.0) {
+        qualityColor = QColor(76, 175, 80);   // Excellent (Green)
+        qualityStatus = tr("EXCELLENT");
+    } else if (m_signalQuality >= 85.0) {
+        qualityColor = QColor(139, 195, 74);  // Good (Light Green)
+        qualityStatus = tr("GOOD");
+    } else if (m_signalQuality >= 70.0) {
+        qualityColor = QColor(255, 193, 7);   // Fair (Amber)
+        qualityStatus = tr("FAIR");
+    } else if (m_signalQuality >= 50.0) {
+        qualityColor = QColor(255, 152, 0);   // Poor (Orange)
+        qualityStatus = tr("POOR");
+    } else {
+        qualityColor = QColor(244, 67, 54);   // Bad (Red)
+        qualityStatus = tr("BAD");
+    }
+    
     painter.setPen(QPen(qualityColor));
-    painter.drawText(10, indicatorY, tr("Quality: %1%").arg(QString::number(m_signalQuality, 'f', 1)));
+    painter.drawText(valueX, indicatorY, QString("%1% (%2)")
+                     .arg(QString::number(m_signalQuality, 'f', 1))
+                     .arg(qualityStatus));
     
-    // EVM
-    indicatorY += lineHeight;
+    // Quality progress bar
+    QRect qualityBar(labelX, indicatorY + 3, 150, 6);
+    painter.setPen(QPen(QColor(100, 100, 100), 1));
+    painter.setBrush(QBrush(QColor(60, 60, 60)));
+    painter.drawRoundedRect(qualityBar, 2, 2);
+    
+    int barWidth = static_cast<int>((m_signalQuality / 100.0) * 150);
+    QRect fillBar(labelX, indicatorY + 3, barWidth, 6);
+    painter.setBrush(QBrush(qualityColor));
+    painter.setPen(Qt::NoPen);
+    painter.drawRoundedRect(fillBar, 2, 2);
+    
+    // Error Vector Magnitude (EVM) with professional specifications
+    indicatorY += lineHeight + 6;
+    painter.setFont(headerFont);
     painter.setPen(QPen(m_textColor));
-    painter.drawText(10, indicatorY, tr("EVM: %1 dB").arg(QString::number(m_errorVectorMagnitude, 'f', 2)));
+    painter.drawText(labelX, indicatorY, tr("EVM:"));
     
-    // SNR
-    indicatorY += lineHeight;
-    painter.drawText(10, indicatorY, tr("SNR: %1 dB").arg(QString::number(m_signalToNoiseRatio, 'f', 1)));
+    painter.setFont(dataFont);
+    QColor evmColor = (m_errorVectorMagnitude < -20.0) ? QColor(76, 175, 80) :  // Excellent
+                     (m_errorVectorMagnitude < -15.0) ? QColor(255, 193, 7) :   // Acceptable
+                     QColor(244, 67, 54);  // Poor
+    painter.setPen(QPen(evmColor));
+    painter.drawText(valueX, indicatorY, QString("%1 dB").arg(QString::number(m_errorVectorMagnitude, 'f', 2)));
     
-    // Frame rate
+    // Signal-to-Noise Ratio (SNR) with broadcast standards
     indicatorY += lineHeight;
+    painter.setFont(headerFont);
+    painter.setPen(QPen(m_textColor));
+    painter.drawText(labelX, indicatorY, tr("SNR:"));
+    
+    painter.setFont(dataFont);
+    QColor snrColor = (m_signalToNoiseRatio > 25.0) ? QColor(76, 175, 80) :   // Excellent
+                     (m_signalToNoiseRatio > 15.0) ? QColor(255, 193, 7) :    // Good
+                     (m_signalToNoiseRatio > 10.0) ? QColor(255, 152, 0) :    // Fair
+                     QColor(244, 67, 54);  // Poor
+    painter.setPen(QPen(snrColor));
+    painter.drawText(valueX, indicatorY, QString("%1 dB").arg(QString::number(m_signalToNoiseRatio, 'f', 1)));
+    
+    // Processing Frame Rate with performance indicator
+    indicatorY += lineHeight;
+    painter.setFont(headerFont);
+    painter.setPen(QPen(m_textColor));
+    painter.drawText(labelX, indicatorY, tr("Refresh:"));
+    
+    painter.setFont(dataFont);
     double frameRate = (m_averageFrameTime > 0) ? (1000.0 / m_averageFrameTime) : 0.0;
-    painter.drawText(10, indicatorY, tr("FPS: %1").arg(QString::number(frameRate, 'f', 1)));
+    QColor fpsColor = (frameRate > 45.0) ? QColor(76, 175, 80) :   // Smooth
+                     (frameRate > 25.0) ? QColor(255, 193, 7) :    // Acceptable
+                     QColor(244, 67, 54);  // Poor
+    painter.setPen(QPen(fpsColor));
+    painter.drawText(valueX, indicatorY, QString("%1 fps").arg(QString::number(frameRate, 'f', 1)));
+    
+    // Constellation points count
+    indicatorY += lineHeight;
+    painter.setFont(headerFont);
+    painter.setPen(QPen(m_textColor));
+    painter.drawText(labelX, indicatorY, tr("Points:"));
+    
+    painter.setFont(dataFont);
+    painter.setPen(QPen(QColor(200, 200, 200)));
+    painter.drawText(valueX, indicatorY, QString::number(m_constellationPoints.size()));
+    
+    // Additional professional indicators in top-right corner
+    QFont smallFont("Segoe UI", 8);
+    painter.setFont(smallFont);
+    painter.setPen(QPen(m_textColor, 1));
+    
+    int rightX = width() - 120;
+    int topY = 15;
+    
+    // Display mode indicator
+    QString modeText;
+    switch (m_displayMode) {
+        case DisplayMode::Constellation: modeText = tr("CONSTELLATION"); break;
+        case DisplayMode::Spectrum: modeText = tr("SPECTRUM"); break;
+        case DisplayMode::EyeDiagram: modeText = tr("EYE DIAGRAM"); break;
+        case DisplayMode::Waterfall: modeText = tr("WATERFALL"); break;
+    }
+    painter.drawText(rightX, topY, modeText);
+    
+    // Zoom level indicator
+    painter.drawText(rightX, topY + 12, tr("ZOOM: %1x").arg(QString::number(m_zoomLevel, 'f', 1)));
+    
+    // Real-time indicator
+    if (m_realTimeEnabled) {
+        painter.setPen(QPen(QColor(76, 175, 80), 2));
+        painter.setBrush(QBrush(QColor(76, 175, 80)));
+        painter.drawEllipse(rightX - 12, topY + 18, 8, 8);
+        painter.setPen(QPen(m_textColor));
+        painter.drawText(rightX, topY + 26, tr("LIVE"));
+    } else {
+        painter.setPen(QPen(QColor(244, 67, 54), 2));
+        painter.setBrush(QBrush(QColor(244, 67, 54)));
+        painter.drawEllipse(rightX - 12, topY + 18, 8, 8);
+        painter.setPen(QPen(m_textColor));
+        painter.drawText(rightX, topY + 26, tr("STATIC"));
+    }
 }
 
 QPointF ConstellationWidget::transformToWidget(const QPointF& point) const

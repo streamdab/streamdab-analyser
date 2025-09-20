@@ -1,0 +1,47 @@
+[  0%] Built target etisnoop_static_autogen_timestamp_deps
+[  0%] Built target etisnoop_static_autogen
+[ 65%] Built target etisnoop_static
+[ 65%] Built target ETIStreamAnalyzer_autogen_timestamp_deps
+[ 65%] Built target ETIStreamAnalyzer_autogen
+[ 65%] Automatic RCC for resources/application.qrc
+[ 68%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/ETIStreamAnalyzer_autogen/mocs_compilation.cpp.o
+[ 68%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/main.cpp.o
+[ 68%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/eti_processor.cpp.o
+[ 72%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/etisnoop_wrapper.cpp.o
+In file included from /home/seksan/workspace/streamdab-analyzer/src/core/eti_processor.h:7,
+                 from /home/seksan/workspace/streamdab-analyzer/src/core/eti_processor.cpp:1:
+In copy constructor ‘eti::ServiceComponent::ServiceComponent(const eti::ServiceComponent&)’,
+    inlined from ‘void std::__new_allocator<_Tp>::construct(_Up*, _Args&& ...) [with _Up = eti::ServiceComponent; _Args = {const eti::ServiceComponent&}; _Tp = eti::ServiceComponent]’ at /usr/include/c++/13/bits/new_allocator.h:191:4,
+    inlined from ‘static void std::allocator_traits<std::allocator<_Tp1> >::construct(allocator_type&, _Up*, _Args&& ...) [with _Up = eti::ServiceComponent; _Args = {const eti::ServiceComponent&}; _Tp = eti::ServiceComponent]’ at /usr/include/c++/13/bits/alloc_traits.h:538:17,
+    inlined from ‘void std::vector<_Tp, _Alloc>::push_back(const value_type&) [with _Tp = eti::ServiceComponent; _Alloc = std::allocator<eti::ServiceComponent>]’ at /usr/include/c++/13/bits/stl_vector.h:1286:30,
+    inlined from ‘bool EtiProcessor::parseFig03_ServiceComponent(const eti::FigBlock&)’ at /home/seksan/workspace/streamdab-analyzer/src/core/eti_processor.cpp:744:57:
+/home/seksan/workspace/streamdab-analyzer/src/core/eti_types.h:232:8: warning: ‘component.eti::ServiceComponent::component_type’ may be used uninitialized [-Wmaybe-uninitialized]
+  232 | struct ServiceComponent {
+      |        ^~~~~~~~~~~~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/core/eti_processor.cpp: In member function ‘bool EtiProcessor::parseFig03_ServiceComponent(const eti::FigBlock&)’:
+/home/seksan/workspace/streamdab-analyzer/src/core/eti_processor.cpp:720:35: note: ‘component’ declared here
+  720 |             eti::ServiceComponent component;
+      |                                   ^~~~~~~~~
+[ 72%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/eti_file_worker.cpp.o
+[ 72%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/eti_types.cpp.o
+[ 75%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/dab_decoder.cpp.o
+[ 75%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/fic_decoder.cpp.o
+[ 79%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/ensemble_manager.cpp.o
+[ 79%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/service_manager.cpp.o
+[ 79%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/dab_audio_decoder.cpp.o
+[ 82%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/analyzer_widget.cpp.o
+[ 82%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/main_window.cpp.o
+[ 86%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/service_browser.cpp.o
+[ 86%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/constellation_widget.cpp.o
+[ 86%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/settings_dialog.cpp.o
+[ 89%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/about_dialog.cpp.o
+[ 89%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/eti_service_tree_model.cpp.o
+[ 93%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/eti_frame_list_model.cpp.o
+[ 93%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/fig_analysis_widget.cpp.o
+[ 93%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/audio_monitoring_widget.cpp.o
+[ 96%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/utils/logger.cpp.o
+[ 96%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/utils/config_manager.cpp.o
+[100%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/ETIStreamAnalyzer_autogen/3YJK5W5UP7/qrc_application.cpp.o
+[100%] Linking CXX executable ETIStreamAnalyzer
+[100%] Built target ETIStreamAnalyzer
+MAIN_APP_EXIT_CODE=0

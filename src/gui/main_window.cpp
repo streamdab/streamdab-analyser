@@ -24,6 +24,8 @@
 #include "eti_frame_list_model.h"
 #include "fig_analysis_widget.h"
 #include "audio_monitoring_widget.h"
+#include "service_explorer_panel.h"
+#include "eti_analysis_widget.h"
 #include "core/eti_processor.h"
 #include "core/eti_file_worker.h"
 #include "core/etisnoop_wrapper.h"
@@ -61,7 +63,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_analysisTabWidget(nullptr)
     , m_horizontalSplitter(nullptr)
     , m_verticalSplitter(nullptr)
-    , m_explorerPanel(nullptr)
+    , m_serviceExplorerPanel(nullptr)
     , m_mainContentArea(nullptr)
     , m_propertiesPanel(nullptr)
     , m_bottomToolTabs(nullptr)
@@ -439,611 +441,197 @@ void MainWindow::setupThreePanelLayout()
 {
     qDebug() << "Setting up three-panel professional layout...";
     
+    // Professional docking framework with broadcast industry standards
+    setDockNestingEnabled(true);
+    setTabPosition(Qt::AllDockWidgetAreas, QTabWidget::North);
+    
+    // Corner configuration for professional layout
+    setCorner(Qt::TopLeftCorner, Qt::LeftDockWidgetArea);
+    setCorner(Qt::TopRightCorner, Qt::RightDockWidgetArea);
+    setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
+    setCorner(Qt::BottomRightCorner, Qt::RightDockWidgetArea);
+    
     // Create central widget
     m_centralWidget = new QWidget;
     setCentralWidget(m_centralWidget);
     
     // Create the main vertical splitter (top area + bottom tools)
     m_verticalSplitter = new QSplitter(Qt::Vertical, m_centralWidget);
+    m_verticalSplitter->setHandleWidth(3);  // Professional handle width
+    m_verticalSplitter->setChildrenCollapsible(false);  // Prevent accidental collapse
     
     // Create the main horizontal splitter for the three panels
     m_horizontalSplitter = new QSplitter(Qt::Horizontal, m_verticalSplitter);
+    m_horizontalSplitter->setHandleWidth(3);  // Professional handle width
+    m_horizontalSplitter->setChildrenCollapsible(false);  // Prevent accidental collapse
     
-    // Create the three main panels
-    createExplorerPanel();      // Left panel (25%)
-    createMainContentArea();    // Center panel (50%)  
-    createPropertiesPanel();    // Right panel (25%)
+    // Create the three main panels with professional styling
+    createExplorerPanel();      // Left panel (25%) - Service Explorer
+    createMainContentArea();    // Center panel (50%) - ETI Frame Analysis  
+    createPropertiesPanel();    // Right panel (25%) - Properties & Parameters
     
     // Add panels to horizontal splitter
-    m_horizontalSplitter->addWidget(m_explorerPanel);
+    m_horizontalSplitter->addWidget(m_serviceExplorerPanel);
     m_horizontalSplitter->addWidget(m_mainContentArea);
     m_horizontalSplitter->addWidget(m_propertiesPanel);
     
-    // Set initial panel sizes (25%, 50%, 25%) with professional proportions
+    // Set initial panel sizes (25%, 50%, 25%) with broadcast industry proportions
     int totalWidth = DEFAULT_WINDOW_WIDTH;
     QList<int> horizontalSizes = {
-        static_cast<int>(totalWidth * 0.25),  // Explorer: 25%
+        static_cast<int>(totalWidth * 0.25),  // Service Explorer: 25%
         static_cast<int>(totalWidth * 0.50),  // Main Content: 50%
         static_cast<int>(totalWidth * 0.25)   // Properties: 25%
     };
     m_horizontalSplitter->setSizes(horizontalSizes);
-    m_horizontalSplitter->setStretchFactor(0, 1);
-    m_horizontalSplitter->setStretchFactor(1, 2);
-    m_horizontalSplitter->setStretchFactor(2, 1);
+    m_horizontalSplitter->setStretchFactor(0, 1);  // Explorer panel
+    m_horizontalSplitter->setStretchFactor(1, 2);  // Main content (priority)
+    m_horizontalSplitter->setStretchFactor(2, 1);  // Properties panel
     
-    // Create bottom tool panels
+    // Create bottom tool panels with professional tabbed interface
     createBottomToolPanels();
     
     // Add to vertical splitter
     m_verticalSplitter->addWidget(m_horizontalSplitter);
     m_verticalSplitter->addWidget(m_bottomToolTabs);
     
-    // Set vertical split ratio (75% top, 25% bottom) with professional proportions
+    // Set vertical split ratio (75% top, 25% bottom) with broadcast industry proportions
     int totalHeight = DEFAULT_WINDOW_HEIGHT;
     QList<int> verticalSizes = {
-        static_cast<int>(totalHeight * 0.75),  // Main panels: 75%
-        static_cast<int>(totalHeight * 0.25)   // Bottom tools: 25%
+        static_cast<int>(totalHeight * 0.75),  // Main analysis panels: 75%
+        static_cast<int>(totalHeight * 0.25)   // Bottom specialist tools: 25%
     };
     m_verticalSplitter->setSizes(verticalSizes);
-    m_verticalSplitter->setStretchFactor(0, 3);
-    m_verticalSplitter->setStretchFactor(1, 1);
+    m_verticalSplitter->setStretchFactor(0, 3);  // Main panels priority
+    m_verticalSplitter->setStretchFactor(1, 1);  // Bottom tools secondary
     
-    // Layout central widget
+    // Layout central widget with professional spacing
     QVBoxLayout *centralLayout = new QVBoxLayout(m_centralWidget);
-    centralLayout->setContentsMargins(2, 2, 2, 2);
-    centralLayout->setSpacing(1);
+    centralLayout->setContentsMargins(2, 2, 2, 2);  // Minimal margins for broadcast look
+    centralLayout->setSpacing(1);  // Tight spacing for professional appearance
     centralLayout->addWidget(m_verticalSplitter);
     
-    // Apply broadcasting industry theme
+    // Apply broadcast industry theme and finish setup
     applyBroadcastingTheme();
+    
+    // Professional splitter styling
+    m_horizontalSplitter->setStyleSheet(
+        "QSplitter::handle:horizontal { "
+        "    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+        "        stop:0 #3E3E42, stop:0.5 #5E5E62, stop:1 #3E3E42); "
+        "    width: 3px; "
+        "    border: 1px solid #2D2D30; "
+        "}"
+    );
+    
+    m_verticalSplitter->setStyleSheet(
+        "QSplitter::handle:vertical { "
+        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "        stop:0 #3E3E42, stop:0.5 #5E5E62, stop:1 #3E3E42); "
+        "    height: 3px; "
+        "    border: 1px solid #2D2D30; "
+        "}"
+    );
     
     qDebug() << "Three-panel layout setup completed";
 }
 
 void MainWindow::createExplorerPanel()
 {
-    qDebug() << "Creating Professional Explorer Panel with enhanced ETI service tree...";
+    qDebug() << "Creating Professional Service Explorer Panel with DAB service tree...";
     
-    m_explorerPanel = new QWidget();
-    m_explorerPanel->setObjectName("ExplorerPanel");
-    m_explorerPanel->setMinimumWidth(250);  // Increased for professional layout
+    // Create the new professional service explorer panel
+    m_serviceExplorerPanel = new ServiceExplorerPanel(this);
+    m_serviceExplorerPanel->setObjectName("ServiceExplorerPanel");
+    m_serviceExplorerPanel->setMinimumWidth(300);  // Professional layout width
     
-    QVBoxLayout *layout = new QVBoxLayout(m_explorerPanel);
-    layout->setContentsMargins(6, 6, 6, 6);
-    layout->setSpacing(6);
-    
-    // Professional panel header with broadcasting industry styling
-    QLabel *headerLabel = new QLabel(tr("ETI Service Explorer"));
-    headerLabel->setObjectName("PanelHeader");
-    headerLabel->setStyleSheet(
-        "QLabel#PanelHeader { "
-        "    font-family: 'Segoe UI'; "
-        "    font-weight: bold; "
-        "    font-size: 12px; "
-        "    color: #FFFFFF; "
-        "    padding: 8px 12px; "
-        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "        stop:0 #0078D4, stop:1 #005A9E); "
-        "    border: 1px solid #004578; "
-        "    border-radius: 4px; "
-        "    margin-bottom: 2px; "
-        "}"
-    );
-    layout->addWidget(headerLabel);
-    
-    // Service statistics header
-    QLabel *statsLabel = new QLabel(tr("Services: 0 | Active: 0 | Ensembles: 0"));
-    statsLabel->setObjectName("ServiceStatsLabel");
-    statsLabel->setStyleSheet(
-        "font-family: 'Segoe UI'; "
-        "font-size: 9px; "
-        "color: #666666; "
-        "padding: 4px 8px; "
-        "background-color: #F8F8F8; "
-        "border: 1px solid #E0E0E0; "
-        "border-radius: 2px;"
-    );
-    layout->addWidget(statsLabel);
-    
-    // Professional filter controls
-    QHBoxLayout *filterLayout = new QHBoxLayout();
-    QLabel *filterLabel = new QLabel(tr("Filter:"));
-    filterLabel->setStyleSheet("font-size: 10px; color: #333333; font-weight: bold;");
-    
-    QLineEdit *filterEdit = new QLineEdit();
-    filterEdit->setObjectName("ServiceFilterEdit");
-    filterEdit->setPlaceholderText(tr("Search services..."));
-    filterEdit->setStyleSheet(
-        "QLineEdit { "
-        "    border: 1px solid #CCCCCC; "
-        "    border-radius: 3px; "
-        "    padding: 4px 8px; "
-        "    font-size: 10px; "
-        "    background-color: #FFFFFF; "
-        "} "
-        "QLineEdit:focus { "
-        "    border: 2px solid #0078D4; "
-        "    background-color: #F8FCFF; "
-        "}"
-    );
-    
-    filterLayout->addWidget(filterLabel);
-    filterLayout->addWidget(filterEdit);
-    layout->addLayout(filterLayout);
-    
-    // Enhanced ServiceBrowser with professional styling and ETI integration
-    m_serviceBrowser = new ServiceBrowser(this);
-    m_serviceBrowser->setObjectName("ProfessionalServiceBrowser");
-    
-    // Integrate with ETI Service Tree Model if available
-    if (m_serviceTreeModel) {
-        // In a complete implementation, ServiceBrowser would have a method like:
-        // m_serviceBrowser->setServiceTreeModel(m_serviceTreeModel);
-        // For now, we'll connect the signals after creation
+    // Connect to ETI processor for real-time service data
+    if (m_etiProcessor) {
+        m_serviceExplorerPanel->connectEtiProcessor(m_etiProcessor.get());
     }
-    m_serviceBrowser->setStyleSheet(
-        "ServiceBrowser { "
-        "    background-color: #FAFAFA; "
-        "    border: 1px solid #E0E0E0; "
-        "    border-radius: 3px; "
-        "} "
-        "QTreeWidget { "
-        "    background-color: #FFFFFF; "
-        "    alternate-background-color: #F8F8F8; "
-        "    selection-background-color: #CCE8FF; "
-        "    selection-color: #000000; "
-        "    border: none; "
-        "    outline: none; "
-        "    font-family: 'Segoe UI'; "
-        "    font-size: 10px; "
-        "    show-decoration-selected: 1; "
-        "} "
-        "QTreeWidget::item { "
-        "    padding: 3px 6px; "
-        "    border-bottom: 1px solid #F0F0F0; "
-        "    height: 24px; "
-        "} "
-        "QTreeWidget::item:selected { "
-        "    background-color: #CCE8FF; "
-        "    color: #000000; "
-        "    border: 1px solid #0078D4; "
-        "} "
-        "QTreeWidget::item:hover { "
-        "    background-color: #E8F4FF; "
-        "} "
-        "QTreeWidget::branch:has-siblings:!adjoins-item { "
-        "    border-image: url(:/icons/vline.png) 0; "
-        "} "
-        "QTreeWidget::branch:has-siblings:adjoins-item { "
-        "    border-image: url(:/icons/branch-more.png) 0; "
-        "} "
-        "QTreeWidget::branch:!has-children:!has-siblings:adjoins-item { "
-        "    border-image: url(:/icons/branch-end.png) 0; "
-        "} "
-        "QTreeWidget::branch:has-children:!has-siblings:closed, "
-        "QTreeWidget::branch:closed:has-children:has-siblings { "
-        "    border-image: none; "
-        "    image: url(:/icons/branch-closed.png); "
-        "} "
-        "QTreeWidget::branch:open:has-children:!has-siblings, "
-        "QTreeWidget::branch:open:has-children:has-siblings { "
-        "    border-image: none; "
-        "    image: url(:/icons/branch-open.png); "
-        "}"
-    );
-    layout->addWidget(m_serviceBrowser);
     
-    // Professional control button panel
-    QFrame *controlFrame = new QFrame();
-    controlFrame->setFrameStyle(QFrame::StyledPanel);
-    controlFrame->setStyleSheet(
-        "QFrame { "
-        "    background-color: #F8F8F8; "
-        "    border: 1px solid #E0E0E0; "
-        "    border-radius: 3px; "
-        "    margin-top: 4px; "
-        "}"
-    );
+    // Connect service selection signals for professional workflow integration
+    connect(m_serviceExplorerPanel, &ServiceExplorerPanel::serviceSelected,
+            this, [this](uint32_t serviceId) {
+                Logger::instance().log(Logger::Info, "MainWindow",
+                                     QString("Service selected: SID 0x%1")
+                                     .arg(serviceId, 4, 16, QChar('0')));
+                // Forward to other components
+                emit dabPlusServiceSelected(serviceId);
+            });
     
-    QHBoxLayout *controlLayout = new QHBoxLayout(controlFrame);
-    controlLayout->setContentsMargins(8, 6, 8, 6);
-    controlLayout->setSpacing(6);
+    connect(m_serviceExplorerPanel, &ServiceExplorerPanel::serviceFilterChanged,
+            this, [this](const QList<uint32_t>& visibleServices) {
+                Logger::instance().log(Logger::Debug, "MainWindow",
+                                     QString("Service filter updated: %1 visible services")
+                                     .arg(visibleServices.size()));
+                // Update other panels based on visible services
+            });
     
-    // Professional button styling
-    QString buttonStyle = 
-        "QPushButton { "
-        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "        stop:0 #F8F8F8, stop:1 #E8E8E8); "
-        "    border: 1px solid #CCCCCC; "
-        "    border-radius: 4px; "
-        "    padding: 6px 12px; "
-        "    font-family: 'Segoe UI'; "
-        "    font-size: 10px; "
-        "    font-weight: normal; "
-        "    color: #333333; "
-        "    min-width: 60px; "
-        "} "
-        "QPushButton:hover { "
-        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "        stop:0 #E8F4FF, stop:1 #CCE8FF); "
-        "    border-color: #0078D4; "
-        "    color: #0078D4; "
-        "} "
-        "QPushButton:pressed { "
-        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "        stop:0 #CCE8FF, stop:1 #B3D9FF); "
-        "    border-color: #005A9E; "
-        "} "
-        "QPushButton:disabled { "
-        "    background-color: #F0F0F0; "
-        "    border-color: #D0D0D0; "
-        "    color: #A0A0A0; "
-        "}";
+    connect(m_serviceExplorerPanel, &ServiceExplorerPanel::ensembleSelected,
+            this, [this](uint16_t ensembleId) {
+                Logger::instance().log(Logger::Info, "MainWindow",
+                                     QString("Ensemble selected: EID 0x%1")
+                                     .arg(ensembleId, 4, 16, QChar('0')));
+            });
     
-    m_refreshServicesBtn = new QPushButton(tr("Refresh"));
-    m_refreshServicesBtn->setObjectName("RefreshServicesBtn");
-    m_refreshServicesBtn->setStyleSheet(buttonStyle);
-    m_refreshServicesBtn->setToolTip(tr("Refresh service list from current ETI stream"));
-    
-    QPushButton *expandAllBtn = new QPushButton(tr("Expand"));
-    expandAllBtn->setObjectName("ExpandAllBtn");
-    expandAllBtn->setStyleSheet(buttonStyle);
-    expandAllBtn->setToolTip(tr("Expand all ensemble nodes"));
-    
-    QPushButton *collapseAllBtn = new QPushButton(tr("Collapse"));
-    collapseAllBtn->setObjectName("CollapseAllBtn");
-    collapseAllBtn->setStyleSheet(buttonStyle);
-    collapseAllBtn->setToolTip(tr("Collapse all ensemble nodes"));
-    
-    controlLayout->addWidget(m_refreshServicesBtn);
-    controlLayout->addWidget(expandAllBtn);
-    controlLayout->addWidget(collapseAllBtn);
-    controlLayout->addStretch();
-    
-    // Add status LED indicator
-    QLabel *statusLed = new QLabel();
-    statusLed->setObjectName("ServiceStatusLED");
-    statusLed->setFixedSize(12, 12);
-    statusLed->setStyleSheet(
-        "QLabel { "
-        "    background-color: #4CAF50; "  // Green for active
-        "    border: 1px solid #2E7D32; "
-        "    border-radius: 6px; "
-        "}"
-    );
-    statusLed->setToolTip(tr("Service discovery status: Active"));
-    controlLayout->addWidget(statusLed);
-    
-    layout->addWidget(controlFrame);
-    
-    // Connect enhanced signals
-    connect(expandAllBtn, &QPushButton::clicked, [this]() {
-        if (m_serviceBrowser) {
-            m_serviceBrowser->expandAll();
-        }
-    });
-    
-    connect(collapseAllBtn, &QPushButton::clicked, [this]() {
-        if (m_serviceBrowser) {
-            m_serviceBrowser->collapseAll();
-        }
-    });
-    
-    connect(filterEdit, &QLineEdit::textChanged, [this](const QString &text) {
-        if (m_serviceBrowser) {
-            m_serviceBrowser->filterServices(text);
-        }
-    });
-    
-    qDebug() << "Professional Explorer Panel with enhanced ETI service tree created successfully";
+    qDebug() << "Professional Service Explorer Panel created successfully with Phase 7.1 integration";
 }
 
 void MainWindow::createMainContentArea()
 {
-    qDebug() << "Creating Professional Main Content Area with ETI frame listing...";
+    qDebug() << "Creating Professional Main Content Area with enhanced ETI analysis widget...";
     
     m_mainContentArea = new QWidget();
     m_mainContentArea->setObjectName("MainContentArea");
     
     QVBoxLayout *layout = new QVBoxLayout(m_mainContentArea);
-    layout->setContentsMargins(6, 6, 6, 6);
-    layout->setSpacing(6);
+    layout->setContentsMargins(4, 4, 4, 4);
+    layout->setSpacing(4);
     
-    // Professional panel header with broadcasting industry styling
-    QFrame *headerFrame = new QFrame();
-    headerFrame->setFrameStyle(QFrame::NoFrame);
-    QHBoxLayout *headerLayout = new QHBoxLayout(headerFrame);
-    headerLayout->setContentsMargins(0, 0, 0, 0);
-    headerLayout->setSpacing(12);
+    // Create the enhanced ETI Analysis Widget
+    m_etiAnalysisWidget = new EtiAnalysisWidget(this);
+    m_etiAnalysisWidget->setObjectName("MainContentEtiAnalysisWidget");
     
-    QLabel *headerLabel = new QLabel(tr("ETI Frame Analysis"));
-    headerLabel->setObjectName("PanelHeader");
-    headerLabel->setStyleSheet(
-        "QLabel#PanelHeader { "
-        "    font-family: 'Segoe UI'; "
-        "    font-weight: bold; "
-        "    font-size: 12px; "
-        "    color: #FFFFFF; "
-        "    padding: 8px 12px; "
-        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "        stop:0 #0078D4, stop:1 #005A9E); "
-        "    border: 1px solid #004578; "
-        "    border-radius: 4px; "
-        "}"
-    );
-    
-    // Frame statistics display
-    QLabel *frameStatsLabel = new QLabel(tr("Frames: 0 | Rate: 0 fps | Errors: 0"));
-    frameStatsLabel->setObjectName("FrameStatsLabel");
-    frameStatsLabel->setStyleSheet(
-        "font-family: 'Segoe UI'; "
-        "font-size: 10px; "
-        "color: #666666; "
-        "padding: 6px 12px; "
-        "background-color: #F8F8F8; "
-        "border: 1px solid #E0E0E0; "
-        "border-radius: 3px;"
-    );
-    
-    headerLayout->addWidget(headerLabel);
-    headerLayout->addStretch();
-    headerLayout->addWidget(frameStatsLabel);
-    layout->addWidget(headerFrame);
-    
-    // Professional frame listing controls
-    QFrame *controlFrame = new QFrame();
-    controlFrame->setFrameStyle(QFrame::StyledPanel);
-    controlFrame->setStyleSheet(
-        "QFrame { "
-        "    background-color: #F8F8F8; "
-        "    border: 1px solid #E0E0E0; "
-        "    border-radius: 3px; "
-        "}"
-    );
-    
-    QHBoxLayout *controlLayout = new QHBoxLayout(controlFrame);
-    controlLayout->setContentsMargins(8, 6, 8, 6);
-    controlLayout->setSpacing(8);
-    
-    // Frame display mode controls
-    QLabel *modeLabel = new QLabel(tr("View:"));
-    modeLabel->setStyleSheet("font-size: 10px; color: #333333; font-weight: bold;");
-    
-    QComboBox *viewModeCombo = new QComboBox();
-    viewModeCombo->setObjectName("FrameViewModeCombo");
-    viewModeCombo->addItems({tr("Frame List"), tr("Frame Details"), tr("Timeline"), tr("Packets")});
-    viewModeCombo->setStyleSheet(
-        "QComboBox { "
-        "    border: 1px solid #CCCCCC; "
-        "    border-radius: 3px; "
-        "    padding: 4px 8px; "
-        "    font-size: 10px; "
-        "    background-color: #FFFFFF; "
-        "    min-width: 100px; "
-        "} "
-        "QComboBox:focus { "
-        "    border: 2px solid #0078D4; "
-        "} "
-        "QComboBox::drop-down { "
-        "    border: none; "
-        "    width: 20px; "
-        "} "
-        "QComboBox::down-arrow { "
-        "    image: url(:/icons/arrow-down.png); "
-        "    width: 12px; "
-        "    height: 12px; "
-        "}"
-    );
-    
-    // Color coding legend
-    QFrame *legendFrame = new QFrame();
-    legendFrame->setFrameStyle(QFrame::NoFrame);
-    QHBoxLayout *legendLayout = new QHBoxLayout(legendFrame);
-    legendLayout->setContentsMargins(0, 0, 0, 0);
-    legendLayout->setSpacing(8);
-    
-    // Color legend items
-    QLabel *legendLabel = new QLabel(tr("Legend:"));
-    legendLabel->setStyleSheet("font-size: 9px; color: #666666; font-weight: bold;");
-    
-    auto createColorIndicator = [](const QString &color, const QString &label) -> QWidget* {
-        QFrame *indicator = new QFrame();
-        indicator->setFixedSize(12, 12);
-        indicator->setStyleSheet(QString("background-color: %1; border: 1px solid #999999; border-radius: 2px;").arg(color));
-        
-        QLabel *indLabel = new QLabel(label);
-        indLabel->setStyleSheet("font-size: 9px; color: #666666;");
-        
-        QHBoxLayout *indLayout = new QHBoxLayout();
-        indLayout->setContentsMargins(0, 0, 0, 0);
-        indLayout->setSpacing(4);
-        indLayout->addWidget(indicator);
-        indLayout->addWidget(indLabel);
-        
-        QWidget *indWidget = new QWidget();
-        indWidget->setLayout(indLayout);
-        return indWidget;
-    };
-    
-    legendLayout->addWidget(legendLabel);
-    legendLayout->addWidget(createColorIndicator("#4CAF50", tr("OK")));
-    legendLayout->addWidget(createColorIndicator("#FF9800", tr("Warning")));
-    legendLayout->addWidget(createColorIndicator("#F44336", tr("Error")));
-    legendLayout->addWidget(createColorIndicator("#2196F3", tr("FIC")));
-    legendLayout->addWidget(createColorIndicator("#9C27B0", tr("MSC")));
-    legendLayout->addStretch();
-    
-    controlLayout->addWidget(modeLabel);
-    controlLayout->addWidget(viewModeCombo);
-    controlLayout->addWidget(legendFrame);
-    controlLayout->addStretch();
-    
-    layout->addWidget(controlFrame);
-    
-    // Professional content splitter with enhanced frame display
-    m_contentSplitter = new QSplitter(Qt::Vertical);
-    m_contentSplitter->setObjectName("ProfessionalContentSplitter");
-    
-    // Enhanced frame listing table with professional ETI frame model
-    m_frameListTable = new QTableWidget(); // Will be replaced with QTableView
-    m_frameListTable->setObjectName("ProfessionalFrameListTable");
-    
-    // Note: In a complete implementation, we would replace QTableWidget with QTableView
-    // and set the model: m_frameListTable->setModel(m_frameListModel);
-    // For now, keeping QTableWidget for compatibility with existing code
-    m_frameListTable->setColumnCount(8);
-    QStringList headers = {tr("Frame #"), tr("Type"), tr("Size"), tr("FIC"), tr("MSC"), tr("Timestamp"), tr("Quality"), tr("Status")};
-    m_frameListTable->setHorizontalHeaderLabels(headers);
-    
-    // Professional table styling with color coding
-    m_frameListTable->setStyleSheet(
-        "QTableWidget { "
-        "    background-color: #FFFFFF; "
-        "    alternate-background-color: #F8F8F8; "
-        "    selection-background-color: #CCE8FF; "
-        "    selection-color: #000000; "
-        "    gridline-color: #E8E8E8; "
-        "    border: 1px solid #CCCCCC; "
-        "    border-radius: 3px; "
-        "    outline: none; "
-        "    font-family: 'Consolas', monospace; "
-        "    font-size: 10px; "
-        "} "
-        "QTableWidget::item { "
-        "    padding: 4px 6px; "
-        "    border-bottom: 1px solid #F0F0F0; "
-        "    height: 20px; "
-        "} "
-        "QTableWidget::item:selected { "
-        "    background-color: #CCE8FF; "
-        "    color: #000000; "
-        "} "
-        "QTableWidget::item:hover { "
-        "    background-color: #E8F4FF; "
-        "} "
-        "QHeaderView::section { "
-        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "        stop:0 #F8F8F8, stop:1 #E8E8E8); "
-        "    border: 1px solid #CCCCCC; "
-        "    padding: 6px 8px; "
-        "    font-weight: bold; "
-        "    font-size: 9px; "
-        "    color: #333333; "
-        "    text-align: center; "
-        "} "
-        "QHeaderView::section:hover { "
-        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "        stop:0 #E8F4FF, stop:1 #CCE8FF); "
-        "}"
-    );
-    
-    // Configure table properties
-    m_frameListTable->setAlternatingRowColors(true);
-    m_frameListTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_frameListTable->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_frameListTable->setSortingEnabled(true);
-    m_frameListTable->verticalHeader()->setVisible(false);
-    m_frameListTable->horizontalHeader()->setStretchLastSection(true);
-    
-    // Set optimal column widths
-    m_frameListTable->setColumnWidth(0, 80);   // Frame #
-    m_frameListTable->setColumnWidth(1, 60);   // Type
-    m_frameListTable->setColumnWidth(2, 70);   // Size
-    m_frameListTable->setColumnWidth(3, 50);   // FIC
-    m_frameListTable->setColumnWidth(4, 50);   // MSC
-    m_frameListTable->setColumnWidth(5, 120);  // Timestamp
-    m_frameListTable->setColumnWidth(6, 80);   // Quality
-    
-    // Enhanced analyzer widget (integrated as secondary view)
-    m_analyzerWidget = new AnalyzerWidget(this);
-    m_analyzerWidget->setObjectName("IntegratedAnalyzerWidget");
-    m_analyzerWidget->setMinimumHeight(250);
-    
-    // Enhanced constellation widget with professional styling
-    m_constellationWidget = new ConstellationWidget(this);
-    m_constellationWidget->setObjectName("IntegratedConstellationWidget");
-    m_constellationWidget->setMinimumHeight(180);
-    m_constellationWidget->setMaximumHeight(220);
-    
-    // Create tabbed interface for secondary views
-    QTabWidget *secondaryTabs = new QTabWidget();
-    secondaryTabs->setObjectName("SecondaryViewTabs");
-    secondaryTabs->setStyleSheet(
-        "QTabWidget::pane { "
-        "    border: 1px solid #CCCCCC; "
-        "    background-color: #FFFFFF; "
-        "    border-radius: 3px; "
-        "} "
-        "QTabBar::tab { "
-        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "        stop:0 #F0F0F0, stop:1 #E0E0E0); "
-        "    border: 1px solid #CCCCCC; "
-        "    padding: 6px 12px; "
-        "    margin-right: 2px; "
-        "    border-radius: 3px 3px 0px 0px; "
-        "    font-family: 'Segoe UI'; "
-        "    font-size: 10px; "
-        "    color: #333333; "
-        "} "
-        "QTabBar::tab:selected { "
-        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "        stop:0 #FFFFFF, stop:1 #F8F8F8); "
-        "    border-bottom: 1px solid #FFFFFF; "
-        "    color: #0078D4; "
-        "    font-weight: bold; "
-        "} "
-        "QTabBar::tab:hover { "
-        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "        stop:0 #E8F4FF, stop:1 #CCE8FF); "
-        "}"
-    );
-    
-    secondaryTabs->addTab(m_analyzerWidget, tr("Analysis"));
-    secondaryTabs->addTab(m_constellationWidget, tr("Constellation"));
-    
-    // Add widgets to splitter
-    m_contentSplitter->addWidget(m_frameListTable);
-    m_contentSplitter->addWidget(secondaryTabs);
-    
-    // Set professional splitter proportions (60% frame list, 40% secondary views)
-    m_contentSplitter->setStretchFactor(0, 6);
-    m_contentSplitter->setStretchFactor(1, 4);
-    
-    // Professional splitter styling
-    m_contentSplitter->setStyleSheet(
-        "QSplitter::handle:vertical { "
-        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "        stop:0 #F0F0F0, stop:0.5 #E0E0E0, stop:1 #F0F0F0); "
-        "    height: 6px; "
-        "    border: 1px solid #CCCCCC; "
-        "    border-radius: 3px; "
-        "    margin: 2px 0px; "
-        "} "
-        "QSplitter::handle:vertical:hover { "
-        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "        stop:0 #CCE8FF, stop:0.5 #0078D4, stop:1 #CCE8FF); "
-        "}"
-    );
-    
-    layout->addWidget(m_contentSplitter);
-    
-    // Connect signals for enhanced functionality
-    connect(viewModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [](int index) {
-        // Handle view mode changes
-        qDebug() << "Frame view mode changed to index:" << index;
-        // TODO: Implement view mode switching logic
-    });
-    
-    connect(m_frameListTable, &QTableWidget::itemSelectionChanged, [this]() {
-        // Handle frame selection changes
-        int currentRow = m_frameListTable->currentRow();
-        if (currentRow >= 0) {
-            qDebug() << "Frame selected:" << currentRow;
-            // TODO: Update secondary views with frame details
+    // Initialize the ETI analysis widget
+    if (!m_etiAnalysisWidget->initialize()) {
+        qWarning() << "Failed to initialize ETI Analysis Widget";
+        // Fallback to basic label
+        QLabel *fallbackLabel = new QLabel(tr("ETI Analysis Widget initialization failed"));
+        fallbackLabel->setAlignment(Qt::AlignCenter);
+        layout->addWidget(fallbackLabel);
+    } else {
+        // Connect ETI processor if available
+        if (m_etiProcessor) {
+            m_etiAnalysisWidget->setEtiProcessor(m_etiProcessor.get());
         }
-    });
+        
+        // Add the widget to layout
+        layout->addWidget(m_etiAnalysisWidget);
+        
+        // Connect signals for enhanced integration
+        connect(m_etiAnalysisWidget, &EtiAnalysisWidget::frameSelected,
+                this, [this](quint64 frameIndex) {
+                    qDebug() << "Frame selected in analysis widget:" << frameIndex;
+                    // Update other components as needed
+                });
+        
+        connect(m_etiAnalysisWidget, &EtiAnalysisWidget::performanceMetricsUpdated,
+                this, [this](const QVariantMap& metrics) {
+                    // Update status bar with performance metrics
+                    updateStatus(QString("Processing: %1 fps | Quality: %2%")
+                               .arg(metrics["processingRate"].toDouble(), 0, 'f', 1)
+                               .arg(metrics["signalQuality"].toDouble(), 0, 'f', 1));
+                    updateProgress(static_cast<int>(metrics["signalQuality"].toDouble()));
+                });
+        
+        connect(m_etiAnalysisWidget, &EtiAnalysisWidget::errorDetected,
+                this, [this](const QString& errorType, const QString& description) {
+                    Logger::instance().log(Logger::Error, "MainWindow",
+                                         QString("ETI Analysis Error - %1: %2").arg(errorType, description));
+                });
+    }
     
-    qDebug() << "Professional Main Content Area with ETI frame listing created successfully";
+    qDebug() << "Professional Main Content Area with enhanced ETI analysis widget created successfully";
 }
 
 void MainWindow::createPropertiesPanel()
