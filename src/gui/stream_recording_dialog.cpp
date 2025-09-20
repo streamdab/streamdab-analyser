@@ -108,7 +108,7 @@ StreamRecordingDialog::StreamRecordingDialog(eti::StreamRecordingManager *record
     , m_configurationChanged(false)
     , m_currentFormat(eti::RecordingFormat::ETI_NI)
 {
-    setWindowTitle(tr("Stream Recording Configuration - ETI Stream Analyzer"));
+    setWindowTitle(tr("Stream Recording Configuration - StreamDAB Stream Analyzer"));
     setWindowIcon(QIcon(":/icons/record_config.png"));
     setModal(false); // Allow interaction with main window
     resize(900, 700);
@@ -997,7 +997,7 @@ void StreamRecordingDialog::browseOutputDirectory()
     QString selectedDir = QFileDialog::getExistingDirectory(this, 
         tr("Select Output Directory"), 
         currentDir,
-        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+        QFileDialog::ShowDirsOnly);
 
     if (!selectedDir.isEmpty()) {
         m_outputDirectoryEdit->setText(selectedDir);

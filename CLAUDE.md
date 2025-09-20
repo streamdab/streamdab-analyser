@@ -1,19 +1,19 @@
-# CLAUDE.md - ETI Stream Analyzer Desktop Application
+# CLAUDE.md - StreamDAB Stream Analyzer Desktop Application
 
 > **📚 Quick Documentation Access**: [Technical Docs](#-comprehensive-technical-documentation) | [ETSI Compliance](docs/ETSI_COMPLIANCE_FRAMEWORK.md) | [ETI Specifications](docs/ETI_PROTOCOL_SPECIFICATIONS.md) | [Integration Specs](docs/INTEGRATION_SPECIFICATIONS.md) | [Testing Framework](docs/TESTING_FRAMEWORK_REQUIREMENTS.md) | [UI Design Guide](docs/UI_DESIGN_GUIDE.md) | [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md) | [Future Roadmap](docs/FUTURE_ROADMAP.md)
 
 ## 🏆 **PROJECT STATUS: PHASE 7.2 COMPLETE - PROFESSIONAL UI WITH ENHANCED ANALYSIS**
 
-**Current State:** Professional ETI Stream Analyzer with complete three-panel interface and enhanced analysis widgets  
+**Current State:** Professional StreamDAB Stream Analyzer with complete three-panel interface and enhanced analysis widgets  
 **Latest Update:** September 20, 2025 - PHASE 7.2 COMPLETE: Enhanced analysis widgets and professional UI fully implemented  
 **Actual Status:** PRODUCTION READY - Professional broadcast industry standard application with 7,482 FPS ETI processing  
 **Next Phase:** Phase 8 Advanced Features - Real-time streaming and audio pipeline (estimated 3-4 weeks)
 
 ## 🎯 Project Overview
 
-**Goal:** Develop a professional ETI Stream Analyzer desktop application based on ETISnoop with Qt GUI framework to meet broadcast industry standards.
+**Goal:** Develop a professional StreamDAB Stream Analyzer desktop application based on ETISnoop with Qt GUI framework to meet broadcast industry standards.
 
-**Reality Check:** Now a functional ETI Stream Analyzer with real ETI processing capabilities exceeding professional broadcast standards.
+**Reality Check:** Now a functional StreamDAB Stream Analyzer with real ETI processing capabilities exceeding professional broadcast standards.
 
 **Achievement:** Successfully implemented complete core ETI processing with 7,482 FPS performance - ready for broadcast industry deployment.
 

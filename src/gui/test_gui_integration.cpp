@@ -203,7 +203,7 @@ GUIIntegrationTestWindow::GUIIntegrationTestWindow(QWidget *parent)
     , m_alertCount(0)
     , m_totalMemoryUsage(0)
 {
-    setWindowTitle("ETI Stream Analyzer - GUI Integration Test Suite");
+    setWindowTitle("StreamDAB Stream Analyzer - GUI Integration Test Suite");
     setWindowIcon(QIcon(":/icons/test.png"));
     resize(1000, 800);
 

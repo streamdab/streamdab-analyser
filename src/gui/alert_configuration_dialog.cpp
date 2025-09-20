@@ -102,7 +102,7 @@ AlertConfigurationDialog::AlertConfigurationDialog(AlertSystem *alertSystem, QWi
     , m_configurationChanged(false)
     , m_isInitialized(false)
 {
-    setWindowTitle(tr("Alert Configuration - ETI Stream Analyzer"));
+    setWindowTitle(tr("Alert Configuration - StreamDAB Stream Analyzer"));
     setWindowIcon(QIcon(":/icons/alert_config.png"));
     setModal(true);
     resize(800, 600);

@@ -32,7 +32,7 @@ protected:
         fib[5] = 0x56; // CIF count
         
         // Add end marker
-        fib[6] = 0xFF;
+        fib[6] = static_cast<char>(0xFF);
         
         // Calculate and append CRC
         QByteArray fullFib = fib + QByteArray(2, 0x00);
@@ -50,13 +50,13 @@ protected:
         // FIG 0/2 - Service organization
         fib[0] = 0x08; // FIG type 0, length 8
         fib[1] = 0x02; // Extension 2
-        fib[2] = 0xAB; // Service ID high
-        fib[3] = 0xCD; // Service ID low
+        fib[2] = static_cast<char>(0xAB); // Service ID high
+        fib[3] = static_cast<char>(0xCD); // Service ID low
         fib[4] = 0x01; // PTY code 0, CA=0, nb_service_comp=1
         fib[5] = 0x10; // TMId=0, ASCTy=0, SubChId=4, PS=0, CA=0
         
         // Add end marker
-        fib[6] = 0xFF;
+        fib[6] = static_cast<char>(0xFF);
         
         // Calculate and append CRC
         QByteArray fullFib = fib + QByteArray(2, 0x00);
@@ -76,11 +76,11 @@ protected:
         fib[1] = 0x01; // Extension 1
         fib[2] = 0x10; // SubChId=4, start address high bits
         fib[3] = 0x00; // Start address low byte (0x40 = 64)
-        fib[4] = 0x80; // Short form, protection level 0
+        fib[4] = static_cast<char>(0x80); // Short form, protection level 0
         fib[5] = 0x20; // Sub-channel size (32 CUs)
         
         // Add end marker
-        fib[6] = 0xFF;
+        fib[6] = static_cast<char>(0xFF);
         
         // Calculate and append CRC
         QByteArray fullFib = fib + QByteArray(2, 0x00);
@@ -105,7 +105,7 @@ protected:
         memcpy(&fib[4], label, 13); // 13 chars to fit in FIB
         
         // Add end marker at byte 17
-        fib[17] = 0xFF;
+        fib[17] = static_cast<char>(0xFF);
         
         // Calculate and append CRC
         QByteArray fullFib = fib + QByteArray(2, 0x00);
@@ -120,8 +120,8 @@ protected:
     {
         QByteArray fib(32, 0x00);
         // Invalid CRC
-        fib[30] = 0xFF;
-        fib[31] = 0xFF;
+        fib[30] = static_cast<char>(0xFF);
+        fib[31] = static_cast<char>(0xFF);
         return fib;
     }
 
@@ -492,7 +492,7 @@ TEST_F(FicDecoderTest, ErrorCountIncreasesOnProcessingFailures)
     quint32 initialErrorCount = decoder->getErrorCount();
     
     // Process invalid data
-    QByteArray invalidData(20, 0xFF);
+    QByteArray invalidData(20, static_cast<char>(0xFF));
     decoder->processFicData(invalidData);
     
     quint32 finalErrorCount = decoder->getErrorCount();
@@ -508,7 +508,7 @@ TEST_F(FicDecoderTest, StatusChangesToErrorOnConsecutiveFailures)
     // but this test structure is ready for that enhancement
     
     for (int i = 0; i < 10; ++i) {
-        QByteArray invalidData(20, 0xFF);
+        QByteArray invalidData(20, static_cast<char>(0xFF));
         decoder->processFicData(invalidData);
     }
     
