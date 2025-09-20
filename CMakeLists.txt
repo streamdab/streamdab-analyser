@@ -42,6 +42,9 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# Set AUTOUIC search paths for .ui files
+set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui)
+
 # Platform detection and configuration
 if(WIN32)
     include(cmake/WindowsConfig.cmake)
@@ -167,6 +170,10 @@ set(CORE_SOURCE_FILES
     src/gui/settings_dialog.h
     src/gui/about_dialog.cpp
     src/gui/about_dialog.h
+    src/gui/alert_configuration_dialog.cpp
+    src/gui/alert_configuration_dialog.h
+    src/gui/stream_recording_dialog.cpp
+    src/gui/stream_recording_dialog.h
     src/gui/eti_service_tree_model.cpp
     src/gui/eti_service_tree_model.h
     src/gui/eti_frame_list_model.cpp
@@ -188,6 +195,14 @@ set(CORE_SOURCE_FILES
 # Use only core files for minimal build
 set(SOURCE_FILES ${CORE_SOURCE_FILES})
 
+# UI files for Qt6 UIC processing
+set(UI_FILES
+    src/gui/ui/settings_dialog.ui
+    src/gui/ui/about_dialog.ui
+    src/gui/ui/alert_configuration_dialog.ui
+    src/gui/ui/stream_recording_dialog.ui
+)
+
 # Resource files
 set(RESOURCE_FILES
     resources/application.qrc
@@ -202,6 +217,7 @@ endforeach()
 # Create main executable
 add_executable(${PROJECT_NAME}
     ${SOURCE_FILES}
+    ${UI_FILES}
     ${RESOURCE_FILES}
 )
 
@@ -241,6 +257,7 @@ endif()
 
 # Include directories for dependencies
 target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}  # For generated UI headers (ui_*.h)
     ${AUDIO_DECODER_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
 )

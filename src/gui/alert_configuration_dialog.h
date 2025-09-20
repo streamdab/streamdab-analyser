@@ -14,6 +14,7 @@
 #pragma once
 
 #include <QDialog>
+#include "ui_alert_configuration_dialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -274,101 +275,11 @@ private:
      */
     void applyBroadcastStyling();
 
+    // UI class instance
+    Ui::AlertConfigurationDialog *ui;
+
     // Core components
     AlertSystem *m_alertSystem;
-
-    // Main layout
-    QVBoxLayout *m_mainLayout;
-    QTabWidget *m_tabWidget;
-
-    // Threshold configuration tab
-    QWidget *m_thresholdTab;
-    QGroupBox *m_signalQualityGroup;
-    QGroupBox *m_errorRateGroup;
-    QGroupBox *m_audioLevelGroup;
-
-    // Signal quality controls
-    QDoubleSpinBox *m_signalInfoThreshold;
-    QDoubleSpinBox *m_signalWarningThreshold;
-    QDoubleSpinBox *m_signalCriticalThreshold;
-    QDoubleSpinBox *m_signalEmergencyThreshold;
-    QProgressBar *m_signalQualityIndicator;
-    QLabel *m_signalStatusLabel;
-
-    // Error rate controls
-    QDoubleSpinBox *m_errorInfoThreshold;
-    QDoubleSpinBox *m_errorWarningThreshold;
-    QDoubleSpinBox *m_errorCriticalThreshold;
-    QDoubleSpinBox *m_errorEmergencyThreshold;
-    QProgressBar *m_errorRateIndicator;
-    QLabel *m_errorStatusLabel;
-
-    // Audio level controls
-    QDoubleSpinBox *m_audioInfoThreshold;
-    QDoubleSpinBox *m_audioWarningThreshold;
-    QDoubleSpinBox *m_audioCriticalThreshold;
-    QDoubleSpinBox *m_audioEmergencyThreshold;
-    QProgressBar *m_audioLevelIndicator;
-    QLabel *m_audioStatusLabel;
-
-    // Notification settings tab
-    QWidget *m_notificationTab;
-    QGroupBox *m_visualNotificationGroup;
-    QGroupBox *m_audioNotificationGroup;
-    QGroupBox *m_cooldownGroup;
-
-    // Visual notification controls
-    QCheckBox *m_enableVisualAlerts;
-    QCheckBox *m_enableFlashingAlerts;
-    QCheckBox *m_enableColorCoding;
-    QComboBox *m_alertColorScheme;
-    QSpinBox *m_alertDisplayDuration;
-
-    // Audio notification controls
-    QCheckBox *m_enableAudioAlerts;
-    QComboBox *m_alertSoundScheme;
-    QSlider *m_alertVolumeSlider;
-    QPushButton *m_testSoundButton;
-
-    // Cooldown controls
-    QSpinBox *m_cooldownPeriod;
-    QCheckBox *m_enableCooldownByType;
-    QCheckBox *m_enableAlertEscalation;
-
-    // Alert history tab
-    QWidget *m_historyTab;
-    QSplitter *m_historySplitter;
-    QTableWidget *m_alertHistoryTable;
-    QTextEdit *m_alertDetailsText;
-    QPushButton *m_clearHistoryButton;
-    QPushButton *m_exportHistoryButton;
-
-    // Advanced settings tab
-    QWidget *m_advancedTab;
-    QGroupBox *m_performanceGroup;
-    QGroupBox *m_integrationGroup;
-
-    // Performance controls
-    QSpinBox *m_processingInterval;
-    QSpinBox *m_maxHistoryEntries;
-    QCheckBox *m_enableMemoryOptimization;
-    QProgressBar *m_memoryUsageIndicator;
-
-    // Integration controls
-    QCheckBox *m_enableMainWindowIntegration;
-    QCheckBox *m_enableStatusBarAlerts;
-    QCheckBox *m_enableDockPanelAlerts;
-    QCheckBox *m_enableToolbarIndicators;
-
-    // Button box
-    QHBoxLayout *m_buttonLayout;
-    QPushButton *m_okButton;
-    QPushButton *m_cancelButton;
-    QPushButton *m_applyButton;
-    QPushButton *m_resetButton;
-    QPushButton *m_testButton;
-    QPushButton *m_loadButton;
-    QPushButton *m_saveButton;
 
     // Live preview and testing
     QTimer *m_previewTimer;

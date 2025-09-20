@@ -13,6 +13,7 @@
 #pragma once
 
 #include <QDialog>
+#include "ui_stream_recording_dialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -330,108 +331,11 @@ private:
      */
     QString formatDuration(qint64 milliseconds) const;
 
+    // UI class instance
+    Ui::StreamRecordingDialog *ui;
+
     // Core components
     eti::StreamRecordingManager *m_recordingManager;
-
-    // Main layout
-    QVBoxLayout *m_mainLayout;
-    QTabWidget *m_tabWidget;
-
-    // Recording configuration tab
-    QWidget *m_recordingTab;
-    QGroupBox *m_outputGroup;
-    QGroupBox *m_formatGroup;
-
-    // Output directory controls
-    QLineEdit *m_outputDirectoryEdit;
-    QPushButton *m_browseDirectoryButton;
-    QLabel *m_diskSpaceLabel;
-    QProgressBar *m_diskUsageBar;
-
-    // Format controls
-    QComboBox *m_outputFormatCombo;
-    QLabel *m_formatDescriptionLabel;
-    QCheckBox *m_enableCompressionCheck;
-    QSpinBox *m_compressionLevelSpin;
-
-    // Segmentation configuration tab
-    QWidget *m_segmentationTab;
-    QGroupBox *m_segmentGroup;
-    QGroupBox *m_rotationGroup;
-    QGroupBox *m_cleanupGroup;
-
-    // Segmentation controls
-    QSpinBox *m_segmentDurationSpin;
-    QComboBox *m_segmentDurationUnit;
-    QSpinBox *m_maxSegmentSizeSpin;
-    QSpinBox *m_maxArchiveSegmentsSpin;
-    QLineEdit *m_filenamePatternEdit;
-    QLabel *m_segmentPreviewLabel;
-
-    // Rotation controls
-    QCheckBox *m_enableDailyRotationCheck;
-    QSpinBox *m_dailyRotationHourSpin;
-    QCheckBox *m_enableAutoArchiveCheck;
-
-    // Cleanup controls
-    QCheckBox *m_enableAutoCleanupCheck;
-    QSpinBox *m_retentionPeriodSpin;
-    QComboBox *m_retentionPeriodUnit;
-    QDoubleSpinBox *m_maxDiskUsageSpin;
-
-    // Format and compression tab
-    QWidget *m_formatTab;
-    QGroupBox *m_qualityGroup;
-    QGroupBox *m_metadataGroup;
-
-    // Quality controls
-    QCheckBox *m_preserveTimestampsCheck;
-    QCheckBox *m_enableIntegrityCheckingCheck;
-    QSlider *m_qualitySlider;
-    QLabel *m_qualityLabel;
-
-    // Metadata controls
-    QCheckBox *m_embedMetadataCheck;
-    QCheckBox *m_embedEnsembleInfoCheck;
-    QCheckBox *m_embedServiceInfoCheck;
-    QTextEdit *m_customMetadataEdit;
-
-    // Session monitoring tab
-    QWidget *m_monitoringTab;
-    QSplitter *m_monitoringSplitter;
-    QGroupBox *m_sessionsGroup;
-    QGroupBox *m_statisticsGroup;
-
-    // Sessions list
-    QTableWidget *m_sessionsTable;
-    QPushButton *m_refreshSessionsButton;
-    QPushButton *m_clearSessionsButton;
-
-    // Statistics display
-    QLabel *m_currentSessionLabel;
-    QProgressBar *m_recordingProgressBar;
-    QLabel *m_framesRecordedLabel;
-    QLabel *m_bytesWrittenLabel;
-    QLabel *m_segmentsCreatedLabel;
-    QLabel *m_errorsEncounteredLabel;
-    QLabel *m_averageFrameRateLabel;
-    QLabel *m_currentLatencyLabel;
-
-    // Recording controls
-    QHBoxLayout *m_recordingControlsLayout;
-    QPushButton *m_startRecordingButton;
-    QPushButton *m_stopRecordingButton;
-    QPushButton *m_pauseRecordingButton;
-    QPushButton *m_testSettingsButton;
-
-    // Button box
-    QHBoxLayout *m_buttonLayout;
-    QPushButton *m_okButton;
-    QPushButton *m_cancelButton;
-    QPushButton *m_applyButton;
-    QPushButton *m_resetButton;
-    QPushButton *m_loadButton;
-    QPushButton *m_saveButton;
 
     // Update timers
     QTimer *m_statusUpdateTimer;

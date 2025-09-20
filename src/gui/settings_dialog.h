@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDialog>
+#include "ui_settings_dialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -181,54 +182,19 @@ private slots:
 
 private:
     /**
-     * @brief Create the UI layout
+     * @brief Initialize combo boxes with values
      */
-    void createUI();
-
-    /**
-     * @brief Create general settings tab
-     */
-    void createGeneralTab();
-
-    /**
-     * @brief Create analysis settings tab
-     */
-    void createAnalysisTab();
-
-    /**
-     * @brief Create display settings tab
-     */
-    void createDisplayTab();
-
-    /**
-     * @brief Create audio settings tab
-     */
-    void createAudioTab();
-
-    /**
-     * @brief Create network settings tab
-     */
-    void createNetworkTab();
-
-    /**
-     * @brief Create performance settings tab
-     */
-    void createPerformanceTab();
-
-    /**
-     * @brief Create advanced settings tab
-     */
-    void createAdvancedTab();
-
-    /**
-     * @brief Create button box
-     */
-    void createButtonBox();
+    void initializeComboBoxes();
 
     /**
      * @brief Update UI controls with current settings
      */
     void updateUI();
+
+    /**
+     * @brief Update color button appearance
+     */
+    void updateColorButtons();
 
     /**
      * @brief Validate settings values
@@ -237,108 +203,19 @@ private:
     bool validateSettings();
 
     /**
-     * @brief Apply theme settings
-     */
-    void applyTheme();
-
-    /**
      * @brief Get default settings values
      * @return Default settings map
      */
     QVariantMap getDefaultSettings() const;
 
-    // Main layout
-    QVBoxLayout *m_mainLayout;
-    QTabWidget *m_tabWidget;
-    QDialogButtonBox *m_buttonBox;
-    QPushButton *m_applyButton;
-    QPushButton *m_resetButton;
-    QPushButton *m_defaultsButton;
+    // UI class instance
+    Ui::SettingsDialog *ui;
 
-    // General tab
-    QWidget *m_generalTab;
-    QCheckBox *m_autoStartAnalysis;
-    QCheckBox *m_rememberWindowState;
-    QCheckBox *m_showSplashScreen;
-    QCheckBox *m_checkForUpdates;
-    QComboBox *m_languageCombo;
-    QComboBox *m_themeCombo;
-    QLineEdit *m_defaultDirectoryEdit;
-    QPushButton *m_browseDirectoryButton;
-
-    // Analysis tab
-    QWidget *m_analysisTab;
-    QSpinBox *m_updateRateSpin;
-    QSpinBox *m_bufferSizeSpin;
-    QDoubleSpinBox *m_analysisTimeoutSpin;
-    QCheckBox *m_realTimeProcessingCheck;
-    QCheckBox *m_enableErrorDetection;
-    QCheckBox *m_enableFigAnalysis;
-    QCheckBox *m_enableAudioAnalysis;
-    QComboBox *m_processingModeCombo;
-    QSlider *m_sensitivitySlider;
-
-    // Display tab
-    QWidget *m_displayTab;
-    QSpinBox *m_frameRateSpin;
-    QCheckBox *m_enableAntialiasing;
-    QCheckBox *m_enableVSync;
-    QCheckBox *m_showGridLines;
-    QCheckBox *m_showStatusBar;
-    QComboBox *m_colorSchemeCombo;
-    QPushButton *m_backgroundColorButton;
-    QPushButton *m_gridColorButton;
-    QPushButton *m_textColorButton;
-    QPushButton *m_fontButton;
+    // Custom members for business logic
     QColor m_backgroundColor;
     QColor m_gridColor;
     QColor m_textColor;
     QFont m_displayFont;
-
-    // Audio tab
-    QWidget *m_audioTab;
-    QCheckBox *m_enableAudioMonitoring;
-    QSlider *m_audioVolumeSlider;
-    QSpinBox *m_audioBufferSizeSpin;
-    QComboBox *m_audioOutputDeviceCombo;
-    QComboBox *m_audioSampleRateCombo;
-    QCheckBox *m_enableAudioRecording;
-    QLineEdit *m_audioRecordingPathEdit;
-    QPushButton *m_browseAudioPathButton;
-
-    // Network tab
-    QWidget *m_networkTab;
-    QCheckBox *m_enableNetworkStreaming;
-    QLineEdit *m_networkAddressEdit;
-    QSpinBox *m_networkPortSpin;
-    QSpinBox *m_networkTimeoutSpin;
-    QSpinBox *m_maxConnectionsSpin;
-    QCheckBox *m_enableMulticast;
-    QLineEdit *m_multicastAddressEdit;
-    QSpinBox *m_multicastPortSpin;
-
-    // Performance tab
-    QWidget *m_performanceTab;
-    QSpinBox *m_memoryLimitSpin;
-    QSpinBox *m_threadCountSpin;
-    QCheckBox *m_enableHardwareAcceleration;
-    QCheckBox *m_enableGpuAcceleration;
-    QCheckBox *m_enableMultiThreading;
-    QSlider *m_processingPrioritySlider;
-    QCheckBox *m_enableMemoryOptimization;
-    QCheckBox *m_enableCpuOptimization;
-
-    // Advanced tab
-    QWidget *m_advancedTab;
-    QCheckBox *m_enableDebugLogging;
-    QComboBox *m_logLevelCombo;
-    QLineEdit *m_logFilePathEdit;
-    QPushButton *m_browseLogPathButton;
-    QCheckBox *m_enableProfiling;
-    QCheckBox *m_enableCrashReporting;
-    QLineEdit *m_customConfigEdit;
-    QSpinBox *m_maxLogFilesSpin;
-    QSpinBox *m_maxLogSizeSpin;
 
     // Settings state
     bool m_settingsLoaded;

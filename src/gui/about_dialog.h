@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDialog>
+#include "ui_about_dialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -77,34 +78,14 @@ private slots:
 
 private:
     /**
-     * @brief Create the UI layout
+     * @brief Setup signal connections
      */
-    void createUI();
+    void setupConnections();
 
     /**
-     * @brief Create about tab
+     * @brief Populate content in UI elements
      */
-    void createAboutTab();
-
-    /**
-     * @brief Create credits tab
-     */
-    void createCreditsTab();
-
-    /**
-     * @brief Create license tab
-     */
-    void createLicenseTab();
-
-    /**
-     * @brief Create system info tab
-     */
-    void createSystemInfoTab();
-
-    /**
-     * @brief Create button box
-     */
-    void createButtonBox();
+    void populateContent();
 
     /**
      * @brief Get application logo
@@ -130,32 +111,8 @@ private:
      */
     QString getDetailedSystemInfo() const;
 
-    // Main layout
-    QVBoxLayout *m_mainLayout;
-    QTabWidget *m_tabWidget;
-    QDialogButtonBox *m_buttonBox;
-    QPushButton *m_copyInfoButton;
-
-    // About tab
-    QWidget *m_aboutTab;
-    QLabel *m_logoLabel;
-    QLabel *m_titleLabel;
-    QLabel *m_versionLabel;
-    QLabel *m_copyrightLabel;
-    QLabel *m_descriptionLabel;
-    QLabel *m_websiteLabel;
-
-    // Credits tab
-    QWidget *m_creditsTab;
-    QTextEdit *m_creditsText;
-
-    // License tab
-    QWidget *m_licenseTab;
-    QTextEdit *m_licenseText;
-
-    // System info tab
-    QWidget *m_systemInfoTab;
-    QTextEdit *m_systemInfoText;
+    // UI class instance
+    Ui::AboutDialog *ui;
 
     // Application information
     static constexpr const char* APP_NAME = "StreamDAB Stream Analyzer";
