@@ -1,5 +1,7 @@
 # CLAUDE.md - ETI Stream Analyzer Professional Desktop Application
 
+> **📚 Quick Documentation Access**: [Technical Docs](#-comprehensive-technical-documentation) | [ETSI Compliance](docs/ETSI_COMPLIANCE_FRAMEWORK.md) | [ETI Specifications](docs/ETI_PROTOCOL_SPECIFICATIONS.md) | [Testing Framework](docs/TESTING_FRAMEWORK_REQUIREMENTS.md) | [UI Design Guide](docs/UI_DESIGN_GUIDE.md)
+
 ## 🏆 **PROJECT STATUS: PHASE 6 COMPLETE - 100% PRODUCTION READY**
 
 **Current State:** Professional ETI Stream Analyzer with zero warning build system and comprehensive UI framework  
@@ -1536,6 +1538,67 @@ The ETI Stream Analyzer maintains comprehensive broadcast industry standard comp
 - **Professional Quality**: Meets all broadcast industry deployment requirements
 
 **Project Achievement**: Successfully transformed from concept to production-ready professional broadcast tool with enhanced DAB+ capabilities (ETSI 300 799) while maintaining complete broadcast industry standard compliance and clear path to industry leadership.
+
+## 📚 **COMPREHENSIVE TECHNICAL DOCUMENTATION**
+
+### **📋 Core Project Documentation**
+- **[CLAUDE.md](CLAUDE.md)** - This file: Complete project status, implementation details, and specifications
+- **[README.md](README.md)** - Project overview, quick start, and achievement summary
+
+### **🔧 Technical Implementation Documentation**
+
+**ETSI Standards and Compliance:**
+- **[ETSI_COMPLIANCE_FRAMEWORK.md](docs/ETSI_COMPLIANCE_FRAMEWORK.md)** - Complete ETSI standards implementation guide, compliance validation procedures, and broadcast industry certification requirements
+- **[FIG_ANALYSIS_REQUIREMENTS.md](docs/FIG_ANALYSIS_REQUIREMENTS.md)** - Fast Information Group processing specifications, ETSI 300 799 compliance validation, and DAB+ service analysis requirements
+
+**Core Technology Specifications:**
+- **[ETI_PROTOCOL_SPECIFICATIONS.md](docs/ETI_PROTOCOL_SPECIFICATIONS.md)** - Comprehensive ETI frame processing details, ETI-NI/ETI-LI/EDI format support, and protocol implementation specifications
+- **[INTEGRATION_SPECIFICATIONS.md](docs/INTEGRATION_SPECIFICATIONS.md)** - Component integration architecture, signal/slot connections, and system-wide integration requirements
+
+**Quality Assurance and Testing:**
+- **[TESTING_FRAMEWORK_REQUIREMENTS.md](docs/TESTING_FRAMEWORK_REQUIREMENTS.md)** - TDD implementation guide, test coverage requirements, and quality assurance procedures
+- **[ETSI_TDD_INTEGRATION_SPECIFICATIONS.md](docs/ETSI_TDD_INTEGRATION_SPECIFICATIONS.md)** - ETSI compliance testing integration, standards validation testing, and regulatory compliance verification
+
+**User Interface and Design:**
+- **[UI_DESIGN_GUIDE.md](docs/UI_DESIGN_GUIDE.md)** - DAB+ focused UI design specifications, professional broadcast industry interface requirements, and user workflow optimization
+
+**Development and Future Planning:**
+- **[DEVELOPMENT_WORKFLOW.md](docs/DEVELOPMENT_WORKFLOW.md)** - Professional development processes, code quality standards, and team coordination workflows
+- **[FUTURE_ROADMAP.md](docs/FUTURE_ROADMAP.md)** - Phase 7 advanced features roadmap, commercial expansion strategy, and long-term project evolution
+
+### **📖 Documentation Usage Guidelines**
+
+**For Developers:**
+1. Start with **CLAUDE.md** for complete project understanding
+2. Reference **ETSI_COMPLIANCE_FRAMEWORK.md** for standards requirements
+3. Follow **DEVELOPMENT_WORKFLOW.md** for professional development practices
+4. Use **TESTING_FRAMEWORK_REQUIREMENTS.md** for quality assurance
+
+**For Technical Implementation:**
+1. **ETI_PROTOCOL_SPECIFICATIONS.md** - For ETI processing implementation
+2. **FIG_ANALYSIS_REQUIREMENTS.md** - For DAB+ FIG analysis features
+3. **INTEGRATION_SPECIFICATIONS.md** - For component integration
+4. **UI_DESIGN_GUIDE.md** - For interface development
+
+**For Quality Assurance:**
+1. **TESTING_FRAMEWORK_REQUIREMENTS.md** - For comprehensive testing
+2. **ETSI_TDD_INTEGRATION_SPECIFICATIONS.md** - For standards compliance testing
+3. **ETSI_COMPLIANCE_FRAMEWORK.md** - For validation procedures
+
+**For Project Planning:**
+1. **FUTURE_ROADMAP.md** - For advanced features and commercial expansion
+2. **DEVELOPMENT_WORKFLOW.md** - For team coordination and processes
+
+### **🔗 Cross-Reference Requirements**
+
+**IMPORTANT**: All agents and developers must reference these documents to ensure:
+- ✅ **ETSI Standards Compliance** - Follow ETSI_COMPLIANCE_FRAMEWORK.md requirements
+- ✅ **Technical Consistency** - Adhere to ETI_PROTOCOL_SPECIFICATIONS.md and INTEGRATION_SPECIFICATIONS.md
+- ✅ **Quality Standards** - Meet TESTING_FRAMEWORK_REQUIREMENTS.md criteria
+- ✅ **UI/UX Consistency** - Follow UI_DESIGN_GUIDE.md specifications
+- ✅ **Development Standards** - Follow DEVELOPMENT_WORKFLOW.md processes
+
+All implementation work must be validated against these technical documentation requirements to maintain professional broadcast industry standards.
 
 ## 🎵 **DAB+ FOCUSED IMPLEMENTATION PLAN**
 
