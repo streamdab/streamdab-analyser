@@ -870,10 +870,25 @@ void TestGUIIntegration::testUserInteractionResponsiveness()
     QList<QWidget*> interactiveComponents;
     
     // Find interactive components
-    interactiveComponents.append(mainWindow->findChildren<QPushButton*>());
-    interactiveComponents.append(mainWindow->findChildren<QComboBox*>());
-    interactiveComponents.append(mainWindow->findChildren<QSlider*>());
-    interactiveComponents.append(mainWindow->findChildren<QCheckBox*>());
+    auto pushButtons = mainWindow->findChildren<QPushButton*>();
+    for (auto* button : pushButtons) {
+        interactiveComponents.append(button);
+    }
+    
+    auto comboBoxes = mainWindow->findChildren<QComboBox*>();
+    for (auto* combo : comboBoxes) {
+        interactiveComponents.append(combo);
+    }
+    
+    auto sliders = mainWindow->findChildren<QSlider*>();
+    for (auto* slider : sliders) {
+        interactiveComponents.append(slider);
+    }
+    
+    auto checkBoxes = mainWindow->findChildren<QCheckBox*>();
+    for (auto* checkbox : checkBoxes) {
+        interactiveComponents.append(checkbox);
+    }
     
     // Test interaction responsiveness
     for (QWidget* component : interactiveComponents) {
