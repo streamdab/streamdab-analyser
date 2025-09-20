@@ -8,6 +8,39 @@ find_library(WINMM_LIBRARY winmm)
 find_library(WSOCK32_LIBRARY wsock32)
 find_library(WS2_32_LIBRARY ws2_32)
 
+# Windows-specific audio decoder handling
+if(WIN32)
+    # Try to find fdk-aac first (preferred for professional DAB+ decoding)
+    find_path(FDK_AAC_INCLUDE_DIR NAMES fdk-aac/aacdecoder_lib.h
+        PATHS
+            "$ENV{PROGRAMFILES}/fdk-aac/include"
+            "$ENV{PROGRAMFILES(X86)}/fdk-aac/include"
+            "${CMAKE_PREFIX_PATH}/include"
+    )
+    find_library(FDK_AAC_LIBRARY NAMES fdk-aac
+        PATHS
+            "$ENV{PROGRAMFILES}/fdk-aac/lib"
+            "$ENV{PROGRAMFILES(X86)}/fdk-aac/lib"
+            "${CMAKE_PREFIX_PATH}/lib"
+    )
+
+    # Fallback to FAAD2 if fdk-aac not found
+    if(NOT FDK_AAC_LIBRARY)
+        find_path(FAAD2_INCLUDE_DIR NAMES neaacdec.h
+            PATHS
+                "$ENV{PROGRAMFILES}/faad2/include"
+                "$ENV{PROGRAMFILES(X86)}/faad2/include"
+                "${CMAKE_PREFIX_PATH}/include"
+        )
+        find_library(FAAD2_LIBRARY NAMES faad2 libfaad2
+            PATHS
+                "$ENV{PROGRAMFILES}/faad2/lib"
+                "$ENV{PROGRAMFILES(X86)}/faad2/lib"
+                "${CMAKE_PREFIX_PATH}/lib"
+        )
+    endif()
+endif()
+
 # Verify Windows libraries are found
 if(NOT WINMM_LIBRARY)
     message(FATAL_ERROR "Windows Multimedia API (winmm.lib) not found")

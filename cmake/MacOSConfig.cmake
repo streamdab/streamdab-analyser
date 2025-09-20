@@ -10,6 +10,43 @@ find_library(AUDIOUNIT_FRAMEWORK AudioUnit)
 find_library(FOUNDATION_FRAMEWORK Foundation)
 find_library(COCOA_FRAMEWORK Cocoa)
 
+# macOS-specific audio decoder handling with Homebrew support
+if(APPLE)
+    # Try to find fdk-aac first (preferred for professional DAB+ decoding)
+    find_path(FDK_AAC_INCLUDE_DIR NAMES fdk-aac/aacdecoder_lib.h
+        PATHS
+            /usr/local/include
+            /opt/homebrew/include
+            /usr/include
+            "${CMAKE_PREFIX_PATH}/include"
+    )
+    find_library(FDK_AAC_LIBRARY NAMES fdk-aac
+        PATHS
+            /usr/local/lib
+            /opt/homebrew/lib
+            /usr/lib
+            "${CMAKE_PREFIX_PATH}/lib"
+    )
+
+    # Fallback to FAAD2 if fdk-aac not found
+    if(NOT FDK_AAC_LIBRARY)
+        find_path(FAAD2_INCLUDE_DIR NAMES neaacdec.h
+            PATHS
+                /usr/local/include
+                /opt/homebrew/include
+                /usr/include
+                "${CMAKE_PREFIX_PATH}/include"
+        )
+        find_library(FAAD2_LIBRARY NAMES faad2
+            PATHS
+                /usr/local/lib
+                /opt/homebrew/lib
+                /usr/lib
+                "${CMAKE_PREFIX_PATH}/lib"
+        )
+    endif()
+endif()
+
 # Verify macOS frameworks are found
 if(NOT COREAUDIO_FRAMEWORK)
     message(FATAL_ERROR "CoreAudio framework not found")

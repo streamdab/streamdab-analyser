@@ -57,7 +57,50 @@ else()
 endif()
 
 message(STATUS "Platform configuration: ${PLATFORM_NAME}")
-pkg_check_modules(FAAD2 REQUIRED faad2)
+# Enhanced audio decoder detection for DAB+ support
+option(USE_FDK_AAC "Use fdk-aac instead of FAAD2 for better DAB+ support" ON)
+
+if(USE_FDK_AAC)
+    # Prefer fdk-aac for professional DAB+ decoding
+    pkg_check_modules(FDK_AAC fdk-aac)
+    if(FDK_AAC_FOUND)
+        set(AUDIO_DECODER_LIBS ${FDK_AAC_LIBRARIES})
+        set(AUDIO_DECODER_INCLUDE_DIRS ${FDK_AAC_INCLUDE_DIRS})
+        set(AUDIO_DECODER_CFLAGS ${FDK_AAC_CFLAGS_OTHER})
+        set(AUDIO_DECODER_DEFINITIONS "USE_FDK_AAC")
+        message(STATUS "Using fdk-aac ${FDK_AAC_VERSION} for DAB+ audio decoding (professional grade)")
+    else()
+        message(WARNING "fdk-aac not found, falling back to FAAD2")
+        set(USE_FDK_AAC OFF)
+    endif()
+endif()
+
+if(NOT USE_FDK_AAC)
+    # Use FAAD2 with version requirement for DAB+ support
+    pkg_check_modules(FAAD2 faad2>=2.9.2)
+    if(FAAD2_FOUND)
+        set(AUDIO_DECODER_LIBS ${FAAD2_LIBRARIES})
+        set(AUDIO_DECODER_INCLUDE_DIRS ${FAAD2_INCLUDE_DIRS})
+        set(AUDIO_DECODER_CFLAGS ${FAAD2_CFLAGS_OTHER})
+        set(AUDIO_DECODER_DEFINITIONS "USE_FAAD2")
+        message(STATUS "Using FAAD2 ${FAAD2_VERSION} for DAB+ audio decoding")
+    else()
+        # Check for any FAAD2 version and warn if too old
+        pkg_check_modules(FAAD2_ANY faad2)
+        if(FAAD2_ANY_FOUND)
+            message(WARNING "FAAD2 ${FAAD2_ANY_VERSION} found but version 2.9.2+ required for DAB+ support")
+            message(WARNING "Consider installing fdk-aac or updating FAAD2")
+            # Still use it but warn user
+            set(AUDIO_DECODER_LIBS ${FAAD2_ANY_LIBRARIES})
+            set(AUDIO_DECODER_INCLUDE_DIRS ${FAAD2_ANY_INCLUDE_DIRS})
+            set(AUDIO_DECODER_CFLAGS ${FAAD2_ANY_CFLAGS_OTHER})
+            set(AUDIO_DECODER_DEFINITIONS "USE_FAAD2")
+        else()
+            message(FATAL_ERROR "No suitable DAB+ audio decoder found. Install fdk-aac or FAAD2 2.9.2+")
+        endif()
+    endif()
+endif()
+
 pkg_check_modules(FFTW3 REQUIRED fftw3)
 
 # Optional YAML configuration support
@@ -110,6 +153,8 @@ set(CORE_SOURCE_FILES
     src/core/ensemble_manager.h
     src/core/service_manager.cpp
     src/core/service_manager.h
+    src/core/dab_audio_decoder.cpp
+    src/core/dab_audio_decoder.h
     src/gui/main_window.cpp
     src/gui/main_window.h
     src/gui/analyzer_widget.cpp
@@ -128,6 +173,8 @@ set(CORE_SOURCE_FILES
     src/gui/eti_frame_list_model.h
     src/gui/fig_analysis_widget.cpp
     src/gui/fig_analysis_widget.h
+    src/gui/audio_monitoring_widget.cpp
+    src/gui/audio_monitoring_widget.h
     src/utils/logger.cpp
     src/utils/logger.h
     src/utils/config_manager.cpp
@@ -161,7 +208,7 @@ set(COMMON_LIBS
     Qt6::Gui
     Qt6::Network
     Qt6::Multimedia
-    ${pkgcfg_lib_FAAD2_faad}
+    ${AUDIO_DECODER_LIBS}
     ${pkgcfg_lib_FFTW3_fftw3}
     etisnoop::etisnoop
 )
@@ -190,14 +237,15 @@ endif()
 
 # Include directories for dependencies
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${FAAD2_INCLUDE_DIRS}
+    ${AUDIO_DECODER_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
 )
 
 # Compile definitions
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     QT_NO_DEPRECATED_WARNINGS
-    ${FAAD2_CFLAGS_OTHER}
+    ${AUDIO_DECODER_DEFINITIONS}
+    ${AUDIO_DECODER_CFLAGS}
     ${FFTW3_CFLAGS_OTHER}
 )
 
