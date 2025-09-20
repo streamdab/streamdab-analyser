@@ -260,6 +260,9 @@ endif()
 # Testing configuration
 add_subdirectory(tests)
 
+# E2E Testing configuration
+add_subdirectory(tests/e2e)
+
 # Installation configuration
 install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION bin
