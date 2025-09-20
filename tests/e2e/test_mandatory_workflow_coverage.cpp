@@ -768,4 +768,5 @@ void TestMandatoryWorkflowCoverage::generateComprehensiveCoverageReport()
     }
 }
 
+QTEST_MAIN(TestMandatoryWorkflowCoverage)
 #include "test_mandatory_workflow_coverage.moc"
