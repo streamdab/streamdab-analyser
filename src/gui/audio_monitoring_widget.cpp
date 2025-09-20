@@ -743,6 +743,7 @@ QWidget* AudioMonitoringWidget::createServiceDisplay(const ServiceAudioInfo& ser
     
     // Connect signals
     connect(audioMeter, &QProgressBar::valueChanged, [this, serviceInfo](int value) {
+        Q_UNUSED(value)  // Parameter not used in current implementation
         handleAudioMeterClicked(serviceInfo.serviceId);
     });
     
@@ -838,6 +839,7 @@ QColor AudioMonitoringWidget::getAudioQualityColor(AudioQuality quality) const
 
 QIcon AudioMonitoringWidget::getCodecIcon(AudioCodec codec) const
 {
+    Q_UNUSED(codec)  // For future codec-specific icon implementation
     // Return appropriate icons based on codec type
     // For now, return null icons - would be implemented with actual icon resources
     return QIcon();

@@ -218,7 +218,7 @@ bool MainWindow::initialize()
         m_etiFileWorker = std::make_unique<EtiFileWorker>(m_etiProcessor.get());
         
         // Pre-initialize file system for faster dialog opening
-        QTimer::singleShot(100, this, [this]() {
+        QTimer::singleShot(100, this, []() {
             // Pre-warm the file dialog system to avoid first-use delay
             QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
         });
@@ -1028,7 +1028,7 @@ void MainWindow::createMainContentArea()
     layout->addWidget(m_contentSplitter);
     
     // Connect signals for enhanced functionality
-    connect(viewModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](int index) {
+    connect(viewModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [](int index) {
         // Handle view mode changes
         qDebug() << "Frame view mode changed to index:" << index;
         // TODO: Implement view mode switching logic
