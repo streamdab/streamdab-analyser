@@ -1,0 +1,1144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SettingsDialog</class>
+ <widget class="QDialog" name="SettingsDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>700</width>
+    <height>550</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>600</width>
+    <height>450</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>StreamDAB Stream Analyzer - Settings</string>
+  </property>
+  <property name="windowIcon">
+   <iconset>
+    <normaloff>:/icons/settings.png</normaloff>:/icons/settings.png</iconset>
+  </property>
+  <property name="modal">
+   <bool>true</bool>
+  </property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <property name="spacing">
+    <number>10</number>
+   </property>
+   <property name="leftMargin">
+    <number>10</number>
+   </property>
+   <property name="topMargin">
+    <number>10</number>
+   </property>
+   <property name="rightMargin">
+    <number>10</number>
+   </property>
+   <property name="bottomMargin">
+    <number>10</number>
+   </property>
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="generalTab">
+      <attribute name="title">
+       <string>General</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="generalTabLayout">
+       <item>
+        <widget class="QGroupBox" name="behaviorGroup">
+         <property name="title">
+          <string>Application Behavior</string>
+         </property>
+         <layout class="QVBoxLayout" name="behaviorLayout">
+          <item>
+           <widget class="QCheckBox" name="autoStartAnalysis">
+            <property name="text">
+             <string>Automatically start analysis when file is opened</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="rememberWindowState">
+            <property name="text">
+             <string>Remember window position and size</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="showSplashScreen">
+            <property name="text">
+             <string>Show splash screen on startup</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="checkForUpdates">
+            <property name="text">
+             <string>Check for updates automatically</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="appearanceGroup">
+         <property name="title">
+          <string>Appearance</string>
+         </property>
+         <layout class="QFormLayout" name="appearanceLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="languageLabel">
+            <property name="text">
+             <string>Language:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="languageCombo"/>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="themeLabel">
+            <property name="text">
+             <string>Theme:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="themeCombo"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="defaultDirectoryGroup">
+         <property name="title">
+          <string>Default Directory</string>
+         </property>
+         <layout class="QHBoxLayout" name="defaultDirectoryLayout">
+          <item>
+           <widget class="QLineEdit" name="defaultDirectoryEdit"/>
+          </item>
+          <item>
+           <widget class="QPushButton" name="browseDirectoryButton">
+            <property name="text">
+             <string>Browse...</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="generalVerticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="analysisTab">
+      <attribute name="title">
+       <string>Analysis</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="analysisTabLayout">
+       <item>
+        <widget class="QGroupBox" name="processingGroup">
+         <property name="title">
+          <string>Processing Settings</string>
+         </property>
+         <layout class="QFormLayout" name="processingLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="updateRateLabel">
+            <property name="text">
+             <string>Update Rate (FPS):</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QSpinBox" name="updateRateSpin">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>120</number>
+            </property>
+            <property name="value">
+             <number>60</number>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="bufferSizeLabel">
+            <property name="text">
+             <string>Buffer Size (frames):</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QSpinBox" name="bufferSizeSpin">
+            <property name="minimum">
+             <number>10</number>
+            </property>
+            <property name="maximum">
+             <number>10000</number>
+            </property>
+            <property name="value">
+             <number>1000</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="analysisTimeoutLabel">
+            <property name="text">
+             <string>Analysis Timeout (s):</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QDoubleSpinBox" name="analysisTimeoutSpin">
+            <property name="decimals">
+             <number>1</number>
+            </property>
+            <property name="minimum">
+             <double>0.500000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>60.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>5.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="processingModeLabel">
+            <property name="text">
+             <string>Processing Mode:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QComboBox" name="processingModeCombo"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="analysisOptionsGroup">
+         <property name="title">
+          <string>Analysis Options</string>
+         </property>
+         <layout class="QVBoxLayout" name="analysisOptionsLayout">
+          <item>
+           <widget class="QCheckBox" name="realTimeProcessingCheck">
+            <property name="text">
+             <string>Enable real-time processing</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="enableErrorDetection">
+            <property name="text">
+             <string>Enable error detection</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="enableFigAnalysis">
+            <property name="text">
+             <string>Enable FIG analysis</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="enableAudioAnalysis">
+            <property name="text">
+             <string>Enable audio analysis</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="sensitivityGroup">
+         <property name="title">
+          <string>Sensitivity</string>
+         </property>
+         <layout class="QHBoxLayout" name="sensitivityLayout">
+          <item>
+           <widget class="QLabel" name="sensitivityLowLabel">
+            <property name="text">
+             <string>Low</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSlider" name="sensitivitySlider">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>10</number>
+            </property>
+            <property name="value">
+             <number>5</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="sensitivityHighLabel">
+            <property name="text">
+             <string>High</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="analysisVerticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="displayTab">
+      <attribute name="title">
+       <string>Display</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="displayTabLayout">
+       <item>
+        <widget class="QGroupBox" name="visualGroup">
+         <property name="title">
+          <string>Visual Settings</string>
+         </property>
+         <layout class="QFormLayout" name="visualLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="frameRateLabel">
+            <property name="text">
+             <string>Frame Rate (FPS):</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QSpinBox" name="frameRateSpin">
+            <property name="minimum">
+             <number>15</number>
+            </property>
+            <property name="maximum">
+             <number>120</number>
+            </property>
+            <property name="value">
+             <number>60</number>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="colorSchemeLabel">
+            <property name="text">
+             <string>Color Scheme:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="colorSchemeCombo"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="renderingGroup">
+         <property name="title">
+          <string>Rendering Options</string>
+         </property>
+         <layout class="QVBoxLayout" name="renderingLayout">
+          <item>
+           <widget class="QCheckBox" name="enableAntialiasing">
+            <property name="text">
+             <string>Enable antialiasing</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="enableVSync">
+            <property name="text">
+             <string>Enable VSync</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="showGridLines">
+            <property name="text">
+             <string>Show grid lines</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="showStatusBar">
+            <property name="text">
+             <string>Show status bar</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="colorGroup">
+         <property name="title">
+          <string>Color Customization</string>
+         </property>
+         <layout class="QFormLayout" name="colorLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="backgroundColorLabel">
+            <property name="text">
+             <string>Background Color:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QPushButton" name="backgroundColorButton">
+            <property name="text">
+             <string>Choose...</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="gridColorLabel">
+            <property name="text">
+             <string>Grid Color:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QPushButton" name="gridColorButton">
+            <property name="text">
+             <string>Choose...</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="textColorLabel">
+            <property name="text">
+             <string>Text Color:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QPushButton" name="textColorButton">
+            <property name="text">
+             <string>Choose...</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="fontLabel">
+            <property name="text">
+             <string>Font:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QPushButton" name="fontButton">
+            <property name="text">
+             <string>Choose...</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="displayVerticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="audioTab">
+      <attribute name="title">
+       <string>Audio</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="audioTabLayout">
+       <item>
+        <widget class="QGroupBox" name="audioMonitoringGroup">
+         <property name="title">
+          <string>Audio Monitoring</string>
+         </property>
+         <layout class="QVBoxLayout" name="audioMonitoringLayout">
+          <item>
+           <widget class="QCheckBox" name="enableAudioMonitoring">
+            <property name="text">
+             <string>Enable audio monitoring</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QFormLayout" name="audioSettingsLayout">
+            <item row="0" column="0">
+             <widget class="QLabel" name="audioVolumeLabel">
+              <property name="text">
+               <string>Volume:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QSlider" name="audioVolumeSlider">
+              <property name="maximum">
+               <number>100</number>
+              </property>
+              <property name="value">
+               <number>50</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="audioBufferSizeLabel">
+              <property name="text">
+               <string>Buffer Size:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QSpinBox" name="audioBufferSizeSpin">
+              <property name="minimum">
+               <number>64</number>
+              </property>
+              <property name="maximum">
+               <number>8192</number>
+              </property>
+              <property name="value">
+               <number>1024</number>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="audioOutputDeviceLabel">
+              <property name="text">
+               <string>Output Device:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QComboBox" name="audioOutputDeviceCombo"/>
+            </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="audioSampleRateLabel">
+              <property name="text">
+               <string>Sample Rate:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QComboBox" name="audioSampleRateCombo"/>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="audioRecordingGroup">
+         <property name="title">
+          <string>Audio Recording</string>
+         </property>
+         <layout class="QVBoxLayout" name="audioRecordingLayout">
+          <item>
+           <widget class="QCheckBox" name="enableAudioRecording">
+            <property name="text">
+             <string>Enable audio recording</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="audioPathLayout">
+            <item>
+             <widget class="QLineEdit" name="audioRecordingPathEdit"/>
+            </item>
+            <item>
+             <widget class="QPushButton" name="browseAudioPathButton">
+              <property name="text">
+               <string>Browse...</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="audioVerticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="networkTab">
+      <attribute name="title">
+       <string>Network</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="networkTabLayout">
+       <item>
+        <widget class="QGroupBox" name="networkStreamingGroup">
+         <property name="title">
+          <string>Network Streaming</string>
+         </property>
+         <layout class="QVBoxLayout" name="networkStreamingLayout">
+          <item>
+           <widget class="QCheckBox" name="enableNetworkStreaming">
+            <property name="text">
+             <string>Enable network streaming</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QFormLayout" name="networkSettingsLayout">
+            <item row="0" column="0">
+             <widget class="QLabel" name="networkAddressLabel">
+              <property name="text">
+               <string>Address:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QLineEdit" name="networkAddressEdit"/>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="networkPortLabel">
+              <property name="text">
+               <string>Port:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QSpinBox" name="networkPortSpin">
+              <property name="minimum">
+               <number>1024</number>
+              </property>
+              <property name="maximum">
+               <number>65535</number>
+              </property>
+              <property name="value">
+               <number>8080</number>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="networkTimeoutLabel">
+              <property name="text">
+               <string>Timeout (ms):</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QSpinBox" name="networkTimeoutSpin">
+              <property name="minimum">
+               <number>1000</number>
+              </property>
+              <property name="maximum">
+               <number>30000</number>
+              </property>
+              <property name="value">
+               <number>5000</number>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="maxConnectionsLabel">
+              <property name="text">
+               <string>Max Connections:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QSpinBox" name="maxConnectionsSpin">
+              <property name="minimum">
+               <number>1</number>
+              </property>
+              <property name="maximum">
+               <number>100</number>
+              </property>
+              <property name="value">
+               <number>10</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="multicastGroup">
+         <property name="title">
+          <string>Multicast Settings</string>
+         </property>
+         <layout class="QVBoxLayout" name="multicastLayout">
+          <item>
+           <widget class="QCheckBox" name="enableMulticast">
+            <property name="text">
+             <string>Enable multicast</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QFormLayout" name="multicastSettingsLayout">
+            <item row="0" column="0">
+             <widget class="QLabel" name="multicastAddressLabel">
+              <property name="text">
+               <string>Multicast Address:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QLineEdit" name="multicastAddressEdit"/>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="multicastPortLabel">
+              <property name="text">
+               <string>Multicast Port:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QSpinBox" name="multicastPortSpin">
+              <property name="minimum">
+               <number>1024</number>
+              </property>
+              <property name="maximum">
+               <number>65535</number>
+              </property>
+              <property name="value">
+               <number>1234</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="networkVerticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="performanceTab">
+      <attribute name="title">
+       <string>Performance</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="performanceTabLayout">
+       <item>
+        <widget class="QGroupBox" name="memoryGroup">
+         <property name="title">
+          <string>Memory Settings</string>
+         </property>
+         <layout class="QFormLayout" name="memoryLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="memoryLimitLabel">
+            <property name="text">
+             <string>Memory Limit (MB):</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QSpinBox" name="memoryLimitSpin">
+            <property name="minimum">
+             <number>50</number>
+            </property>
+            <property name="maximum">
+             <number>2048</number>
+            </property>
+            <property name="value">
+             <number>150</number>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="threadCountLabel">
+            <property name="text">
+             <string>Thread Count:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QSpinBox" name="threadCountSpin">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>16</number>
+            </property>
+            <property name="value">
+             <number>4</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="accelerationGroup">
+         <property name="title">
+          <string>Acceleration</string>
+         </property>
+         <layout class="QVBoxLayout" name="accelerationLayout">
+          <item>
+           <widget class="QCheckBox" name="enableHardwareAcceleration">
+            <property name="text">
+             <string>Enable hardware acceleration</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="enableGpuAcceleration">
+            <property name="text">
+             <string>Enable GPU acceleration</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="enableMultiThreading">
+            <property name="text">
+             <string>Enable multi-threading</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="priorityGroup">
+         <property name="title">
+          <string>Processing Priority</string>
+         </property>
+         <layout class="QHBoxLayout" name="priorityLayout">
+          <item>
+           <widget class="QLabel" name="priorityLowLabel">
+            <property name="text">
+             <string>Low</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSlider" name="processingPrioritySlider">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>5</number>
+            </property>
+            <property name="value">
+             <number>3</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="priorityHighLabel">
+            <property name="text">
+             <string>High</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="optimizationGroup">
+         <property name="title">
+          <string>Optimization</string>
+         </property>
+         <layout class="QVBoxLayout" name="optimizationLayout">
+          <item>
+           <widget class="QCheckBox" name="enableMemoryOptimization">
+            <property name="text">
+             <string>Enable memory optimization</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="enableCpuOptimization">
+            <property name="text">
+             <string>Enable CPU optimization</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="performanceVerticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="advancedTab">
+      <attribute name="title">
+       <string>Advanced</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="advancedTabLayout">
+       <item>
+        <widget class="QGroupBox" name="loggingGroup">
+         <property name="title">
+          <string>Logging Settings</string>
+         </property>
+         <layout class="QVBoxLayout" name="loggingLayout">
+          <item>
+           <widget class="QCheckBox" name="enableDebugLogging">
+            <property name="text">
+             <string>Enable debug logging</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QFormLayout" name="loggingSettingsLayout">
+            <item row="0" column="0">
+             <widget class="QLabel" name="logLevelLabel">
+              <property name="text">
+               <string>Log Level:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QComboBox" name="logLevelCombo"/>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="logFilePathLabel">
+              <property name="text">
+               <string>Log File Path:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <layout class="QHBoxLayout" name="logFilePathLayout">
+              <item>
+               <widget class="QLineEdit" name="logFilePathEdit"/>
+              </item>
+              <item>
+               <widget class="QPushButton" name="browseLogPathButton">
+                <property name="text">
+                 <string>Browse...</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="maxLogFilesLabel">
+              <property name="text">
+               <string>Max Log Files:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QSpinBox" name="maxLogFilesSpin">
+              <property name="minimum">
+               <number>1</number>
+              </property>
+              <property name="maximum">
+               <number>100</number>
+              </property>
+              <property name="value">
+               <number>10</number>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="maxLogSizeLabel">
+              <property name="text">
+               <string>Max Log Size (MB):</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QSpinBox" name="maxLogSizeSpin">
+              <property name="minimum">
+               <number>1</number>
+              </property>
+              <property name="maximum">
+               <number>1000</number>
+              </property>
+              <property name="value">
+               <number>10</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="diagnosticsGroup">
+         <property name="title">
+          <string>Diagnostics</string>
+         </property>
+         <layout class="QVBoxLayout" name="diagnosticsLayout">
+          <item>
+           <widget class="QCheckBox" name="enableProfiling">
+            <property name="text">
+             <string>Enable profiling</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="enableCrashReporting">
+            <property name="text">
+             <string>Enable crash reporting</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="customConfigGroup">
+         <property name="title">
+          <string>Custom Configuration</string>
+         </property>
+         <layout class="QVBoxLayout" name="customConfigLayout">
+          <item>
+           <widget class="QLineEdit" name="customConfigEdit">
+            <property name="placeholderText">
+             <string>Enter custom configuration parameters...</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="advancedVerticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Apply|QDialogButtonBox::Cancel|QDialogButtonBox::Ok|QDialogButtonBox::RestoreDefaults</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>SettingsDialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>254</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>SettingsDialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>316</x>
+     <y>260</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>

@@ -23,30 +23,10 @@
 
 AboutDialog::AboutDialog(QWidget *parent)
     : QDialog(parent)
-    , m_mainLayout(nullptr)
-    , m_tabWidget(nullptr)
-    , m_buttonBox(nullptr)
-    , m_copyInfoButton(nullptr)
-    , m_aboutTab(nullptr)
-    , m_logoLabel(nullptr)
-    , m_titleLabel(nullptr)
-    , m_versionLabel(nullptr)
-    , m_copyrightLabel(nullptr)
-    , m_descriptionLabel(nullptr)
-    , m_websiteLabel(nullptr)
-    , m_creditsTab(nullptr)
-    , m_creditsText(nullptr)
-    , m_licenseTab(nullptr)
-    , m_licenseText(nullptr)
-    , m_systemInfoTab(nullptr)
-    , m_systemInfoText(nullptr)
+    , ui(new Ui::AboutDialog)
 {
-    // Set dialog properties
-    setObjectName("AboutDialog");
-    setWindowTitle(tr("About %1").arg(APP_NAME));
-    setWindowIcon(QIcon(":/icons/about.png"));
-    setModal(true);
-    setFixedSize(500, 400);
+    // Initialize UI from Designer file
+    ui->setupUi(this);
     
     // Center dialog on parent
     if (parent) {
@@ -62,6 +42,10 @@ AboutDialog::AboutDialog(QWidget *parent)
 AboutDialog::~AboutDialog()
 {
     Logger::instance().log(Logger::Info, "AboutDialog", "Destructor starting");
+    
+    // Clean up UI
+    delete ui;
+    
     Logger::instance().log(Logger::Info, "AboutDialog", "Destructor completed");
 }
 
@@ -70,8 +54,9 @@ bool AboutDialog::initialize()
     Logger::instance().log(Logger::Info, "AboutDialog", "Initialization starting");
     
     try {
-        // Create UI components
-        createUI();
+        // Setup custom connections and populate content
+        setupConnections();
+        populateContent();
         
         Logger::instance().log(Logger::Info, "AboutDialog", "Initialization completed successfully");
         return true;
@@ -83,171 +68,42 @@ bool AboutDialog::initialize()
     }
 }
 
-void AboutDialog::createUI()
+void AboutDialog::setupConnections()
 {
-    // Main layout
-    m_mainLayout = new QVBoxLayout(this);
-    m_mainLayout->setContentsMargins(10, 10, 10, 10);
-    m_mainLayout->setSpacing(10);
+    // Connect button box signals
+    connect(ui->buttonBox, &QDialogButtonBox::rejected, this, &AboutDialog::handleClose);
     
-    // Create tab widget
-    m_tabWidget = new QTabWidget(this);
+    // Add copy info button to existing button box
+    QPushButton *copyInfoButton = ui->buttonBox->addButton(tr("Copy Info"), QDialogButtonBox::ActionRole);
+    connect(copyInfoButton, &QPushButton::clicked, this, &AboutDialog::handleCopyInfo);
     
-    // Create tabs
-    createAboutTab();
-    createCreditsTab();
-    createLicenseTab();
-    createSystemInfoTab();
-    
-    // Create button box
-    createButtonBox();
-    
-    // Add to main layout
-    m_mainLayout->addWidget(m_tabWidget, 1);
-    m_mainLayout->addWidget(m_buttonBox);
-    
-    Logger::instance().log(Logger::Debug, "AboutDialog", "UI creation completed");
+    Logger::instance().log(Logger::Debug, "AboutDialog", "Signal connections completed");
 }
 
-void AboutDialog::createAboutTab()
+void AboutDialog::populateContent()
 {
-    m_aboutTab = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(m_aboutTab);
-    layout->setContentsMargins(20, 20, 20, 20);
-    layout->setSpacing(15);
-    
-    // Logo
-    m_logoLabel = new QLabel(m_aboutTab);
+    // Populate about tab with application logo
     QPixmap logo = getApplicationLogo();
     if (!logo.isNull()) {
-        m_logoLabel->setPixmap(logo.scaled(64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    } else {
-        m_logoLabel->setText(tr("[Logo]"));
-        m_logoLabel->setStyleSheet("border: 1px solid gray; min-height: 64px; text-align: center;");
+        ui->logoLabel->setPixmap(logo.scaled(64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        ui->logoLabel->setStyleSheet(""); // Remove placeholder style
     }
-    m_logoLabel->setAlignment(Qt::AlignCenter);
     
-    // Title
-    m_titleLabel = new QLabel(APP_NAME, m_aboutTab);
-    m_titleLabel->setAlignment(Qt::AlignCenter);
-    QFont titleFont = m_titleLabel->font();
-    titleFont.setPointSize(18);
-    titleFont.setBold(true);
-    m_titleLabel->setFont(titleFont);
+    // Populate credits tab with detailed credits text
+    ui->creditsText->setPlainText(getCreditsText());
     
-    // Version
-    m_versionLabel = new QLabel(tr("Version %1 - %2").arg(APP_VERSION, APP_BUILD), m_aboutTab);
-    m_versionLabel->setAlignment(Qt::AlignCenter);
-    QFont versionFont = m_versionLabel->font();
-    versionFont.setPointSize(12);
-    m_versionLabel->setFont(versionFont);
+    // Populate license tab with license text
+    ui->licenseText->setPlainText(getLicenseText());
+    ui->licenseText->setFont(QFont("Courier", 8));
     
-    // Copyright
-    m_copyrightLabel = new QLabel(APP_COPYRIGHT, m_aboutTab);
-    m_copyrightLabel->setAlignment(Qt::AlignCenter);
+    // Populate system info tab with detailed system information
+    ui->systemInfoText->setPlainText(getDetailedSystemInfo());
+    ui->systemInfoText->setFont(QFont("Courier", 8));
     
-    // Description
-    m_descriptionLabel = new QLabel(
-        tr("Professional ETI Stream Analyzer for DAB/DAB+ broadcast monitoring.\n\n"
-           "This application provides comprehensive real-time analysis of ETI streams "
-           "with professional broadcast industry features including signal quality "
-           "monitoring, service analysis, and performance optimization."),
-        m_aboutTab
-    );
-    m_descriptionLabel->setWordWrap(true);
-    m_descriptionLabel->setAlignment(Qt::AlignCenter);
-    
-    // Website
-    m_websiteLabel = new QLabel(
-        QString("<a href=\"%1\">%1</a>").arg(APP_WEBSITE),
-        m_aboutTab
-    );
-    m_websiteLabel->setAlignment(Qt::AlignCenter);
-    m_websiteLabel->setOpenExternalLinks(true);
-    
-    // Build information
-    QLabel *buildInfoLabel = new QLabel(getBuildInfo(), m_aboutTab);
-    buildInfoLabel->setAlignment(Qt::AlignCenter);
-    buildInfoLabel->setStyleSheet("color: gray; font-size: 9pt;");
-    
-    // Add widgets to layout
-    layout->addWidget(m_logoLabel);
-    layout->addWidget(m_titleLabel);
-    layout->addWidget(m_versionLabel);
-    layout->addSpacing(10);
-    layout->addWidget(m_copyrightLabel);
-    layout->addSpacing(10);
-    layout->addWidget(m_descriptionLabel);
-    layout->addSpacing(10);
-    layout->addWidget(m_websiteLabel);
-    layout->addStretch();
-    layout->addWidget(buildInfoLabel);
-    
-    // Add tab to widget
-    m_tabWidget->addTab(m_aboutTab, tr("About"));
+    Logger::instance().log(Logger::Debug, "AboutDialog", "Content population completed");
 }
 
-void AboutDialog::createCreditsTab()
-{
-    m_creditsTab = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(m_creditsTab);
-    layout->setContentsMargins(10, 10, 10, 10);
-    
-    m_creditsText = new QTextEdit(m_creditsTab);
-    m_creditsText->setReadOnly(true);
-    m_creditsText->setPlainText(getCreditsText());
-    
-    layout->addWidget(m_creditsText);
-    
-    // Add tab to widget
-    m_tabWidget->addTab(m_creditsTab, tr("Credits"));
-}
 
-void AboutDialog::createLicenseTab()
-{
-    m_licenseTab = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(m_licenseTab);
-    layout->setContentsMargins(10, 10, 10, 10);
-    
-    m_licenseText = new QTextEdit(m_licenseTab);
-    m_licenseText->setReadOnly(true);
-    m_licenseText->setPlainText(getLicenseText());
-    m_licenseText->setFont(QFont("Courier", 8));
-    
-    layout->addWidget(m_licenseText);
-    
-    // Add tab to widget
-    m_tabWidget->addTab(m_licenseTab, tr("License"));
-}
-
-void AboutDialog::createSystemInfoTab()
-{
-    m_systemInfoTab = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(m_systemInfoTab);
-    layout->setContentsMargins(10, 10, 10, 10);
-    
-    m_systemInfoText = new QTextEdit(m_systemInfoTab);
-    m_systemInfoText->setReadOnly(true);
-    m_systemInfoText->setPlainText(getDetailedSystemInfo());
-    m_systemInfoText->setFont(QFont("Courier", 8));
-    
-    layout->addWidget(m_systemInfoText);
-    
-    // Add tab to widget
-    m_tabWidget->addTab(m_systemInfoTab, tr("System Info"));
-}
-
-void AboutDialog::createButtonBox()
-{
-    m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
-    
-    // Add copy info button
-    m_copyInfoButton = m_buttonBox->addButton(tr("Copy Info"), QDialogButtonBox::ActionRole);
-    
-    // Connect signals
-    connect(m_buttonBox, &QDialogButtonBox::rejected, this, &AboutDialog::handleClose);
-    connect(m_copyInfoButton, &QPushButton::clicked, this, &AboutDialog::handleCopyInfo);
-}
 
 QString AboutDialog::getVersionString()
 {
