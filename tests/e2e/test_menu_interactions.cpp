@@ -11,6 +11,8 @@
 #include <QKeySequence>
 
 #include "gui/main_window.h"
+#include "gui/service_browser.h"
+#include "gui/analyzer_widget.h"
 #include "utils/logger.h"
 
 class TestMenuInteractions : public QObject
@@ -45,8 +47,8 @@ private:
 void TestMenuInteractions::initTestCase()
 {
     int argc = 1;
-    char* argv[] = {"test_menu_interactions"};
-    app = new QApplication(argc, argv);
+    const char* argv[] = {"test_menu_interactions"};
+    app = new QApplication(argc, const_cast<char**>(argv));
     
     Logger::instance().setLogLevel(Logger::Debug);
     Logger::instance().log(Logger::Info, "MenuE2E", "Starting menu interactions E2E tests");
@@ -62,7 +64,8 @@ void TestMenuInteractions::init()
 {
     mainWindow = new MainWindow();
     mainWindow->show();
-    QTest::qWaitForWindowActive(mainWindow);
+    bool windowActive = QTest::qWaitForWindowActive(mainWindow);
+    Q_UNUSED(windowActive);
     QVERIFY(mainWindow->isVisible());
 }
 
@@ -460,7 +463,7 @@ void TestMenuInteractions::testContextMenus()
     // Test context menus on other components
     ServiceBrowser* serviceBrowser = mainWindow->findChild<ServiceBrowser*>();
     if (serviceBrowser) {
-        QTest::mouseClick(serviceBrowser, Qt::RightButton, Qt::NoModifier, QPoint(50, 50));
+        QTest::mouseClick(qobject_cast<QWidget*>(serviceBrowser), Qt::RightButton, Qt::NoModifier, QPoint(50, 50));
         QTest::qWait(100);
         
         QMenu* serviceContextMenu = qobject_cast<QMenu*>(QApplication::activePopupWidget());

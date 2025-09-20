@@ -447,6 +447,14 @@ private:
     // PDF generation helpers
     QString generatePdfContent(const ReportData& data, const ReportConfig& config) const;
 
+    // Widget generation helpers for dashboard
+    QString generateServiceStatusWidget(const ReportData& data) const;
+    QString generateSignalQualityWidget(const ReportData& data) const;
+    QString generateAlertSummaryWidget(const ReportData& data) const;
+    QString generatePerformanceMetricsWidget(const ReportData& data) const;
+    QString generateAudioLevelsWidget(const ReportData& data) const;
+    QString generateComplianceStatusWidget(const ReportData& data) const;
+
     // Data conversion helpers
     QJsonObject reportDataToJson(const ReportData& data) const;
     QString formatDuration(const QDateTime& start, const QDateTime& end) const;

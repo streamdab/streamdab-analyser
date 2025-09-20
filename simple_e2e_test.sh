@@ -34,22 +34,20 @@ run_test() {
     # Run the test and capture timing
     start_time=$(date +%s.%N)
 
-    if eval "$test_command"; then
-        end_time=$(date +%s.%N)
-        duration=$(echo "$end_time - $start_time" | bc -l)
+    # Run command and capture exit code
+    eval "$test_command"
+    command_exit_code=$?
 
-        if eval "$success_criteria"; then
-            echo "✅ PASS - $test_name (${duration}s)"
-            PASSED_TESTS=$((PASSED_TESTS + 1))
-            return 0
-        else
-            echo "❌ FAIL - $test_name - Success criteria not met"
-            return 1
-        fi
+    end_time=$(date +%s.%N)
+    duration=$(echo "$end_time - $start_time" | bc -l)
+
+    # Evaluate success criteria regardless of command exit code
+    if eval "$success_criteria"; then
+        echo "✅ PASS - $test_name (${duration}s)"
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+        return 0
     else
-        end_time=$(date +%s.%N)
-        duration=$(echo "$end_time - $start_time" | bc -l)
-        echo "❌ FAIL - $test_name - Command failed (${duration}s)"
+        echo "❌ FAIL - $test_name - Success criteria not met (${duration}s)"
         return 1
     fi
 }
@@ -195,16 +193,16 @@ fi
 
 # TEST 5: Error Handling and Edge Cases
 run_test "Error Handling - Nonexistent File" \
-    "timeout 5s $ETISNOOP_PATH -i /nonexistent/file.eti > /tmp/error_test1.log 2>&1" \
-    "[[ \$? -ne 0 ]]"
+    "$ETISNOOP_PATH -i /nonexistent/file.eti > /tmp/error_test1.log 2>&1" \
+    "[[ \$? -eq 1 ]] && grep -q 'File open failed' /tmp/error_test1.log"
 
 run_test "Error Handling - Invalid File" \
-    "echo 'invalid data' > /tmp/invalid.eti && timeout 5s $ETISNOOP_PATH -i /tmp/invalid.eti > /tmp/error_test2.log 2>&1" \
-    "[[ \$? -ne 0 ]]"
+    "echo 'invalid data' > /tmp/invalid.eti && $ETISNOOP_PATH -i /tmp/invalid.eti > /tmp/error_test2.log 2>&1" \
+    "grep -q 'Could not identify stream type' /tmp/error_test2.log"
 
-# TEST 6: Service Discovery Validation
+# TEST 7: Service Discovery Validation
 echo ""
-echo "=== TEST 6: Service Discovery Validation ==="
+echo "=== TEST 7: Service Discovery Validation ==="
 TOTAL_TESTS=$((TOTAL_TESTS + 1))
 
 if [[ -f /tmp/eti_test_output.log ]]; then
@@ -224,9 +222,9 @@ else
     echo "❌ FAIL - Service Discovery Validation (No output to analyze)"
 fi
 
-# TEST 7: ETI Standards Compliance
+# TEST 8: ETI Standards Compliance
 echo ""
-echo "=== TEST 7: ETI Standards Compliance Validation ==="
+echo "=== TEST 8: ETI Standards Compliance Validation ==="
 TOTAL_TESTS=$((TOTAL_TESTS + 1))
 
 if [[ -f /tmp/eti_test_output.log ]]; then

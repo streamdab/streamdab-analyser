@@ -199,7 +199,7 @@ bool ReportGenerator::generateDashboard(const ReportData& data, const DashboardC
     }
     
     QTextStream stream(&file);
-    stream.setCodec("UTF-8");
+    // Note: setCodec is no longer needed in Qt6 - UTF-8 is default
     
     // Generate dashboard HTML
     stream << "<!DOCTYPE html>\n<html>\n<head>\n";
@@ -498,7 +498,7 @@ bool ReportGenerator::generateHtmlReport(const ReportData& data, const ReportCon
     }
     
     QTextStream stream(&file);
-    stream.setCodec("UTF-8");
+    // Note: setCodec is no longer needed in Qt6 - UTF-8 is default
     
     emit generationProgress(10);
     
@@ -563,7 +563,7 @@ bool ReportGenerator::generateCsvExport(const ReportData& data, const ExportConf
     }
     
     QTextStream stream(&file);
-    stream.setCodec("UTF-8");
+    // Note: setCodec is no longer needed in Qt6 - UTF-8 is default
     
     // CSV header
     QStringList headers;
@@ -612,7 +612,7 @@ bool ReportGenerator::generateXmlExport(const ReportData& data, const ExportConf
     }
     
     QTextStream stream(&file);
-    stream.setCodec("UTF-8");
+    // Note: setCodec is no longer needed in Qt6 - UTF-8 is default
     
     stream << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     stream << "<eti_report>\n";

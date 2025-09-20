@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 # Find Qt6 components required for testing
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Test PrintSupport)
 
 # Enable Qt MOC for test files
 set(CMAKE_AUTOMOC ON)
@@ -16,6 +16,7 @@ set(E2E_TEST_SOURCES
     test_menu_interactions.cpp
     test_eti_file_opening.cpp
     test_comprehensive_workflows.cpp
+    test_mandatory_workflow_coverage.cpp
     # Include main application sources for testing
     ../../src/main.cpp
     ../../src/gui/main_window.cpp
@@ -43,6 +44,7 @@ target_link_libraries(e2e_tests
     Qt6::Core
     Qt6::Widgets
     Qt6::Test
+    Qt6::PrintSupport
     yaml-cpp
     ${CMAKE_DL_LIBS}
 )
@@ -77,12 +79,21 @@ set_tests_properties(E2ETests PROPERTIES
 
 # Create individual test targets for specific workflows
 add_executable(test_file_opening_workflow test_eti_file_opening.cpp ${E2E_TEST_SOURCES})
-target_link_libraries(test_file_opening_workflow Qt6::Core Qt6::Widgets Qt6::Test yaml-cpp ${CMAKE_DL_LIBS})
+target_link_libraries(test_file_opening_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport yaml-cpp ${CMAKE_DL_LIBS})
 target_include_directories(test_file_opening_workflow PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils ../../external/etisnoop/src)
 target_compile_definitions(test_file_opening_workflow PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 
 add_test(NAME FileOpeningWorkflow COMMAND test_file_opening_workflow)
 set_tests_properties(FileOpeningWorkflow PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60)
+
+# Create mandatory workflow coverage test target
+add_executable(test_mandatory_workflow_coverage test_mandatory_workflow_coverage.cpp ${E2E_TEST_SOURCES})
+target_link_libraries(test_mandatory_workflow_coverage Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport yaml-cpp ${CMAKE_DL_LIBS})
+target_include_directories(test_mandatory_workflow_coverage PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils ../../external/etisnoop/src)
+target_compile_definitions(test_mandatory_workflow_coverage PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
+
+add_test(NAME MandatoryWorkflowCoverage COMMAND test_mandatory_workflow_coverage)
+set_tests_properties(MandatoryWorkflowCoverage PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 300)
 
 # Enable verbose test output for debugging
 set(CMAKE_CTEST_ARGUMENTS "--output-on-failure")

@@ -61,8 +61,8 @@ void TestETIFileOpening::initTestCase()
 {
     // Initialize application for E2E testing
     int argc = 1;
-    char* argv[] = {"test_eti_file_opening"};
-    app = new QApplication(argc, argv);
+    const char* argv[] = {"test_eti_file_opening"};
+    app = new QApplication(argc, const_cast<char**>(argv));
     
     // Set up test environment
     Logger::instance().setLogLevel(Logger::Debug);
@@ -93,7 +93,8 @@ void TestETIFileOpening::init()
     mainWindow->show();
     
     // Wait for window to be fully displayed
-    QTest::qWaitForWindowActive(mainWindow);
+    bool windowActive = QTest::qWaitForWindowActive(mainWindow);
+    Q_UNUSED(windowActive);
     QVERIFY(mainWindow->isVisible());
     
     Logger::instance().log(Logger::Debug, "E2ETest", "MainWindow initialized for test");
@@ -156,7 +157,7 @@ void TestETIFileOpening::testCompleteFileOpeningWorkflow()
         if (dialog) {
             Logger::instance().log(Logger::Debug, "E2ETest", "File dialog intercepted");
             dialog->selectFile(testETIFilePath);
-            dialog->accept();
+            QTest::keyClick(dialog, Qt::Key_Return);
         }
     });
     
