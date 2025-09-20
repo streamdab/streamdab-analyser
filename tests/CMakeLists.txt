@@ -95,6 +95,7 @@ add_executable(eti_analyzer_gui_tests
     ../src/gui/eti_service_tree_model.cpp
     ../src/gui/eti_frame_list_model.cpp
     ../src/gui/fig_analysis_widget.cpp
+    ../src/gui/audio_monitoring_widget.cpp
     # Add core sources that GUI depends on
     ../src/core/eti_processor.cpp
     ../src/core/etisnoop_wrapper.cpp
@@ -104,6 +105,7 @@ add_executable(eti_analyzer_gui_tests
     ../src/core/fic_decoder.cpp
     ../src/core/ensemble_manager.cpp
     ../src/core/service_manager.cpp
+    ../src/core/dab_audio_decoder.cpp
     # Add utils sources
     ../src/utils/logger.cpp
     ../src/utils/config_manager.cpp
@@ -162,7 +164,7 @@ set(MAIN_PROJECT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fic_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/ensemble_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/service_manager.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/audio_decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_audio_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/config_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/file_utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
@@ -175,6 +177,7 @@ set(MAIN_PROJECT_GUI_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/service_browser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/settings_dialog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/about_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/audio_monitoring_widget.cpp
 )
 # Link main project sources to unit tests
 target_sources(eti_analyzer_unit_tests PRIVATE ${MAIN_PROJECT_SOURCES})
