@@ -102,12 +102,19 @@ bool EtisnoopWrapper::initialize(bool enableThaiSupport, bool enableStreamDAB)
 bool EtisnoopWrapper::initializeETISnoop()
 {
     try {
-        // Initialize ETISnoop configuration
+        // Initialize ETISnoop configuration with minimal safe settings
         m_config = std::make_unique<eti_analyse_config_t>();
-        m_config->ignore_error = true;  // Ignore SYNC errors to prevent segfaults
-        m_config->analyse_fic_carousel = true;
-        m_config->analyse_fig_rates = true;
-        m_config->statistics = true;
+        
+        // CRITICAL FIX: Use minimal configuration to prevent crashes
+        m_config->ignore_error = false;         // Don't ignore errors initially
+        m_config->analyse_fic_carousel = false; // Disable FIC carousel analysis 
+        m_config->analyse_fig_rates = false;    // Disable FIG rate analysis
+        m_config->analyse_fig_rates_per_second = false;
+        m_config->decode_watermark = false;     // Disable watermark decoding
+        m_config->statistics = false;           // Disable statistics initially
+        m_config->num_frames_to_decode = 0;     // Process all frames
+        m_config->etifd = nullptr;
+        m_config->ficfd = nullptr;
         
         // Initialize FIG analyzer for detailed analysis
         m_figAnalyser = std::make_unique<FIGalyser>();
