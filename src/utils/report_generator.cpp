@@ -277,6 +277,7 @@ bool ReportGenerator::generateDashboard(const ReportData& data, const DashboardC
 
 ReportGenerator::StatisticalSummary ReportGenerator::generateStatisticalSummary(const ReportData& data, const AnalysisConfig& config)
 {
+    Q_UNUSED(config)
     StatisticalSummary summary;
     
     // Frame statistics
@@ -557,6 +558,7 @@ bool ReportGenerator::generatePdfReport(const ReportData& data, const ReportConf
 
 bool ReportGenerator::generateCsvExport(const ReportData& data, const ExportConfig& config, const QString& outputPath)
 {
+    Q_UNUSED(config)
     QFile file(outputPath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         return false;
@@ -606,6 +608,7 @@ bool ReportGenerator::generateJsonExport(const ReportData& data, const ExportCon
 
 bool ReportGenerator::generateXmlExport(const ReportData& data, const ExportConfig& config, const QString& outputPath)
 {
+    Q_UNUSED(config)
     QFile file(outputPath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         return false;
@@ -781,6 +784,7 @@ QString ReportGenerator::generateHtmlAlertSection(const ReportData& data) const
 
 QString ReportGenerator::generateHtmlChart(ChartType chartType, const ReportData& data) const
 {
+    Q_UNUSED(data)
     QString html = "<div class=\"section\">\n";
     
     switch (chartType) {
@@ -867,6 +871,7 @@ QString ReportGenerator::generatePerformanceMetricsWidget(const ReportData& data
 
 QString ReportGenerator::generateAudioLevelsWidget(const ReportData& data) const
 {
+    Q_UNUSED(data)
     QString html = "<div class=\"widget\">\n";
     html += "<h3>Audio Levels</h3>\n";
     html += "<p>Audio level monitoring widget</p>\n";
