@@ -85,6 +85,28 @@ add_executable(eti_analyzer_gui_tests
     ${GUI_TEST_FRAMEWORK_SOURCES}
     ${GUI_MOCK_SOURCES}
     ${TEST_FIXTURE_SOURCES}
+    # Add main project GUI sources that tests depend on
+    ../src/gui/main_window.cpp
+    ../src/gui/analyzer_widget.cpp
+    ../src/gui/service_browser.cpp
+    ../src/gui/constellation_widget.cpp
+    ../src/gui/settings_dialog.cpp
+    ../src/gui/about_dialog.cpp
+    ../src/gui/eti_service_tree_model.cpp
+    ../src/gui/eti_frame_list_model.cpp
+    ../src/gui/fig_analysis_widget.cpp
+    # Add core sources that GUI depends on
+    ../src/core/eti_processor.cpp
+    ../src/core/etisnoop_wrapper.cpp
+    ../src/core/eti_file_worker.cpp
+    ../src/core/eti_types.cpp
+    ../src/core/dab_decoder.cpp
+    ../src/core/fic_decoder.cpp
+    ../src/core/ensemble_manager.cpp
+    ../src/core/service_manager.cpp
+    # Add utils sources
+    ../src/utils/logger.cpp
+    ../src/utils/config_manager.cpp
 )
 # TDD FRAMEWORK: Link Google Test for unit tests
 if(GTest_FOUND)

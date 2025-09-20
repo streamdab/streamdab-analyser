@@ -1,0 +1,21 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ETI Stream Analyzer
+Comment=Professional ETI/DAB Stream Analysis Tool for Broadcast Engineers
+Comment[en]=Professional ETI/DAB Stream Analysis Tool for Broadcast Engineers
+GenericName=ETI Stream Analyzer
+GenericName[en]=ETI Stream Analyzer
+Exec=ETIStreamAnalyzer %F
+Icon=eti-stream-analyzer
+Terminal=false
+StartupNotify=true
+MimeType=application/x-eti-stream;application/x-dab-stream;application/x-eti;
+Categories=AudioVideo;Audio;Video;Development;Engineering;
+Keywords=ETI;DAB;Broadcasting;Stream;Analysis;ETSI;Professional;
+Actions=Analyze;
+
+[Desktop Action Analyze]
+Name=Analyze ETI Stream
+Icon=eti-stream-analyzer
+Exec=ETIStreamAnalyzer --analyze %F

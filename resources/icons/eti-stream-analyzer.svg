@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Professional ETI Stream Analyzer Icon -->
+  <!-- Background circle with gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2E3440;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#434C5E;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#88C0D0;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#5E81AC;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#81A1C1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <circle cx="32" cy="32" r="30" fill="url(#bgGradient)" stroke="#4C566A" stroke-width="2"/>
+
+  <!-- ETI Stream Visualization -->
+  <g transform="translate(8, 16)">
+    <!-- Stream lines representing ETI data -->
+    <path d="M4 8 L44 8" stroke="url(#waveGradient)" stroke-width="2" fill="none"/>
+    <path d="M4 12 L40 12" stroke="url(#waveGradient)" stroke-width="1.5" fill="none" opacity="0.8"/>
+    <path d="M4 16 L42 16" stroke="url(#waveGradient)" stroke-width="2" fill="none"/>
+    <path d="M4 20 L38 20" stroke="url(#waveGradient)" stroke-width="1.5" fill="none" opacity="0.8"/>
+    <path d="M4 24 L44 24" stroke="url(#waveGradient)" stroke-width="2" fill="none"/>
+    <path d="M4 28 L40 28" stroke="url(#waveGradient)" stroke-width="1.5" fill="none" opacity="0.8"/>
+    <path d="M4 32 L42 32" stroke="url(#waveGradient)" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- Signal wave indicator -->
+  <g transform="translate(12, 45)">
+    <path d="M0 0 Q5 -4 10 0 T20 0 T30 0 T40 0"
+          stroke="#A3BE8C" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- Analysis indicator (small chart) -->
+  <g transform="translate(48, 12)">
+    <rect x="0" y="6" width="2" height="8" fill="#EBCB8B"/>
+    <rect x="3" y="4" width="2" height="10" fill="#EBCB8B"/>
+    <rect x="6" y="2" width="2" height="12" fill="#EBCB8B"/>
+    <rect x="9" y="5" width="2" height="9" fill="#EBCB8B"/>
+  </g>
+
+  <!-- Professional badge -->
+  <circle cx="52" cy="52" r="8" fill="#BF616A" stroke="#ECEFF4" stroke-width="1"/>
+  <text x="52" y="56" text-anchor="middle" font-family="Arial, sans-serif"
+        font-size="8" font-weight="bold" fill="#ECEFF4">ETI</text>
+</svg>

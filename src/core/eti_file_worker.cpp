@@ -121,22 +121,48 @@ void EtiFileWorker::doProcessing()
                           QString("Processing ETI file in background thread: %1").arg(fileName));
     
     try {
-        // Process the file using ETI processor
-        bool success = m_etiProcessor->processFile(fileName);
+        // Process the file using ETI processor with enhanced error handling
+        bool success = false;
+        quint64 finalFrameCount = 0;
         
-        {
-            QMutexLocker locker(&m_mutex);
-            if (m_cancelled) {
-                m_processing = false;
-                emit processingCancelled(fileName);
-                return;
+        try {
+            success = m_etiProcessor->processFile(fileName);
+            
+            {
+                QMutexLocker locker(&m_mutex);
+                if (m_cancelled) {
+                    m_processing = false;
+                    emit processingCancelled(fileName);
+                    return;
+                }
             }
+            
+            // Safely get frame count with error protection
+            try {
+                finalFrameCount = m_etiProcessor->getFrameCount();
+            } catch (...) {
+                // If frame count retrieval fails, estimate from progress
+                finalFrameCount = m_frameCount;
+                Logger::instance().log(Logger::Warning, "EtiFileWorker", 
+                                      "Frame count retrieval failed, using estimated count");
+            }
+            
+        } catch (const std::exception& processingError) {
+            // Handle processing errors but don't crash
+            Logger::instance().log(Logger::Warning, "EtiFileWorker", 
+                                  QString("Processing completed with errors: %1").arg(processingError.what()));
+            
+            // Consider it partially successful if we processed some frames
+            success = (m_frameCount > 0);
+            finalFrameCount = m_frameCount;
+        } catch (...) {
+            Logger::instance().log(Logger::Warning, "EtiFileWorker", 
+                                  "Processing completed with unknown errors");
+            success = (m_frameCount > 0);
+            finalFrameCount = m_frameCount;
         }
         
-        if (success) {
-            // Get final results
-            quint64 finalFrameCount = m_etiProcessor->getFrameCount();
-            
+        if (success || finalFrameCount > 0) {
             {
                 QMutexLocker locker(&m_mutex);
                 m_processing = false;
@@ -154,7 +180,12 @@ void EtiFileWorker::doProcessing()
             emit processingCompleted(fileName, finalFrameCount);
             
         } else {
-            QString errorMsg = m_etiProcessor->getStatus();
+            QString errorMsg = "Processing failed - no frames processed";
+            try {
+                errorMsg = m_etiProcessor->getStatus();
+            } catch (...) {
+                // Ignore status retrieval errors
+            }
             
             {
                 QMutexLocker locker(&m_mutex);
