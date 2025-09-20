@@ -485,56 +485,383 @@ bool EtiProcessor::processData(const QByteArray& data)
 
 bool EtiProcessor::parseFig00_EnsembleInfo(const eti::FigBlock& figBlock)
 {
-    // TODO: Integrate with ETISnoop FIG 0/0 parser
-    // Placeholder implementation for build compatibility
-    Q_UNUSED(figBlock);
-    Logger::instance().log(Logger::Debug, "EtiProcessor", "FIG 0/0 Ensemble Info parsing - placeholder");
-    return true;
+    // FIG 0/0: Ensemble information (ETSI EN 300 401 Section 8.1.1)
+    if (figBlock.data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                              "FIG 0/0: Insufficient data for ensemble info");
+        return false;
+    }
+    
+    try {
+        // Parse ensemble ID and country information
+        uint16_t ensemble_id = (figBlock.data[0] << 8) | figBlock.data[1];
+        uint8_t country_id = (figBlock.data[2] >> 4) & 0x0F;
+        uint8_t extended_country_code = figBlock.data[2] & 0x0F;
+        
+        // Update ensemble information
+        m_currentEnsemble.ensemble_id = ensemble_id;
+        m_currentEnsemble.country_id = country_id;
+        m_currentEnsemble.extended_country_code = extended_country_code;
+        
+        if (figBlock.data.size() >= 6) {
+            // Parse CIF count and occurrence change
+            m_currentEnsemble.cif_count = figBlock.data[3];
+            m_currentEnsemble.occurrence_change = (figBlock.data[4] >> 4) & 0x0F;
+            m_currentEnsemble.alarm_flag = (figBlock.data[4] & 0x01) != 0;
+        }
+        
+        Logger::instance().log(Logger::Info, "EtiProcessor", 
+                              QString("FIG 0/0: Ensemble ID=0x%1, Country=0x%2")
+                              .arg(ensemble_id, 4, 16, QChar('0'))
+                              .arg(country_id, 2, 16, QChar('0')));
+        
+        emit ensembleDiscovered(m_currentEnsemble);
+        return true;
+        
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "EtiProcessor", 
+                              QString("FIG 0/0 parsing error: %1").arg(e.what()));
+        return false;
+    }
 }
 
 bool EtiProcessor::parseFig01_SubchannelOrganization(const eti::FigBlock& figBlock)
 {
-    // TODO: Integrate with ETISnoop FIG 0/1 parser
-    // Placeholder implementation for build compatibility
-    Q_UNUSED(figBlock);
-    Logger::instance().log(Logger::Debug, "EtiProcessor", "FIG 0/1 Subchannel Organization parsing - placeholder");
-    return true;
+    // FIG 0/1: Sub-channel organization (ETSI EN 300 401 Section 8.1.2)
+    if (figBlock.data.size() < 3) {
+        Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                              "FIG 0/1: Insufficient data for subchannel organization");
+        return false;
+    }
+    
+    try {
+        size_t offset = 0;
+        int subchannels_parsed = 0;
+        
+        while (offset + 2 < figBlock.data.size()) {
+            eti::SubChannelInfo subchannel;
+            
+            // Parse subchannel ID and start address
+            subchannel.sub_channel_id = (figBlock.data[offset] >> 2) & 0x3F;
+            subchannel.start_address = ((figBlock.data[offset] & 0x03) << 8) | figBlock.data[offset + 1];
+            
+            if (offset + 2 >= figBlock.data.size()) break;
+            
+            // Check form type (short/long)
+            if (figBlock.data[offset + 2] & 0x80) {
+                // Long form (UEP - Unequal Error Protection)
+                if (offset + 3 >= figBlock.data.size()) break;
+                
+                subchannel.size = ((figBlock.data[offset + 2] & 0x03) << 8) | figBlock.data[offset + 3];
+                subchannel.protection_level = (figBlock.data[offset + 2] >> 2) & 0x1F;
+                subchannel.uep_flag = true;
+                offset += 4;
+            } else {
+                // Short form (EEP - Equal Error Protection)
+                uint8_t size_protection = figBlock.data[offset + 2];
+                subchannel.size = (size_protection & 0x3F) * 8; // Size in CUs
+                subchannel.protection_level = ((size_protection >> 6) & 0x03) + 1;
+                subchannel.uep_flag = false;
+                offset += 3;
+            }
+            
+            // Validate subchannel
+            if (subchannel.validate_sub_channel_id() && subchannel.validate_boundaries()) {
+                m_subchannels.push_back(subchannel);
+                subchannels_parsed++;
+                
+                Logger::instance().log(Logger::Debug, "EtiProcessor", 
+                                      QString("FIG 0/1: SubCh %1, Start=%2, Size=%3 CUs, Protection=%4")
+                                      .arg(subchannel.sub_channel_id)
+                                      .arg(subchannel.start_address)
+                                      .arg(subchannel.size)
+                                      .arg(subchannel.protection_level));
+            } else {
+                Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                                      QString("FIG 0/1: Invalid subchannel configuration: ID=%1")
+                                      .arg(subchannel.sub_channel_id));
+            }
+        }
+        
+        Logger::instance().log(Logger::Info, "EtiProcessor", 
+                              QString("FIG 0/1: Parsed %1 subchannels").arg(subchannels_parsed));
+        
+        return subchannels_parsed > 0;
+        
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "EtiProcessor", 
+                              QString("FIG 0/1 parsing error: %1").arg(e.what()));
+        return false;
+    }
 }
 
 bool EtiProcessor::parseFig02_ServiceOrganization(const eti::FigBlock& figBlock)
 {
-    // TODO: Integrate with ETISnoop FIG 0/2 parser
-    // Placeholder implementation for build compatibility
-    Q_UNUSED(figBlock);
-    Logger::instance().log(Logger::Debug, "EtiProcessor", "FIG 0/2 Service Organization parsing - placeholder");
-    return true;
+    // FIG 0/2: Service organization (ETSI EN 300 401 Section 8.1.3)
+    if (figBlock.data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                              "FIG 0/2: Insufficient data for service organization");
+        return false;
+    }
+    
+    try {
+        size_t offset = 0;
+        int services_parsed = 0;
+        
+        while (offset + 3 < figBlock.data.size()) {
+            eti::DabService service;
+            
+            // Parse service ID and country information
+            service.service_id = (figBlock.data[offset] << 8) | figBlock.data[offset + 1];
+            service.country_id = (figBlock.data[offset + 2] >> 4) & 0x0F;
+            service.extended_country_code = figBlock.data[offset + 2] & 0x0F;
+            
+            if (offset + 3 < figBlock.data.size()) {
+                service.is_programme = (figBlock.data[offset + 3] & 0x02) != 0;
+                // Additional service flags can be parsed from figBlock.data[offset + 3]
+            }
+            
+            // Validate service
+            if (service.validate_service_id() && service.validate_country_code()) {
+                // Check if service already exists
+                auto existing = std::find_if(m_discoveredServices.begin(), m_discoveredServices.end(),
+                                           [&service](const eti::DabService& s) {
+                                               return s.service_id == service.service_id;
+                                           });
+                
+                if (existing == m_discoveredServices.end()) {
+                    m_discoveredServices.push_back(service);
+                    services_parsed++;
+                    
+                    Logger::instance().log(Logger::Info, "EtiProcessor", 
+                                          QString("FIG 0/2: Service ID=0x%1, Country=0x%2, Programme=%3")
+                                          .arg(service.service_id, 4, 16, QChar('0'))
+                                          .arg(service.country_id, 2, 16, QChar('0'))
+                                          .arg(service.is_programme ? "Yes" : "No"));
+                    
+                    emit serviceDiscovered(service);
+                } else {
+                    // Update existing service information
+                    existing->country_id = service.country_id;
+                    existing->extended_country_code = service.extended_country_code;
+                    existing->is_programme = service.is_programme;
+                }
+            } else {
+                Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                                      QString("FIG 0/2: Invalid service: ID=0x%1")
+                                      .arg(service.service_id, 4, 16, QChar('0')));
+            }
+            
+            offset += 4;
+        }
+        
+        Logger::instance().log(Logger::Info, "EtiProcessor", 
+                              QString("FIG 0/2: Parsed %1 services").arg(services_parsed));
+        
+        return services_parsed > 0;
+        
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "EtiProcessor", 
+                              QString("FIG 0/2 parsing error: %1").arg(e.what()));
+        return false;
+    }
 }
 
 bool EtiProcessor::parseFig03_ServiceComponent(const eti::FigBlock& figBlock)
 {
-    // TODO: Integrate with ETISnoop FIG 0/3 parser
-    // Placeholder implementation for build compatibility
-    Q_UNUSED(figBlock);
-    Logger::instance().log(Logger::Debug, "EtiProcessor", "FIG 0/3 Service Component parsing - placeholder");
-    return true;
+    // FIG 0/3: Service component (ETSI EN 300 401 Section 8.1.4)
+    if (figBlock.data.size() < 5) {
+        Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                              "FIG 0/3: Insufficient data for service component");
+        return false;
+    }
+    
+    try {
+        size_t offset = 0;
+        int components_parsed = 0;
+        
+        while (offset + 4 < figBlock.data.size()) {
+            uint16_t service_id = (figBlock.data[offset] << 8) | figBlock.data[offset + 1];
+            
+            eti::ServiceComponent component;
+            component.service_id = service_id;
+            component.sub_channel_id = (figBlock.data[offset + 2] >> 2) & 0x3F;
+            component.tmid = figBlock.data[offset + 2] & 0x03;
+            component.asc_ty = figBlock.data[offset + 3] & 0x3F;
+            component.primary = (figBlock.data[offset + 3] & 0x40) != 0;
+            component.ca_flag = (figBlock.data[offset + 3] & 0x80) != 0;
+            
+            // Validate component
+            if (component.validate_sub_channel_id() && component.validate_tmid()) {
+                // Find the corresponding service and add component
+                auto service_it = std::find_if(m_discoveredServices.begin(), m_discoveredServices.end(),
+                                              [service_id](const eti::DabService& s) {
+                                                  return s.service_id == service_id;
+                                              });
+                
+                if (service_it != m_discoveredServices.end()) {
+                    // Check if component already exists
+                    auto comp_it = std::find_if(service_it->components.begin(), service_it->components.end(),
+                                               [&component](const eti::ServiceComponent& c) {
+                                                   return c.sub_channel_id == component.sub_channel_id;
+                                               });
+                    
+                    if (comp_it == service_it->components.end()) {
+                        service_it->components.push_back(component);
+                        components_parsed++;
+                        
+                        Logger::instance().log(Logger::Info, "EtiProcessor", 
+                                              QString("FIG 0/3: Service 0x%1, SubCh %2, TMID=%3, ASCTy=%4, Primary=%5")
+                                              .arg(service_id, 4, 16, QChar('0'))
+                                              .arg(component.sub_channel_id)
+                                              .arg(component.tmid)
+                                              .arg(component.asc_ty)
+                                              .arg(component.primary ? "Yes" : "No"));
+                    } else {
+                        // Update existing component
+                        *comp_it = component;
+                    }
+                } else {
+                    Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                                          QString("FIG 0/3: Component for unknown service 0x%1")
+                                          .arg(service_id, 4, 16, QChar('0')));
+                }
+            } else {
+                Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                                      QString("FIG 0/3: Invalid component: SubCh=%1, TMID=%2")
+                                      .arg(component.sub_channel_id)
+                                      .arg(component.tmid));
+            }
+            
+            offset += 4;
+        }
+        
+        Logger::instance().log(Logger::Info, "EtiProcessor", 
+                              QString("FIG 0/3: Parsed %1 service components").arg(components_parsed));
+        
+        return components_parsed > 0;
+        
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "EtiProcessor", 
+                              QString("FIG 0/3 parsing error: %1").arg(e.what()));
+        return false;
+    }
 }
 
 bool EtiProcessor::parseFig10_EnsembleLabel(const eti::FigBlock& figBlock)
 {
-    // TODO: Integrate with ETISnoop FIG 1/0 parser
-    // Placeholder implementation for build compatibility
-    Q_UNUSED(figBlock);
-    Logger::instance().log(Logger::Debug, "EtiProcessor", "FIG 1/0 Ensemble Label parsing - placeholder");
-    return true;
+    // FIG 1/0: Ensemble label (ETSI EN 300 401 Section 8.1.14.1)
+    if (figBlock.data.size() < 18) {
+        Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                              "FIG 1/0: Insufficient data for ensemble label");
+        return false;
+    }
+    
+    try {
+        uint16_t ensemble_id = (figBlock.data[0] << 8) | figBlock.data[1];
+        
+        // Verify this label belongs to our current ensemble
+        if (ensemble_id == m_currentEnsemble.ensemble_id) {
+            // Extract label (16 bytes, starting at offset 2)
+            std::string label;
+            for (size_t i = 2; i < 18 && i < figBlock.data.size(); ++i) {
+                if (figBlock.data[i] != 0) {
+                    label += static_cast<char>(figBlock.data[i]);
+                }
+            }
+            
+            // Remove trailing spaces
+            while (!label.empty() && label.back() == ' ') {
+                label.pop_back();
+            }
+            
+            m_currentEnsemble.label = label;
+            
+            // Parse character flag if available
+            if (figBlock.data.size() >= 20) {
+                m_currentEnsemble.character_flag = (figBlock.data[18] << 8) | figBlock.data[19];
+            }
+            
+            Logger::instance().log(Logger::Info, "EtiProcessor", 
+                                  QString("FIG 1/0: Ensemble label='%1' (ID=0x%2)")
+                                  .arg(QString::fromStdString(label))
+                                  .arg(ensemble_id, 4, 16, QChar('0')));
+            
+            emit ensembleDiscovered(m_currentEnsemble);
+            return true;
+        } else {
+            Logger::instance().log(Logger::Debug, "EtiProcessor", 
+                                  QString("FIG 1/0: Label for different ensemble (ID=0x%1, current=0x%2)")
+                                  .arg(ensemble_id, 4, 16, QChar('0'))
+                                  .arg(m_currentEnsemble.ensemble_id, 4, 16, QChar('0')));
+            return false;
+        }
+        
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "EtiProcessor", 
+                              QString("FIG 1/0 parsing error: %1").arg(e.what()));
+        return false;
+    }
 }
 
 bool EtiProcessor::parseFig11_ServiceLabel(const eti::FigBlock& figBlock)
 {
-    // TODO: Integrate with ETISnoop FIG 1/1 parser
-    // Placeholder implementation for build compatibility
-    Q_UNUSED(figBlock);
-    Logger::instance().log(Logger::Debug, "EtiProcessor", "FIG 1/1 Service Label parsing - placeholder");
-    return true;
+    // FIG 1/1: Service label (ETSI EN 300 401 Section 8.1.14.2)
+    if (figBlock.data.size() < 18) {
+        Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                              "FIG 1/1: Insufficient data for service label");
+        return false;
+    }
+    
+    try {
+        uint16_t service_id = (figBlock.data[0] << 8) | figBlock.data[1];
+        
+        // Find the corresponding service
+        auto service_it = std::find_if(m_discoveredServices.begin(), m_discoveredServices.end(),
+                                      [service_id](const eti::DabService& s) {
+                                          return s.service_id == service_id;
+                                      });
+        
+        if (service_it != m_discoveredServices.end()) {
+            // Extract label (16 bytes, starting at offset 2)
+            std::string label;
+            for (size_t i = 2; i < 18 && i < figBlock.data.size(); ++i) {
+                if (figBlock.data[i] != 0) {
+                    label += static_cast<char>(figBlock.data[i]);
+                }
+            }
+            
+            // Remove trailing spaces
+            while (!label.empty() && label.back() == ' ') {
+                label.pop_back();
+            }
+            
+            service_it->label = label;
+            
+            // Parse character flag if available
+            if (figBlock.data.size() >= 20) {
+                service_it->character_flag = (figBlock.data[18] << 8) | figBlock.data[19];
+            }
+            
+            Logger::instance().log(Logger::Info, "EtiProcessor", 
+                                  QString("FIG 1/1: Service label='%1' (ID=0x%2)")
+                                  .arg(QString::fromStdString(label))
+                                  .arg(service_id, 4, 16, QChar('0')));
+            
+            emit serviceDiscovered(*service_it);
+            return true;
+        } else {
+            Logger::instance().log(Logger::Warning, "EtiProcessor", 
+                                  QString("FIG 1/1: Label for unknown service (ID=0x%1)")
+                                  .arg(service_id, 4, 16, QChar('0')));
+            return false;
+        }
+        
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "EtiProcessor", 
+                              QString("FIG 1/1 parsing error: %1").arg(e.what()));
+        return false;
+    }
 }
 
 // ========================================================================
