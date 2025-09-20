@@ -48,8 +48,8 @@ private:
 void TestMainWindowWorkflows::initTestCase()
 {
     int argc = 1;
-    char* argv[] = {"test_main_window_workflows"};
-    app = new QApplication(argc, argv);
+    const char* argv[] = {"test_main_window_workflows"};
+    app = new QApplication(argc, const_cast<char**>(argv));
     
     Logger::instance().setLogLevel(Logger::Debug);
     Logger::instance().log(Logger::Info, "MainWindowE2E", "Starting MainWindow workflow tests");
@@ -65,7 +65,7 @@ void TestMainWindowWorkflows::init()
 {
     mainWindow = new MainWindow();
     mainWindow->show();
-    QTest::qWaitForWindowActive(mainWindow);
+    [[maybe_unused]] bool windowActive = QTest::qWaitForWindowActive(mainWindow);
     QVERIFY(mainWindow->isVisible());
 }
 
@@ -290,7 +290,7 @@ void TestMainWindowWorkflows::testWindowStateManagement()
     QVERIFY(mainWindow->pos() != originalPos);
     
     // Test window state changes
-    Qt::WindowStates originalState = mainWindow->windowState();
+    [[maybe_unused]] Qt::WindowStates originalState = mainWindow->windowState();
     
     // Test maximize (if supported)
     if (mainWindow->maximumSize() != mainWindow->minimumSize()) {

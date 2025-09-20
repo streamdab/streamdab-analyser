@@ -1,0 +1,430 @@
+[  0%] Built target gtest_autogen_timestamp_deps
+[  0%] Built target etisnoop_static_autogen_timestamp_deps
+[  1%] Built target gtest_autogen
+[  1%] Built target etisnoop_static_autogen
+[  3%] Built target gtest
+[  4%] Built target gmock_autogen_timestamp_deps
+[  4%] Built target gtest_main_autogen_timestamp_deps
+[ 24%] Built target etisnoop_static
+[ 24%] Built target gmock_autogen
+[ 24%] Built target gtest_main_autogen
+[ 24%] Built target etisnoop_autogen_timestamp_deps
+[ 24%] Built target ETIStreamAnalyzer_autogen_timestamp_deps
+[ 24%] Built target test_file_opening_workflow_autogen_timestamp_deps
+[ 24%] Built target e2e_tests_autogen_timestamp_deps
+[ 24%] Built target test_mandatory_workflow_coverage_autogen_timestamp_deps
+[ 26%] Built target gtest_main
+[ 27%] Built target ETIStreamAnalyzer_autogen
+[ 28%] Built target etisnoop_autogen
+[ 30%] Built target gmock
+[ 31%] Built target e2e_tests_autogen
+[ 31%] Built target test_file_opening_workflow_autogen
+[ 31%] Built target test_mandatory_workflow_coverage_autogen
+[ 31%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/ETIStreamAnalyzer_autogen/mocs_compilation.cpp.o
+[ 32%] Built target etisnoop
+[ 32%] Built target eti_analyzer_unit_tests_autogen_timestamp_deps
+[ 34%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/main.cpp.o
+[ 34%] Built target eti_analyzer_gui_tests_autogen_timestamp_deps
+[ 34%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/eti_processor.cpp.o
+[ 34%] Built target gmock_main_autogen_timestamp_deps
+[ 35%] Building CXX object tests/e2e/CMakeFiles/e2e_tests.dir/e2e_tests_autogen/mocs_compilation.cpp.o
+[ 37%] Building CXX object tests/e2e/CMakeFiles/e2e_tests.dir/test_main_window_workflows.cpp.o
+[ 39%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/etisnoop_wrapper.cpp.o
+[ 42%] Building CXX object tests/e2e/CMakeFiles/test_file_opening_workflow.dir/__/__/src/gui/fig_analysis_widget.cpp.o
+/home/seksan/workspace/streamdab-analyzer/tests/e2e/test_main_window_workflows.cpp: In member function ‘void TestMainWindowWorkflows::init()’:
+/home/seksan/workspace/streamdab-analyzer/tests/e2e/test_main_window_workflows.cpp:68:32: warning: ignoring return value of ‘bool QTest::qWaitForWindowActive(QWidget*, int)’, declared with attribute ‘nodiscard’ [-Wunused-result]
+   68 |     QTest::qWaitForWindowActive(mainWindow);
+      |     ~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~
+In file included from /usr/include/x86_64-linux-gnu/qt6/QtTest/qtestsystem.h:14,
+                 from /usr/include/x86_64-linux-gnu/qt6/QtTest/qtest.h:598,
+                 from /usr/include/x86_64-linux-gnu/qt6/QtTest/QtTest:11,
+                 from /home/seksan/workspace/streamdab-analyzer/tests/e2e/test_main_window_workflows.cpp:6:
+/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtestsupport_widgets.h:17:37: note: declared here
+   17 | [[nodiscard]] Q_WIDGETS_EXPORT bool qWaitForWindowActive(QWidget *widget, int timeout = 5000);
+      |                                     ^~~~~~~~~~~~~~~~~~~~
+/home/seksan/workspace/streamdab-analyzer/tests/e2e/test_main_window_workflows.cpp: In member function ‘void TestMainWindowWorkflows::testWindowStateManagement()’:
+/home/seksan/workspace/streamdab-analyzer/tests/e2e/test_main_window_workflows.cpp:293:22: warning: variable ‘originalState’ set but not used [-Wunused-but-set-variable]
+  293 |     Qt::WindowStates originalState = mainWindow->windowState();
+      |                      ^~~~~~~~~~~~~
+[ 47%] Building CXX object tests/e2e/CMakeFiles/e2e_tests.dir/test_file_operations.cpp.o
+[ 47%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/eti_file_worker.cpp.o
+[ 47%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/eti_types.cpp.o
+[ 61%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/dab_decoder.cpp.o
+[ 61%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/gui/fig_analysis_widget.cpp.o
+[ 61%] Building CXX object tests/e2e/CMakeFiles/test_file_opening_workflow.dir/__/__/src/core/etisnoop_wrapper.cpp.o
+[ 62%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/fic_decoder.cpp.o
+[ 63%] Building CXX object tests/e2e/CMakeFiles/e2e_tests.dir/test_menu_interactions.cpp.o
+[ 65%] Building CXX object tests/e2e/CMakeFiles/test_file_opening_workflow.dir/__/__/src/core/service_manager.cpp.o
+[ 72%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/service_manager.cpp.o
+[ 74%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/core/eti_processor.cpp.o
+[ 77%] Building CXX object tests/e2e/CMakeFiles/test_file_opening_workflow.dir/__/__/src/utils/logger.cpp.o
+[ 77%] Building CXX object tests/e2e/CMakeFiles/e2e_tests.dir/test_mandatory_workflow_coverage.cpp.o
+[ 80%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/main_window.cpp.o
+[ 80%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/core/fic_decoder.cpp.o
+[ 80%] Linking CXX executable test_file_opening_workflow
+/usr/bin/ld: CMakeFiles/test_file_opening_workflow.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::createExplorerPanel()':
+main_window.cpp:(.text+0xcad3): undefined reference to `ServiceExplorerPanel::ServiceExplorerPanel(QWidget*)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb31): undefined reference to `ServiceExplorerPanel::connectEtiProcessor(EtiProcessor*)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb3f): undefined reference to `ServiceExplorerPanel::serviceSelected(unsigned int)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb6d): undefined reference to `ServiceExplorerPanel::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0xcbba): undefined reference to `ServiceExplorerPanel::serviceFilterChanged(QList<unsigned int> const&)'
+/usr/bin/ld: main_window.cpp:(.text+0xcc29): undefined reference to `ServiceExplorerPanel::ensembleSelected(unsigned short)'
+collect2: error: ld returned 1 exit status
+make[2]: *** [tests/e2e/CMakeFiles/test_file_opening_workflow.dir/build.make:481: tests/e2e/test_file_opening_workflow] Error 1
+make[1]: *** [CMakeFiles/Makefile2:1388: tests/e2e/CMakeFiles/test_file_opening_workflow.dir/all] Error 2
+make[1]: *** Waiting for unfinished jobs....
+[ 82%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/service_browser.cpp.o
+[ 85%] Linking CXX executable e2e_tests
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/test_file_operations.cpp.o: in function `main':
+test_file_operations.cpp:(.text.startup+0x0): multiple definition of `main'; CMakeFiles/e2e_tests.dir/test_main_window_workflows.cpp.o:test_main_window_workflows.cpp:(.text.startup+0x0): first defined here
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/test_menu_interactions.cpp.o: in function `main':
+test_menu_interactions.cpp:(.text.startup+0x0): multiple definition of `main'; CMakeFiles/e2e_tests.dir/test_main_window_workflows.cpp.o:test_main_window_workflows.cpp:(.text.startup+0x0): first defined here
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/test_eti_file_opening.cpp.o: in function `main':
+test_eti_file_opening.cpp:(.text.startup+0x0): multiple definition of `main'; CMakeFiles/e2e_tests.dir/test_main_window_workflows.cpp.o:test_main_window_workflows.cpp:(.text.startup+0x0): first defined here
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/test_comprehensive_workflows.cpp.o: in function `main':
+test_comprehensive_workflows.cpp:(.text.startup+0x0): multiple definition of `main'; CMakeFiles/e2e_tests.dir/test_main_window_workflows.cpp.o:test_main_window_workflows.cpp:(.text.startup+0x0): first defined here
+[ 85%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/utils/report_generator.cpp.o
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::connectSignals()::{lambda(QString const&)#2}::operator()(QString const&) const':
+main_window.cpp:(.text+0x2da7): undefined reference to `FigAnalysisWidget::clearAnalysis()'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::handleDabPlusServiceDetected(unsigned int, QString const&)':
+main_window.cpp:(.text+0x4aed): undefined reference to `FigAnalysisWidget::highlightDabPlusServices()'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::setupDabPlusEnhancements()':
+main_window.cpp:(.text+0x618c): undefined reference to `FigAnalysisWidget::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x6299): undefined reference to `FigAnalysisWidget::complianceUpdated(int)'
+/usr/bin/ld: main_window.cpp:(.text+0x62e6): undefined reference to `FigAnalysisWidget::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x6387): undefined reference to `FigAnalysisWidget::dabPlusServiceDetected(QString const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x6412): undefined reference to `FigAnalysisWidget::setupComplianceValidation()'
+/usr/bin/ld: main_window.cpp:(.text+0x65c9): undefined reference to `FigAnalysisWidget::setRealTimeEnabled(bool)'
+/usr/bin/ld: main_window.cpp:(.text+0x65d1): undefined reference to `FigAnalysisWidget::validateEtsi300799Compliance()'
+/usr/bin/ld: main_window.cpp:(.text+0x67c3): undefined reference to `FigAnalysisWidget::staticMetaObject'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::setupDabPlusSignalConnections()':
+main_window.cpp:(.text+0x6957): undefined reference to `FigAnalysisWidget::complianceUpdated(int)'
+/usr/bin/ld: main_window.cpp:(.text+0x69c5): undefined reference to `FigAnalysisWidget::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x69e6): undefined reference to `FigAnalysisWidget::dabPlusServiceDetected(QString const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x6a37): undefined reference to `FigAnalysisWidget::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x6d9e): undefined reference to `FigAnalysisWidget::validateEtsi300799Compliance()'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::connectSignals()':
+main_window.cpp:(.text+0x80f2): undefined reference to `EtiServiceTreeModel::serviceSelectionRequested(unsigned int)'
+/usr/bin/ld: main_window.cpp:(.text+0x811b): undefined reference to `EtiServiceTreeModel::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x815a): undefined reference to `EtiServiceTreeModel::statisticsChanged(QMap<QString, QVariant> const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x81cc): undefined reference to `EtiFrameListModel::frameRateChanged(double)'
+/usr/bin/ld: main_window.cpp:(.text+0x81f5): undefined reference to `EtiFrameListModel::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x8234): undefined reference to `EtiFrameListModel::frameErrorDetected(unsigned long long, QString const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x8299): undefined reference to `EtiFrameListModel::statisticsChanged(QMap<QString, QVariant> const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x84eb): undefined reference to `EtiFileWorker::processingStarted(QString const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x8514): undefined reference to `EtiFileWorker::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x8552): undefined reference to `EtiFileWorker::processingProgress(int, unsigned long long)'
+/usr/bin/ld: main_window.cpp:(.text+0x85b6): undefined reference to `EtiFileWorker::processingCompleted(QString const&, unsigned long long)'
+/usr/bin/ld: main_window.cpp:(.text+0x861a): undefined reference to `EtiFileWorker::processingFailed(QString const&, QString const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x867e): undefined reference to `EtiFileWorker::processingCancelled(QString const&)'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::createDockWidgets()':
+main_window.cpp:(.text+0x8a28): undefined reference to `FigAnalysisWidget::FigAnalysisWidget(QWidget*)'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::closeEtiFile()':
+main_window.cpp:(.text+0xae88): undefined reference to `FigAnalysisWidget::clearAnalysis()'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::openEtiFile()':
+main_window.cpp:(.text+0xb8f2): undefined reference to `EtiFileWorker::isProcessing() const'
+/usr/bin/ld: main_window.cpp:(.text+0xba40): undefined reference to `EtiFileWorker::processEtiFile(QString const&)'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::createExplorerPanel()':
+main_window.cpp:(.text+0xcad3): undefined reference to `ServiceExplorerPanel::ServiceExplorerPanel(QWidget*)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb31): undefined reference to `ServiceExplorerPanel::connectEtiProcessor(EtiProcessor*)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb3f): undefined reference to `ServiceExplorerPanel::serviceSelected(unsigned int)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb6d): undefined reference to `ServiceExplorerPanel::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0xcbba): undefined reference to `ServiceExplorerPanel::serviceFilterChanged(QList<unsigned int> const&)'
+/usr/bin/ld: main_window.cpp:(.text+0xcc29): undefined reference to `ServiceExplorerPanel::ensembleSelected(unsigned short)'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::createPropertiesPanel()':
+main_window.cpp:(.text+0x10e93): undefined reference to `FigAnalysisWidget::FigAnalysisWidget(QWidget*)'
+/usr/bin/ld: main_window.cpp:(.text+0x10eea): undefined reference to `FigAnalysisWidget::initialize(EtisnoopWrapper*)'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::initialize()':
+main_window.cpp:(.text+0x11d0d): undefined reference to `EtiServiceTreeModel::EtiServiceTreeModel(QObject*)'
+/usr/bin/ld: main_window.cpp:(.text+0x11d1d): undefined reference to `EtiServiceTreeModel::initialize(EtisnoopWrapper*)'
+/usr/bin/ld: main_window.cpp:(.text+0x11d3d): undefined reference to `EtiFrameListModel::EtiFrameListModel(QObject*)'
+/usr/bin/ld: main_window.cpp:(.text+0x11d4d): undefined reference to `EtiFrameListModel::initialize(EtisnoopWrapper*)'
+/usr/bin/ld: main_window.cpp:(.text+0x11d77): undefined reference to `EtiFileWorker::EtiFileWorker(EtiProcessor*, QObject*)'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/core/eti_processor.cpp.o: in function `EtiProcessor::processFicData(eti::EtiFicField const&)':
+eti_processor.cpp:(.text+0x7c08): undefined reference to `eti::EtiFicField::decode_fig_blocks() const'
+collect2: error: ld returned 1 exit status
+make[2]: *** [tests/e2e/CMakeFiles/e2e_tests.dir/build.make:401: tests/e2e/e2e_tests] Error 1
+make[1]: *** [CMakeFiles/Makefile2:1360: tests/e2e/CMakeFiles/e2e_tests.dir/all] Error 2
+[ 86%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/eti_service_tree_model.cpp.o
+[ 86%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/fig_analysis_widget.cpp.o
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘ReportGenerator::StatisticalSummary ReportGenerator::generateStatisticalSummary(const ReportData&, const AnalysisConfig&)’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:278:127: warning: unused parameter ‘config’ [-Wunused-parameter]
+  278 | ReportGenerator::StatisticalSummary ReportGenerator::generateStatisticalSummary(const ReportData& data, const AnalysisConfig& config)
+      |                                                                                                         ~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘bool ReportGenerator::generateCsvExport(const ReportData&, const ExportConfig&, const QString&)’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:558:85: warning: unused parameter ‘config’ [-Wunused-parameter]
+  558 | bool ReportGenerator::generateCsvExport(const ReportData& data, const ExportConfig& config, const QString& outputPath)
+      |                                                                 ~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘bool ReportGenerator::generateXmlExport(const ReportData&, const ExportConfig&, const QString&)’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:607:85: warning: unused parameter ‘config’ [-Wunused-parameter]
+  607 | bool ReportGenerator::generateXmlExport(const ReportData& data, const ExportConfig& config, const QString& outputPath)
+      |                                                                 ~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘QString ReportGenerator::generateHtmlChart(ChartType, const ReportData&) const’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:782:83: warning: unused parameter ‘data’ [-Wunused-parameter]
+  782 | QString ReportGenerator::generateHtmlChart(ChartType chartType, const ReportData& data) const
+      |                                                                 ~~~~~~~~~~~~~~~~~~^~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘QString ReportGenerator::generateAudioLevelsWidget(const ReportData&) const’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:868:70: warning: unused parameter ‘data’ [-Wunused-parameter]
+  868 | QString ReportGenerator::generateAudioLevelsWidget(const ReportData& data) const
+      |                                                    ~~~~~~~~~~~~~~~~~~^~~~
+[ 91%] Linking CXX executable test_mandatory_workflow_coverage
+/usr/bin/ld: /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/Scrt1.o: in function `_start':
+(.text+0x1b): undefined reference to `main'
+/usr/bin/ld: CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::createExplorerPanel()':
+main_window.cpp:(.text+0xcad3): undefined reference to `ServiceExplorerPanel::ServiceExplorerPanel(QWidget*)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb31): undefined reference to `ServiceExplorerPanel::connectEtiProcessor(EtiProcessor*)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb3f): undefined reference to `ServiceExplorerPanel::serviceSelected(unsigned int)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb6d): undefined reference to `ServiceExplorerPanel::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0xcbba): undefined reference to `ServiceExplorerPanel::serviceFilterChanged(QList<unsigned int> const&)'
+/usr/bin/ld: main_window.cpp:(.text+0xcc29): undefined reference to `ServiceExplorerPanel::ensembleSelected(unsigned short)'
+collect2: error: ld returned 1 exit status
+make[2]: *** [tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/build.make:481: tests/e2e/test_mandatory_workflow_coverage] Error 1
+make[1]: *** [CMakeFiles/Makefile2:1416: tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/all] Error 2
+[ 92%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/audio_monitoring_widget.cpp.o
+[ 93%] Linking CXX executable ETIStreamAnalyzer
+[ 93%] Built target ETIStreamAnalyzer
+make: *** [Makefile:166: all] Error 2
+64-linux-gnu/qt6/QtTest/QtTest:11,
+                 from /home/seksan/workspace/streamdab-analyzer/tests/e2e/test_comprehensive_workflows.cpp:7:
+/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtestsupport_widgets.h:17:37: note: declared here
+   17 | [[nodiscard]] Q_WIDGETS_EXPORT bool qWaitForWindowActive(QWidget *widget, int timeout = 5000);
+      |                                     ^~~~~~~~~~~~~~~~~~~~
+[ 62%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/service_manager.cpp.o
+[ 62%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/core/eti_types.cpp.o
+[ 63%] Building CXX object tests/e2e/CMakeFiles/test_file_opening_workflow.dir/__/__/src/utils/logger.cpp.o
+[ 63%] Building CXX object _deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/gmock_main_autogen/mocs_compilation.cpp.o
+[ 63%] Building CXX object tests/e2e/CMakeFiles/test_file_opening_workflow.dir/__/__/src/utils/config_manager.cpp.o
+[ 63%] Building CXX object _deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/src/gmock_main.cc.o
+[ 63%] Building CXX object tests/e2e/CMakeFiles/e2e_tests.dir/__/__/src/core/eti_processor.cpp.o
+[ 63%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/core/dab_audio_decoder.cpp.o
+[ 63%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/core/dab_decoder.cpp.o
+[ 64%] Building CXX object tests/e2e/CMakeFiles/e2e_tests.dir/__/__/src/core/etisnoop_wrapper.cpp.o
+[ 65%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/core/fic_decoder.cpp.o
+[ 65%] Building CXX object tests/e2e/CMakeFiles/e2e_tests.dir/__/__/src/core/dab_audio_decoder.cpp.o
+[ 65%] Building CXX object tests/e2e/CMakeFiles/e2e_tests.dir/__/__/src/utils/logger.cpp.o
+[ 65%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/core/ensemble_manager.cpp.o
+[ 65%] Building CXX object tests/e2e/CMakeFiles/test_file_opening_workflow.dir/__/__/src/utils/report_generator.cpp.o
+[ 67%] Linking CXX static library ../../../lib/libgmock_main.a
+[ 68%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/main_window.cpp.o
+[ 69%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/core/service_manager.cpp.o
+[ 70%] Built target gmock_main
+[ 70%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/eti_analyzer_gui_tests_autogen/mocs_compilation.cpp.o
+[ 71%] Building CXX object tests/e2e/CMakeFiles/e2e_tests.dir/__/__/src/utils/report_generator.cpp.o
+[ 71%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/gui/test_main_window.cpp.o
+[ 72%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/gui/test_analyzer_widget.cpp.o
+[ 72%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/gui/test_constellation_widget.cpp.o
+[ 72%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/core/dab_audio_decoder.cpp.o
+[ 72%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/utils/logger.cpp.o
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘ReportGenerator::StatisticalSummary ReportGenerator::generateStatisticalSummary(const ReportData&, const AnalysisConfig&)’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:278:127: warning: unused parameter ‘config’ [-Wunused-parameter]
+  278 | ReportGenerator::StatisticalSummary ReportGenerator::generateStatisticalSummary(const ReportData& data, const AnalysisConfig& config)
+      |                                                                                                         ~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘bool ReportGenerator::generateCsvExport(const ReportData&, const ExportConfig&, const QString&)’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:558:85: warning: unused parameter ‘config’ [-Wunused-parameter]
+  558 | bool ReportGenerator::generateCsvExport(const ReportData& data, const ExportConfig& config, const QString& outputPath)
+      |                                                                 ~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘bool ReportGenerator::generateXmlExport(const ReportData&, const ExportConfig&, const QString&)’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:607:85: warning: unused parameter ‘config’ [-Wunused-parameter]
+  607 | bool ReportGenerator::generateXmlExport(const ReportData& data, const ExportConfig& config, const QString& outputPath)
+      |                                                                 ~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘QString ReportGenerator::generateHtmlChart(ChartType, const ReportData&) const’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:782:83: warning: unused parameter ‘data’ [-Wunused-parameter]
+  782 | QString ReportGenerator::generateHtmlChart(ChartType chartType, const ReportData& data) const
+      |                                                                 ~~~~~~~~~~~~~~~~~~^~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘QString ReportGenerator::generateAudioLevelsWidget(const ReportData&) const’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:868:70: warning: unused parameter ‘data’ [-Wunused-parameter]
+  868 | QString ReportGenerator::generateAudioLevelsWidget(const ReportData& data) const
+      |                                                    ~~~~~~~~~~~~~~~~~~^~~~
+[ 72%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/analyzer_widget.cpp.o
+[ 73%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/service_browser.cpp.o
+[ 74%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/utils/config_manager.cpp.o
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘ReportGenerator::StatisticalSummary ReportGenerator::generateStatisticalSummary(const ReportData&, const AnalysisConfig&)’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:278:127: warning: unused parameter ‘config’ [-Wunused-parameter]
+  278 | ReportGenerator::StatisticalSummary ReportGenerator::generateStatisticalSummary(const ReportData& data, const AnalysisConfig& config)
+      |                                                                                                         ~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘bool ReportGenerator::generateCsvExport(const ReportData&, const ExportConfig&, const QString&)’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:558:85: warning: unused parameter ‘config’ [-Wunused-parameter]
+  558 | bool ReportGenerator::generateCsvExport(const ReportData& data, const ExportConfig& config, const QString& outputPath)
+      |                                                                 ~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘bool ReportGenerator::generateXmlExport(const ReportData&, const ExportConfig&, const QString&)’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:607:85: warning: unused parameter ‘config’ [-Wunused-parameter]
+  607 | bool ReportGenerator::generateXmlExport(const ReportData& data, const ExportConfig& config, const QString& outputPath)
+      |                                                                 ~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘QString ReportGenerator::generateHtmlChart(ChartType, const ReportData&) const’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:782:83: warning: unused parameter ‘data’ [-Wunused-parameter]
+  782 | QString ReportGenerator::generateHtmlChart(ChartType chartType, const ReportData& data) const
+      |                                                                 ~~~~~~~~~~~~~~~~~~^~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘QString ReportGenerator::generateAudioLevelsWidget(const ReportData&) const’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:868:70: warning: unused parameter ‘data’ [-Wunused-parameter]
+  868 | QString ReportGenerator::generateAudioLevelsWidget(const ReportData& data) const
+      |                                                    ~~~~~~~~~~~~~~~~~~^~~~
+[ 74%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/constellation_widget.cpp.o
+[ 75%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/gui/test_service_browser.cpp.o
+[ 75%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/gui/test_settings_dialog.cpp.o
+[ 76%] Linking CXX executable test_file_opening_workflow
+[ 76%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/settings_dialog.cpp.o
+/usr/bin/ld: CMakeFiles/test_file_opening_workflow.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::createExplorerPanel()':
+main_window.cpp:(.text+0xcad3): undefined reference to `ServiceExplorerPanel::ServiceExplorerPanel(QWidget*)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb31): undefined reference to `ServiceExplorerPanel::connectEtiProcessor(EtiProcessor*)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb3f): undefined reference to `ServiceExplorerPanel::serviceSelected(unsigned int)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb6d): undefined reference to `ServiceExplorerPanel::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0xcbba): undefined reference to `ServiceExplorerPanel::serviceFilterChanged(QList<unsigned int> const&)'
+/usr/bin/ld: main_window.cpp:(.text+0xcc29): undefined reference to `ServiceExplorerPanel::ensembleSelected(unsigned short)'
+collect2: error: ld returned 1 exit status
+make[2]: *** [tests/e2e/CMakeFiles/test_file_opening_workflow.dir/build.make:481: tests/e2e/test_file_opening_workflow] Error 1
+make[1]: *** [CMakeFiles/Makefile2:1388: tests/e2e/CMakeFiles/test_file_opening_workflow.dir/all] Error 2
+make[1]: *** Waiting for unfinished jobs....
+[ 76%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/gui/test_about_dialog.cpp.o
+[ 77%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/gui/gui_test_framework.cpp.o
+[ 77%] Building CXX object tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/utils/report_generator.cpp.o
+[ 77%] Linking CXX executable e2e_tests
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/test_file_operations.cpp.o: in function `main':
+test_file_operations.cpp:(.text.startup+0x0): multiple definition of `main'; CMakeFiles/e2e_tests.dir/test_main_window_workflows.cpp.o:test_main_window_workflows.cpp:(.text.startup+0x0): first defined here
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/test_menu_interactions.cpp.o: in function `main':
+test_menu_interactions.cpp:(.text.startup+0x0): multiple definition of `main'; CMakeFiles/e2e_tests.dir/test_main_window_workflows.cpp.o:test_main_window_workflows.cpp:(.text.startup+0x0): first defined here
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/test_eti_file_opening.cpp.o: in function `main':
+test_eti_file_opening.cpp:(.text.startup+0x0): multiple definition of `main'; CMakeFiles/e2e_tests.dir/test_main_window_workflows.cpp.o:test_main_window_workflows.cpp:(.text.startup+0x0): first defined here
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/test_comprehensive_workflows.cpp.o: in function `main':
+test_comprehensive_workflows.cpp:(.text.startup+0x0): multiple definition of `main'; CMakeFiles/e2e_tests.dir/test_main_window_workflows.cpp.o:test_main_window_workflows.cpp:(.text.startup+0x0): first defined here
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::connectSignals()::{lambda(QString const&)#2}::operator()(QString const&) const':
+main_window.cpp:(.text+0x2da7): undefined reference to `FigAnalysisWidget::clearAnalysis()'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::handleDabPlusServiceDetected(unsigned int, QString const&)':
+main_window.cpp:(.text+0x4aed): undefined reference to `FigAnalysisWidget::highlightDabPlusServices()'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::setupDabPlusEnhancements()':
+main_window.cpp:(.text+0x618c): undefined reference to `FigAnalysisWidget::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x6299): undefined reference to `FigAnalysisWidget::complianceUpdated(int)'
+/usr/bin/ld: main_window.cpp:(.text+0x62e6): undefined reference to `FigAnalysisWidget::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x6387): undefined reference to `FigAnalysisWidget::dabPlusServiceDetected(QString const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x6412): undefined reference to `FigAnalysisWidget::setupComplianceValidation()'
+/usr/bin/ld: main_window.cpp:(.text+0x65c9): undefined reference to `FigAnalysisWidget::setRealTimeEnabled(bool)'
+/usr/bin/ld: main_window.cpp:(.text+0x65d1): undefined reference to `FigAnalysisWidget::validateEtsi300799Compliance()'
+/usr/bin/ld: main_window.cpp:(.text+0x67c3): undefined reference to `FigAnalysisWidget::staticMetaObject'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::setupDabPlusSignalConnections()':
+main_window.cpp:(.text+0x6957): undefined reference to `FigAnalysisWidget::complianceUpdated(int)'
+/usr/bin/ld: main_window.cpp:(.text+0x69c5): undefined reference to `FigAnalysisWidget::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x69e6): undefined reference to `FigAnalysisWidget::dabPlusServiceDetected(QString const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x6a37): undefined reference to `FigAnalysisWidget::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x6d9e): undefined reference to `FigAnalysisWidget::validateEtsi300799Compliance()'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::connectSignals()':
+main_window.cpp:(.text+0x80f2): undefined reference to `EtiServiceTreeModel::serviceSelectionRequested(unsigned int)'
+/usr/bin/ld: main_window.cpp:(.text+0x811b): undefined reference to `EtiServiceTreeModel::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x815a): undefined reference to `EtiServiceTreeModel::statisticsChanged(QMap<QString, QVariant> const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x81cc): undefined reference to `EtiFrameListModel::frameRateChanged(double)'
+/usr/bin/ld: main_window.cpp:(.text+0x81f5): undefined reference to `EtiFrameListModel::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x8234): undefined reference to `EtiFrameListModel::frameErrorDetected(unsigned long long, QString const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x8299): undefined reference to `EtiFrameListModel::statisticsChanged(QMap<QString, QVariant> const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x84eb): undefined reference to `EtiFileWorker::processingStarted(QString const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x8514): undefined reference to `EtiFileWorker::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x8552): undefined reference to `EtiFileWorker::processingProgress(int, unsigned long long)'
+/usr/bin/ld: main_window.cpp:(.text+0x85b6): undefined reference to `EtiFileWorker::processingCompleted(QString const&, unsigned long long)'
+/usr/bin/ld: main_window.cpp:(.text+0x861a): undefined reference to `EtiFileWorker::processingFailed(QString const&, QString const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x867e): undefined reference to `EtiFileWorker::processingCancelled(QString const&)'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::createDockWidgets()':
+main_window.cpp:(.text+0x8a28): undefined reference to `FigAnalysisWidget::FigAnalysisWidget(QWidget*)'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::closeEtiFile()':
+main_window.cpp:(.text+0xae88): undefined reference to `FigAnalysisWidget::clearAnalysis()'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::openEtiFile()':
+main_window.cpp:(.text+0xb8f2): undefined reference to `EtiFileWorker::isProcessing() const'
+/usr/bin/ld: main_window.cpp:(.text+0xba40): undefined reference to `EtiFileWorker::processEtiFile(QString const&)'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::createExplorerPanel()':
+main_window.cpp:(.text+0xcad3): undefined reference to `ServiceExplorerPanel::ServiceExplorerPanel(QWidget*)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb31): undefined reference to `ServiceExplorerPanel::connectEtiProcessor(EtiProcessor*)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb3f): undefined reference to `ServiceExplorerPanel::serviceSelected(unsigned int)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb6d): undefined reference to `ServiceExplorerPanel::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0xcbba): undefined reference to `ServiceExplorerPanel::serviceFilterChanged(QList<unsigned int> const&)'
+/usr/bin/ld: main_window.cpp:(.text+0xcc29): undefined reference to `ServiceExplorerPanel::ensembleSelected(unsigned short)'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::createPropertiesPanel()':
+main_window.cpp:(.text+0x10e93): undefined reference to `FigAnalysisWidget::FigAnalysisWidget(QWidget*)'
+/usr/bin/ld: main_window.cpp:(.text+0x10eea): undefined reference to `FigAnalysisWidget::initialize(EtisnoopWrapper*)'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::initialize()':
+main_window.cpp:(.text+0x11d0d): undefined reference to `EtiServiceTreeModel::EtiServiceTreeModel(QObject*)'
+/usr/bin/ld: main_window.cpp:(.text+0x11d1d): undefined reference to `EtiServiceTreeModel::initialize(EtisnoopWrapper*)'
+/usr/bin/ld: main_window.cpp:(.text+0x11d3d): undefined reference to `EtiFrameListModel::EtiFrameListModel(QObject*)'
+/usr/bin/ld: main_window.cpp:(.text+0x11d4d): undefined reference to `EtiFrameListModel::initialize(EtisnoopWrapper*)'
+/usr/bin/ld: main_window.cpp:(.text+0x11d77): undefined reference to `EtiFileWorker::EtiFileWorker(EtiProcessor*, QObject*)'
+/usr/bin/ld: CMakeFiles/e2e_tests.dir/__/__/src/core/eti_processor.cpp.o: in function `EtiProcessor::processFicData(eti::EtiFicField const&)':
+eti_processor.cpp:(.text+0x7c08): undefined reference to `eti::EtiFicField::decode_fig_blocks() const'
+collect2: error: ld returned 1 exit status
+make[2]: *** [tests/e2e/CMakeFiles/e2e_tests.dir/build.make:401: tests/e2e/e2e_tests] Error 1
+make[1]: *** [CMakeFiles/Makefile2:1360: tests/e2e/CMakeFiles/e2e_tests.dir/all] Error 2
+[ 77%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/mocks/mock_gui_components.cpp.o
+[ 78%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/about_dialog.cpp.o
+[ 78%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/eti_service_tree_model.cpp.o
+[ 79%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/fixtures/eti_test_data.cpp.o
+[ 80%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/eti_frame_list_model.cpp.o
+[ 80%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/gui/main_window.cpp.o
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘ReportGenerator::StatisticalSummary ReportGenerator::generateStatisticalSummary(const ReportData&, const AnalysisConfig&)’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:278:127: warning: unused parameter ‘config’ [-Wunused-parameter]
+  278 | ReportGenerator::StatisticalSummary ReportGenerator::generateStatisticalSummary(const ReportData& data, const AnalysisConfig& config)
+      |                                                                                                         ~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘bool ReportGenerator::generateCsvExport(const ReportData&, const ExportConfig&, const QString&)’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:558:85: warning: unused parameter ‘config’ [-Wunused-parameter]
+  558 | bool ReportGenerator::generateCsvExport(const ReportData& data, const ExportConfig& config, const QString& outputPath)
+      |                                                                 ~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘bool ReportGenerator::generateXmlExport(const ReportData&, const ExportConfig&, const QString&)’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:607:85: warning: unused parameter ‘config’ [-Wunused-parameter]
+  607 | bool ReportGenerator::generateXmlExport(const ReportData& data, const ExportConfig& config, const QString& outputPath)
+      |                                                                 ~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘QString ReportGenerator::generateHtmlChart(ChartType, const ReportData&) const’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:782:83: warning: unused parameter ‘data’ [-Wunused-parameter]
+  782 | QString ReportGenerator::generateHtmlChart(ChartType chartType, const ReportData& data) const
+      |                                                                 ~~~~~~~~~~~~~~~~~~^~~~
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp: In member function ‘QString ReportGenerator::generateAudioLevelsWidget(const ReportData&) const’:
+/home/seksan/workspace/streamdab-analyzer/src/utils/report_generator.cpp:868:70: warning: unused parameter ‘data’ [-Wunused-parameter]
+  868 | QString ReportGenerator::generateAudioLevelsWidget(const ReportData& data) const
+      |                                                    ~~~~~~~~~~~~~~~~~~^~~~
+[ 80%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/fig_analysis_widget.cpp.o
+[ 80%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/audio_monitoring_widget.cpp.o
+[ 80%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/gui/analyzer_widget.cpp.o
+[ 81%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/gui/service_browser.cpp.o
+[ 82%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/gui/service_explorer_panel.cpp.o
+[ 82%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/utils/logger.cpp.o
+[ 84%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/src/utils/config_manager.cpp.o
+[ 85%] Linking CXX executable test_mandatory_workflow_coverage
+/usr/bin/ld: /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/Scrt1.o: in function `_start':
+(.text+0x1b): undefined reference to `main'
+/usr/bin/ld: CMakeFiles/test_mandatory_workflow_coverage.dir/__/__/src/gui/main_window.cpp.o: in function `MainWindow::createExplorerPanel()':
+main_window.cpp:(.text+0xcad3): undefined reference to `ServiceExplorerPanel::ServiceExplorerPanel(QWidget*)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb31): undefined reference to `ServiceExplorerPanel::connectEtiProcessor(EtiProcessor*)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb3f): undefined reference to `ServiceExplorerPanel::serviceSelected(unsigned int)'
+/usr/bin/ld: main_window.cpp:(.text+0xcb6d): undefined reference to `ServiceExplorerPanel::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0xcbba): undefined reference to `ServiceExplorerPanel::serviceFilterChanged(QList<unsigned int> const&)'
+/usr/bin/ld: main_window.cpp:(.text+0xcc29): undefined reference to `ServiceExplorerPanel::ensembleSelected(unsigned short)'
+collect2: error: ld returned 1 exit status
+make[2]: *** [tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/build.make:481: tests/e2e/test_mandatory_workflow_coverage] Error 1
+make[1]: *** [CMakeFiles/Makefile2:1416: tests/e2e/CMakeFiles/test_mandatory_workflow_coverage.dir/all] Error 2
+[ 85%] Building CXX object CMakeFiles/ETIStreamAnalyzer.dir/ETIStreamAnalyzer_autogen/3YJK5W5UP7/qrc_application.cpp.o
+[ 85%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/gui/constellation_widget.cpp.o
+[ 86%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/gui/settings_dialog.cpp.o
+[ 86%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/gui/about_dialog.cpp.o
+[ 86%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/gui/eti_service_tree_model.cpp.o
+[ 87%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/gui/eti_frame_list_model.cpp.o
+[ 87%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/gui/fig_analysis_widget.cpp.o
+[ 88%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/gui/audio_monitoring_widget.cpp.o
+[ 88%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/core/eti_processor.cpp.o
+[ 88%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/core/etisnoop_wrapper.cpp.o
+[ 89%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/core/eti_file_worker.cpp.o
+[ 89%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/core/eti_types.cpp.o
+[ 89%] Linking CXX executable ETIStreamAnalyzer
+[ 90%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/core/dab_decoder.cpp.o
+[ 90%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/core/fic_decoder.cpp.o
+[ 90%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/core/ensemble_manager.cpp.o
+[ 91%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/core/service_manager.cpp.o
+[ 91%] Built target ETIStreamAnalyzer
+[ 91%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/core/dab_audio_decoder.cpp.o
+[ 92%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/utils/logger.cpp.o
+[ 92%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/utils/config_manager.cpp.o
+[ 92%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/utils/file_utils.cpp.o
+[ 93%] Building CXX object tests/CMakeFiles/eti_analyzer_gui_tests.dir/__/src/utils/signal_processing.cpp.o
+[ 93%] Linking CXX executable eti_analyzer_gui_tests
+/usr/bin/ld: CMakeFiles/eti_analyzer_gui_tests.dir/__/src/gui/main_window.cpp.o: in function `MainWindow::createExplorerPanel()':
+main_window.cpp:(.text+0x134e7): undefined reference to `ServiceExplorerPanel::ServiceExplorerPanel(QWidget*)'
+/usr/bin/ld: main_window.cpp:(.text+0x135a9): undefined reference to `ServiceExplorerPanel::connectEtiProcessor(EtiProcessor*)'
+/usr/bin/ld: main_window.cpp:(.text+0x135bf): undefined reference to `ServiceExplorerPanel::serviceSelected(unsigned int)'
+/usr/bin/ld: main_window.cpp:(.text+0x135f5): undefined reference to `ServiceExplorerPanel::staticMetaObject'
+/usr/bin/ld: main_window.cpp:(.text+0x13655): undefined reference to `ServiceExplorerPanel::serviceFilterChanged(QList<unsigned int> const&)'
+/usr/bin/ld: main_window.cpp:(.text+0x136ec): undefined reference to `ServiceExplorerPanel::ensembleSelected(unsigned short)'
+collect2: error: ld returned 1 exit status
+make[2]: *** [tests/CMakeFiles/eti_analyzer_gui_tests.dir/build.make:624: tests/eti_analyzer_gui_tests] Error 1
+make[1]: *** [CMakeFiles/Makefile2:746: tests/CMakeFiles/eti_analyzer_gui_tests.dir/all] Error 2
+make: *** [Makefile:166: all] Error 2

@@ -8,7 +8,7 @@ project(ETIStreamAnalyzer
 )
 
 # C++ standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Build type default
@@ -175,6 +175,10 @@ set(CORE_SOURCE_FILES
     src/gui/fig_analysis_widget.h
     src/gui/audio_monitoring_widget.cpp
     src/gui/audio_monitoring_widget.h
+    src/gui/service_explorer_panel.cpp
+    src/gui/service_explorer_panel.h
+    src/gui/eti_analysis_widget.cpp
+    src/gui/eti_analysis_widget.h
     src/utils/logger.cpp
     src/utils/logger.h
     src/utils/config_manager.cpp
