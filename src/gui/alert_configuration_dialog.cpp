@@ -14,12 +14,12 @@
 #include <QFileDialog>
 #include <QMessageBox>
 
-AlertConfigurationDialog::AlertConfigurationDialog(QWidget *parent)
+AlertConfigurationDialog::AlertConfigurationDialog(AlertSystem *alertSystem, QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::AlertConfigurationDialog)
-    , m_alertSystem(nullptr)
-    , m_configurationChanged(false)
+    , m_alertSystem(alertSystem)
     , m_previewTimer(nullptr)
+    , m_configurationChanged(false)
 {
     // Initialize UI from Designer file
     ui->setupUi(this);
@@ -69,10 +69,7 @@ bool AlertConfigurationDialog::initialize()
     }
 }
 
-void AlertConfigurationDialog::setAlertSystem(AlertSystem *alertSystem)
-{
-    m_alertSystem = alertSystem;
-}
+
 
 // Minimal slot implementations for Qt Designer validation
 void AlertConfigurationDialog::accept()
@@ -173,4 +170,11 @@ void AlertConfigurationDialog::loadConfiguration()
 void AlertConfigurationDialog::saveConfiguration()
 {
     Logger::instance().log(Logger::Debug, "AlertConfigurationDialog", "Save configuration - placeholder");
+}
+
+void AlertConfigurationDialog::previewAlert(AlertSystem::AlertLevel level, AlertSystem::AlertType type)
+{
+    Q_UNUSED(level)
+    Q_UNUSED(type)
+    Logger::instance().log(Logger::Debug, "AlertConfigurationDialog", "Preview alert - placeholder");
 }

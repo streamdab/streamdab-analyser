@@ -76,22 +76,22 @@ QByteArray MockTestHelpers::generateTestEtiFrame(uint16_t serviceId) {
     QByteArray frame(256, 0x00); // 256-byte ETI frame
     
     // ETI frame header (simplified)
-    frame[0] = 0xE0; // ERR field
-    frame[1] = 0xE1; // STAT field
-    frame[2] = 0xFF; // LIDATA high
-    frame[3] = 0xFF; // LIDATA low
+    frame[0] = static_cast<char>(0xE0); // ERR field
+    frame[1] = static_cast<char>(0xE1); // STAT field
+    frame[2] = static_cast<char>(0xFF); // LIDATA high
+    frame[3] = static_cast<char>(0xFF); // LIDATA low
     frame[4] = 0x00; // FC high
     frame[5] = 0x01; // FC low
     
     // Insert service ID
-    frame[24] = (serviceId >> 8) & 0xFF;
-    frame[25] = serviceId & 0xFF;
+    frame[24] = static_cast<char>((serviceId >> 8) & 0xFF);
+    frame[25] = static_cast<char>(serviceId & 0xFF);
     
     // Add some realistic FIC data
     frame[32] = 0x00; // FIG type 0
     frame[33] = 0x01; // Extension 1 (service info)
-    frame[34] = (serviceId >> 8) & 0xFF;
-    frame[35] = serviceId & 0xFF;
+    frame[34] = static_cast<char>((serviceId >> 8) & 0xFF);
+    frame[35] = static_cast<char>(serviceId & 0xFF);
     
     return frame;
 }

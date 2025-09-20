@@ -158,6 +158,8 @@ set(CORE_SOURCE_FILES
     src/core/service_manager.h
     src/core/dab_audio_decoder.cpp
     src/core/dab_audio_decoder.h
+    src/core/alert_system.cpp
+    src/core/alert_system.h
     src/gui/main_window.cpp
     src/gui/main_window.h
     src/gui/analyzer_widget.cpp

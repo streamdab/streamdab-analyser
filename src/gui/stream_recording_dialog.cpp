@@ -15,16 +15,10 @@
 #include <QMessageBox>
 #include <QStandardPaths>
 
-StreamRecordingDialog::StreamRecordingDialog(QWidget *parent)
+StreamRecordingDialog::StreamRecordingDialog(eti::StreamRecordingManager *recordingManager, QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::StreamRecordingDialog)
-    , m_recordingManager(nullptr)
-    , m_isRecording(false)
-    , m_isPaused(false)
-    , m_diskSpaceTimer(nullptr)
-    , m_recordingTimer(nullptr)
-    , m_recordingDuration(0)
-    , m_lastRecordingSize(0)
+    , m_recordingManager(recordingManager)
 {
     // Initialize UI from Designer file
     ui->setupUi(this);
@@ -46,14 +40,6 @@ StreamRecordingDialog::StreamRecordingDialog(QWidget *parent)
 
 StreamRecordingDialog::~StreamRecordingDialog()
 {
-    if (m_diskSpaceTimer) {
-        m_diskSpaceTimer->stop();
-    }
-    
-    if (m_recordingTimer) {
-        m_recordingTimer->stop();
-    }
-    
     // Clean up UI
     delete ui;
     
@@ -76,30 +62,7 @@ bool StreamRecordingDialog::initialize()
     }
 }
 
-void StreamRecordingDialog::setRecordingManager(RecordingManager *manager)
-{
-    m_recordingManager = manager;
-}
 
-bool StreamRecordingDialog::isRecording() const
-{
-    return m_isRecording;
-}
-
-bool StreamRecordingDialog::isPaused() const
-{
-    return m_isPaused;
-}
-
-QString StreamRecordingDialog::getOutputDirectory() const
-{
-    return m_outputDirectory;
-}
-
-void StreamRecordingDialog::setOutputDirectory(const QString &directory)
-{
-    m_outputDirectory = directory;
-}
 
 // Placeholder implementations for required methods
 void StreamRecordingDialog::accept()
@@ -117,27 +80,19 @@ void StreamRecordingDialog::reject()
 void StreamRecordingDialog::startRecordingSession()
 {
     Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Start recording session - placeholder");
-    m_isRecording = true;
-    emit recordingStarted();
+    // Placeholder implementation for Qt Designer validation
 }
 
 void StreamRecordingDialog::stopRecordingSession()
 {
     Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Stop recording session - placeholder");
-    m_isRecording = false;
-    m_isPaused = false;
-    emit recordingStopped();
+    // Placeholder implementation for Qt Designer validation
 }
 
 void StreamRecordingDialog::pauseRecordingSession()
 {
     Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Pause recording session - placeholder");
-    m_isPaused = !m_isPaused;
-    if (m_isPaused) {
-        emit recordingPaused();
-    } else {
-        emit recordingResumed();
-    }
+    // Placeholder implementation for Qt Designer validation
 }
 
 void StreamRecordingDialog::updateRecordingStatus()
@@ -145,33 +100,32 @@ void StreamRecordingDialog::updateRecordingStatus()
     Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Update recording status - placeholder");
 }
 
-void StreamRecordingDialog::updateDiskSpace()
+void StreamRecordingDialog::updateDiskSpaceDisplay()
 {
-    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Update disk space - placeholder");
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Update disk space display - placeholder");
 }
 
-void StreamRecordingDialog::handleDirectoryBrowse()
+void StreamRecordingDialog::browseOutputDirectory()
 {
     QString dir = QFileDialog::getExistingDirectory(this, tr("Select Recording Directory"), 
                                                    QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
-    if (!dir.isEmpty()) {
-        setOutputDirectory(dir);
-    }
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Browse output directory - placeholder");
+    Q_UNUSED(dir);
 }
 
-void StreamRecordingDialog::handleFormatChange()
+void StreamRecordingDialog::handleOutputFormatChanged()
 {
-    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Format change - placeholder");
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Output format changed - placeholder");
 }
 
-void StreamRecordingDialog::handleCompressionToggle()
+void StreamRecordingDialog::handleCompressionChanged()
 {
-    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Compression toggle - placeholder");
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Compression changed - placeholder");
 }
 
-void StreamRecordingDialog::handleSegmentationChange()
+void StreamRecordingDialog::handleSegmentationChanged()
 {
-    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Segmentation change - placeholder");
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Segmentation changed - placeholder");
 }
 
 void StreamRecordingDialog::testRecordingSettings()
@@ -180,12 +134,68 @@ void StreamRecordingDialog::testRecordingSettings()
     QMessageBox::information(this, tr("Settings Test"), tr("Recording settings test completed successfully."));
 }
 
-void StreamRecordingDialog::loadRecordingPreset()
+void StreamRecordingDialog::resumeRecordingSession()
 {
-    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Load recording preset - placeholder");
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Resume recording session - placeholder");
 }
 
-void StreamRecordingDialog::saveRecordingPreset()
+void StreamRecordingDialog::applyConfiguration()
 {
-    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Save recording preset - placeholder");
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Apply configuration - placeholder");
+}
+
+void StreamRecordingDialog::resetToDefaults()
+{
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Reset to defaults - placeholder");
+}
+
+void StreamRecordingDialog::loadConfiguration()
+{
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Load configuration - placeholder");
+}
+
+void StreamRecordingDialog::saveConfiguration()
+{
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Save configuration - placeholder");
+}
+
+void StreamRecordingDialog::handleOutputDirectoryChanged()
+{
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Output directory changed - placeholder");
+}
+
+void StreamRecordingDialog::handleSessionSelectionChanged()
+{
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Session selection changed - placeholder");
+}
+
+void StreamRecordingDialog::updateSessionList()
+{
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Update session list - placeholder");
+}
+
+void StreamRecordingDialog::handleRecordingSessionStarted(const QString& sessionId)
+{
+    Q_UNUSED(sessionId)
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Handle recording session started - placeholder");
+}
+
+void StreamRecordingDialog::handleRecordingSessionStopped(const QString& sessionId)
+{
+    Q_UNUSED(sessionId)
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Handle recording session stopped - placeholder");
+}
+
+void StreamRecordingDialog::handleSessionStatisticsUpdate(const QString& sessionId, const eti::RecordingSession& session)
+{
+    Q_UNUSED(sessionId)
+    Q_UNUSED(session)
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Handle session statistics update - placeholder");
+}
+
+void StreamRecordingDialog::handleRecordingError(const QString& sessionId, const QString& error)
+{
+    Q_UNUSED(sessionId)
+    Q_UNUSED(error)
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Handle recording error - placeholder");
 }

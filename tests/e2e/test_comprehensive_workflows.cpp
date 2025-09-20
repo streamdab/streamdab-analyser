@@ -81,8 +81,8 @@ void TestComprehensiveWorkflows::initTestCase()
 {
     // Initialize application for comprehensive E2E testing
     int argc = 1;
-    char* argv[] = {"test_comprehensive_workflows"};
-    app = new QApplication(argc, argv);
+    const char* argv[] = {"test_comprehensive_workflows"};
+    app = new QApplication(argc, const_cast<char**>(argv));
     
     Logger::instance().setLogLevel(Logger::Debug);
     Logger::instance().log(Logger::Info, "E2EWorkflows", "Starting Comprehensive Workflow E2E Tests");
@@ -110,7 +110,7 @@ void TestComprehensiveWorkflows::init()
 {
     mainWindow = new MainWindow();
     mainWindow->show();
-    QTest::qWaitForWindowActive(mainWindow);
+    QVERIFY(QTest::qWaitForWindowActive(mainWindow));
     QVERIFY(mainWindow->isVisible());
 }
 

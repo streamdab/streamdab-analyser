@@ -20,8 +20,8 @@ endif()
 find_package(Qt6 REQUIRED COMPONENTS Test Core Widgets Gui)
 # Enable Qt test framework
 set(CMAKE_AUTOMOC ON)
-# TDD Configuration
-set(CMAKE_CXX_STANDARD 17)
+# TDD Configuration - Use C++20 to match main project
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # TDD REQUIREMENT: Enable code coverage by default
 option(ENABLE_COVERAGE "Enable TDD code coverage reporting" ON)
