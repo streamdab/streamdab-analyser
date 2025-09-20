@@ -390,12 +390,33 @@ bool EtiProcessor::processFile(const QString& filename)
         return false;
     }
     
+    // PROFESSIONAL ERROR HANDLING - Match ETISnoop's actual behavior
     QFileInfo fileInfo(filename);
-    if (!fileInfo.exists() || !fileInfo.isReadable()) {
-        QString error = QString("File not found or not readable: %1").arg(filename);
+    if (!fileInfo.exists()) {
+        // ETISnoop behavior: File not found = exit code 1 (critical error)
+        QString error = QString("File not found: %1").arg(filename);
         Logger::instance().log(Logger::Error, "EtiProcessor", error);
         emit errorOccurred(error);
-        return false;
+        return false;  // Critical failure - matches ETISnoop exit code 1
+    }
+    
+    if (!fileInfo.isReadable()) {
+        // Permission error - critical failure
+        QString error = QString("File not readable: %1").arg(filename);
+        Logger::instance().log(Logger::Error, "EtiProcessor", error);
+        emit errorOccurred(error);
+        return false;  // Critical failure
+    }
+    
+    // Check for empty or invalid files - ETISnoop handles these gracefully
+    if (fileInfo.size() == 0) {
+        // ETISnoop behavior: Empty file = exit code 0 with informative message
+        QString warning = QString("Empty file detected: %1 - unable to read ETI sync").arg(filename);
+        Logger::instance().log(Logger::Warning, "EtiProcessor", warning);
+        emit errorOccurred(warning);  // User feedback but not critical failure
+        m_status = "ETI file appears to be empty - no frames processed";
+        emit statusChanged(m_status);
+        return true;  // Success with warnings - matches ETISnoop exit code 0
     }
     
     Logger::instance().log(Logger::Info, "EtiProcessor", 
@@ -403,7 +424,7 @@ bool EtiProcessor::processFile(const QString& filename)
     
     m_currentFile = filename;
     
-    // Use ETISnoop wrapper for file processing
+    // Use ETISnoop wrapper for file processing with enhanced error handling
     bool success = m_etisnoopWrapper->processEtiFile(filename);
     
     if (success) {
@@ -411,17 +432,30 @@ bool EtiProcessor::processFile(const QString& filename)
         auto stats = m_etisnoopWrapper->getProcessingStats();
         m_frameCount = stats.totalFramesProcessed;
         
-        // Update status
-        m_status = QString("ETISnoop processed %1 frames from file").arg(m_frameCount);
+        if (m_frameCount == 0) {
+            // ETISnoop processed the file but found no valid frames
+            QString warning = QString("ETI file processed but no valid frames found: %1").arg(filename);
+            Logger::instance().log(Logger::Warning, "EtiProcessor", warning);
+            emit errorOccurred(warning);  // User feedback
+            m_status = "ETI file processed - could not identify stream type";
+            emit statusChanged(m_status);
+            return true;  // Success with warnings - matches ETISnoop behavior
+        }
+        
+        // Update status with successful processing
+        m_status = QString("ETI file processed successfully: %1 frames").arg(m_frameCount);
         emit statusChanged(m_status);
         
         Logger::instance().log(Logger::Info, "EtiProcessor", 
-                              QString("ETISnoop file processing completed: %1 frames, %2 fps average")
+                              QString("ETI file processing completed: %1 frames, %2 fps average")
                               .arg(m_frameCount).arg(stats.averageFrameRate, 0, 'f', 1));
     } else {
-        QString error = QString("ETISnoop file processing failed: %1").arg(m_etisnoopWrapper->getLastError());
+        // ETISnoop wrapper failed - provide professional error feedback
+        QString error = QString("ETI file processing failed: %1").arg(m_etisnoopWrapper->getLastError());
         Logger::instance().log(Logger::Error, "EtiProcessor", error);
         emit errorOccurred(error);
+        m_status = "ETI file processing failed";
+        emit statusChanged(m_status);
     }
     
     return success;

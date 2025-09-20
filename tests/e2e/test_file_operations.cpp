@@ -9,8 +9,13 @@
 #include <QMessageBox>
 #include <QProgressDialog>
 #include <QTimer>
+#include <QTreeWidget>
+#include <QMenuBar>
+#include <QStatusBar>
 
 #include "gui/main_window.h"
+#include "gui/service_browser.h"
+#include "gui/analyzer_widget.h"
 #include "utils/logger.h"
 
 class TestFileOperations : public QObject
@@ -46,8 +51,8 @@ private:
 void TestFileOperations::initTestCase()
 {
     int argc = 1;
-    char* argv[] = {"test_file_operations"};
-    app = new QApplication(argc, argv);
+    const char* argv[] = {"test_file_operations"};
+    app = new QApplication(argc, const_cast<char**>(argv));
     
     Logger::instance().setLogLevel(Logger::Debug);
     Logger::instance().log(Logger::Info, "FileOpsE2E", "Starting file operations E2E tests");
@@ -69,7 +74,8 @@ void TestFileOperations::init()
 {
     mainWindow = new MainWindow();
     mainWindow->show();
-    QTest::qWaitForWindowActive(mainWindow);
+    bool windowActive = QTest::qWaitForWindowActive(mainWindow);
+    Q_UNUSED(windowActive);
     QVERIFY(mainWindow->isVisible());
 }
 
@@ -322,8 +328,8 @@ bool TestFileOperations::simulateFileDialog(const QString& filePath)
             // Select the test file
             dialog->selectFile(filePath);
             
-            // Accept the dialog
-            dialog->accept();
+            // Accept the dialog using public method
+            QTest::keyClick(dialog, Qt::Key_Return);
             
             Logger::instance().log(Logger::Debug, "FileOpsE2E", "File dialog accepted with selected file");
         } else {

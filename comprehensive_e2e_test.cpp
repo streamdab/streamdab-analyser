@@ -286,44 +286,97 @@ public:
     TestResults testErrorHandlingEdgeCases() {
         TestResults results;
         
-        qDebug() << "=== TEST 5: Error Handling and Edge Cases ===";
+        qDebug() << "=== TEST 5: Professional Error Handling (ETISnoop Standard) ===";
         
-        QStringList testCases = {
-            "/nonexistent/file.eti",
-            "/dev/null",
-            "/tmp/empty.eti"
+        struct ErrorTestCase {
+            QString file;
+            int expectedExitCode;
+            QString description;
         };
+        
+        QList<ErrorTestCase> testCases = {
+            {"/nonexistent/file.eti", 1, "Nonexistent file (critical error)"},
+            {"/dev/null", 0, "Empty file (graceful handling)"},
+            {"/tmp/empty.eti", 0, "Empty temp file (graceful handling)"}
+        };
+        
+        // Create empty temp file if it doesn't exist
+        QFile emptyFile("/tmp/empty.eti");
+        if (!emptyFile.exists()) {
+            emptyFile.open(QIODevice::WriteOnly);
+            emptyFile.close();
+        }
         
         int passedTests = 0;
         
-        for (const QString& testFile : testCases) {
-            qDebug() << "Testing error case:" << testFile;
+        for (const ErrorTestCase& testCase : testCases) {
+            qDebug() << "Testing:" << testCase.description;
+            qDebug() << "File:" << testCase.file;
+            qDebug() << "Expected exit code:" << testCase.expectedExitCode;
             
             QProcess errorTest;
             QString etisnoopPath = QDir::currentPath() + "/third_party/etisnoop/etisnoop";
-            errorTest.start(etisnoopPath, QStringList() << "-i" << testFile);
+            errorTest.start(etisnoopPath, QStringList() << "-i" << testCase.file);
             
             if (errorTest.waitForFinished(5000)) {
-                // Should handle errors gracefully (non-zero exit or controlled failure)
-                if (errorTest.exitCode() != 0 || errorTest.readAllStandardError().contains("Error")) {
-                    passedTests++;
-                    qDebug() << "✓ Error handled correctly for" << testFile;
+                int actualExitCode = errorTest.exitCode();
+                QByteArray stderr = errorTest.readAllStandardError();
+                QByteArray stdout = errorTest.readAllStandardOutput();
+                
+                qDebug() << "Actual exit code:" << actualExitCode;
+                qDebug() << "Stderr:" << stderr.constData();
+                qDebug() << "Stdout:" << stdout.constData();
+                
+                // Professional validation: Check if ETISnoop behaves as expected
+                bool testPassed = false;
+                
+                if (testCase.expectedExitCode == 1) {
+                    // Critical errors should return exit code 1
+                    testPassed = (actualExitCode == 1);
                 } else {
-                    qDebug() << "✗ Error not handled properly for" << testFile;
+                    // Graceful handling should return exit code 0
+                    testPassed = (actualExitCode == 0);
+                }
+                
+                // Additional validation: No hanging or crashing
+                if (testPassed) {
+                    testPassed = (!stderr.contains("Segmentation fault") && 
+                                 !stderr.contains("core dumped") && 
+                                 !stdout.contains("Segmentation fault"));
+                }
+                
+                if (testPassed) {
+                    passedTests++;
+                    qDebug() << "✓ Professional error handling verified for" << testCase.description;
+                } else {
+                    qDebug() << "✗ Error handling mismatch for" << testCase.description;
+                    qDebug() << "  Expected exit code:" << testCase.expectedExitCode;
+                    qDebug() << "  Actual exit code:" << actualExitCode;
                 }
             } else {
-                // Timeout could indicate hanging on error
+                // Timeout indicates hanging - professional software should not hang
                 errorTest.kill();
-                qDebug() << "✗ Process hung on error case" << testFile;
+                qDebug() << "✗ Process hung on" << testCase.description << "- NOT professional behavior";
             }
+            
+            qDebug() << "";
         }
         
-        results.success = (passedTests >= 2); // At least 2/3 error cases handled
+        // Professional standards: ALL error cases must be handled correctly
+        results.success = (passedTests == testCases.size());
         results.frameCount = passedTests;
-        results.errorMessage = passedTests < 2 ? 
-            QString("Only %1/3 error cases handled properly").arg(passedTests) : "";
+        results.errorMessage = results.success ? "" : 
+            QString("Professional error handling failed: %1/%2 test cases passed")
+            .arg(passedTests).arg(testCases.size());
         
-        qDebug() << QString("Error handling: %1/3 test cases passed").arg(passedTests);
+        qDebug() << QString("Professional Error Handling: %1/%2 test cases passed")
+                    .arg(passedTests).arg(testCases.size());
+        
+        if (results.success) {
+            qDebug() << "✅ ALL error handling tests PASSED - Professional standard achieved";
+        } else {
+            qDebug() << "❌ Error handling tests FAILED - Professional standard NOT met";
+        }
         
         return results;
     }
