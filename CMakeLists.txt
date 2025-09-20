@@ -66,7 +66,7 @@ if(yaml-cpp_FOUND)
     message(STATUS "YAML-CPP found: Configuration features enabled")
     set(HAVE_YAML_CPP ON)
 else()
-    message(WARNING "YAML-CPP not found: Some configuration features disabled")
+    message(STATUS "YAML-CPP not found: Configuration features disabled (optional)")
     set(HAVE_YAML_CPP OFF)
 endif()
 
@@ -76,7 +76,7 @@ if(nlohmann_json_FOUND)
     message(STATUS "nlohmann/json found: Enhanced ETISnoop integration enabled")
     set(HAVE_NLOHMANN_JSON ON)
 else()
-    message(WARNING "nlohmann/json not found: Some ETISnoop features disabled")
+    message(STATUS "nlohmann/json not found: ETISnoop features disabled (optional)")
     set(HAVE_NLOHMANN_JSON OFF)
 endif()
 
@@ -122,6 +122,12 @@ set(CORE_SOURCE_FILES
     src/gui/settings_dialog.h
     src/gui/about_dialog.cpp
     src/gui/about_dialog.h
+    src/gui/eti_service_tree_model.cpp
+    src/gui/eti_service_tree_model.h
+    src/gui/eti_frame_list_model.cpp
+    src/gui/eti_frame_list_model.h
+    src/gui/fig_analysis_widget.cpp
+    src/gui/fig_analysis_widget.h
     src/utils/logger.cpp
     src/utils/logger.h
     src/utils/config_manager.cpp
@@ -206,8 +212,38 @@ endif()
 # Testing configuration
 add_subdirectory(tests)
 
-# Packaging configuration (platform-specific settings loaded from platform configs)
-include(CPack)
+# Installation configuration
+install(TARGETS ${PROJECT_NAME}
+    RUNTIME DESTINATION bin
+    COMPONENT Runtime
+)
+
+# Install desktop integration files (Linux)
+if(UNIX AND NOT APPLE)
+    install(FILES resources/linux/eti-stream-analyzer.desktop
+        DESTINATION share/applications
+        COMPONENT Runtime
+    )
+
+    install(FILES resources/linux/eti-stream-analyzer.xml
+        DESTINATION share/mime/packages
+        COMPONENT Runtime
+    )
+
+    install(FILES resources/icons/eti-stream-analyzer.svg
+        DESTINATION share/icons/hicolor/scalable/apps
+        COMPONENT Runtime
+    )
+endif()
+
+# Install documentation
+install(FILES README.md
+    DESTINATION share/doc/${PROJECT_NAME}
+    COMPONENT Documentation
+)
+
+# Professional cross-platform packaging configuration
+include(cmake/packaging.cmake)
 
 message(STATUS "=== Configuration Complete ===")
 message(STATUS "Target platform: ${PLATFORM_NAME}")

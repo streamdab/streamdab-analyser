@@ -23,6 +23,13 @@
 #include <QCloseEvent>
 #include <QResizeEvent>
 #include <QMoveEvent>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
+#include <QTableWidget>
+#include <QTableWidgetItem>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QHeaderView>
 #include <memory>
 
 // Forward declarations
@@ -34,6 +41,9 @@ class AboutDialog;
 class EtiProcessor;
 class EtiFileWorker;
 class ConfigManager;
+class EtisnoopWrapper;
+class EtiServiceTreeModel;
+class EtiFrameListModel;
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -277,6 +287,36 @@ private:
     void createDockWidgets();
 
     /**
+     * @brief Setup three-panel professional layout
+     */
+    void setupThreePanelLayout();
+
+    /**
+     * @brief Create Explorer Panel (left 25%) - ETI service tree
+     */
+    void createExplorerPanel();
+
+    /**
+     * @brief Create Main Content Area (center 50%) - Frame listing with color coding
+     */
+    void createMainContentArea();
+
+    /**
+     * @brief Create Properties Panel (right 25%) - Parameter display with modes
+     */
+    void createPropertiesPanel();
+
+    /**
+     * @brief Create Bottom Tool Panels (25% height) - Specialist analysis tools
+     */
+    void createBottomToolPanels();
+
+    /**
+     * @brief Apply broadcasting industry aesthetics
+     */
+    void applyBroadcastingTheme();
+
+    /**
      * @brief Setup actions for menus and toolbar
      */
     void createActions();
@@ -323,11 +363,47 @@ private:
     std::unique_ptr<EtiProcessor> m_etiProcessor;
     std::unique_ptr<EtiFileWorker> m_etiFileWorker;
     std::unique_ptr<ConfigManager> m_configManager;
+    std::unique_ptr<EtisnoopWrapper> m_etisnoopWrapper;
+
+    // ETI-specific models for professional UI
+    EtiServiceTreeModel *m_serviceTreeModel;
+    EtiFrameListModel *m_frameListModel;
 
     // Central widget and main layout
     QWidget *m_centralWidget;
     QSplitter *m_mainSplitter;
     QTabWidget *m_analysisTabWidget;
+
+    // Three-panel professional layout components
+    QSplitter *m_horizontalSplitter;        // Main horizontal splitter
+    QSplitter *m_verticalSplitter;          // Vertical splitter for bottom panels
+    QWidget *m_explorerPanel;               // Left panel (25%)
+    QWidget *m_mainContentArea;             // Center panel (50%)
+    QWidget *m_propertiesPanel;             // Right panel (25%)
+    QTabWidget *m_bottomToolTabs;           // Bottom tabbed panel (25% height)
+
+    // Explorer Panel components  
+    QPushButton *m_refreshServicesBtn;      // Refresh services button
+
+    // Main Content Area components
+    QTableWidget *m_frameListTable;         // Professional ETI frame listing table
+    QSplitter *m_contentSplitter;           // Split analyzer and constellation widgets
+
+    // Properties Panel components
+    QTabWidget *m_propertiesTabs;           // Properties tab widget
+    QTextEdit *m_parametersText;            // Parameter display
+    QTextEdit *m_yamlOutputText;            // YAML output display
+    QPushButton *m_syncModeBtn;             // Sync mode toggle
+    QPushButton *m_compareModeBtn;          // Compare mode toggle
+
+    // Bottom Tool Panel components  
+    QTextEdit *m_hexViewer;                 // Hex viewer
+    QTextEdit *m_messagesLog;               // Messages log
+    QTextEdit *m_tr101290Analysis;          // TR 101-290 analysis
+    QWidget *m_timeDynamicsWidget;          // Time dynamics charts
+    QWidget *m_graphicsWidget;              // Graphics visualization
+    QTextEdit *m_commentsText;              // Comments and annotations
+    QTextEdit *m_epgViewer;                 // EPG information
 
     // GUI components
     AnalyzerWidget *m_analyzerWidget;
