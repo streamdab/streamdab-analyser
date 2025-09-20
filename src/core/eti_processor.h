@@ -123,13 +123,18 @@ private:
     std::vector<eti::DabService> getCurrentServices() const { return m_discoveredServices; }
     std::vector<eti::SubChannelInfo> getCurrentSubchannels() const { return m_subchannels; }
     
+public:
     // Service quality and status indicators
     struct ServiceQuality {
         double signalStrength;
         double errorRate;
         bool isValid;
         std::chrono::system_clock::time_point lastUpdate;
+        
+        ServiceQuality() : signalStrength(0.0), errorRate(0.0), isValid(false) {}
     };
+
+private:
     
     ServiceQuality getServiceQuality(uint16_t serviceId) const;
     bool isServiceActive(uint16_t serviceId) const;
@@ -169,9 +174,10 @@ signals:
     /**
      * @brief Emitted when service quality changes
      * @param serviceId Service ID
-     * @param quality Quality metrics
+     * @param signalStrength Signal strength (0.0-1.0)
+     * @param errorRate Error rate (0.0-1.0)
      */
-    void serviceQualityChanged(uint16_t serviceId, const ServiceQuality& quality);
+    void serviceQualityChanged(uint16_t serviceId, double signalStrength, double errorRate);
 
 private slots:
     // ETISnoop wrapper signal handlers

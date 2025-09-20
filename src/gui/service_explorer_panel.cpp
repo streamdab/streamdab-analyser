@@ -506,9 +506,15 @@ void ServiceExplorerPanel::connectEtiProcessor(EtiProcessor* processor)
     
     if (m_etiProcessor) {
         // Connect signals for real-time service updates
-        // Note: These signals would need to be implemented in EtiProcessor
+        connect(m_etiProcessor, &EtiProcessor::ensembleDiscovered,
+                this, &ServiceExplorerPanel::onEnsembleDiscovered);
+        connect(m_etiProcessor, &EtiProcessor::serviceDiscovered,
+                this, &ServiceExplorerPanel::onServiceDiscovered);
+        connect(m_etiProcessor, &EtiProcessor::serviceQualityChanged,
+                this, &ServiceExplorerPanel::onServiceQualityChanged);
+        
         Logger::instance().log(Logger::Info, "ServiceExplorerPanel",
-                              "Connected to ETI processor for service data");
+                              "Connected to ETI processor signals for real-time service data");
     }
 }
 
@@ -607,4 +613,129 @@ void ServiceExplorerPanel::filterByServiceType(ServiceInfo::ServiceType typeFilt
     }
     
     applySearchFilter();
+}
+
+void ServiceExplorerPanel::onEnsembleDiscovered(const eti::Ensemble& ensemble)
+{
+    // Convert ETI processor ensemble to ServiceExplorerPanel format
+    EnsembleInfo ensembleInfo;
+    ensembleInfo.ensembleId = ensemble.ensemble_id;  // Use correct field name
+    ensembleInfo.label = QString::fromStdString(ensemble.label);
+    ensembleInfo.country = QString::number(ensemble.country_id);  // Use country_id instead
+    ensembleInfo.serviceCount = ensemble.services.size();
+    ensembleInfo.isActive = true;
+    
+    // Calculate DAB+ count and total bitrate
+    ensembleInfo.dabPlusCount = 0;
+    ensembleInfo.totalBitrate = 0.0;
+    for (const auto& service : ensemble.services) {
+        // Note: ETI types don't have isDabPlus or bitrate fields directly
+        // We'll need to derive this information from components
+        bool isDabPlus = false;
+        uint32_t bitrate = 0;
+        
+        for (const auto& component : service.components) {
+            // Estimate if DAB+ based on component type
+            if (component.asc_ty >= 60) {  // DAB+ typically uses higher ASCTy values
+                isDabPlus = true;
+            }
+            // Estimate bitrate (simplified calculation)
+            bitrate += 64;  // Default estimate
+        }
+        
+        if (isDabPlus) {
+            ensembleInfo.dabPlusCount++;
+        }
+        ensembleInfo.totalBitrate += bitrate / 1000.0; // Convert to Mbps
+    }
+    
+    // Update ensemble information
+    onEnsembleUpdated(ensembleInfo);
+    
+    Logger::instance().log(Logger::Info, "ServiceExplorerPanel",
+                          QString("Ensemble discovered: %1 (EID: 0x%2, Services: %3)")
+                          .arg(ensembleInfo.label)
+                          .arg(ensembleInfo.ensembleId, 4, 16, QChar('0'))
+                          .arg(ensembleInfo.serviceCount));
+}
+
+void ServiceExplorerPanel::onServiceDiscovered(const eti::DabService& service)
+{
+    // Convert ETI processor service to ServiceExplorerPanel format
+    ServiceInfo serviceInfo;
+    serviceInfo.serviceId = service.service_id;  // Use correct field name
+    serviceInfo.ensembleId = 0;  // Not directly available, will be set from ensemble context
+    serviceInfo.label = QString::fromStdString(service.label);
+    serviceInfo.ensembleLabel = "";  // Will be set from ensemble context
+    serviceInfo.isActive = true;  // Default to active
+    serviceInfo.quality = 85; // Default quality, will be updated by quality signals
+    
+    // Analyze components to determine service type and bitrate
+    bool isDabPlus = false;
+    uint32_t totalBitrate = 0;
+    ServiceInfo::ServiceType serviceType = ServiceInfo::Unknown;
+    
+    for (const auto& component : service.components) {
+        // Determine if DAB+ based on component type
+        if (component.asc_ty >= 60) {  // DAB+ typically uses higher ASCTy values
+            isDabPlus = true;
+            serviceType = ServiceInfo::DABPlus;
+        } else if (component.asc_ty > 0 && component.asc_ty < 60) {
+            serviceType = ServiceInfo::Audio;
+        } else if (component.component_type == 1) {  // Data component
+            serviceType = ServiceInfo::Data;
+        }
+        
+        // Estimate bitrate based on component (simplified)
+        totalBitrate += 64;  // Default estimate per component
+    }
+    
+    serviceInfo.isDabPlus = isDabPlus;
+    serviceInfo.bitrate = totalBitrate;
+    serviceInfo.type = serviceType;
+    
+    // Add service to tree
+    addDABService(serviceInfo);
+    
+    Logger::instance().log(Logger::Info, "ServiceExplorerPanel",
+                          QString("Service discovered: %1 (SID: 0x%2, Type: %3)")
+                          .arg(serviceInfo.label)
+                          .arg(serviceInfo.serviceId, 4, 16, QChar('0'))
+                          .arg(serviceInfo.getTypeString()));
+}
+
+void ServiceExplorerPanel::onServiceQualityChanged(uint16_t serviceId, double signalStrength, double errorRate)
+{
+    // Update service quality in the tree
+    if (m_serviceItems.contains(serviceId)) {
+        auto* serviceItem = m_serviceItems[serviceId];
+        
+        // Update quality percentage (convert signal strength to percentage)
+        int qualityPercent = static_cast<int>(signalStrength * 100.0);
+        qualityPercent = qMax(0, qMin(100, qualityPercent));
+        
+        serviceItem->setText(2, QString("%1%").arg(qualityPercent));
+        
+        // Update quality color coding
+        QColor qualityColor;
+        if (qualityPercent >= 90) {
+            qualityColor = SERVICE_AUDIO;  // Green for excellent
+        } else if (qualityPercent >= 70) {
+            qualityColor = WARNING_MEDIUM; // Yellow for good
+        } else {
+            qualityColor = ERROR_CRITICAL; // Red for poor
+        }
+        serviceItem->setForeground(2, QBrush(qualityColor));
+        
+        // Update service data
+        if (m_services.contains(serviceId)) {
+            m_services[serviceId].quality = qualityPercent;
+        }
+        
+        Logger::instance().log(Logger::Debug, "ServiceExplorerPanel",
+                              QString("Service quality updated: SID 0x%1, Quality: %2%, Error Rate: %3%")
+                              .arg(serviceId, 4, 16, QChar('0'))
+                              .arg(qualityPercent)
+                              .arg(static_cast<int>(errorRate * 100.0)));
+    }
 }

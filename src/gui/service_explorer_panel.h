@@ -16,6 +16,7 @@
 #include <QFont>
 #include <QBrush>
 #include <QIcon>
+#include "core/eti_types.h"
 
 // Forward declarations
 class EtiProcessor;
@@ -214,6 +215,26 @@ private slots:
      * @brief Handle refresh button click
      */
     void onRefreshClicked();
+    
+    /**
+     * @brief Handle ensemble discovery from ETI processor
+     * @param ensemble Discovered ensemble information
+     */
+    void onEnsembleDiscovered(const eti::Ensemble& ensemble);
+    
+    /**
+     * @brief Handle service discovery from ETI processor
+     * @param service Discovered service information
+     */
+    void onServiceDiscovered(const eti::DabService& service);
+    
+    /**
+     * @brief Handle service quality change from ETI processor
+     * @param serviceId Service ID
+     * @param signalStrength Signal strength (0.0-1.0)
+     * @param errorRate Error rate (0.0-1.0)
+     */
+    void onServiceQualityChanged(uint16_t serviceId, double signalStrength, double errorRate);
     
 private:
     /**

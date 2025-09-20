@@ -124,8 +124,26 @@ void EtiAnalysisWidget::setEtiProcessor(EtiProcessor *processor)
         return;
     }
     
+    // Disconnect previous processor
+    if (m_etiProcessor) {
+        disconnect(m_etiProcessor, nullptr, this, nullptr);
+    }
+    
     m_etiProcessor = processor;
-    Logger::instance().log(Logger::Info, "EtiAnalysisWidget", "ETI processor connected");
+    
+    if (m_etiProcessor) {
+        // Connect signals for real-time frame updates
+        connect(m_etiProcessor, &EtiProcessor::frameProcessed,
+                this, &EtiAnalysisWidget::onFrameProcessed);
+        connect(m_etiProcessor, &EtiProcessor::ensembleDiscovered,
+                this, &EtiAnalysisWidget::onEnsembleDiscovered);
+        connect(m_etiProcessor, &EtiProcessor::statusChanged,
+                this, &EtiAnalysisWidget::onStatusChanged);
+        connect(m_etiProcessor, &EtiProcessor::errorOccurred,
+                this, &EtiAnalysisWidget::onErrorOccurred);
+        
+        Logger::instance().log(Logger::Info, "EtiAnalysisWidget", "ETI processor connected with signal connections");
+    }
     
     // Update constellation widget if available
     if (m_constellationWidget && m_etiProcessor) {
@@ -1008,4 +1026,95 @@ bool EtiAnalysisWidget::validateState() const
     return m_isInitialized && 
            m_mainLayout != nullptr && 
            m_mainSplitter != nullptr;
+}
+
+void EtiAnalysisWidget::onFrameProcessed(quint64 frameNumber, const QByteArray& data)
+{
+    QMutexLocker locker(&m_dataMutex);
+    
+    // Create frame data variant map
+    QVariantMap frameData;
+    frameData["frameNumber"] = frameNumber;
+    frameData["size"] = data.size();
+    frameData["timestamp"] = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+    frameData["type"] = "ETI";
+    frameData["status"] = "OK";
+    frameData["quality"] = "95"; // Default quality
+    frameData["fic"] = QString("FIC_%1").arg(frameNumber % 4);
+    frameData["msc"] = QString("MSC_%1").arg((frameNumber % 76) + 1);
+    
+    // Add frame to display data
+    handleFrameDataUpdate(frameData);
+    
+    // Update status
+    if (m_statsLabel) {
+        m_statsLabel->setText(QString("Frame: %1 | Size: %2 bytes | Rate: %3 fps")
+                              .arg(frameNumber)
+                              .arg(data.size())
+                              .arg(m_processingRate, 0, 'f', 1));
+    }
+    
+    Logger::instance().log(Logger::Debug, "EtiAnalysisWidget",
+                          QString("Frame processed: %1 (Size: %2 bytes)")
+                          .arg(frameNumber)
+                          .arg(data.size()));
+}
+
+void EtiAnalysisWidget::onEnsembleDiscovered(const eti::Ensemble& ensemble)
+{
+    // Update display with ensemble information
+    if (m_headerLabel) {
+        m_headerLabel->setText(QString("ETI Frame Analysis - %1 (EID: 0x%2)")
+                               .arg(QString::fromStdString(ensemble.label))
+                               .arg(ensemble.ensemble_id, 4, 16, QChar('0')));  // Use correct field name
+    }
+    
+    Logger::instance().log(Logger::Info, "EtiAnalysisWidget",
+                          QString("Ensemble discovered: %1 (EID: 0x%2, Services: %3)")
+                          .arg(QString::fromStdString(ensemble.label))
+                          .arg(ensemble.ensemble_id, 4, 16, QChar('0'))  // Use correct field name
+                          .arg(ensemble.services.size()));
+}
+
+void EtiAnalysisWidget::onStatusChanged(const QString& status)
+{
+    // Update status display
+    if (m_statsLabel) {
+        m_statsLabel->setText(status);
+    }
+    
+    Logger::instance().log(Logger::Debug, "EtiAnalysisWidget",
+                          QString("Status changed: %1").arg(status));
+}
+
+void EtiAnalysisWidget::onErrorOccurred(const QString& error)
+{
+    // Update error count and display error
+    m_errorCount++;
+    
+    // Create error frame data
+    QVariantMap errorData;
+    errorData["frameNumber"] = m_frameCount;
+    errorData["timestamp"] = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+    errorData["type"] = "ERROR";
+    errorData["status"] = "Error";
+    errorData["error"] = true;
+    errorData["errorType"] = "Processing Error";
+    errorData["errorDescription"] = error;
+    errorData["size"] = 0;
+    errorData["quality"] = "0";
+    errorData["fic"] = "N/A";
+    errorData["msc"] = "N/A";
+    
+    // Add error to display
+    handleFrameDataUpdate(errorData);
+    
+    // Update error count display
+    updateStatisticsDashboard();
+    
+    // Emit error signal
+    emit errorDetected("Processing Error", error);
+    
+    Logger::instance().log(Logger::Error, "EtiAnalysisWidget",
+                          QString("Error occurred: %1").arg(error));
 }
