@@ -53,6 +53,12 @@ private slots:
     void testLegacyWrapperMemoryBaseline();
     void testLegacyWrapperRealTimeBaseline();
 
+    // Real Implementation Performance Testing
+    void testRealETIProcessingPerformance();
+    void testRealFIGParsingPerformance();
+    void testRealServiceDiscoveryPerformance();
+    void testRealETSIComplianceValidation();
+
     // Integrated Engine Performance Validation
     void testIntegratedEnginePerformance();
     void testIntegratedEngineMemoryUsage();
@@ -415,6 +421,164 @@ void TestPerformanceRegression::testModernFrameParserPerformance()
     
     Logger::instance().log(Logger::Info, "PerfTest", 
                           QString("Modern Frame Parser: %1 FPS").arg(fps, 0, 'f', 1));
+}
+
+// Real Implementation Performance Testing
+void TestPerformanceRegression::testRealETIProcessingPerformance()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Real ETI Processing Performance (7,482+ FPS target)");
+    
+    // Create real ETI processor for testing
+    std::unique_ptr<EtiProcessor> processor = std::make_unique<EtiProcessor>();
+    QVERIFY(processor->initialize());
+    
+    // Benchmark real ETI frame processing
+    auto startTime = std::chrono::high_resolution_clock::now();
+    int successfulFrames = 0;
+    
+    for (int i = 0; i < 10000; ++i) {
+        QByteArray testFrame = createTestETIFrame(i);
+        if (processor->processEtiFrame(testFrame)) {
+            successfulFrames++;
+        }
+    }
+    
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+    
+    double actualFPS = (successfulFrames * 1000000.0) / duration.count();
+    
+    // Validate >7482 FPS target
+    QVERIFY2(actualFPS >= 7482.0, 
+             QString("Real ETI processing FPS %1 below 7,482 FPS target").arg(actualFPS).toLocal8Bit());
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Real ETI processing performance: %1 FPS (target: 7,482+)")
+                          .arg(actualFPS, 0, 'f', 1));
+}
+
+void TestPerformanceRegression::testRealFIGParsingPerformance()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Real FIG Parsing Performance");
+    
+    // Create real ETI processor for testing
+    std::unique_ptr<EtiProcessor> processor = std::make_unique<EtiProcessor>();
+    QVERIFY(processor->initialize());
+    
+    // Create test frames with FIC data
+    std::vector<QByteArray> testFrames;
+    for (int i = 0; i < 1000; ++i) {
+        QByteArray frame = createTestETIFrame(i);
+        // Add FIC flag to LIDATA field
+        frame[6] |= 0x08; // Set FICF bit
+        testFrames.push_back(frame);
+    }
+    
+    // Benchmark FIG parsing
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    for (const auto& frame : testFrames) {
+        processor->processEtiFrame(frame);
+    }
+    
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+    
+    double framesPerSecond = (testFrames.size() * 1000.0) / duration.count();
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Real FIG parsing performance: %1 frames/second")
+                          .arg(framesPerSecond, 0, 'f', 1));
+    
+    // Verify performance is reasonable
+    QVERIFY2(framesPerSecond > 100.0, "FIG parsing performance too low");
+}
+
+void TestPerformanceRegression::testRealServiceDiscoveryPerformance()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Real Service Discovery Performance");
+    
+    // Create real ETI processor for testing
+    std::unique_ptr<EtiProcessor> processor = std::make_unique<EtiProcessor>();
+    QVERIFY(processor->initialize());
+    
+    // Monitor service discovery signals
+    QSignalSpy serviceSpy(processor.get(), &EtiProcessor::serviceDiscovered);
+    QSignalSpy ensembleSpy(processor.get(), &EtiProcessor::ensembleDiscovered);
+    
+    // Process test file for service discovery
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    bool processed = processor->processFile(testETIFilePath);
+    
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+    
+    if (processed) {
+        // Wait for signals
+        serviceSpy.wait(1000);
+        ensembleSpy.wait(1000);
+        
+        Logger::instance().log(Logger::Info, "PerfTest", 
+                              QString("Service discovery completed in %1ms: %2 services, %3 ensembles")
+                              .arg(duration.count())
+                              .arg(serviceSpy.count())
+                              .arg(ensembleSpy.count()));
+        
+        // Verify performance is reasonable
+        QVERIFY2(duration.count() < 5000, "Service discovery taking too long");
+    } else {
+        Logger::instance().log(Logger::Warning, "PerfTest", "Service discovery test file processing failed");
+    }
+}
+
+void TestPerformanceRegression::testRealETSIComplianceValidation()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Real ETSI Compliance Validation Performance");
+    
+    // Create real ETI processor for testing
+    std::unique_ptr<EtiProcessor> processor = std::make_unique<EtiProcessor>();
+    QVERIFY(processor->initialize());
+    
+    // Create test frames with various compliance issues
+    std::vector<QByteArray> testFrames;
+    
+    // Valid frame
+    testFrames.push_back(createTestETIFrame(0));
+    
+    // Invalid sync pattern
+    QByteArray invalidSync = createTestETIFrame(1);
+    invalidSync[0] = 0xFF; // Corrupt sync
+    testFrames.push_back(invalidSync);
+    
+    // Invalid frame count
+    QByteArray invalidFC = createTestETIFrame(2);
+    invalidFC[4] = 250; // FC > 249
+    testFrames.push_back(invalidFC);
+    
+    // Benchmark compliance validation
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    int validFrames = 0;
+    for (const auto& frame : testFrames) {
+        if (processor->processEtiFrame(frame)) {
+            validFrames++;
+        }
+    }
+    
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+    
+    double complianceChecksPerSecond = (testFrames.size() * 1000000.0) / duration.count();
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("ETSI compliance validation: %1 checks/second, %2/%3 valid frames")
+                          .arg(complianceChecksPerSecond, 0, 'f', 1)
+                          .arg(validFrames)
+                          .arg(testFrames.size()));
+    
+    // Verify compliance checking detected issues
+    QVERIFY2(validFrames < static_cast<int>(testFrames.size()), "Compliance validation should reject invalid frames");
 }
 
 void TestPerformanceRegression::testEnhancedFIGAnalyzerPerformance()

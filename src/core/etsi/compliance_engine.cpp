@@ -557,45 +557,196 @@ void EtsiComplianceEngine::notify_validation_complete(const ComplianceResult& re
     }
 }
 
-// Standard-specific validation methods (placeholder implementations)
+// ETSI EN 300 401 Comprehensive Compliance Validation Implementation
 ComplianceResult EtsiComplianceEngine::validate_en300401(const EtiFrame& frame, const Ensemble& ensemble) {
     // Delegate to EN300401Validator if available
     if (en300401_validator_) {
         return en300401_validator_->validate(frame, ensemble);
     }
     
-    // Basic validation implementation
+    // Comprehensive ETSI EN 300 401 validation implementation
     ComplianceResult result;
     result.achieved_level = config_.target_level;
     
-    // Basic ETI frame structure validation for EN 300 401
+    // 1. ETI Frame Structure Validation (ETSI EN 300 401 Section 7)
     if (!frame.validate_sync_pattern()) {
         result.add_violation(ValidationIssue(
             EtsiStandard::EN_300_401,
             ValidationSeverity::CRITICAL,
-            "Invalid ETI sync pattern for DAB frame"
+            "Invalid ETI sync pattern for DAB frame - Section 7.1"
         ));
     }
     
-    // Validate ensemble structure
+    auto lidata = frame.get_lidata_field();
+    
+    // Validate Frame Count (Section 7.2.1)
+    if (lidata.fc > 249) {
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_401,
+            ValidationSeverity::ERROR,
+            "Frame count exceeds maximum (249) - Section 7.2.1"
+        ));
+    }
+    
+    // Validate Mode Identity (Section 7.2.2)
+    if (lidata.mid < 1 || lidata.mid > 4) {
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_401,
+            ValidationSeverity::ERROR,
+            "Invalid mode identity: " + std::to_string(lidata.mid) + " - Section 7.2.2"
+        ));
+    }
+    
+    // Validate Number of Sub-channels (Section 7.2.3)
+    if (lidata.nst > 63) {
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_401,
+            ValidationSeverity::ERROR,
+            "Sub-channel count exceeds maximum (63) - Section 7.2.3"
+        ));
+    }
+    
+    // 2. Ensemble Validation (ETSI EN 300 401 Section 8.1)
     if (!ensemble.validate_ensemble_id()) {
         result.add_violation(ValidationIssue(
             EtsiStandard::EN_300_401,
             ValidationSeverity::ERROR,
-            "Invalid ensemble ID: " + std::to_string(ensemble.ensemble_id)
+            "Invalid ensemble ID: 0x" + QString::number(ensemble.ensemble_id, 16).toStdString() + " - Section 8.1.1"
         ));
     }
     
+    if (!ensemble.validate_country_code()) {
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_401,
+            ValidationSeverity::ERROR,
+            "Invalid country code: 0x" + QString::number(ensemble.country_id, 16).toStdString() + " - Section 8.1.1"
+        ));
+    }
+    
+    // 3. Sub-channel Organization Validation (Section 6.2)
     if (!ensemble.validate_subchannel_organization()) {
         result.add_violation(ValidationIssue(
             EtsiStandard::EN_300_401,
             ValidationSeverity::ERROR,
-            "Invalid subchannel organization detected"
+            "Invalid subchannel organization - overlapping sub-channels detected - Section 6.2"
         ));
     }
     
-    result.set_compliance_percentage(EtsiStandard::EN_300_401, 
-                                   result.violations.empty() ? 100.0 : 85.0);
+    // Validate total capacity utilization
+    uint16_t totalCapacity = ensemble.calculate_total_capacity();
+    if (totalCapacity > 864) { // Maximum CUs per frame
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_401,
+            ValidationSeverity::ERROR,
+            "Total capacity exceeds maximum: " + std::to_string(totalCapacity) + " CUs - Section 6.2"
+        ));
+    }
+    
+    // 4. Service Validation (Section 8.1)
+    for (const auto& service : ensemble.services) {
+        if (!service.validate_service_id()) {
+            result.add_violation(ValidationIssue(
+                EtsiStandard::EN_300_401,
+                ValidationSeverity::WARNING,
+                "Service ID validation failed: 0x" + QString::number(service.service_id, 16).toStdString() + " - Section 8.1.2"
+            ));
+        }
+        
+        if (!service.has_primary_component()) {
+            result.add_violation(ValidationIssue(
+                EtsiStandard::EN_300_401,
+                ValidationSeverity::WARNING,
+                "Service lacks primary component: 0x" + QString::number(service.service_id, 16).toStdString() + " - Section 8.1.4"
+            ));
+        }
+        
+        // Validate service components
+        for (const auto& component : service.components) {
+            if (!component.validate_tmid()) {
+                result.add_violation(ValidationIssue(
+                    EtsiStandard::EN_300_401,
+                    ValidationSeverity::WARNING,
+                    "Invalid TMID for service component - Section 8.1.4"
+                ));
+            }
+            
+            if (!component.validate_sub_channel_id()) {
+                result.add_violation(ValidationIssue(
+                    EtsiStandard::EN_300_401,
+                    ValidationSeverity::ERROR,
+                    "Invalid sub-channel ID for service component - Section 8.1.4"
+                ));
+            }
+        }
+    }
+    
+    // 5. FIC Content Validation (Section 6.4)
+    if (lidata.ficf) {
+        auto ficBlocks = frame.decode_fic_blocks();
+        bool hasEnsembleInfo = false;
+        bool hasSubchannelOrg = false;
+        
+        for (const auto& fig : ficBlocks) {
+            if (fig.fig_type == 0) {
+                uint8_t extension = fig.get_extension();
+                if (extension == 0) hasEnsembleInfo = true;
+                if (extension == 1) hasSubchannelOrg = true;
+            }
+        }
+        
+        if (!hasEnsembleInfo) {
+            result.add_violation(ValidationIssue(
+                EtsiStandard::EN_300_401,
+                ValidationSeverity::WARNING,
+                "Missing FIG 0/0 (ensemble information) in FIC - Section 8.1.1"
+            ));
+        }
+        
+        if (!hasSubchannelOrg && lidata.nst > 0) {
+            result.add_violation(ValidationIssue(
+                EtsiStandard::EN_300_401,
+                ValidationSeverity::WARNING,
+                "Missing FIG 0/1 (sub-channel organization) with active sub-channels - Section 8.1.2"
+            ));
+        }
+    }
+    
+    // Calculate compliance percentage based on violations
+    double compliancePercentage = 100.0;
+    int criticalCount = 0, errorCount = 0, warningCount = 0;
+    
+    for (const auto& violation : result.violations) {
+        switch (violation.severity) {
+            case ValidationSeverity::CRITICAL: 
+                criticalCount++; 
+                compliancePercentage -= 20.0;
+                break;
+            case ValidationSeverity::ERROR: 
+                errorCount++; 
+                compliancePercentage -= 10.0;
+                break;
+            case ValidationSeverity::WARNING: 
+                warningCount++; 
+                compliancePercentage -= 2.0;
+                break;
+            default: break;
+        }
+    }
+    
+    // Ensure compliance percentage doesn't go below 0
+    compliancePercentage = std::max(0.0, compliancePercentage);
+    
+    result.set_compliance_percentage(EtsiStandard::EN_300_401, compliancePercentage);
+    
+    // Add summary information
+    if (result.violations.empty()) {
+        result.add_info("ETSI EN 300 401 validation passed - Full DAB compliance achieved");
+    } else {
+        result.add_info("ETSI EN 300 401 validation completed - " + 
+                       std::to_string(criticalCount) + " critical, " +
+                       std::to_string(errorCount) + " errors, " +
+                       std::to_string(warningCount) + " warnings");
+    }
     
     return result;
 }
@@ -641,39 +792,156 @@ ComplianceResult EtsiComplianceEngine::validate_en300799(const EtiFrame& frame) 
         return en300799_validator_->validate(frame);
     }
     
-    // Basic validation implementation
+    // Comprehensive ETSI EN 300 799 ETI frame validation implementation
     ComplianceResult result;
     result.achieved_level = config_.target_level;
     
-    // Validate ETI frame structure
-    if (!frame.validate_sync_pattern()) {
-        result.add_violation(ValidationIssue(
-            EtsiStandard::EN_300_799,
-            ValidationSeverity::CRITICAL,
-            "Invalid ETI sync pattern"
-        ));
-    }
-    
+    // 1. ETI Frame Size Validation (Section 4)
     if (frame.size() != ETI_FRAME_SIZE) {
         result.add_violation(ValidationIssue(
             EtsiStandard::EN_300_799,
             ValidationSeverity::CRITICAL,
-            "Invalid ETI frame size: " + std::to_string(frame.size()) + " (expected: " + std::to_string(ETI_FRAME_SIZE) + ")"
+            "Invalid ETI frame size: " + std::to_string(frame.size()) + " (expected: " + std::to_string(ETI_FRAME_SIZE) + ") - Section 4"
         ));
     }
     
-    // Validate LIDATA field
+    // 2. Sync Pattern Validation (Section 5.1)
+    if (!frame.validate_sync_pattern()) {
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_799,
+            ValidationSeverity::CRITICAL,
+            "Invalid ETI sync pattern - Section 5.1"
+        ));
+    }
+    
+    // 3. LIDATA Field Validation (Section 5.2)
     auto lidata = frame.get_lidata_field();
+    
+    // Frame Count validation (FC)
+    if (lidata.fc > 249) {
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_799,
+            ValidationSeverity::ERROR,
+            "Frame count exceeds maximum (249): " + std::to_string(lidata.fc) + " - Section 5.2.1"
+        ));
+    }
+    
+    // Number of Sub-channels validation (NST)
     if (!lidata.validate_nst()) {
         result.add_violation(ValidationIssue(
             EtsiStandard::EN_300_799,
             ValidationSeverity::ERROR,
-            "Invalid NST field in LIDATA: " + std::to_string(lidata.nst)
+            "Invalid number of sub-channels: " + std::to_string(lidata.nst) + " (max 63) - Section 5.2.2"
         ));
     }
     
-    result.set_compliance_percentage(EtsiStandard::EN_300_799,
-                                   result.violations.empty() ? 100.0 : 80.0);
+    // Frame Phase validation (FP)
+    if (lidata.fp > 7) {
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_799,
+            ValidationSeverity::ERROR,
+            "Invalid frame phase: " + std::to_string(lidata.fp) + " (max 7) - Section 5.2.3"
+        ));
+    }
+    
+    // Mode Identity validation (MID)
+    if (lidata.mid < 1 || lidata.mid > 4) {
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_799,
+            ValidationSeverity::ERROR,
+            "Invalid mode identity: " + std::to_string(lidata.mid) + " (valid: 1-4) - Section 5.2.4"
+        ));
+    }
+    
+    // Frame Length validation (FL)
+    uint16_t expectedFrameLength = 6144 / 8; // Convert bytes to 8-byte units
+    if (lidata.fl != expectedFrameLength) {
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_799,
+            ValidationSeverity::WARNING,
+            "Frame length mismatch: " + std::to_string(lidata.fl) + " (expected: " + std::to_string(expectedFrameLength) + ") - Section 5.2.5"
+        ));
+    }
+    
+    // 4. FIC Field Validation (Section 5.3)
+    if (lidata.ficf) {
+        auto fic = frame.get_fic_field();
+        if (!fic.validate_fic_crc()) {
+            result.add_violation(ValidationIssue(
+                EtsiStandard::EN_300_799,
+                ValidationSeverity::ERROR,
+                "FIC CRC validation failed - Section 5.3"
+            ));
+        }
+    }
+    
+    // 5. MSC Field Validation (Section 5.4)
+    auto msc = frame.get_msc_field();
+    size_t expectedMscSize = ETI_FRAME_SIZE - ETI_SYNC_SIZE - ETI_LIDATA_SIZE - ETI_FIC_SIZE - ETI_CRC_SIZE;
+    if (msc.get_capacity_units_count() * CAPACITY_UNIT_SIZE != expectedMscSize) {
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_799,
+            ValidationSeverity::WARNING,
+            "MSC size validation inconsistency - Section 5.4"
+        ));
+    }
+    
+    // 6. CRC Field Validation (Section 5.5)
+    auto crc = frame.get_crc_field();
+    if (!crc.validate_frame(frame)) {
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_799,
+            ValidationSeverity::WARNING,
+            "ETI frame CRC validation failed - Section 5.5"
+        ));
+    }
+    
+    // 7. Timing and Synchronization Validation (Section 6)
+    auto timestamp = lidata.get_timestamp_us();
+    if (timestamp.count() < 0) {
+        result.add_violation(ValidationIssue(
+            EtsiStandard::EN_300_799,
+            ValidationSeverity::WARNING,
+            "Invalid timestamp in TIST field - Section 6"
+        ));
+    }
+    
+    // Calculate compliance percentage
+    double compliancePercentage = 100.0;
+    int criticalCount = 0, errorCount = 0, warningCount = 0;
+    
+    for (const auto& violation : result.violations) {
+        switch (violation.severity) {
+            case ValidationSeverity::CRITICAL: 
+                criticalCount++; 
+                compliancePercentage -= 25.0;
+                break;
+            case ValidationSeverity::ERROR: 
+                errorCount++; 
+                compliancePercentage -= 10.0;
+                break;
+            case ValidationSeverity::WARNING: 
+                warningCount++; 
+                compliancePercentage -= 2.0;
+                break;
+            default: break;
+        }
+    }
+    
+    // Ensure compliance percentage doesn't go below 0
+    compliancePercentage = std::max(0.0, compliancePercentage);
+    
+    result.set_compliance_percentage(EtsiStandard::EN_300_799, compliancePercentage);
+    
+    // Add summary information
+    if (result.violations.empty()) {
+        result.add_info("ETSI EN 300 799 validation passed - Full ETI frame compliance achieved");
+    } else {
+        result.add_info("ETSI EN 300 799 validation completed - " + 
+                       std::to_string(criticalCount) + " critical, " +
+                       std::to_string(errorCount) + " errors, " +
+                       std::to_string(warningCount) + " warnings");
+    }
     
     return result;
 }

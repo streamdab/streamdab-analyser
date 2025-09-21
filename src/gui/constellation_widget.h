@@ -328,6 +328,11 @@ private:
      * @brief Generate test constellation data
      */
     void generateTestData();
+    
+    /**
+     * @brief Generate constellation data based on ETI processor performance
+     */
+    void generatePerformanceBasedConstellation();
 
     /**
      * @brief Calculate EVM from constellation points

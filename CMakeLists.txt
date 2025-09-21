@@ -183,6 +183,10 @@ set(CORE_SOURCE_FILES
     src/gui/audio_monitoring_widget.h
     src/gui/service_explorer_panel.cpp
     src/gui/service_explorer_panel.h
+    src/gui/performance_dashboard.cpp
+    src/gui/performance_dashboard.h
+    src/gui/etsi_compliance_monitor.cpp
+    src/gui/etsi_compliance_monitor.h
     src/gui/eti_analysis_widget.cpp
     src/gui/eti_analysis_widget.h
     src/utils/logger.cpp

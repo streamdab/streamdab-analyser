@@ -24,6 +24,8 @@
 #include "eti_frame_list_model.h"
 #include "fig_analysis_widget.h"
 #include "audio_monitoring_widget.h"
+#include "performance_dashboard.h"
+#include "etsi_compliance_monitor.h"
 #include "service_explorer_panel.h"
 #include "eti_analysis_widget.h"
 #include "core/eti_processor.h"
@@ -565,6 +567,24 @@ void MainWindow::createExplorerPanel()
     // Connect to ETI processor for real-time service data
     if (m_etiProcessor) {
         m_serviceExplorerPanel->connectEtiProcessor(m_etiProcessor.get());
+    }
+    
+    // Connect performance dashboard to ETI processor for real-time metrics
+    if (m_etiProcessor && m_performanceDashboard) {
+        m_performanceDashboard->connectEtiProcessor(m_etiProcessor.get());
+        m_performanceDashboard->startMonitoring();
+    }
+    
+    // Connect ETSI compliance monitor to ETI processor for real-time validation
+    if (m_etiProcessor && m_complianceMonitor) {
+        m_complianceMonitor->connectEtiProcessor(m_etiProcessor.get());
+        m_complianceMonitor->startMonitoring();
+    }
+    
+    // Connect constellation widget to ETI processor for signal data
+    if (m_etiProcessor && m_constellationWidget) {
+        m_constellationWidget->setEtiProcessor(m_etiProcessor.get());
+        m_constellationWidget->setRealTimeEnabled(true);
     }
     
     // Connect service selection signals for professional workflow integration
@@ -1860,6 +1880,20 @@ void MainWindow::createDockWidgets()
     m_errorLog->setFont(QFont("Courier", 8));  // Small monospace font for logs
     m_errorLogDock->setWidget(m_errorLog);
     addDockWidget(Qt::BottomDockWidgetArea, m_errorLogDock);
+    
+    // Performance Dashboard dock
+    m_performanceDashboardDock = new QDockWidget(tr("Performance Dashboard"), this);
+    m_performanceDashboardDock->setObjectName("PerformanceDashboardDock");
+    m_performanceDashboard = new PerformanceDashboard(this);
+    m_performanceDashboardDock->setWidget(m_performanceDashboard);
+    addDockWidget(Qt::RightDockWidgetArea, m_performanceDashboardDock);
+    
+    // ETSI Compliance Monitor dock
+    m_complianceMonitorDock = new QDockWidget(tr("ETSI Compliance"), this);
+    m_complianceMonitorDock->setObjectName("ETSIComplianceDock");
+    m_complianceMonitor = new ETSIComplianceMonitor(this);
+    m_complianceMonitorDock->setWidget(m_complianceMonitor);
+    addDockWidget(Qt::BottomDockWidgetArea, m_complianceMonitorDock);
     
     // Organize dock widgets
     tabifyDockWidget(m_figAnalysisDock, m_yamlViewerDock);
