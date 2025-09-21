@@ -54,11 +54,21 @@ set(GTEST_UNIT_SOURCES
     unit/test_etsi_compliance_validation.cpp
     unit/test_real_service_discovery.cpp
     unit/test_cross_platform_performance.cpp
+
+    # 100% ETSI COMPLIANCE VALIDATION TEST SUITE
+    unit/test_100_percent_compliance.cpp
+    unit/test_queue_management_optimization.cpp
+    unit/test_audio_quality_optimization.cpp
+    unit/test_crc_error_recovery.cpp
+    unit/test_realworld_eti_compatibility.cpp
+    unit/test_performance_impact_validation.cpp
 )
 
 # Test fixtures and test data - only working files
 set(TEST_FIXTURE_SOURCES
     fixtures/eti_test_data.cpp
+    fixtures/eti_streams/optimized_compliance_frames.cpp
+    fixtures/test_data_generators.cpp
 )
 # Qt GUI Test Framework - Professional broadcast testing
 set(QT_GUI_TEST_SOURCES
@@ -309,6 +319,35 @@ add_custom_target(run_gui_tests_only
     DEPENDS eti_analyzer_gui_tests
     COMMENT "Running GUI tests only"
 )
+
+# TDD FRAMEWORK: 100% ETSI Compliance Validation Target
+add_custom_target(run_100_percent_compliance_tests
+    COMMAND echo "🧪 100% ETSI COMPLIANCE VALIDATION TESTS"
+    COMMAND echo "========================================="
+    COMMAND eti_analyzer_unit_tests --gtest_filter="*100PercentCompliance*:*QueueManagementOptimization*:*AudioQualityOptimization*:*CRCErrorRecovery*:*RealWorldETICompatibility*:*PerformanceImpactValidation*"
+    DEPENDS eti_analyzer_unit_tests
+    COMMENT "Running comprehensive 100% ETSI compliance validation test suite"
+)
+
+add_custom_target(run_compliance_validation_suite
+    COMMAND echo "🎯 COMPREHENSIVE COMPLIANCE VALIDATION SUITE"
+    COMMAND echo "============================================="
+    COMMAND echo "Testing 100% ETSI compliance achievement..."
+    COMMAND eti_analyzer_unit_tests --gtest_filter="*100PercentCompliance*" --gtest_output=xml:100_percent_compliance_results.xml
+    COMMAND echo "Testing queue management optimization..."
+    COMMAND eti_analyzer_unit_tests --gtest_filter="*QueueManagementOptimization*"
+    COMMAND echo "Testing audio quality optimization..."
+    COMMAND eti_analyzer_unit_tests --gtest_filter="*AudioQualityOptimization*"
+    COMMAND echo "Testing CRC error recovery..."
+    COMMAND eti_analyzer_unit_tests --gtest_filter="*CRCErrorRecovery*"
+    COMMAND echo "Testing real-world ETI compatibility..."
+    COMMAND eti_analyzer_unit_tests --gtest_filter="*RealWorldETICompatibility*"
+    COMMAND echo "Testing performance impact validation..."
+    COMMAND eti_analyzer_unit_tests --gtest_filter="*PerformanceImpactValidation*"
+    COMMAND echo "✅ 100% ETSI COMPLIANCE VALIDATION COMPLETE"
+    DEPENDS eti_analyzer_unit_tests
+    COMMENT "Comprehensive 100% ETSI compliance validation with detailed reporting"
+)
 # TDD FRAMEWORK: Memory leak testing (Linux/macOS with Valgrind)
 if(UNIX AND NOT APPLE)
     find_program(VALGRIND_EXECUTABLE valgrind)
@@ -468,6 +507,16 @@ message(STATUS "  - run_unit_tests_only: Unit tests with Google Test")
 message(STATUS "  - run_gui_tests_only: GUI tests with Qt Test")
 message(STATUS "  - run_performance_tests: Comprehensive performance validation")
 message(STATUS "  - run_tests_quiet: Minimal output testing")
+message(STATUS "")
+message(STATUS "100% ETSI COMPLIANCE VALIDATION TARGETS:")
+message(STATUS "  - run_100_percent_compliance_tests: Comprehensive compliance validation")
+message(STATUS "  - run_compliance_validation_suite: Detailed compliance test suite")
+message(STATUS "    * 100% compliance score validation")
+message(STATUS "    * Queue management optimization validation")
+message(STATUS "    * Audio quality threshold optimization")
+message(STATUS "    * CRC error recovery validation")
+message(STATUS "    * Real-world ETI stream compatibility")
+message(STATUS "    * Performance impact validation")
 if(ENABLE_COVERAGE)
     message(STATUS "  - tdd_coverage_generate: Generate coverage reports")
     message(STATUS "  - tdd_coverage_check: Enforce coverage requirements")

@@ -190,6 +190,12 @@ class AlertProcessor;
 class AlertNotifier;
 class AlertAggregator;
 
+// COMPLIANCE OPTIMIZATION: Error correction result structure for 100% compliance
+struct ErrorCorrectionResult {
+    bool corrected = false;
+    bool partial_correction = false;
+};
+
 /**
  * @brief Professional ETSI Standards-Compliant Alert System
  * 
@@ -386,6 +392,10 @@ private:
                                               const eti::Ensemble& ensemble);
     void check_error_correction_thresholds(const eti::EtiFrame& frame);
     void check_synchronization_thresholds(const eti::EtiFrame& frame);
+    
+    // COMPLIANCE OPTIMIZATION: Error correction helper methods for 100% compliance
+    bool attempt_fic_error_correction(const eti::EtiFrame& frame);
+    ErrorCorrectionResult attempt_msc_error_correction(const eti::EtiFrame& frame);
     
     // Audio analysis methods
     double calculate_lufs_loudness(const std::vector<float>& audio_data,
