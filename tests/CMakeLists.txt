@@ -49,6 +49,11 @@ set(GTEST_UNIT_SOURCES
     utils/test_config_manager.cpp
     # utils/test_file_utils.cpp  # Temporarily disabled - missing header
     utils/test_signal_processing.cpp
+
+    # NEW COMPREHENSIVE TESTS FOR REAL IMPLEMENTATIONS
+    unit/test_etsi_compliance_validation.cpp
+    unit/test_real_service_discovery.cpp
+    unit/test_cross_platform_performance.cpp
 )
 
 # Test fixtures and test data - only working files
@@ -377,9 +382,47 @@ if(ENABLE_BENCHMARKS)
     # Add benchmark test executable here
     # Requires Google Benchmark or similar framework
 endif()
-# TDD FRAMEWORK: Performance benchmarking (optional enhancement)
-option(ENABLE_TDD_BENCHMARKS "Enable TDD performance benchmark tests" OFF)
+# TDD FRAMEWORK: Performance benchmarking with real implementation tests
+option(ENABLE_TDD_BENCHMARKS "Enable TDD performance benchmark tests" ON)
 if(ENABLE_TDD_BENCHMARKS)
+    # Performance regression tests for real implementation
+    add_executable(eti_analyzer_performance_tests
+        performance/test_performance_regression.cpp
+        ${MAIN_PROJECT_SOURCES}
+    )
+
+    target_link_libraries(eti_analyzer_performance_tests
+        ${GTEST_LIBS}
+        Qt6::Core
+        Qt6::Test
+        etisnoop_static
+        ${TEST_LIBS}
+    )
+
+    target_include_directories(eti_analyzer_performance_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+        ${FAAD2_INCLUDE_DIRS}
+        ${FFTW3_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/etisnoop/src
+    )
+
+    target_compile_definitions(eti_analyzer_performance_tests PRIVATE
+        ${FAAD2_CFLAGS_OTHER}
+        ${FFTW3_CFLAGS_OTHER}
+    )
+
+    add_test(NAME performance_tests
+             COMMAND eti_analyzer_performance_tests)
+
+    add_custom_target(run_performance_tests
+        COMMAND eti_analyzer_performance_tests
+        DEPENDS eti_analyzer_performance_tests
+        COMMENT "TDD: Running comprehensive performance regression tests"
+    )
+
+    # Optional Google Benchmark integration
     find_package(benchmark QUIET)
     if(benchmark_FOUND)
         add_executable(eti_analyzer_benchmarks
@@ -394,12 +437,16 @@ if(ENABLE_TDD_BENCHMARKS)
         add_custom_target(run_benchmarks
             COMMAND eti_analyzer_benchmarks
             DEPENDS eti_analyzer_benchmarks
-            COMMENT "TDD: Running performance benchmarks"
+            COMMENT "TDD: Running optional Google Benchmark tests"
         )
-        message(STATUS "TDD: Performance benchmarking enabled")
+        message(STATUS "TDD: Google Benchmark integration enabled")
     else()
-        message(STATUS "TDD: Google Benchmark not found, benchmarking disabled")
+        message(STATUS "TDD: Google Benchmark not found, using Qt-based performance tests only")
     endif()
+
+    message(STATUS "TDD: Comprehensive performance testing enabled")
+else()
+    message(STATUS "TDD: Performance testing disabled")
 endif()
 # TDD FRAMEWORK STATUS SUMMARY
 message(STATUS "")
@@ -419,6 +466,7 @@ message(STATUS "AVAILABLE TEST TARGETS:")
 message(STATUS "  - run_tests: Run all TDD test suites")
 message(STATUS "  - run_unit_tests_only: Unit tests with Google Test")
 message(STATUS "  - run_gui_tests_only: GUI tests with Qt Test")
+message(STATUS "  - run_performance_tests: Comprehensive performance validation")
 message(STATUS "  - run_tests_quiet: Minimal output testing")
 if(ENABLE_COVERAGE)
     message(STATUS "  - tdd_coverage_generate: Generate coverage reports")

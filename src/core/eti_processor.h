@@ -209,6 +209,11 @@ private:
     double m_averageFrameRate;
     uint64_t m_totalProcessingTime;
     
+    // Performance measurement utilities
+    double getCurrentMemoryUsage() const;
+    void validatePerformanceTargets(double fps, double memoryMB);
+    void generatePerformanceReport(const EtisnoopWrapper::ProcessingStats& stats);
+    
     // ETSI compliance tracking
     struct ComplianceStatus {
         bool etsi_en_300_799_compliant;

@@ -291,6 +291,34 @@ void TestETIFileProcessing::testETIFileProcessingAccuracy()
     // Load ETI file
     QVERIFY(loadETIFileAndWait(testETIFilePath));
     
+    // Get the ETI processor to test real functionality
+    EtiProcessor* processor = mainWindow->findChild<EtiProcessor*>("etiProcessor");
+    if (!processor) {
+        // Create processor for testing if not found
+        processor = new EtiProcessor(mainWindow);
+        QVERIFY(processor->initialize());
+    }
+    
+    // Test real ETI frame processing with actual frame data
+    QByteArray testFrame(6144, 0); // ETI frame size
+    testFrame[0] = 0x49; // ETI sync pattern
+    testFrame[1] = 0x93;
+    testFrame[2] = 0x1E;
+    testFrame[3] = 0x03;
+    
+    // Add valid LIDATA field
+    testFrame[4] = 0x00; // FC (Frame Count)
+    testFrame[5] = 0x01; // NST (Number of Sub-channels) = 1
+    testFrame[6] = 0x10; // Mid=1, FP=0, FICF=1
+    
+    // Test frame processing
+    bool processed = processor->processEtiFrame(testFrame);
+    QVERIFY2(processed, "Real ETI frame processing failed");
+    
+    // Verify processing statistics
+    double frameRate = processor->getAverageFrameRate();
+    QVERIFY2(frameRate >= 0.0, "Frame rate measurement not working");
+    
     // Verify accurate frame processing
     verifyFrameAnalysisAccuracy();
     

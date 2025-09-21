@@ -48,6 +48,8 @@ class AudioMonitoringWidget;
 class FigAnalysisWidget;
 class ServiceExplorerPanel;
 class EtiAnalysisWidget;
+class PerformanceDashboard;
+class ETSIComplianceMonitor;
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -463,6 +465,10 @@ private:
     AnalyzerWidget *m_analyzerWidget;
     ConstellationWidget *m_constellationWidget;
     ServiceBrowser *m_serviceBrowser;
+    
+    // Professional analysis widgets
+    PerformanceDashboard *m_performanceDashboard;
+    ETSIComplianceMonitor *m_complianceMonitor;
 
     // Dockable panels
     QDockWidget *m_fileExplorerDock;
@@ -470,6 +476,8 @@ private:
     QDockWidget *m_figAnalysisDock;
     QDockWidget *m_audioMonitorDock;
     QDockWidget *m_errorLogDock;
+    QDockWidget *m_performanceDashboardDock;
+    QDockWidget *m_complianceMonitorDock;
 
     // Dock contents
     QTextEdit *m_fileExplorer;
