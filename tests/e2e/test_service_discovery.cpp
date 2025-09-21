@@ -34,6 +34,7 @@
 #include "core/service_manager.h"
 #include "core/ensemble_manager.h"
 #include "utils/logger.h"
+#include "test_utils.h"
 
 class TestServiceDiscovery : public QObject
 {
@@ -132,23 +133,24 @@ void TestServiceDiscovery::init()
 {
     // Create fresh MainWindow for each test
     mainWindow = new MainWindow();
-    mainWindow->show();
     
-    // Wait for window to be fully displayed
-    bool windowActive = QTest::qWaitForWindowActive(mainWindow, 5000);
-    Q_UNUSED(windowActive);
-    QVERIFY(mainWindow->isVisible());
+    // Use enhanced window initialization from test utils
+    bool windowReady = TestUtils::initializeWindow(mainWindow, 5000);
+    QVERIFY2(windowReady, "MainWindow failed to initialize properly");
     
     Logger::instance().log(Logger::Debug, "E2EServiceTest", "MainWindow initialized for test");
 }
 
 void TestServiceDiscovery::cleanup()
 {
-    if (mainWindow) {
-        mainWindow->close();
-        delete mainWindow;
-        mainWindow = nullptr;
-    }
+    // Use enhanced widget cleanup from test utils
+    TestUtils::safeDeleteWidget(mainWindow);
+    
+    // Perform safe test cleanup
+    TestUtils::safeTestCleanup();
+    
+    // Validate memory state
+    TestUtils::validateTestMemoryState("ServiceDiscovery");
 }
 
 void TestServiceDiscovery::testHierarchicalServiceTreeStructure()
@@ -786,24 +788,16 @@ int TestServiceDiscovery::countServicesInTree()
 
 bool TestServiceDiscovery::waitForServiceDiscovery(int timeoutMs)
 {
-    QElapsedTimer timer;
-    timer.start();
-    
-    while (timer.elapsed() < timeoutMs) {
-        QApplication::processEvents();
-        QTest::qWait(10);
-        
-        // Check if services have been discovered
+    // Use enhanced waiting with condition checking from test utils
+    return TestUtils::waitForCondition([this]() {
         int serviceCount = countServicesInTree();
         if (serviceCount > 0) {
             Logger::instance().log(Logger::Debug, "E2EServiceTest", 
                                   QString("Service discovery completed: %1 services found").arg(serviceCount));
             return true;
         }
-    }
-    
-    Logger::instance().log(Logger::Warning, "E2EServiceTest", "Service discovery timed out");
-    return false;
+        return false;
+    }, timeoutMs, 100); // Check every 100ms
 }
 
 QTEST_MAIN(TestServiceDiscovery)

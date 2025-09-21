@@ -1,0 +1,768 @@
+/**
+ * @file test_performance_regression.cpp
+ * @brief Performance Regression Tests for Phase 2 Migration
+ * 
+ * Comprehensive performance validation for the new integrated C++20 ETI engine
+ * to ensure >30% speed improvement and >40% memory reduction targets are met.
+ * 
+ * Test Categories:
+ * - Baseline performance measurement (legacy wrapper)
+ * - Integrated engine performance validation
+ * - Memory usage regression testing
+ * - Real-time processing benchmarks
+ * - Component-level performance validation
+ * 
+ * Success Criteria:
+ * - >30% speed improvement over legacy wrapper
+ * - >40% memory reduction compared to wrapper
+ * - >900 FPS real-time processing capability
+ * - <50ms latency for real-time mode
+ * - Consistent performance across test runs
+ */
+
+#include <QtTest/QtTest>
+#include <QApplication>
+#include <QElapsedTimer>
+#include <QFileInfo>
+#include <QDir>
+#include <chrono>
+#include <memory>
+#include <vector>
+#include <algorithm>
+#include <numeric>
+#include <fstream>
+
+#include "core/eti_processing_engine.h"
+#include "core/modern_eti_frame_parser.h"
+#include "core/enhanced_fig_analyzer.h"
+#include "core/etisnoop_wrapper.h"
+#include "utils/logger.h"
+
+class TestPerformanceRegression : public QObject
+{
+    Q_OBJECT
+
+private slots:
+    void initTestCase();
+    void cleanupTestCase();
+    void init();
+    void cleanup();
+
+    // Baseline Performance Measurement
+    void testLegacyWrapperBaseline();
+    void testLegacyWrapperMemoryBaseline();
+    void testLegacyWrapperRealTimeBaseline();
+
+    // Integrated Engine Performance Validation
+    void testIntegratedEnginePerformance();
+    void testIntegratedEngineMemoryUsage();
+    void testIntegratedEngineRealTimeProcessing();
+
+    // Regression Testing
+    void testSpeedImprovementRegression();
+    void testMemoryReductionRegression();
+    void testRealTimeFPSRegression();
+    void testLatencyRegression();
+
+    // Component-Level Performance
+    void testModernFrameParserPerformance();
+    void testEnhancedFIGAnalyzerPerformance();
+    void testETIProcessingCachePerformance();
+    void testPerformanceProfilerOverhead();
+
+    // Statistical Validation
+    void testPerformanceConsistency();
+    void testPerformanceDistribution();
+    void testPerformanceOutliers();
+
+private:
+    QApplication* app;
+    QString testETIFilePath;
+    
+    // Test configurations
+    static constexpr int PERFORMANCE_TEST_RUNS = 10;
+    static constexpr int REALTIME_FRAME_COUNT = 1000;
+    static constexpr double SPEED_IMPROVEMENT_TARGET = 30.0; // 30%
+    static constexpr double MEMORY_REDUCTION_TARGET = 40.0;  // 40%
+    static constexpr double FPS_TARGET = 900.0;              // 900 FPS
+    static constexpr double LATENCY_TARGET = 50.0;           // 50ms
+    
+    // Performance tracking
+    struct PerformanceMetrics {
+        std::vector<double> processing_times_ms;
+        std::vector<size_t> memory_usage_bytes;
+        std::vector<double> fps_measurements;
+        std::vector<double> latency_measurements_ms;
+        
+        double mean_processing_time = 0.0;
+        double std_dev_processing_time = 0.0;
+        double mean_memory_usage = 0.0;
+        double mean_fps = 0.0;
+        double mean_latency = 0.0;
+        
+        void calculateStatistics();
+        QString generateReport() const;
+    };
+    
+    PerformanceMetrics legacyMetrics;
+    PerformanceMetrics integratedMetrics;
+    
+    // Test engines
+    std::unique_ptr<eti::processing::UnifiedETIProcessingEngine> testEngine;
+    std::unique_ptr<EtisnoopWrapper> legacyWrapper;
+    
+    // Helper methods
+    bool initializeTestEngine(eti::processing::EngineConfiguration::ProcessingMode mode);
+    PerformanceMetrics measureEnginePerformance(eti::processing::EngineConfiguration::ProcessingMode mode);
+    size_t getCurrentMemoryUsage();
+    double measureProcessingTime(eti::processing::EngineConfiguration::ProcessingMode mode);
+    double measureRealTimeFPS(eti::processing::EngineConfiguration::ProcessingMode mode);
+    double measureProcessingLatency(eti::processing::EngineConfiguration::ProcessingMode mode);
+    QByteArray createTestETIFrame(uint32_t frameNumber = 0);
+    bool validatePerformanceImprovement(const PerformanceMetrics& baseline, const PerformanceMetrics& optimized);
+    void savePerformanceReport(const QString& filename);
+};
+
+void TestPerformanceRegression::PerformanceMetrics::calculateStatistics()
+{
+    if (!processing_times_ms.empty()) {
+        mean_processing_time = std::accumulate(processing_times_ms.begin(), processing_times_ms.end(), 0.0) / processing_times_ms.size();
+        
+        double variance = 0.0;
+        for (double time : processing_times_ms) {
+            variance += (time - mean_processing_time) * (time - mean_processing_time);
+        }
+        std_dev_processing_time = std::sqrt(variance / processing_times_ms.size());
+    }
+    
+    if (!memory_usage_bytes.empty()) {
+        mean_memory_usage = std::accumulate(memory_usage_bytes.begin(), memory_usage_bytes.end(), 0.0) / memory_usage_bytes.size();
+    }
+    
+    if (!fps_measurements.empty()) {
+        mean_fps = std::accumulate(fps_measurements.begin(), fps_measurements.end(), 0.0) / fps_measurements.size();
+    }
+    
+    if (!latency_measurements_ms.empty()) {
+        mean_latency = std::accumulate(latency_measurements_ms.begin(), latency_measurements_ms.end(), 0.0) / latency_measurements_ms.size();
+    }
+}
+
+QString TestPerformanceRegression::PerformanceMetrics::generateReport() const
+{
+    QString report;
+    report += QString("Performance Metrics Report\n");
+    report += QString("=========================\n");
+    report += QString("Mean Processing Time: %1ms (±%2ms)\n").arg(mean_processing_time, 0, 'f', 2).arg(std_dev_processing_time, 0, 'f', 2);
+    report += QString("Mean Memory Usage: %1MB\n").arg(mean_memory_usage / (1024.0 * 1024.0), 0, 'f', 2);
+    report += QString("Mean FPS: %1\n").arg(mean_fps, 0, 'f', 1);
+    report += QString("Mean Latency: %1ms\n").arg(mean_latency, 0, 'f', 2);
+    report += QString("Test Runs: %1\n").arg(processing_times_ms.size());
+    return report;
+}
+
+void TestPerformanceRegression::initTestCase()
+{
+    // Initialize application
+    int argc = 1;
+    const char* argv[] = {"test_performance_regression"};
+    app = new QApplication(argc, const_cast<char**>(argv));
+    
+    // Set up logging
+    Logger::instance().setLogLevel(Logger::Info);
+    Logger::instance().log(Logger::Info, "PerfTest", "Starting Performance Regression Tests");
+    
+    // Verify test ETI file exists
+    testETIFilePath = QString(ETI_TEST_FILES_DIR) + "/bkk_20062022_141637.eti";
+    QFileInfo fileInfo(testETIFilePath);
+    QVERIFY2(fileInfo.exists(), QString("Test ETI file not found: %1").arg(testETIFilePath).toLocal8Bit());
+    QVERIFY2(fileInfo.size() > 0, "Test ETI file is empty");
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Using test ETI file: %1 (%2 bytes)")
+                          .arg(testETIFilePath).arg(fileInfo.size()));
+}
+
+void TestPerformanceRegression::cleanupTestCase()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Performance Regression Tests completed");
+    
+    // Save final performance report
+    savePerformanceReport("performance_regression_results.txt");
+    
+    if (app && app != QApplication::instance()) {
+        delete app;
+        app = nullptr;
+    }
+}
+
+void TestPerformanceRegression::init()
+{
+    // Clean state for each test
+    testEngine.reset();
+    legacyWrapper.reset();
+}
+
+void TestPerformanceRegression::cleanup()
+{
+    // Cleanup after each test
+    testEngine.reset();
+    legacyWrapper.reset();
+}
+
+void TestPerformanceRegression::testLegacyWrapperBaseline()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Measuring Legacy Wrapper Baseline Performance");
+    
+    legacyMetrics = measureEnginePerformance(eti::processing::EngineConfiguration::ProcessingMode::LEGACY_WRAPPER);
+    legacyMetrics.calculateStatistics();
+    
+    QVERIFY(legacyMetrics.mean_processing_time > 0.0);
+    QVERIFY(legacyMetrics.mean_memory_usage > 0.0);
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Legacy baseline: %1ms processing, %2MB memory")
+                          .arg(legacyMetrics.mean_processing_time, 0, 'f', 2)
+                          .arg(legacyMetrics.mean_memory_usage / (1024.0 * 1024.0), 0, 'f', 2));
+}
+
+void TestPerformanceRegression::testLegacyWrapperMemoryBaseline()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Measuring Legacy Wrapper Memory Baseline");
+    
+    QVERIFY(initializeTestEngine(eti::processing::EngineConfiguration::ProcessingMode::LEGACY_WRAPPER));
+    
+    size_t initialMemory = getCurrentMemoryUsage();
+    
+    // Process test file
+    QVERIFY(testEngine->processFile(testETIFilePath));
+    
+    size_t finalMemory = getCurrentMemoryUsage();
+    legacyMetrics.memory_usage_bytes.push_back(finalMemory - initialMemory);
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Legacy memory baseline: %1MB")
+                          .arg((finalMemory - initialMemory) / (1024.0 * 1024.0), 0, 'f', 2));
+}
+
+void TestPerformanceRegression::testLegacyWrapperRealTimeBaseline()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Measuring Legacy Wrapper Real-time Baseline");
+    
+    double fps = measureRealTimeFPS(eti::processing::EngineConfiguration::ProcessingMode::LEGACY_WRAPPER);
+    legacyMetrics.fps_measurements.push_back(fps);
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Legacy real-time baseline: %1 FPS").arg(fps, 0, 'f', 1));
+}
+
+void TestPerformanceRegression::testIntegratedEnginePerformance()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Measuring Integrated Engine Performance");
+    
+    integratedMetrics = measureEnginePerformance(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE);
+    integratedMetrics.calculateStatistics();
+    
+    QVERIFY(integratedMetrics.mean_processing_time > 0.0);
+    QVERIFY(integratedMetrics.mean_memory_usage > 0.0);
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Integrated performance: %1ms processing, %2MB memory")
+                          .arg(integratedMetrics.mean_processing_time, 0, 'f', 2)
+                          .arg(integratedMetrics.mean_memory_usage / (1024.0 * 1024.0), 0, 'f', 2));
+}
+
+void TestPerformanceRegression::testIntegratedEngineMemoryUsage()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Measuring Integrated Engine Memory Usage");
+    
+    QVERIFY(initializeTestEngine(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE));
+    
+    size_t initialMemory = getCurrentMemoryUsage();
+    
+    // Process test file
+    QVERIFY(testEngine->processFile(testETIFilePath));
+    
+    size_t finalMemory = getCurrentMemoryUsage();
+    integratedMetrics.memory_usage_bytes.push_back(finalMemory - initialMemory);
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Integrated memory usage: %1MB")
+                          .arg((finalMemory - initialMemory) / (1024.0 * 1024.0), 0, 'f', 2));
+}
+
+void TestPerformanceRegression::testIntegratedEngineRealTimeProcessing()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Measuring Integrated Engine Real-time Processing");
+    
+    double fps = measureRealTimeFPS(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE);
+    integratedMetrics.fps_measurements.push_back(fps);
+    
+    // Validate FPS target
+    QVERIFY2(fps >= FPS_TARGET, 
+             QString("Integrated FPS %1 below %2 FPS target").arg(fps).arg(FPS_TARGET).toLocal8Bit());
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Integrated real-time performance: %1 FPS").arg(fps, 0, 'f', 1));
+}
+
+void TestPerformanceRegression::testSpeedImprovementRegression()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Speed Improvement Regression");
+    
+    // Ensure we have baseline measurements
+    if (legacyMetrics.processing_times_ms.empty()) {
+        testLegacyWrapperBaseline();
+    }
+    if (integratedMetrics.processing_times_ms.empty()) {
+        testIntegratedEnginePerformance();
+    }
+    
+    // Calculate speed improvement
+    double improvement = ((legacyMetrics.mean_processing_time - integratedMetrics.mean_processing_time) 
+                         / legacyMetrics.mean_processing_time) * 100.0;
+    
+    // Validate improvement target
+    QVERIFY2(improvement >= SPEED_IMPROVEMENT_TARGET,
+             QString("Speed improvement %1% below %2% target")
+             .arg(improvement, 0, 'f', 1).arg(SPEED_IMPROVEMENT_TARGET).toLocal8Bit());
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Speed improvement validated: %1%").arg(improvement, 0, 'f', 1));
+}
+
+void TestPerformanceRegression::testMemoryReductionRegression()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Memory Reduction Regression");
+    
+    // Ensure we have baseline measurements
+    if (legacyMetrics.memory_usage_bytes.empty()) {
+        testLegacyWrapperMemoryBaseline();
+    }
+    if (integratedMetrics.memory_usage_bytes.empty()) {
+        testIntegratedEngineMemoryUsage();
+    }
+    
+    // Calculate memory reduction
+    double reduction = ((legacyMetrics.mean_memory_usage - integratedMetrics.mean_memory_usage) 
+                       / legacyMetrics.mean_memory_usage) * 100.0;
+    
+    // Validate reduction target
+    QVERIFY2(reduction >= MEMORY_REDUCTION_TARGET,
+             QString("Memory reduction %1% below %2% target")
+             .arg(reduction, 0, 'f', 1).arg(MEMORY_REDUCTION_TARGET).toLocal8Bit());
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Memory reduction validated: %1%").arg(reduction, 0, 'f', 1));
+}
+
+void TestPerformanceRegression::testRealTimeFPSRegression()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Real-time FPS Regression");
+    
+    // Measure multiple runs for statistical significance
+    std::vector<double> fpsResults;
+    for (int i = 0; i < 5; ++i) {
+        double fps = measureRealTimeFPS(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE);
+        fpsResults.push_back(fps);
+    }
+    
+    // Calculate mean FPS
+    double meanFPS = std::accumulate(fpsResults.begin(), fpsResults.end(), 0.0) / fpsResults.size();
+    
+    // Validate FPS target
+    QVERIFY2(meanFPS >= FPS_TARGET,
+             QString("Mean FPS %1 below %2 FPS target").arg(meanFPS).arg(FPS_TARGET).toLocal8Bit());
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Real-time FPS validated: %1 FPS").arg(meanFPS, 0, 'f', 1));
+}
+
+void TestPerformanceRegression::testLatencyRegression()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Latency Regression");
+    
+    double latency = measureProcessingLatency(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE);
+    
+    // Validate latency target
+    QVERIFY2(latency <= LATENCY_TARGET,
+             QString("Processing latency %1ms above %2ms target").arg(latency).arg(LATENCY_TARGET).toLocal8Bit());
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Processing latency validated: %1ms").arg(latency, 0, 'f', 2));
+}
+
+void TestPerformanceRegression::testModernFrameParserPerformance()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Modern Frame Parser Performance");
+    
+    QVERIFY(initializeTestEngine(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE));
+    testEngine->enableModernFrameParser(true);
+    
+    // Benchmark frame parsing
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    for (int i = 0; i < REALTIME_FRAME_COUNT; ++i) {
+        QByteArray frameData = createTestETIFrame(i);
+        auto result = testEngine->processFrame(frameData);
+        QVERIFY(result.success);
+    }
+    
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+    
+    double fps = (REALTIME_FRAME_COUNT * 1000000.0) / duration.count();
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Modern Frame Parser: %1 FPS").arg(fps, 0, 'f', 1));
+}
+
+void TestPerformanceRegression::testEnhancedFIGAnalyzerPerformance()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Enhanced FIG Analyzer Performance");
+    
+    QVERIFY(initializeTestEngine(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE));
+    testEngine->enableEnhancedFIGAnalyzer(true);
+    
+    // Benchmark FIG analysis
+    double processingTime = measureProcessingTime(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE);
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Enhanced FIG Analyzer: %1ms processing time").arg(processingTime, 0, 'f', 2));
+}
+
+void TestPerformanceRegression::testETIProcessingCachePerformance()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing ETI Processing Cache Performance");
+    
+    QVERIFY(initializeTestEngine(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE));
+    
+    auto config = testEngine->getConfiguration();
+    config.performance_config.enable_caching = true;
+    QVERIFY(testEngine->updateConfiguration(config));
+    
+    // Measure cache effectiveness
+    double uncachedTime = measureProcessingTime(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE);
+    
+    // Process same data again (should be cached)
+    double cachedTime = measureProcessingTime(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE);
+    
+    // Cache should improve performance
+    QVERIFY2(cachedTime <= uncachedTime, "Cache did not improve performance");
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Cache performance: %1ms uncached, %2ms cached")
+                          .arg(uncachedTime, 0, 'f', 2).arg(cachedTime, 0, 'f', 2));
+}
+
+void TestPerformanceRegression::testPerformanceProfilerOverhead()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Performance Profiler Overhead");
+    
+    // Measure without profiling
+    QVERIFY(initializeTestEngine(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE));
+    auto config = testEngine->getConfiguration();
+    config.enable_migration_metrics = false;
+    QVERIFY(testEngine->updateConfiguration(config));
+    
+    double timeWithoutProfiling = measureProcessingTime(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE);
+    
+    // Measure with profiling
+    config.enable_migration_metrics = true;
+    QVERIFY(testEngine->updateConfiguration(config));
+    
+    double timeWithProfiling = measureProcessingTime(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE);
+    
+    // Profiling overhead should be minimal (<5%)
+    double overhead = ((timeWithProfiling - timeWithoutProfiling) / timeWithoutProfiling) * 100.0;
+    QVERIFY2(overhead < 5.0, QString("Profiling overhead %1% exceeds 5% limit").arg(overhead).toLocal8Bit());
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Profiling overhead: %1%").arg(overhead, 0, 'f', 2));
+}
+
+void TestPerformanceRegression::testPerformanceConsistency()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Performance Consistency");
+    
+    std::vector<double> times;
+    for (int i = 0; i < PERFORMANCE_TEST_RUNS; ++i) {
+        double time = measureProcessingTime(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE);
+        times.push_back(time);
+    }
+    
+    // Calculate coefficient of variation
+    double mean = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
+    double variance = 0.0;
+    for (double time : times) {
+        variance += (time - mean) * (time - mean);
+    }
+    double stdDev = std::sqrt(variance / times.size());
+    double cv = (stdDev / mean) * 100.0;
+    
+    // Coefficient of variation should be <10% for consistency
+    QVERIFY2(cv < 10.0, QString("Performance CV %1% exceeds 10% consistency limit").arg(cv).toLocal8Bit());
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Performance consistency: CV = %1%").arg(cv, 0, 'f', 2));
+}
+
+void TestPerformanceRegression::testPerformanceDistribution()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Performance Distribution");
+    
+    // Ensure we have enough measurements
+    if (integratedMetrics.processing_times_ms.size() < PERFORMANCE_TEST_RUNS) {
+        for (int i = integratedMetrics.processing_times_ms.size(); i < PERFORMANCE_TEST_RUNS; ++i) {
+            double time = measureProcessingTime(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE);
+            integratedMetrics.processing_times_ms.push_back(time);
+        }
+        integratedMetrics.calculateStatistics();
+    }
+    
+    // Check for normal distribution characteristics
+    std::sort(integratedMetrics.processing_times_ms.begin(), integratedMetrics.processing_times_ms.end());
+    
+    double median = integratedMetrics.processing_times_ms[integratedMetrics.processing_times_ms.size() / 2];
+    double q1 = integratedMetrics.processing_times_ms[integratedMetrics.processing_times_ms.size() / 4];
+    double q3 = integratedMetrics.processing_times_ms[3 * integratedMetrics.processing_times_ms.size() / 4];
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Performance distribution: Q1=%1ms, Median=%2ms, Q3=%3ms")
+                          .arg(q1, 0, 'f', 2).arg(median, 0, 'f', 2).arg(q3, 0, 'f', 2));
+}
+
+void TestPerformanceRegression::testPerformanceOutliers()
+{
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Performance Outliers");
+    
+    // Use existing measurements or create new ones
+    if (integratedMetrics.processing_times_ms.size() < PERFORMANCE_TEST_RUNS) {
+        testPerformanceDistribution(); // This will ensure we have enough measurements
+    }
+    
+    // Detect outliers using IQR method
+    std::vector<double> times = integratedMetrics.processing_times_ms;
+    std::sort(times.begin(), times.end());
+    
+    double q1 = times[times.size() / 4];
+    double q3 = times[3 * times.size() / 4];
+    double iqr = q3 - q1;
+    double lowerBound = q1 - 1.5 * iqr;
+    double upperBound = q3 + 1.5 * iqr;
+    
+    int outlierCount = 0;
+    for (double time : times) {
+        if (time < lowerBound || time > upperBound) {
+            outlierCount++;
+        }
+    }
+    
+    // Less than 10% outliers is acceptable
+    double outlierPercent = (outlierCount * 100.0) / times.size();
+    QVERIFY2(outlierPercent < 10.0, 
+             QString("Outlier percentage %1% exceeds 10% limit").arg(outlierPercent).toLocal8Bit());
+    
+    Logger::instance().log(Logger::Info, "PerfTest", 
+                          QString("Performance outliers: %1% (%2 of %3 measurements)")
+                          .arg(outlierPercent, 0, 'f', 1).arg(outlierCount).arg(times.size()));
+}
+
+// Helper method implementations
+bool TestPerformanceRegression::initializeTestEngine(eti::processing::EngineConfiguration::ProcessingMode mode)
+{
+    eti::processing::EngineConfiguration config;
+    config.processing_mode = mode;
+    config.components.enable_performance_comparison = true;
+    config.enable_migration_metrics = true;
+    
+    testEngine = eti::processing::createConfiguredEngine(config);
+    if (!testEngine) {
+        return false;
+    }
+    
+    return testEngine->initialize(config);
+}
+
+TestPerformanceRegression::PerformanceMetrics 
+TestPerformanceRegression::measureEnginePerformance(eti::processing::EngineConfiguration::ProcessingMode mode)
+{
+    PerformanceMetrics metrics;
+    
+    for (int run = 0; run < PERFORMANCE_TEST_RUNS; ++run) {
+        QVERIFY(initializeTestEngine(mode));
+        
+        size_t initialMemory = getCurrentMemoryUsage();
+        auto startTime = std::chrono::high_resolution_clock::now();
+        
+        QVERIFY(testEngine->processFile(testETIFilePath));
+        
+        auto endTime = std::chrono::high_resolution_clock::now();
+        size_t finalMemory = getCurrentMemoryUsage();
+        
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+        double processingTime = duration.count() / 1000.0; // Convert to milliseconds
+        
+        metrics.processing_times_ms.push_back(processingTime);
+        metrics.memory_usage_bytes.push_back(finalMemory - initialMemory);
+        
+        testEngine.reset(); // Clean up for next run
+    }
+    
+    return metrics;
+}
+
+size_t TestPerformanceRegression::getCurrentMemoryUsage()
+{
+    // On Linux, read from /proc/self/status
+    std::ifstream statusFile("/proc/self/status");
+    if (!statusFile.is_open()) {
+        return 0;
+    }
+    
+    std::string line;
+    while (std::getline(statusFile, line)) {
+        if (line.substr(0, 6) == "VmRSS:") {
+            std::istringstream iss(line);
+            std::string label, value, unit;
+            iss >> label >> value >> unit;
+            
+            size_t memory = std::stoul(value);
+            if (unit == "kB") {
+                memory *= 1024; // Convert to bytes
+            }
+            return memory;
+        }
+    }
+    
+    return 0;
+}
+
+double TestPerformanceRegression::measureProcessingTime(eti::processing::EngineConfiguration::ProcessingMode mode)
+{
+    QVERIFY(initializeTestEngine(mode));
+    
+    auto startTime = std::chrono::high_resolution_clock::now();
+    QVERIFY(testEngine->processFile(testETIFilePath));
+    auto endTime = std::chrono::high_resolution_clock::now();
+    
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+    return duration.count() / 1000.0; // Convert to milliseconds
+}
+
+double TestPerformanceRegression::measureRealTimeFPS(eti::processing::EngineConfiguration::ProcessingMode mode)
+{
+    QVERIFY(initializeTestEngine(mode));
+    
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    for (int i = 0; i < REALTIME_FRAME_COUNT; ++i) {
+        QByteArray frameData = createTestETIFrame(i);
+        auto result = testEngine->processFrame(frameData);
+        QVERIFY(result.success);
+    }
+    
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+    
+    return (REALTIME_FRAME_COUNT * 1000000.0) / duration.count();
+}
+
+double TestPerformanceRegression::measureProcessingLatency(eti::processing::EngineConfiguration::ProcessingMode mode)
+{
+    QVERIFY(initializeTestEngine(mode));
+    
+    QByteArray frameData = createTestETIFrame();
+    
+    auto startTime = std::chrono::high_resolution_clock::now();
+    auto result = testEngine->processFrame(frameData);
+    auto endTime = std::chrono::high_resolution_clock::now();
+    
+    QVERIFY(result.success);
+    
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+    return duration.count() / 1000.0; // Convert to milliseconds
+}
+
+QByteArray TestPerformanceRegression::createTestETIFrame(uint32_t frameNumber)
+{
+    QByteArray frame(6144, 0);
+    
+    // ETI sync word
+    frame[0] = 0x49;
+    frame[1] = 0x6F;
+    frame[2] = 0x52;
+    frame[3] = 0x85;
+    
+    // Frame number
+    frame[4] = (frameNumber >> 24) & 0xFF;
+    frame[5] = (frameNumber >> 16) & 0xFF;
+    frame[6] = (frameNumber >> 8) & 0xFF;
+    frame[7] = frameNumber & 0xFF;
+    
+    // Fill with test pattern
+    for (int i = 8; i < 6144; ++i) {
+        frame[i] = (i + frameNumber) & 0xFF;
+    }
+    
+    return frame;
+}
+
+bool TestPerformanceRegression::validatePerformanceImprovement(const PerformanceMetrics& baseline, 
+                                                              const PerformanceMetrics& optimized)
+{
+    double speedImprovement = ((baseline.mean_processing_time - optimized.mean_processing_time) 
+                              / baseline.mean_processing_time) * 100.0;
+    
+    double memoryReduction = ((baseline.mean_memory_usage - optimized.mean_memory_usage) 
+                             / baseline.mean_memory_usage) * 100.0;
+    
+    bool speedOk = speedImprovement >= SPEED_IMPROVEMENT_TARGET;
+    bool memoryOk = memoryReduction >= MEMORY_REDUCTION_TARGET;
+    bool fpsOk = optimized.mean_fps >= FPS_TARGET;
+    
+    return speedOk && memoryOk && fpsOk;
+}
+
+void TestPerformanceRegression::savePerformanceReport(const QString& filename)
+{
+    QFile reportFile(filename);
+    if (reportFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream stream(&reportFile);
+        
+        stream << "Performance Regression Test Results\n";
+        stream << "===================================\n\n";
+        
+        stream << "Legacy Wrapper Baseline:\n";
+        stream << legacyMetrics.generateReport() << "\n";
+        
+        stream << "Integrated Engine Performance:\n";
+        stream << integratedMetrics.generateReport() << "\n";
+        
+        if (!legacyMetrics.processing_times_ms.empty() && !integratedMetrics.processing_times_ms.empty()) {
+            double speedImprovement = ((legacyMetrics.mean_processing_time - integratedMetrics.mean_processing_time) 
+                                      / legacyMetrics.mean_processing_time) * 100.0;
+            
+            double memoryReduction = ((legacyMetrics.mean_memory_usage - integratedMetrics.mean_memory_usage) 
+                                     / legacyMetrics.mean_memory_usage) * 100.0;
+            
+            stream << "Performance Improvements:\n";
+            stream << QString("Speed Improvement: %1% (Target: %2%)\n")
+                      .arg(speedImprovement, 0, 'f', 1).arg(SPEED_IMPROVEMENT_TARGET);
+            stream << QString("Memory Reduction: %1% (Target: %2%)\n")
+                      .arg(memoryReduction, 0, 'f', 1).arg(MEMORY_REDUCTION_TARGET);
+            
+            bool targetsMetAnalysis = speedImprovement >= SPEED_IMPROVEMENT_TARGET && 
+                                     memoryReduction >= MEMORY_REDUCTION_TARGET;
+            stream << QString("Targets Met: %1\n").arg(targetsMetAnalysis ? "YES" : "NO");
+        }
+        
+        reportFile.close();
+        
+        Logger::instance().log(Logger::Info, "PerfTest", 
+                              QString("Performance report saved to: %1").arg(filename));
+    }
+}
+
+QTEST_MAIN(TestPerformanceRegression)
+#include "test_performance_regression.moc"

@@ -96,6 +96,8 @@ add_executable(eti_analyzer_gui_tests
     ../src/gui/eti_frame_list_model.cpp
     ../src/gui/fig_analysis_widget.cpp
     ../src/gui/audio_monitoring_widget.cpp
+    ../src/gui/service_explorer_panel.cpp
+    ../src/gui/eti_analysis_widget.cpp
     # Add core sources that GUI depends on
     ../src/core/eti_processor.cpp
     ../src/core/etisnoop_wrapper.cpp
@@ -178,6 +180,8 @@ set(MAIN_PROJECT_GUI_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/settings_dialog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/about_dialog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/audio_monitoring_widget.cpp
+    ../src/gui/service_explorer_panel.cpp
+    ../src/gui/eti_analysis_widget.cpp
 )
 # Link main project sources to unit tests
 target_sources(eti_analyzer_unit_tests PRIVATE ${MAIN_PROJECT_SOURCES})

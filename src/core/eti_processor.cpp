@@ -21,19 +21,19 @@ EtiProcessor::EtiProcessor(QObject *parent)
     m_complianceStatus.etsi_en_300_799_compliant = false;
     m_complianceStatus.etsi_en_300_401_compliant = false;
     
-    // Connect ETISnoop wrapper signals
+    // Connect ETISnoop wrapper signals with queued connections for better test stability
     connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::frameProcessed,
-            this, &EtiProcessor::onEtisnoopFrameProcessed);
+            this, &EtiProcessor::onEtisnoopFrameProcessed, Qt::QueuedConnection);
     connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::serviceDiscovered,
-            this, &EtiProcessor::onEtisnoopServiceDiscovered);
+            this, &EtiProcessor::onEtisnoopServiceDiscovered, Qt::QueuedConnection);
     connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::ensembleUpdated,
-            this, &EtiProcessor::onEtisnoopEnsembleUpdated);
+            this, &EtiProcessor::onEtisnoopEnsembleUpdated, Qt::QueuedConnection);
     connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::processingError,
-            this, &EtiProcessor::onEtisnoopError);
+            this, &EtiProcessor::onEtisnoopError, Qt::QueuedConnection);
     connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::statsUpdated,
-            this, &EtiProcessor::onEtisnoopStatsUpdated);
+            this, &EtiProcessor::onEtisnoopStatsUpdated, Qt::QueuedConnection);
     connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::thaiComplianceChanged,
-            this, &EtiProcessor::onEtisnoopThaiComplianceChanged);
+            this, &EtiProcessor::onEtisnoopThaiComplianceChanged, Qt::QueuedConnection);
 }
 
 EtiProcessor::~EtiProcessor()
