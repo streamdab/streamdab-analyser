@@ -40,10 +40,7 @@ find_package(Qt6 6.2 REQUIRED COMPONENTS
 # Enable Qt automation
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
-
-# Set AUTOUIC search paths for .ui files
-set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui)
+# Qt Designer .ui files removed - using manual widget creation
 
 # Platform detection and configuration
 if(WIN32)
@@ -197,13 +194,7 @@ set(CORE_SOURCE_FILES
 # Use only core files for minimal build
 set(SOURCE_FILES ${CORE_SOURCE_FILES})
 
-# UI files for Qt6 UIC processing
-set(UI_FILES
-    src/gui/ui/settings_dialog.ui
-    src/gui/ui/about_dialog.ui
-    src/gui/ui/alert_configuration_dialog.ui
-    src/gui/ui/stream_recording_dialog.ui
-)
+# UI files removed - using manual widget creation
 
 # Resource files
 set(RESOURCE_FILES
@@ -219,7 +210,6 @@ endforeach()
 # Create main executable
 add_executable(${PROJECT_NAME}
     ${SOURCE_FILES}
-    ${UI_FILES}
     ${RESOURCE_FILES}
 )
 

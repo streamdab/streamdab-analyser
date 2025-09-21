@@ -16,7 +16,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QElapsedTimer>
-#include <QMemoryInfo>
+// #include <QMemoryInfo>  // Not available in this Qt6 version, using alternatives
 #include <QThread>
 #include <memory>
 
@@ -30,8 +30,8 @@
 #include "gui/fig_analysis_widget.h"
 #include "core/eti_processor.h"
 #include "core/etsi/compliance_engine.h"
-#include "tests/fixtures/test_data_generators.h"
-#include "tests/mocks/mock_eti_processor.h"
+#include "fixtures/test_data_generators.h"
+#include "mocks/mock_eti_processor.h"
 
 using ::testing::_;
 using ::testing::Return;

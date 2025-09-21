@@ -156,6 +156,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup logging - Now using SafeLogger with hang protection
     Logger::instance().setLogLevel(Logger::Info);
     Logger::instance().log(Logger::Info, "MainWindow", "Constructor completed");
+    
+    // Initialize GUI components automatically for consistent state
+    initialize();
 }
 
 MainWindow::~MainWindow()
@@ -270,15 +273,18 @@ void MainWindow::createActions()
 {
     // File menu actions
     m_openFileAction = new QAction(QIcon(":/icons/open.png"), tr("&Open ETI File..."), this);
+    m_openFileAction->setObjectName("OpenETIFileAction");
     m_openFileAction->setShortcut(QKeySequence::Open);
     m_openFileAction->setStatusTip(tr("Open an ETI file for analysis"));
     
     m_closeFileAction = new QAction(QIcon(":/icons/close.png"), tr("&Close File"), this);
+    m_closeFileAction->setObjectName("CloseFileAction");
     m_closeFileAction->setShortcut(QKeySequence::Close);
     m_closeFileAction->setStatusTip(tr("Close the current ETI file"));
     m_closeFileAction->setEnabled(false);
     
     m_exitAction = new QAction(QIcon(":/icons/exit.png"), tr("E&xit"), this);
+    m_exitAction->setObjectName("ExitAction");
     m_exitAction->setShortcut(QKeySequence::Quit);
     m_exitAction->setStatusTip(tr("Exit the application"));
     
@@ -342,21 +348,30 @@ void MainWindow::createActions()
 void MainWindow::createMenuBar()
 {
     m_menuBar = menuBar();
+    m_menuBar->setObjectName("MainMenuBar");
     
     // File menu
     m_fileMenu = m_menuBar->addMenu(tr("&File"));
+    m_fileMenu->setObjectName("FileMenu");
     m_fileMenu->addAction(m_openFileAction);
     m_fileMenu->addAction(m_closeFileAction);
+    
+    // Recent Files submenu
+    QMenu *recentFilesMenu = m_fileMenu->addMenu(tr("Recent Files"));
+    recentFilesMenu->setObjectName("RecentFilesMenu");
+    
     m_fileMenu->addSeparator();
     m_fileMenu->addAction(m_exitAction);
     
     // Analysis menu
     m_analysisMenu = m_menuBar->addMenu(tr("&Analysis"));
+    m_analysisMenu->setObjectName("AnalysisMenu");
     m_analysisMenu->addAction(m_startAnalysisAction);
     m_analysisMenu->addAction(m_stopAnalysisAction);
     
     // View menu
     m_viewMenu = m_menuBar->addMenu(tr("&View"));
+    m_viewMenu->setObjectName("ViewMenu");
     
     // Panels submenu
     QMenu *panelsMenu = m_viewMenu->addMenu(tr("&Panels"));
@@ -372,15 +387,18 @@ void MainWindow::createMenuBar()
     
     // Tools menu
     m_toolsMenu = m_menuBar->addMenu(tr("&Tools"));
+    m_toolsMenu->setObjectName("ToolsMenu");
     m_toolsMenu->addAction(m_settingsAction);
     
     // Demo menu for testing
     QMenu *demoMenu = m_menuBar->addMenu(tr("&Demo"));
+    demoMenu->setObjectName("DemoMenu");
     demoMenu->addAction(m_createSampleFileAction);
     demoMenu->addAction(m_loadTestDataAction);
     
     // Help menu
     m_helpMenu = m_menuBar->addMenu(tr("&Help"));
+    m_helpMenu->setObjectName("HelpMenu");
     m_helpMenu->addAction(m_aboutAction);
 }
 

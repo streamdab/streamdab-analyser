@@ -13,7 +13,6 @@
 #pragma once
 
 #include <QDialog>
-#include "ui_stream_recording_dialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -27,6 +26,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QPushButton>
+#include <QDialogButtonBox>
 #include <QSlider>
 #include <QProgressBar>
 #include <QTextEdit>
@@ -331,8 +331,41 @@ private:
      */
     QString formatDuration(qint64 milliseconds) const;
 
-    // UI class instance
-    Ui::StreamRecordingDialog *ui;
+    // UI components
+    QTabWidget *m_tabWidget;
+    QDialogButtonBox *m_buttonBox;
+    
+    // Recording settings tab
+    QWidget *m_recordingTab;
+    QGroupBox *m_formatGroup;
+    QGroupBox *m_segmentationGroup;
+    QComboBox *m_formatCombo;
+    QLineEdit *m_outputPathEdit;
+    QPushButton *m_browseButton;
+    QCheckBox *m_enableSegmentationCheck;
+    QSpinBox *m_segmentDurationSpin;
+    QComboBox *m_segmentUnitCombo;
+    
+    // Quality settings tab
+    QWidget *m_qualityTab;
+    QGroupBox *m_compressionGroup;
+    QGroupBox *m_metadataGroup;
+    QComboBox *m_compressionCombo;
+    QSlider *m_qualitySlider;
+    QCheckBox *m_includeMetadataCheck;
+    
+    // Advanced settings tab
+    QWidget *m_advancedTab;
+    QGroupBox *m_bufferGroup;
+    QSpinBox *m_bufferSizeSpin;
+    QCheckBox *m_enablePrebufferCheck;
+    
+    // Status tab
+    QWidget *m_statusTab;
+    QProgressBar *m_recordingProgress;
+    QLabel *m_statusLabel;
+    QLabel *m_diskSpaceLabel;
+    QPushButton *m_startStopButton;
 
     // Core components
     eti::StreamRecordingManager *m_recordingManager;

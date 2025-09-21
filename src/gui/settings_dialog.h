@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QDialog>
-#include "ui_settings_dialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -182,6 +181,22 @@ private slots:
 
 private:
     /**
+     * @brief Create the user interface
+     */
+    void createUI();
+
+    /**
+     * @brief Create individual tabs
+     */
+    void createGeneralTab();
+    void createAnalysisTab();
+    void createDisplayTab();
+    void createAudioTab();
+    void createNetworkTab();
+    void createPerformanceTab();
+    void createAdvancedTab();
+
+    /**
      * @brief Initialize combo boxes with values
      */
     void initializeComboBoxes();
@@ -208,8 +223,63 @@ private:
      */
     QVariantMap getDefaultSettings() const;
 
-    // UI class instance
-    Ui::SettingsDialog *ui;
+    // UI components
+    QTabWidget *m_tabWidget;
+    QDialogButtonBox *m_buttonBox;
+    
+    // General tab
+    QWidget *m_generalTab;
+    QGroupBox *m_appearanceGroup;
+    QGroupBox *m_behaviorGroup;
+    QComboBox *m_themeCombo;
+    QCheckBox *m_autoSaveCheck;
+    QCheckBox *m_confirmExitCheck;
+    QSpinBox *m_autoSaveIntervalSpin;
+    
+    // Analysis tab
+    QWidget *m_analysisTab;
+    QGroupBox *m_performanceGroup;
+    QGroupBox *m_thresholdGroup;
+    QSpinBox *m_updateRateSpin;
+    QSpinBox *m_bufferSizeSpin;
+    QCheckBox *m_realTimeCheck;
+    QCheckBox *m_hardwareAccelCheck;
+    
+    // Display tab
+    QWidget *m_displayTab;
+    QGroupBox *m_colorsGroup;
+    QGroupBox *m_fontsGroup;
+    QPushButton *m_backgroundColorButton;
+    QPushButton *m_gridColorButton;
+    QPushButton *m_textColorButton;
+    QPushButton *m_fontButton;
+    
+    // Audio tab
+    QWidget *m_audioTab;
+    QGroupBox *m_audioDeviceGroup;
+    QGroupBox *m_levelGroup;
+    QComboBox *m_audioDeviceCombo;
+    QSlider *m_volumeSlider;
+    QCheckBox *m_audioMonitorCheck;
+    
+    // Network tab
+    QWidget *m_networkTab;
+    QGroupBox *m_connectionGroup;
+    QLineEdit *m_proxyHostEdit;
+    QSpinBox *m_proxyPortSpin;
+    QCheckBox *m_useProxyCheck;
+    
+    // Performance tab
+    QWidget *m_performanceTab;
+    QGroupBox *m_memoryGroup;
+    QSpinBox *m_memoryLimitSpin;
+    QComboBox *m_priorityCombo;
+    
+    // Advanced tab
+    QWidget *m_advancedTab;
+    QGroupBox *m_debugGroup;
+    QCheckBox *m_debugModeCheck;
+    QComboBox *m_logLevelCombo;
 
     // Custom members for business logic
     QColor m_backgroundColor;
