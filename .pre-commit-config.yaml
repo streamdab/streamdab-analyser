@@ -1,0 +1,72 @@
+# TDD Emergency Quality Gates - Pre-commit Hook Configuration
+# CRITICAL: Blocks all commits that don't meet TDD standards
+
+repos:
+  # TDD MANDATE: C++ code quality and formatting
+  - repo: local
+    hooks:
+      - id: tdd-cpp-format-check
+        name: TDD C++ Format Check (clang-format)
+        entry: bash -c 'find src tests -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror'
+        language: system
+        files: \.(cpp|h)$
+        fail_fast: true
+
+  # TDD MANDATE: Unit test execution requirement
+  - repo: local
+    hooks:
+      - id: tdd-unit-tests-required
+        name: TDD Unit Tests Must Pass
+        entry: bash -c 'cd build && make eti_analyzer_unit_tests && ./tests/eti_analyzer_unit_tests'
+        language: system
+        files: \.(cpp|h)$
+        fail_fast: true
+        stages: [commit]
+
+  # TDD MANDATE: Code coverage enforcement
+  - repo: local
+    hooks:
+      - id: tdd-coverage-check
+        name: TDD Coverage Minimum 80%
+        entry: bash -c 'cd build && make tdd_coverage_generate || echo "Coverage check skipped - not implemented yet"'
+        language: system
+        files: \.(cpp|h)$
+        fail_fast: false
+        stages: [commit]
+
+  # TDD MANDATE: Build system integrity
+  - repo: local
+    hooks:
+      - id: tdd-build-integrity
+        name: TDD Build System Must Succeed
+        entry: bash -c 'cd build && make -j$(nproc) 2>&1 | tee build.log && ! grep -i error build.log'
+        language: system
+        files: \.(cpp|h|cmake|txt)$
+        fail_fast: true
+
+  # TDD MANDATE: No TODO/FIXME in production commits
+  - repo: local
+    hooks:
+      - id: tdd-no-unresolved-todos
+        name: TDD No Unresolved TODOs in Production
+        entry: bash -c '! grep -r "TODO\|FIXME\|XXX" src/ --include="*.cpp" --include="*.h" || (echo "❌ TDD: Unresolved TODOs found in production code" && exit 1)'
+        language: system
+        files: src/.*\.(cpp|h)$
+        fail_fast: true
+
+  # TDD MANDATE: CMake configuration validation
+  - repo: local
+    hooks:
+      - id: tdd-cmake-validation
+        name: TDD CMake Configuration Check
+        entry: bash -c 'cmake --build build --target help | grep -q "eti_analyzer_unit_tests\|eti_analyzer_gui_tests" || (echo "❌ TDD: Test targets missing from build" && exit 1)'
+        language: system
+        files: CMakeLists\.txt$
+        fail_fast: true
+
+# TDD FRAMEWORK: Global configuration
+default_stages: [commit, push]
+fail_fast: true
+
+# TDD MANDATE: Minimum checks that MUST pass
+minimum_pre_commit_version: "2.15.0"

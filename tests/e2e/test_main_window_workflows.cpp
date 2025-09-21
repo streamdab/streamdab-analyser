@@ -16,6 +16,7 @@
 
 #include "gui/main_window.h"
 #include "utils/logger.h"
+#include "test_utils.h"
 
 class TestMainWindowWorkflows : public QObject
 {
@@ -71,11 +72,14 @@ void TestMainWindowWorkflows::init()
 
 void TestMainWindowWorkflows::cleanup()
 {
-    if (mainWindow) {
-        mainWindow->close();
-        delete mainWindow;
-        mainWindow = nullptr;
-    }
+    // Use enhanced widget cleanup from test utils
+    TestUtils::safeDeleteWidget(mainWindow);
+    
+    // Perform safe test cleanup
+    TestUtils::safeTestCleanup();
+    
+    // Validate memory state
+    TestUtils::validateTestMemoryState("MainWindowWorkflows");
 }
 
 void TestMainWindowWorkflows::testMainWindowInitialization()

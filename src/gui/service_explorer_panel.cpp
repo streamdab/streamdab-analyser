@@ -157,8 +157,20 @@ void ServiceExplorerPanel::setupControlPanel()
 
 void ServiceExplorerPanel::addDABService(const ServiceInfo& service)
 {
+    // Validate service tree is initialized before operations
+    if (!m_serviceTree) {
+        Logger::instance().log(Logger::Warning, "ServiceExplorerPanel",
+                              "Service tree not initialized - cannot add service");
+        return;
+    }
+    
     // Find or create ensemble item
     auto* ensembleItem = findOrCreateEnsembleItem(service.ensembleId);
+    if (!ensembleItem) {
+        Logger::instance().log(Logger::Warning, "ServiceExplorerPanel",
+                              "Failed to create ensemble item - cannot add service");
+        return;
+    }
     
     // Check if service already exists
     if (m_serviceItems.contains(service.serviceId)) {
@@ -230,6 +242,13 @@ QTreeWidgetItem* ServiceExplorerPanel::findOrCreateEnsembleItem(uint16_t ensembl
 {
     if (m_ensembleItems.contains(ensembleId)) {
         return m_ensembleItems[ensembleId];
+    }
+    
+    // Validate service tree exists before creating items
+    if (!m_serviceTree) {
+        Logger::instance().log(Logger::Error, "ServiceExplorerPanel",
+                              "Cannot create ensemble item - service tree is null");
+        return nullptr;
     }
     
     // Create new ensemble item
@@ -504,17 +523,27 @@ void ServiceExplorerPanel::connectEtiProcessor(EtiProcessor* processor)
     
     m_etiProcessor = processor;
     
+    // Add null pointer checks before signal connections to prevent Qt warnings
     if (m_etiProcessor) {
-        // Connect signals for real-time service updates
-        connect(m_etiProcessor, &EtiProcessor::ensembleDiscovered,
-                this, &ServiceExplorerPanel::onEnsembleDiscovered);
-        connect(m_etiProcessor, &EtiProcessor::serviceDiscovered,
-                this, &ServiceExplorerPanel::onServiceDiscovered);
-        connect(m_etiProcessor, &EtiProcessor::serviceQualityChanged,
-                this, &ServiceExplorerPanel::onServiceQualityChanged);
+        // Verify object validity before connecting signals
+        QMetaObject::Connection conn1 = connect(m_etiProcessor, &EtiProcessor::ensembleDiscovered,
+                this, &ServiceExplorerPanel::onEnsembleDiscovered, Qt::QueuedConnection);
+        QMetaObject::Connection conn2 = connect(m_etiProcessor, &EtiProcessor::serviceDiscovered,
+                this, &ServiceExplorerPanel::onServiceDiscovered, Qt::QueuedConnection);
+        QMetaObject::Connection conn3 = connect(m_etiProcessor, &EtiProcessor::serviceQualityChanged,
+                this, &ServiceExplorerPanel::onServiceQualityChanged, Qt::QueuedConnection);
         
-        Logger::instance().log(Logger::Info, "ServiceExplorerPanel",
-                              "Connected to ETI processor signals for real-time service data");
+        // Verify connections were successful
+        if (conn1 && conn2 && conn3) {
+            Logger::instance().log(Logger::Info, "ServiceExplorerPanel",
+                                  "Connected to ETI processor signals for real-time service data");
+        } else {
+            Logger::instance().log(Logger::Warning, "ServiceExplorerPanel",
+                                  "Some signal connections failed - object may be invalid");
+        }
+    } else {
+        Logger::instance().log(Logger::Warning, "ServiceExplorerPanel",
+                              "Cannot connect ETI processor signals - null pointer detected");
     }
 }
 
@@ -617,6 +646,13 @@ void ServiceExplorerPanel::filterByServiceType(ServiceInfo::ServiceType typeFilt
 
 void ServiceExplorerPanel::onEnsembleDiscovered(const eti::Ensemble& ensemble)
 {
+    // Validate object state before processing ensemble
+    if (!m_serviceTree) {
+        Logger::instance().log(Logger::Warning, "ServiceExplorerPanel",
+                              "Invalid object state - cannot process ensemble discovery");
+        return;
+    }
+    
     // Convert ETI processor ensemble to ServiceExplorerPanel format
     EnsembleInfo ensembleInfo;
     ensembleInfo.ensembleId = ensemble.ensemble_id;  // Use correct field name
@@ -661,6 +697,13 @@ void ServiceExplorerPanel::onEnsembleDiscovered(const eti::Ensemble& ensemble)
 
 void ServiceExplorerPanel::onServiceDiscovered(const eti::DabService& service)
 {
+    // Validate object state before processing service
+    if (!m_serviceTree) {
+        Logger::instance().log(Logger::Warning, "ServiceExplorerPanel",
+                              "Invalid object state - cannot process service discovery");
+        return;
+    }
+    
     // Convert ETI processor service to ServiceExplorerPanel format
     ServiceInfo serviceInfo;
     serviceInfo.serviceId = service.service_id;  // Use correct field name
@@ -706,6 +749,13 @@ void ServiceExplorerPanel::onServiceDiscovered(const eti::DabService& service)
 
 void ServiceExplorerPanel::onServiceQualityChanged(uint16_t serviceId, double signalStrength, double errorRate)
 {
+    // Validate object state before processing quality update
+    if (!m_serviceTree) {
+        Logger::instance().log(Logger::Warning, "ServiceExplorerPanel",
+                              "Invalid object state - cannot process service quality update");
+        return;
+    }
+    
     // Update service quality in the tree
     if (m_serviceItems.contains(serviceId)) {
         auto* serviceItem = m_serviceItems[serviceId];

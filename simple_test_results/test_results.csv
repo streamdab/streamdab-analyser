@@ -1,0 +1,8 @@
+Test Name,Exit Code,Duration,stdout_lines,stderr_lines,Has_QT_Error,Has_Segfault,Test_Framework
+test_comprehensive_workflows,139,7,1177,10,No,Yes,Qt Test
+test_eti_file_processing_workflow,139,7,145,10,No,Yes,Qt Test
+test_file_opening_workflow,124,60,81,9,No,No,Qt Test
+test_file_operations,139,6,554,10,No,Yes,Qt Test
+test_frame_analysis_workflow,139,7,145,10,No,Yes,Qt Test
+test_gui_integration_workflow,139,7,2042,10,No,Yes,Qt Test
+test_main_window_workflows,139,3,538,10,No,Yes,Qt Test
