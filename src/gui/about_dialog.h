@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QDialog>
-#include "ui_about_dialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -78,6 +77,11 @@ private slots:
 
 private:
     /**
+     * @brief Create the user interface
+     */
+    void createUI();
+
+    /**
      * @brief Setup signal connections
      */
     void setupConnections();
@@ -111,8 +115,30 @@ private:
      */
     QString getDetailedSystemInfo() const;
 
-    // UI class instance
-    Ui::AboutDialog *ui;
+    // UI components
+    QTabWidget *m_tabWidget;
+    QDialogButtonBox *m_buttonBox;
+    
+    // About tab
+    QWidget *m_aboutTab;
+    QLabel *m_logoLabel;
+    QLabel *m_titleLabel;
+    QLabel *m_versionLabel;
+    QLabel *m_copyrightLabel;
+    QLabel *m_descriptionLabel;
+    QPushButton *m_copyInfoButton;
+    
+    // Credits tab
+    QWidget *m_creditsTab;
+    QTextEdit *m_creditsText;
+    
+    // License tab
+    QWidget *m_licenseTab;
+    QTextEdit *m_licenseText;
+    
+    // System Info tab
+    QWidget *m_systemTab;
+    QTextEdit *m_systemInfoText;
 
     // Application information
     static constexpr const char* APP_NAME = "StreamDAB Stream Analyzer";

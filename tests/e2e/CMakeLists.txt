@@ -9,92 +9,12 @@ find_package(Qt6 REQUIRED COMPONENTS Core Widgets Test PrintSupport)
 # Enable Qt MOC for test files
 set(CMAKE_AUTOMOC ON)
 
-# Create E2E test executable
-set(E2E_TEST_SOURCES
-    test_main_window_workflows.cpp
-    test_file_operations.cpp
-    test_menu_interactions.cpp
-    test_eti_file_opening.cpp
-    test_comprehensive_workflows.cpp
-    test_mandatory_workflow_coverage.cpp
-    # New comprehensive E2E test cases from CLAUDE.md requirements
-    test_eti_file_processing.cpp
-    test_service_discovery.cpp
-    test_gui_integration.cpp
-    test_frame_analysis.cpp
-    # Include main application sources for testing (EXCLUDE main.cpp to avoid multiple main() definitions)
-    ../../src/gui/main_window.cpp
-    ../../src/gui/analyzer_widget.cpp
-    ../../src/gui/service_browser.cpp
-    ../../src/gui/constellation_widget.cpp
-    ../../src/gui/settings_dialog.cpp
-    ../../src/gui/about_dialog.cpp
-    # ../../src/gui/alert_config_dialog.cpp  # Not yet implemented
-    ../../src/gui/audio_monitoring_widget.cpp
-    ../../src/gui/service_explorer_panel.cpp
-    ../../src/gui/eti_analysis_widget.cpp
-    ../../src/gui/fig_analysis_widget.cpp
-    ../../src/gui/eti_service_tree_model.cpp
-    ../../src/gui/eti_frame_list_model.cpp
-    ../../src/core/eti_processor.cpp
-    ../../src/core/etisnoop_wrapper.cpp
-    ../../src/core/eti_file_worker.cpp
-    ../../src/core/eti_types.cpp
-    ../../src/core/dab_decoder.cpp
-    ../../src/core/fic_decoder.cpp
-    ../../src/core/ensemble_manager.cpp
-    ../../src/core/service_manager.cpp
-    ../../src/core/dab_audio_decoder.cpp
-    ../../src/utils/logger.cpp
-    ../../src/utils/config_manager.cpp
-    ../../src/utils/report_generator.cpp
-)
+# REMOVED: Combined e2e_tests executable that caused multiple main() conflicts
+# Each Qt Test file has its own QTEST_MAIN() macro which generates main() function
+# Cannot combine multiple Qt Test files into single executable
 
-add_executable(e2e_tests ${E2E_TEST_SOURCES})
-
-# Set C++20 standard for test targets
-set_target_properties(e2e_tests PROPERTIES
-    CXX_STANDARD 20
-    CXX_STANDARD_REQUIRED ON
-)
-
-# Link Qt libraries for E2E testing
-target_link_libraries(e2e_tests
-    Qt6::Core
-    Qt6::Widgets
-    Qt6::Test
-    Qt6::PrintSupport
-    etisnoop::etisnoop
-    ${CMAKE_DL_LIBS}
-)
-
-# Include directories for E2E tests
-target_include_directories(e2e_tests PRIVATE
-    ../../src
-    ../../src/gui
-    ../../src/core
-    ../../src/utils
-    ../../external/etisnoop/src
-)
-
-# Compiler definitions for testing
-target_compile_definitions(e2e_tests PRIVATE
-    QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}"
-    TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data"
-    ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti"
-)
-
-# Add test discovery for CTest integration
-add_test(NAME E2ETests COMMAND e2e_tests)
-
-# Copy test data files to build directory
+# Copy test data files to build directory for all tests
 file(COPY ../../eti DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-
-# Set test properties for proper execution with optimized timeouts
-set_tests_properties(E2ETests PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_LOGGING_RULES=*.debug=false"
-    TIMEOUT 60
-)
 
 # Create individual test targets for specific workflows
 set(E2E_LIB_SOURCES
@@ -225,15 +145,15 @@ set_tests_properties(ComprehensiveWorkflows PROPERTIES ENVIRONMENT "QT_QPA_PLATF
 
 add_executable(test_user_workflow_patterns test_user_workflow_patterns.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_user_workflow_patterns PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_user_workflow_patterns Qt6::Core Qt6::Widgets gtest gtest_main etisnoop::etisnoop ${CMAKE_DL_LIBS})
-target_include_directories(test_user_workflow_patterns PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils ../../external/etisnoop/src)
+target_link_libraries(test_user_workflow_patterns Qt6::Core Qt6::Widgets Qt6::Test gtest gtest_main gmock etisnoop::etisnoop ${CMAKE_DL_LIBS})
+target_include_directories(test_user_workflow_patterns PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils ../../external/etisnoop/src .. ../fixtures ../mocks)
 target_compile_definitions(test_user_workflow_patterns PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME UserWorkflowPatterns COMMAND test_user_workflow_patterns)
 set_tests_properties(UserWorkflowPatterns PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_LOGGING_RULES=*.debug=false" TIMEOUT 30)
 
 add_executable(test_panel_interactions test_panel_interactions.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_panel_interactions PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_panel_interactions Qt6::Core Qt6::Widgets gtest gtest_main etisnoop::etisnoop ${CMAKE_DL_LIBS})
+target_link_libraries(test_panel_interactions Qt6::Core Qt6::Widgets Qt6::Test gtest gtest_main gmock etisnoop::etisnoop ${CMAKE_DL_LIBS})
 target_include_directories(test_panel_interactions PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils ../../external/etisnoop/src)
 target_compile_definitions(test_panel_interactions PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME PanelInteractions COMMAND test_panel_interactions)
@@ -241,7 +161,7 @@ set_tests_properties(PanelInteractions PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=o
 
 add_executable(test_performance_validation test_performance_validation.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_performance_validation PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_performance_validation Qt6::Core Qt6::Widgets gtest gtest_main etisnoop::etisnoop ${CMAKE_DL_LIBS})
+target_link_libraries(test_performance_validation Qt6::Core Qt6::Widgets Qt6::Test gtest gtest_main gmock etisnoop::etisnoop ${CMAKE_DL_LIBS})
 target_include_directories(test_performance_validation PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils ../../external/etisnoop/src)
 target_compile_definitions(test_performance_validation PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME PerformanceValidation COMMAND test_performance_validation)
@@ -249,7 +169,7 @@ set_tests_properties(PerformanceValidation PROPERTIES ENVIRONMENT "QT_QPA_PLATFO
 
 add_executable(test_etsi_compliance_validation test_etsi_compliance_validation.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_etsi_compliance_validation PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_etsi_compliance_validation Qt6::Core Qt6::Widgets gtest gtest_main etisnoop::etisnoop ${CMAKE_DL_LIBS})
+target_link_libraries(test_etsi_compliance_validation Qt6::Core Qt6::Widgets Qt6::Test gtest gtest_main gmock etisnoop::etisnoop ${CMAKE_DL_LIBS})
 target_include_directories(test_etsi_compliance_validation PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils ../../external/etisnoop/src)
 target_compile_definitions(test_etsi_compliance_validation PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME ETSIComplianceValidation COMMAND test_etsi_compliance_validation)

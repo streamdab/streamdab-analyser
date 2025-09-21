@@ -14,7 +14,6 @@
 #pragma once
 
 #include <QDialog>
-#include "ui_alert_configuration_dialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -27,6 +26,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QPushButton>
+#include <QDialogButtonBox>
 #include <QSlider>
 #include <QProgressBar>
 #include <QTextEdit>
@@ -275,8 +275,47 @@ private:
      */
     void applyBroadcastStyling();
 
-    // UI class instance
-    Ui::AlertConfigurationDialog *ui;
+    // UI components  
+    QTabWidget *m_tabWidget;
+    QDialogButtonBox *m_buttonBox;
+    
+    // Threshold configuration tab
+    QWidget *m_thresholdTab;
+    QGroupBox *m_signalGroup;
+    QGroupBox *m_errorGroup;
+    QGroupBox *m_audioGroup;
+    QDoubleSpinBox *m_signalWarningSpin;
+    QDoubleSpinBox *m_signalCriticalSpin;
+    QDoubleSpinBox *m_signalEmergencySpin;
+    QDoubleSpinBox *m_errorWarningSpin;
+    QDoubleSpinBox *m_errorCriticalSpin;
+    QDoubleSpinBox *m_errorEmergencySpin;
+    QDoubleSpinBox *m_audioWarningSpin;
+    QDoubleSpinBox *m_audioCriticalSpin;
+    QDoubleSpinBox *m_audioEmergencySpin;
+    
+    // Notification settings tab
+    QWidget *m_notificationTab;
+    QGroupBox *m_alertBehaviorGroup;
+    QGroupBox *m_notificationGroup;
+    QCheckBox *m_visualAlertsCheck;
+    QCheckBox *m_audioAlertsCheck;
+    QCheckBox *m_emailAlertsCheck;
+    QSpinBox *m_cooldownSpin;
+    QComboBox *m_alertLevelCombo;
+    
+    // Alert history tab
+    QWidget *m_historyTab;
+    QTableWidget *m_historyTable;
+    QPushButton *m_clearHistoryButton;
+    QPushButton *m_exportHistoryButton;
+    
+    // Advanced settings tab
+    QWidget *m_advancedTab;
+    QGroupBox *m_advancedGroup;
+    QCheckBox *m_enableAdvancedCheck;
+    QLineEdit *m_customScriptEdit;
+    QPushButton *m_testButton;
 
     // Core components
     AlertSystem *m_alertSystem;

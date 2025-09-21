@@ -16,13 +16,14 @@
 
 AlertConfigurationDialog::AlertConfigurationDialog(AlertSystem *alertSystem, QWidget *parent)
     : QDialog(parent)
-    , ui(new Ui::AlertConfigurationDialog)
+    , m_tabWidget(nullptr)
+    , m_buttonBox(nullptr)
     , m_alertSystem(alertSystem)
     , m_previewTimer(nullptr)
     , m_configurationChanged(false)
 {
-    // Initialize UI from Designer file
-    ui->setupUi(this);
+    // Create UI manually
+    createUI();
     
     // Center dialog on parent
     if (parent) {
@@ -45,10 +46,45 @@ AlertConfigurationDialog::~AlertConfigurationDialog()
         m_previewTimer->stop();
     }
     
-    // Clean up UI
-    delete ui;
+    // Qt handles widget cleanup automatically
     
     Logger::instance().log(Logger::Info, "AlertConfigurationDialog", "Destructor completed");
+}
+
+void AlertConfigurationDialog::createUI()
+{
+    // Create main layout
+    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    
+    // Create tab widget
+    m_tabWidget = new QTabWidget(this);
+    
+    // Add placeholder tabs
+    QWidget *thresholdTab = new QWidget();
+    QLabel *label1 = new QLabel("Alert thresholds configuration (placeholder)", thresholdTab);
+    QVBoxLayout *layout1 = new QVBoxLayout(thresholdTab);
+    layout1->addWidget(label1);
+    m_tabWidget->addTab(thresholdTab, tr("Thresholds"));
+    
+    QWidget *notificationTab = new QWidget();
+    QLabel *label2 = new QLabel("Notification settings (placeholder)", notificationTab);
+    QVBoxLayout *layout2 = new QVBoxLayout(notificationTab);
+    layout2->addWidget(label2);
+    m_tabWidget->addTab(notificationTab, tr("Notifications"));
+    
+    // Create button box
+    m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    connect(m_buttonBox, &QDialogButtonBox::accepted, this, &AlertConfigurationDialog::accept);
+    connect(m_buttonBox, &QDialogButtonBox::rejected, this, &AlertConfigurationDialog::reject);
+    
+    // Add to main layout
+    mainLayout->addWidget(m_tabWidget);
+    mainLayout->addWidget(m_buttonBox);
+    
+    // Set dialog properties
+    setWindowTitle(tr("Alert Configuration"));
+    setMinimumSize(400, 300);
+    resize(500, 400);
 }
 
 bool AlertConfigurationDialog::initialize()

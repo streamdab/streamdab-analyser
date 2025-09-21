@@ -17,11 +17,12 @@
 
 StreamRecordingDialog::StreamRecordingDialog(eti::StreamRecordingManager *recordingManager, QWidget *parent)
     : QDialog(parent)
-    , ui(new Ui::StreamRecordingDialog)
+    , m_tabWidget(nullptr)
+    , m_buttonBox(nullptr)
     , m_recordingManager(recordingManager)
 {
-    // Initialize UI from Designer file
-    ui->setupUi(this);
+    // Create UI manually
+    createUI();
     
     // Center dialog on parent
     if (parent) {
@@ -40,10 +41,45 @@ StreamRecordingDialog::StreamRecordingDialog(eti::StreamRecordingManager *record
 
 StreamRecordingDialog::~StreamRecordingDialog()
 {
-    // Clean up UI
-    delete ui;
+    // Qt handles widget cleanup automatically
     
     Logger::instance().log(Logger::Info, "StreamRecordingDialog", "Destructor completed");
+}
+
+void StreamRecordingDialog::createUI()
+{
+    // Create main layout
+    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    
+    // Create tab widget
+    m_tabWidget = new QTabWidget(this);
+    
+    // Add placeholder tabs
+    QWidget *recordingTab = new QWidget();
+    QLabel *label1 = new QLabel("Recording settings (placeholder)", recordingTab);
+    QVBoxLayout *layout1 = new QVBoxLayout(recordingTab);
+    layout1->addWidget(label1);
+    m_tabWidget->addTab(recordingTab, tr("Recording"));
+    
+    QWidget *statusTab = new QWidget();
+    QLabel *label2 = new QLabel("Recording status (placeholder)", statusTab);
+    QVBoxLayout *layout2 = new QVBoxLayout(statusTab);
+    layout2->addWidget(label2);
+    m_tabWidget->addTab(statusTab, tr("Status"));
+    
+    // Create button box
+    m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    connect(m_buttonBox, &QDialogButtonBox::accepted, this, &StreamRecordingDialog::accept);
+    connect(m_buttonBox, &QDialogButtonBox::rejected, this, &StreamRecordingDialog::reject);
+    
+    // Add to main layout
+    mainLayout->addWidget(m_tabWidget);
+    mainLayout->addWidget(m_buttonBox);
+    
+    // Set dialog properties
+    setWindowTitle(tr("Stream Recording"));
+    setMinimumSize(400, 300);
+    resize(500, 400);
 }
 
 bool StreamRecordingDialog::initialize()
