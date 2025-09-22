@@ -48,7 +48,6 @@ ETIFrameMemoryPool::~ETIFrameMemoryPool() {
                               .arg(active_blocks));
     }
     
-    std::lock_guard<std::mutex> lock(pool_mutex_);
     Logger::instance().log(Logger::Info, "ETIFrameMemoryPool", 
                           QString("Memory pool destroyed - Stats: %1 allocs, %2 deallocs, %.1f%% hit rate")
                           .arg(stats_.total_allocations)

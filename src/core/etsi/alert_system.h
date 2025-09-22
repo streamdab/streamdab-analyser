@@ -186,10 +186,10 @@ struct AlertSystemConfig {
     AlertSystemConfig() = default;
 };
 
-// Forward declarations
-class AlertProcessor;
-class AlertNotifier;
-class AlertAggregator;
+// Forward declarations - commented out for minimal TDD implementation
+// class AlertProcessor;
+// class AlertNotifier;
+// class AlertAggregator;
 
 // COMPLIANCE OPTIMIZATION: Error correction result structure for 100% compliance
 struct ErrorCorrectionResult {
@@ -363,10 +363,10 @@ private:
     mutable std::mutex stats_mutex_;
     AlertStatistics statistics_;
     
-    // Processing components
-    std::unique_ptr<AlertProcessor> processor_;
-    std::unique_ptr<AlertNotifier> notifier_;
-    std::unique_ptr<AlertAggregator> aggregator_;
+    // Processing components - commented out for minimal TDD implementation
+    // std::unique_ptr<AlertProcessor> processor_;
+    // std::unique_ptr<AlertNotifier> notifier_;
+    // std::unique_ptr<AlertAggregator> aggregator_;
     
     // Background processing
     std::unique_ptr<std::thread> processing_thread_;

@@ -1,17 +1,17 @@
 /**
  * @file eti_network_integration.h
- * @brief ETI Network Integration Layer for Real-time Processing
+ * @brief ETI Network Integration Manager for Real-time Streaming
  * 
- * Implements comprehensive integration between network streaming components
- * and the existing ETI processor for seamless real-time analysis:
- * - Real-time ETI-over-IP stream processing integration
- * - Performance optimization for >7,482 FPS processing
- * - ETSI compliance validation in streaming context
- * - Professional broadcast workflow integration
- * - Quality monitoring and adaptive control
+ * Integrates ETI-over-IP network streaming with existing ETI processor and GUI:
+ * - Real-time ETI-over-IP reception and processing
+ * - Seamless integration with existing EtiProcessor
+ * - GUI integration for live stream monitoring
+ * - Professional broadcast workflow support
+ * - Performance optimization for >900 FPS throughput
+ * - Latency optimization for <17ms end-to-end processing
  * 
  * @author Network/Stream Agent
- * @date 2025-09-21
+ * @date 2025-09-22
  * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
  */
 
@@ -21,480 +21,353 @@
 #include <QObject>
 #include <QTimer>
 #include <QMutex>
-#include <QThread>
 #include <memory>
 #include <atomic>
 #include <chrono>
 #include <functional>
-#include <queue>
 
-#include "../core/eti_processor.h"
-#include "../core/eti_types.h"
 #include "eti_over_ip_receiver.h"
 #include "streaming_processor.h"
-#include "network_discovery.h"
-#include "../core/stream_recording_manager.h"
-#include "stream_playback.h"
-// #include "broadcast_interface.h" // Removed - stub implementation
+#include "circular_buffer_manager.h"
+#include "../core/eti_processor.h"
+#include "../core/eti_types.h"
 
 namespace eti_network {
 
 /**
- * @brief Integration mode for different operational contexts
+ * @brief Integration mode for different use cases
  */
 enum class IntegrationMode {
-    REAL_TIME_ANALYSIS,     // Real-time stream analysis with <50ms latency
-    BATCH_PROCESSING,       // Batch file processing for archived content
-    HYBRID_MODE,            // Combined real-time and file processing
-    BROADCAST_MONITORING,   // Professional broadcast monitoring mode
-    ANALYSIS_PLAYBACK,      // Playback with detailed analysis
-    QUALITY_ASSESSMENT      // Quality assessment and compliance testing
+    FILE_ONLY,              // File-based processing only
+    LIVE_ONLY,              // Live streaming only
+    DUAL_MODE,              // Both file and live streaming
+    HYBRID_MODE             // Seamless switching between file and live
 };
 
 /**
- * @brief Integration configuration for network processing
+ * @brief Network streaming configuration
  */
-struct IntegrationConfig {
-    IntegrationMode mode = IntegrationMode::REAL_TIME_ANALYSIS;
+struct NetworkStreamingConfig {
+    // Network settings
+    QString multicast_address = "239.192.0.1";
+    quint16 port = 9200;
+    QString network_interface;
+    
+    // Performance targets
+    double target_fps = 1000.0;                            // >900 FPS requirement
+    std::chrono::microseconds target_latency{17000};       // <17ms requirement
+    size_t memory_limit_mb = 30;                           // <30MB requirement
+    
+    // Integration settings
+    IntegrationMode mode = IntegrationMode::DUAL_MODE;
+    bool enable_gui_integration = true;
+    bool enable_real_time_analysis = true;
+    bool enable_professional_mode = true;
+    
+    // Buffer configuration
+    size_t buffer_size = 1000;
+    bool adaptive_buffering = true;
+    bool zero_copy_mode = true;
+    
+    // Quality settings
+    bool enable_redundancy = false;
+    QString backup_address;
+    double min_signal_quality = 0.95;
+    double max_packet_loss = 0.001;
+    double max_jitter_ms = 5.0;
     
     // Processing configuration
-    bool enable_real_time_processing = true;          // Enable real-time processing
-    bool enable_etsi_compliance_checking = true;      // Enable ETSI compliance
-    bool enable_quality_monitoring = true;            // Enable quality monitoring
-    bool enable_performance_optimization = true;      // Enable performance optimization
-    
-    // Target performance parameters
-    std::chrono::milliseconds target_latency{50};     // Target processing latency
-    double target_fps = 7482.0;                       // Target processing FPS
-    double target_memory_mb = 100.0;                  // Target memory usage
-    double quality_threshold = 0.8;                   // Quality threshold
-    
-    // Network configuration
-    bool enable_network_discovery = true;             // Enable network discovery
-    bool enable_automatic_failover = true;            // Enable automatic failover
-    bool enable_redundancy_monitoring = true;         // Enable redundancy monitoring
-    std::chrono::seconds discovery_interval{30};      // Discovery interval
-    
-    // Recording configuration
-    bool enable_automatic_recording = false;          // Enable automatic recording
-    eti::RecordingFormat recording_format = eti::RecordingFormat::ETI_NI;
-    std::chrono::minutes recording_segment_duration{60}; // Recording segment duration
-    QString recording_directory;                       // Recording output directory
-    
-    // Broadcast integration
-    bool enable_broadcast_integration = false;        // Enable broadcast equipment integration
-    bool enable_equipment_monitoring = false;         // Enable equipment monitoring
-    std::chrono::seconds equipment_discovery_interval{60}; // Equipment discovery interval
-    
-    // Advanced features
-    bool enable_adaptive_quality = true;              // Enable adaptive quality control
-    bool enable_predictive_buffering = true;          // Enable predictive buffering
-    bool enable_error_recovery = true;                // Enable error recovery
-    bool enable_performance_profiling = false;        // Enable detailed profiling
+    ProcessingMode processing_mode = ProcessingMode::LOW_LATENCY;
+    bool enable_etsi_validation = true;
+    bool enable_service_discovery = true;
+    bool enable_audio_monitoring = false;
 };
 
 /**
- * @brief Comprehensive integration statistics
+ * @brief Integration status and metrics
  */
-struct IntegrationStatistics {
-    // Processing performance
-    std::atomic<double> current_fps{0.0};             // Current processing FPS
-    std::atomic<double> average_fps{0.0};             // Average processing FPS
-    std::atomic<double> peak_fps{0.0};                // Peak processing FPS
-    std::atomic<int64_t> current_latency_us{0};       // Current latency in microseconds
-    std::atomic<int64_t> average_latency_us{0};       // Average latency in microseconds
+struct IntegrationStatus {
+    // Connection status
+    bool network_connected = false;
+    bool processing_active = false;
+    bool gui_connected = false;
     
-    // Network performance
-    std::atomic<size_t> network_frames_received{0};   // Network frames received
-    std::atomic<size_t> network_frames_processed{0};  // Network frames processed
-    std::atomic<double> network_quality_score{1.0};   // Network quality score
-    std::atomic<size_t> network_errors{0};            // Network error count
+    // Performance metrics
+    double current_fps = 0.0;
+    std::chrono::microseconds current_latency{0};
+    size_t memory_usage_mb = 0;
+    double cpu_usage = 0.0;
     
-    // Processing pipeline
-    std::atomic<size_t> frames_processed{0};          // Total frames processed
-    std::atomic<size_t> frames_dropped{0};            // Frames dropped due to errors
-    std::atomic<size_t> etsi_compliance_violations{0}; // ETSI compliance violations
-    std::atomic<size_t> quality_degradations{0};      // Quality degradation events
+    // Quality metrics
+    double signal_quality = 0.0;
+    double packet_loss_rate = 0.0;
+    double jitter_ms = 0.0;
     
-    // Resource utilization
-    std::atomic<double> cpu_usage{0.0};               // CPU usage percentage
-    std::atomic<double> memory_usage_mb{0.0};         // Memory usage in MB
-    std::atomic<double> disk_io_mbps{0.0};            // Disk I/O rate in MB/s
-    std::atomic<double> network_bandwidth_mbps{0.0};  // Network bandwidth in MB/s
+    // Processing statistics
+    size_t frames_received = 0;
+    size_t frames_processed = 0;
+    size_t frames_dropped = 0;
+    size_t processing_errors = 0;
     
     // Integration health
-    std::atomic<double> integration_health{1.0};      // Overall integration health
-    std::atomic<bool> real_time_constraints_met{true}; // Real-time constraints status
-    std::atomic<bool> quality_targets_met{true};      // Quality targets status
-    std::atomic<bool> performance_targets_met{true};  // Performance targets status
-    
-    void reset() {
-        current_fps = 0.0;
-        average_fps = 0.0;
-        peak_fps = 0.0;
-        current_latency_us = 0;
-        average_latency_us = 0;
-        network_frames_received = 0;
-        network_frames_processed = 0;
-        network_quality_score = 1.0;
-        network_errors = 0;
-        frames_processed = 0;
-        frames_dropped = 0;
-        etsi_compliance_violations = 0;
-        quality_degradations = 0;
-        cpu_usage = 0.0;
-        memory_usage_mb = 0.0;
-        disk_io_mbps = 0.0;
-        network_bandwidth_mbps = 0.0;
-        integration_health = 1.0;
-        real_time_constraints_met = true;
-        quality_targets_met = true;
-        performance_targets_met = true;
-    }
+    bool is_healthy = true;
+    QString status_message;
+    std::chrono::steady_clock::time_point last_update;
 };
 
 /**
- * @brief Integration event for system notifications
- */
-struct IntegrationEvent {
-    QString event_id;                                  // Unique event identifier
-    QString event_type;                                // Event type classification
-    QString source_component;                          // Source component
-    QString description;                               // Event description
-    QDateTime timestamp;                               // Event timestamp
-    QString severity;                                  // Event severity (INFO, WARNING, ERROR, CRITICAL)
-    QJsonObject metadata;                              // Additional event metadata
-    
-    bool is_critical() const {
-        return severity == "CRITICAL" || severity == "ERROR";
-    }
-    
-    bool requires_action() const {
-        return severity == "CRITICAL" || severity == "ERROR" || severity == "WARNING";
-    }
-};
-
-/**
- * @brief ETI Network Integration Engine
+ * @brief ETI Network Integration Manager
  * 
- * Comprehensive integration layer implementing:
- * - Real-time ETI stream processing with network components
- * - Performance optimization maintaining >7,482 FPS processing
- * - ETSI compliance validation in streaming context
- * - Professional broadcast workflow automation
- * - Quality monitoring and adaptive control
- * - Equipment integration and redundancy management
+ * Manages the integration between ETI-over-IP network streaming
+ * and the existing ETI processor and GUI components.
  */
 class EtiNetworkIntegration : public QObject {
     Q_OBJECT
     
 public:
     explicit EtiNetworkIntegration(QObject* parent = nullptr);
-    explicit EtiNetworkIntegration(const IntegrationConfig& config, QObject* parent = nullptr);
+    explicit EtiNetworkIntegration(EtiProcessor* etiProcessor, QObject* parent = nullptr);
     ~EtiNetworkIntegration();
     
-    // Integration lifecycle
-    bool initialize();
-    bool initialize(const IntegrationConfig& config);
-    void shutdown();
-    bool isInitialized() const;
-    bool isRunning() const;
-    
     // Configuration management
-    void setConfiguration(const IntegrationConfig& config);
-    IntegrationConfig getConfiguration() const;
+    void setConfiguration(const NetworkStreamingConfig& config);
+    NetworkStreamingConfig getConfiguration() const;
+    void setEtiProcessor(EtiProcessor* processor);
+    EtiProcessor* getEtiProcessor() const;
+    
+    // Network streaming control
+    bool startNetworkStreaming();
+    bool startNetworkStreaming(const QString& address, quint16 port);
+    void stopNetworkStreaming();
+    bool isNetworkStreamingActive() const;
+    
+    // Integration mode management
     void setIntegrationMode(IntegrationMode mode);
     IntegrationMode getIntegrationMode() const;
+    bool switchToLiveMode();
+    bool switchToFileMode();
+    bool enableDualMode();
     
-    // Real-time processing control
-    bool startRealTimeProcessing(const QString& multicastAddress, quint16 port);
-    bool startRealTimeProcessing(const ETIStreamInfo& streamInfo);
-    void stopRealTimeProcessing();
-    bool isRealTimeProcessingActive() const;
-    
-    // File processing integration
-    bool processFile(const QString& filename);
-    bool processFileWithRecording(const QString& inputFilename, const QString& outputDirectory);
-    void stopFileProcessing();
-    bool isFileProcessingActive() const;
-    
-    // Stream management
-    QList<ETIStreamInfo> getAvailableStreams() const;
-    ETIStreamInfo getCurrentStream() const;
-    bool switchToStream(const QString& streamId);
-    void enableStreamRecording(bool enabled);
-    void enableStreamPlayback(const QString& recordingFile);
-    
-    // Performance monitoring
-    IntegrationStatistics getStatistics() const;
-    double getCurrentProcessingFPS() const;
-    std::chrono::microseconds getCurrentLatency() const;
-    double getSystemHealth() const;
-    bool arePerformanceTargetsMet() const;
+    // Performance configuration
+    void setPerformanceTargets(double fps, std::chrono::microseconds latency, size_t memoryMB);
+    void enableProfessionalMode(bool enabled);
+    void enableRealTimeAnalysis(bool enabled);
+    void setProcessingMode(ProcessingMode mode);
     
     // Quality management
-    double getCurrentQualityScore() const;
-    bool isETSICompliant() const;
-    QStringList getComplianceViolations() const;
-    void setQualityThreshold(double threshold);
+    void setQualityThresholds(double minSignalQuality, double maxPacketLoss, double maxJitter);
+    void enableRedundancy(bool enabled, const QString& backupAddress = QString());
     void enableAdaptiveQuality(bool enabled);
     
-    // Network discovery and management
-    void startNetworkDiscovery();
-    void stopNetworkDiscovery();
-    QList<NetworkInterfaceInfo> getNetworkInterfaces() const;
-    void setPreferredNetworkInterface(const QString& interfaceName);
+    // Status and monitoring
+    IntegrationStatus getStatus() const;
+    bool isHealthy() const;
+    QString getStatusMessage() const;
+    bool arePerformanceTargetsMet() const;
     
-    // Broadcast equipment integration (removed - stub implementation)
-    // bool connectToBroadcastEquipment(const EquipmentConfig& config);
-    // void disconnectFromBroadcastEquipment(const QString& equipmentId);
-    // QStringList getConnectedEquipment() const;
-    // void enableEquipmentRedundancy(bool enabled);
+    // GUI integration
+    void enableGuiIntegration(bool enabled);
+    void connectToMainWindow(QObject* mainWindow);
+    void updateGuiStatus();
     
-    // Error handling and recovery
-    QList<IntegrationEvent> getRecentEvents() const;
-    QStringList getActiveAlerts() const;
-    void acknowledgeAlert(const QString& alertId);
-    void enableAutoRecovery(bool enabled);
+    // Advanced features
+    void enableNetworkRecording(bool enabled, const QString& outputPath = QString());
+    void enableStreamComparison(bool enabled);
+    void exportNetworkMetrics(const QString& filename);
+    void generateIntegrationReport();
     
-    // Diagnostics and reporting
-    QString getSystemDiagnostics() const;
-    QString getPerformanceReport() const;
-    QString getComplianceReport() const;
-    void exportDiagnostics(const QString& filename) const;
-    void resetStatistics();
-    
-    // Callback registration for real-time notifications
+    // Callback registration
     using FrameCallback = std::function<void(const eti::EtiFrame&, const NetworkQualityMetrics&)>;
-    using EventCallback = std::function<void(const IntegrationEvent&)>;
-    using PerformanceCallback = std::function<void(const IntegrationStatistics&)>;
-    using QualityCallback = std::function<void(double qualityScore, bool compliant)>;
+    using StatusCallback = std::function<void(const IntegrationStatus&)>;
+    using ErrorCallback = std::function<void(const QString&, int severity)>;
     
     void setFrameCallback(FrameCallback callback);
-    void setEventCallback(EventCallback callback);
-    void setPerformanceCallback(PerformanceCallback callback);
-    void setQualityCallback(QualityCallback callback);
+    void setStatusCallback(StatusCallback callback);
+    void setErrorCallback(ErrorCallback callback);
 
 signals:
-    // Integration lifecycle signals
-    void integrationInitialized();
-    void integrationShutdown();
-    void integrationModeChanged(IntegrationMode mode);
+    // Network streaming signals
+    void networkStreamingStarted();
+    void networkStreamingStopped();
+    void networkStreamingError(const QString& error);
     
-    // Processing signals
-    void realTimeProcessingStarted(const QString& streamId);
-    void realTimeProcessingStopped();
-    void fileProcessingStarted(const QString& filename);
-    void fileProcessingCompleted(const QString& filename);
+    // Frame processing signals
+    void liveFrameReceived(const eti::EtiFrame& frame, const NetworkQualityMetrics& quality);
+    void frameProcessed(const eti::EtiFrame& frame, bool fromNetwork);
+    void batchProcessed(size_t frameCount, double avgLatency);
     
-    // Performance signals
-    void performanceUpdate(const IntegrationStatistics& statistics);
-    void performanceTargetViolated(const QString& target, double currentValue, double targetValue);
-    void latencyThresholdExceeded(std::chrono::microseconds currentLatency, std::chrono::microseconds threshold);
-    void fpsDropDetected(double currentFPS, double targetFPS);
+    // Status and monitoring signals
+    void statusUpdated(const IntegrationStatus& status);
+    void performanceTargetMissed(const QString& target, double current, double expected);
+    void qualityDegradation(const QString& reason, double quality);
+    void integrationModeChanged(IntegrationMode oldMode, IntegrationMode newMode);
     
-    // Quality signals
-    void qualityUpdate(double qualityScore, bool etsiCompliant);
-    void qualityDegradation(double qualityScore, const QString& reason);
-    void etsiComplianceViolation(const QString& violation, const QString& standard);
-    void qualityRecovered(double qualityScore);
+    // Health and error signals
+    void healthStatusChanged(bool healthy, const QString& reason);
+    void integrationError(const QString& error, int severity);
+    void memoryLimitExceeded(size_t current, size_t limit);
+    void latencyThresholdViolated(std::chrono::microseconds current, std::chrono::microseconds target);
     
-    // Network signals
-    void streamDiscovered(const ETIStreamInfo& streamInfo);
-    void streamLost(const QString& streamId);
-    void networkQualityChanged(const NetworkQualityMetrics& metrics);
-    void failoverTriggered(const QString& fromStreamId, const QString& toStreamId);
-    
-    // Equipment signals
-    void equipmentConnected(const QString& equipmentId);
-    void equipmentDisconnected(const QString& equipmentId);
-    void equipmentError(const QString& equipmentId, const QString& error);
-    void redundancyStatusChanged(bool active);
-    
-    // Event signals
-    void integrationEvent(const IntegrationEvent& event);
-    void criticalAlert(const QString& alertId, const QString& message);
-    void systemHealthChanged(double healthScore);
-    void autoRecoveryTriggered(const QString& component, const QString& action);
+    // GUI integration signals
+    void guiUpdateRequired();
+    void realTimeDataAvailable(const QVariantMap& data);
 
 private slots:
-    // ETI Processor integration
-    void handleEtiFrame(quint64 frameNumber, const QByteArray& data);
-    void handleEtiError(const QString& error);
-    void handleEnsembleDiscovered(const eti::Ensemble& ensemble);
-    void handleServiceDiscovered(const eti::DabService& service);
-    void handleServiceQualityChanged(uint16_t serviceId, double signalStrength, double errorRate);
-    
-    // Network receiver integration
+    // Network receiver slots
     void handleNetworkFrame(const eti::EtiFrame& frame, const NetworkQualityMetrics& quality);
     void handleNetworkError(const QString& error, int severity);
     void handleNetworkQualityUpdate(const NetworkQualityMetrics& metrics);
+    void handleNetworkConnection(bool connected);
     
-    // Streaming processor integration
+    // Streaming processor slots
     void handleProcessedFrame(const ProcessedFrame& frame);
-    void handleStreamingPerformanceUpdate(const StreamingPerformance& performance);
-    void handleStreamingError(const QString& error, int severity);
-    void handleQualityDegradation(const QString& reason, double quality);
+    void handleProcessingError(const QString& error, int severity);
+    void handlePerformanceUpdate(const StreamingPerformance& performance);
     
-    // Discovery integration
-    void handleStreamDiscovered(const ETIStreamInfo& streamInfo);
-    void handleStreamLost(const QString& streamId);
-    void handleNetworkInterfaceChanged(const QString& interfaceName);
+    // Buffer manager slots
+    void handleBufferOverflow(size_t droppedFrames);
+    void handleBufferUnderflow();
+    void handleBufferMetrics(const BufferMetrics& metrics);
     
-    // Broadcast interface integration
-    void handleEquipmentConnected(const QString& equipmentId);
-    void handleEquipmentDisconnected(const QString& equipmentId);
-    // void handleBroadcastParametersChanged(const BroadcastParams& params); // Removed - stub implementation
-    void handleRedundancyStatusChanged(bool active);
-    
-    // Monitoring and maintenance
-    void updateStatistics();
+    // System monitoring slots
+    void updateStatus();
     void monitorPerformance();
-    void checkSystemHealth();
+    void checkHealth();
     void performMaintenance();
-    void handleAutoRecovery();
 
 private:
     // Initialization and cleanup
-    void initializeComponents();
-    void cleanupComponents();
-    void setupSignalConnections();
-    void cleanupSignalConnections();
-    void validateConfiguration(const IntegrationConfig& config);
+    void initializeIntegration();
+    void cleanupIntegration();
+    void setupConnections();
+    void configureComponents();
     
-    // Component integration
-    void integrateEtiProcessor();
-    void integrateNetworkReceiver();
-    void integrateStreamingProcessor();
-    void integrateNetworkDiscovery();
-    void integrateRecordingManager();
-    void integratePlaybackEngine();
-    // void integrateBroadcastInterface(); // Removed - stub implementation
+    // Component management
+    void createNetworkComponents();
+    void destroyNetworkComponents();
+    void optimizeForMode(IntegrationMode mode);
+    
+    // Integration logic
+    void processNetworkFrame(const eti::EtiFrame& frame, const NetworkQualityMetrics& quality);
+    void forwardToEtiProcessor(const eti::EtiFrame& frame);
+    void updateIntegrationStatus();
+    void handleModeSwitch(IntegrationMode newMode);
     
     // Performance optimization
-    void optimizeProcessingPipeline();
-    void adaptToPerformanceConstraints();
-    void handlePerformanceDegradation();
-    void optimizeResourceUsage();
+    void optimizePerformance();
+    void adaptToNetworkConditions();
+    void balanceLatencyThroughput();
+    void handleResourceConstraints();
     
     // Quality management
-    void validateETSICompliance(const eti::EtiFrame& frame);
-    void updateQualityMetrics(const eti::EtiFrame& frame, const NetworkQualityMetrics& networkQuality);
-    void handleQualityThresholdViolation(double currentQuality);
-    void adaptQualitySettings();
-    
-    // Event management
-    void generateIntegrationEvent(const QString& type, const QString& source, 
-                                 const QString& description, const QString& severity);
-    void processIntegrationEvent(const IntegrationEvent& event);
-    void manageEventHistory();
+    void validateQualityMetrics(const NetworkQualityMetrics& metrics);
+    void handleQualityDegradation();
+    void applyQualityAdaptations();
     
     // Error handling and recovery
-    void handleComponentError(const QString& component, const QString& error);
-    void attemptErrorRecovery(const QString& component);
-    bool validateSystemHealth();
-    void performSystemRecovery();
+    void handleIntegrationError(const QString& error, int severity);
+    void performErrorRecovery();
+    void resetIntegrationState();
+    
+    // GUI integration helpers
+    void updateGuiComponents();
+    void sendGuiUpdates();
+    void handleGuiRequests();
+    
+    // Monitoring and diagnostics
+    void calculatePerformanceMetrics();
+    void updateHealthStatus();
+    void generateDiagnostics();
+    
+    // Configuration and state
+    NetworkStreamingConfig m_config;
+    IntegrationStatus m_status;
+    IntegrationMode m_currentMode = IntegrationMode::FILE_ONLY;
     
     // Core components
-    std::unique_ptr<EtiProcessor> m_etiProcessor;
+    EtiProcessor* m_etiProcessor = nullptr; // External reference, not owned
     std::unique_ptr<EtiOverIpReceiver> m_networkReceiver;
     std::unique_ptr<StreamingProcessor> m_streamingProcessor;
-    std::unique_ptr<NetworkDiscovery> m_networkDiscovery;
-    std::unique_ptr<eti::StreamRecordingManager> m_recordingManager;
-    std::unique_ptr<StreamPlayback> m_playbackEngine;
-    // std::unique_ptr<BroadcastInterface> m_broadcastInterface; // Removed - stub implementation
+    std::unique_ptr<CircularBufferManager> m_bufferManager; // Removed - stub implementation
     
-    // Integration configuration and state
-    IntegrationConfig m_config;
-    IntegrationStatistics m_statistics;
-    std::atomic<IntegrationMode> m_currentMode{IntegrationMode::REAL_TIME_ANALYSIS};
-    std::atomic<bool> m_initialized{false};
-    std::atomic<bool> m_running{false};
-    std::atomic<bool> m_realTimeActive{false};
-    std::atomic<bool> m_fileProcessingActive{false};
-    
-    // Current stream information
-    ETIStreamInfo m_currentStream;
-    QString m_currentRecordingSession;
-    QString m_currentPlaybackFile;
-    
-    // Performance monitoring
-    std::unique_ptr<QTimer> m_statisticsTimer;
+    // Timers for monitoring and maintenance
+    std::unique_ptr<QTimer> m_statusTimer;
     std::unique_ptr<QTimer> m_performanceTimer;
     std::unique_ptr<QTimer> m_healthTimer;
     std::unique_ptr<QTimer> m_maintenanceTimer;
     
-    // Quality and compliance tracking
-    std::atomic<double> m_currentQualityScore{1.0};
-    std::atomic<bool> m_etsiCompliant{true};
-    QStringList m_complianceViolations;
-    mutable QMutex m_complianceMutex;
+    // State management
+    std::atomic<bool> m_initialized{false};
+    std::atomic<bool> m_networkActive{false};
+    std::atomic<bool> m_processingActive{false};
+    std::atomic<bool> m_healthy{true};
     
-    // Event management
-    std::queue<IntegrationEvent> m_eventHistory;
-    QStringList m_activeAlerts;
-    mutable QMutex m_eventMutex;
-    std::atomic<bool> m_autoRecoveryEnabled{true};
+    // Performance tracking
+    std::chrono::steady_clock::time_point m_startTime;
+    std::chrono::steady_clock::time_point m_lastFrameTime;
+    std::atomic<size_t> m_totalFramesReceived{0};
+    std::atomic<size_t> m_totalFramesProcessed{0};
+    std::atomic<size_t> m_totalFramesDropped{0};
+    
+    // Thread safety
+    mutable QMutex m_statusMutex;
+    mutable QMutex m_configMutex;
+    mutable QMutex m_callbackMutex;
     
     // Callbacks
     FrameCallback m_frameCallback;
-    EventCallback m_eventCallback;
-    PerformanceCallback m_performanceCallback;
-    QualityCallback m_qualityCallback;
-    mutable QMutex m_callbackMutex;
+    StatusCallback m_statusCallback;
+    ErrorCallback m_errorCallback;
     
-    // Threading and synchronization
-    mutable QMutex m_integrationMutex;
-    std::unique_ptr<QThread> m_processingThread;
+    // GUI integration
+    QObject* m_mainWindow = nullptr;
+    bool m_guiIntegrationEnabled = false;
     
-    // Performance tracking
-    std::chrono::steady_clock::time_point m_integrationStartTime;
-    std::chrono::steady_clock::time_point m_lastFrameTime;
-    std::vector<double> m_fpsHistory;
-    std::vector<std::chrono::microseconds> m_latencyHistory;
+    // Recording and analysis
+    bool m_recordingEnabled = false;
+    QString m_recordingPath;
+    bool m_comparisonEnabled = false;
     
-    static constexpr size_t HISTORY_SIZE = 100;
-    static constexpr size_t MAX_EVENT_HISTORY = 1000;
-    static constexpr std::chrono::milliseconds STATISTICS_UPDATE_INTERVAL{1000};
-    static constexpr std::chrono::milliseconds PERFORMANCE_CHECK_INTERVAL{500};
-    static constexpr std::chrono::milliseconds HEALTH_CHECK_INTERVAL{5000};
-    static constexpr std::chrono::milliseconds MAINTENANCE_INTERVAL{30000};
+    // Constants
+    static constexpr std::chrono::milliseconds STATUS_UPDATE_INTERVAL{1000};
+    static constexpr std::chrono::milliseconds PERFORMANCE_UPDATE_INTERVAL{500};
+    static constexpr std::chrono::milliseconds HEALTH_CHECK_INTERVAL{2000};
+    static constexpr std::chrono::milliseconds MAINTENANCE_INTERVAL{10000};
+    
+    static constexpr size_t MAX_CONSECUTIVE_ERRORS = 10;
+    static constexpr double HEALTH_SCORE_THRESHOLD = 0.8;
 };
 
 /**
- * @brief Factory for creating specialized integration configurations
+ * @brief Factory for creating ETI network integrations
  */
 class EtiNetworkIntegrationFactory {
 public:
     /**
-     * @brief Create real-time analysis integration
+     * @brief Create integration for professional broadcast use
      */
-    static std::unique_ptr<EtiNetworkIntegration> createRealTimeAnalysisIntegration();
+    static std::unique_ptr<EtiNetworkIntegration> createBroadcastIntegration(EtiProcessor* processor);
     
     /**
-     * @brief Create broadcast monitoring integration
+     * @brief Create integration for low-latency applications
      */
-    static std::unique_ptr<EtiNetworkIntegration> createBroadcastMonitoringIntegration();
+    static std::unique_ptr<EtiNetworkIntegration> createLowLatencyIntegration(EtiProcessor* processor);
     
     /**
-     * @brief Create quality assessment integration
+     * @brief Create integration for high-throughput applications
      */
-    static std::unique_ptr<EtiNetworkIntegration> createQualityAssessmentIntegration();
+    static std::unique_ptr<EtiNetworkIntegration> createHighThroughputIntegration(EtiProcessor* processor);
     
     /**
-     * @brief Create hybrid processing integration
+     * @brief Create integration for development and testing
      */
-    static std::unique_ptr<EtiNetworkIntegration> createHybridProcessingIntegration();
+    static std::unique_ptr<EtiNetworkIntegration> createDevelopmentIntegration(EtiProcessor* processor);
     
     /**
      * @brief Create custom integration with specific configuration
      */
-    static std::unique_ptr<EtiNetworkIntegration> createCustomIntegration(const IntegrationConfig& config);
-    
-    /**
-     * @brief Create performance-optimized integration for maximum throughput
-     */
-    static std::unique_ptr<EtiNetworkIntegration> createPerformanceOptimizedIntegration();
+    static std::unique_ptr<EtiNetworkIntegration> createCustomIntegration(
+        EtiProcessor* processor, const NetworkStreamingConfig& config);
 };
 
 } // namespace eti_network

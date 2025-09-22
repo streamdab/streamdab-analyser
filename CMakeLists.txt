@@ -171,6 +171,12 @@ set(CORE_SOURCE_FILES
     src/core/eti_memory_pool.h
     src/core/comprehensive_etsi_validator.cpp
     src/core/comprehensive_etsi_validator.h
+    src/core/fig_parser.cpp
+    src/core/fig_parser.h
+    src/core/dab_service_discovery_engine.cpp
+    src/core/dab_service_discovery_engine.h
+    src/core/thai_nbtc_validator.h
+    # src/core/thai_nbtc_validator.cpp  # Missing implementation - commented out for build
 )
 
 # Phase 8 Advanced Network Streaming Components

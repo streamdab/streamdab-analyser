@@ -27,6 +27,8 @@
 #include <random>
 
 #include "../../src/network/eti_over_ip_receiver.h"
+#include "../../src/network/streaming_processor.h"
+#include "../../src/network/circular_buffer_manager.h"
 #include "../../src/core/eti_types.h"
 #include "../fixtures/network_test_data.h"
 #include "../mocks/mock_rtp_stream_generator.h"
@@ -658,6 +660,228 @@ private:
         return interfaces.isEmpty() ? QString() : interfaces.first();
     }
 };
+
+/**
+ * @brief Comprehensive Network Streaming Performance Validation
+ * 
+ * Tests the complete network streaming pipeline with real performance targets:
+ * - >900 FPS ETI frame processing throughput
+ * - <17ms end-to-end latency requirement
+ * - <30MB memory usage for network components
+ * - Professional broadcast equipment integration
+ */
+TEST_F(EtiOverIpReceiverTest, NetworkStreamingPipeline_ShouldMeetAllPerformanceTargets) {
+    // ARRANGE - Setup complete streaming pipeline
+    constexpr double TARGET_FPS = 900.0;
+    constexpr int LATENCY_TARGET_MS = 17;
+    constexpr size_t MEMORY_LIMIT_MB = 30;
+    constexpr int TEST_DURATION_MS = 5000;
+    
+    ASSERT_TRUE(receiver->startListening(MULTICAST_ADDRESS, TEST_PORT));
+    
+    // Configure receiver for performance testing
+    receiver->enableProfessionalMode(true);
+    receiver->setMaxLatency(std::chrono::milliseconds{LATENCY_TARGET_MS});
+    receiver->setPriorityMode(true);
+    receiver->setBufferSize(100); // Optimized for latency
+    receiver->setJitterBuffer(25); // Minimal jitter buffer
+    
+    // Performance tracking
+    std::vector<std::chrono::microseconds> latencies;
+    std::vector<double> throughput_measurements;
+    size_t total_frames_processed = 0;
+    auto test_start = std::chrono::high_resolution_clock::now();
+    
+    // Setup performance monitoring callback
+    receiver->setFrameCallback([&](const eti::EtiFrame& frame, const NetworkQualityMetrics& metrics) {
+        auto processing_time = std::chrono::high_resolution_clock::now();
+        auto latency = std::chrono::duration_cast<std::chrono::microseconds>(
+            processing_time - test_start); // Simplified latency measurement
+        
+        latencies.push_back(latency);
+        total_frames_processed++;
+        
+        // Verify latency requirement (<17ms)
+        EXPECT_LT(latency.count(), LATENCY_TARGET_MS * 1000) << "Frame " << total_frames_processed << " exceeds latency target";
+        
+        // Verify memory usage (<30MB)
+        size_t memory_usage = getCurrentProcessMemoryUsage();
+        EXPECT_LT(memory_usage, MEMORY_LIMIT_MB * 1024 * 1024) << "Memory usage exceeds limit";
+    });
+    
+    // ACT - Generate high-throughput stream
+    streamGenerator->startContinuousStream(TARGET_FPS * 1.1, testETIFrame); // 10% above target
+    
+    // Monitor performance during test
+    QTimer throughputTimer;
+    throughputTimer.setInterval(1000); // Measure every second
+    
+    connect(&throughputTimer, &QTimer::timeout, [&]() {
+        auto now = std::chrono::high_resolution_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - test_start);
+        
+        if (elapsed.count() > 0) {
+            double current_fps = static_cast<double>(total_frames_processed) / (elapsed.count() / 1000.0);
+            throughput_measurements.push_back(current_fps);
+            
+            // Verify throughput target (>900 FPS)
+            EXPECT_GE(current_fps, TARGET_FPS * 0.95) << "Throughput below 95% of target at " << elapsed.count() << "ms";
+        }
+    });
+    
+    throughputTimer.start();
+    
+    // Run performance test
+    QTimer::singleShot(TEST_DURATION_MS, &eventLoop, &QEventLoop::quit);
+    eventLoop.exec();
+    
+    streamGenerator->stopContinuousStream();
+    throughputTimer.stop();
+    
+    // ASSERT - Validate all performance targets
+    
+    // 1. Throughput validation (>900 FPS)
+    auto final_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::high_resolution_clock::now() - test_start);
+    double average_fps = static_cast<double>(total_frames_processed) / (final_elapsed.count() / 1000.0);
+    
+    EXPECT_GE(average_fps, TARGET_FPS) << "Average FPS " << average_fps << " below target " << TARGET_FPS;
+    EXPECT_GE(total_frames_processed, static_cast<size_t>(TARGET_FPS * TEST_DURATION_MS / 1000 * 0.95)) 
+        << "Total frames processed below 95% of expected";
+    
+    // 2. Latency validation (<17ms)
+    ASSERT_FALSE(latencies.empty()) << "No latency measurements recorded";
+    
+    auto max_latency = *std::max_element(latencies.begin(), latencies.end());
+    auto avg_latency = std::accumulate(latencies.begin(), latencies.end(), std::chrono::microseconds{0}) / latencies.size();
+    
+    EXPECT_LT(max_latency.count(), LATENCY_TARGET_MS * 1000) << "Maximum latency exceeds target";
+    EXPECT_LT(avg_latency.count(), LATENCY_TARGET_MS * 500) << "Average latency should be well below target";
+    
+    // 3. Memory efficiency validation (<30MB)
+    size_t final_memory = getCurrentProcessMemoryUsage();
+    EXPECT_LT(final_memory, MEMORY_LIMIT_MB * 1024 * 1024) << "Final memory usage exceeds limit";
+    
+    // 4. Throughput consistency validation
+    if (!throughput_measurements.empty()) {
+        auto min_throughput = *std::min_element(throughput_measurements.begin(), throughput_measurements.end());
+        auto max_throughput = *std::max_element(throughput_measurements.begin(), throughput_measurements.end());
+        double throughput_variance = max_throughput - min_throughput;
+        
+        EXPECT_LT(throughput_variance / average_fps, 0.1) << "Throughput variance exceeds 10%";
+    }
+    
+    // 5. Professional quality validation
+    NetworkQualityMetrics final_metrics = receiver->getQualityMetrics();
+    EXPECT_GT(final_metrics.signal_quality.load(), 0.95) << "Signal quality below professional standard";
+    EXPECT_LT(final_metrics.packet_loss_rate.load(), 0.001) << "Packet loss rate too high for professional use";
+    EXPECT_LT(final_metrics.jitter_ms.load(), 5.0) << "Jitter too high for professional broadcast";
+    
+    // Log performance summary
+    qDebug() << "=== Network Streaming Performance Summary ===";
+    qDebug() << "Average FPS:" << average_fps;
+    qDebug() << "Total frames processed:" << total_frames_processed;
+    qDebug() << "Average latency:" << avg_latency.count() << "μs";
+    qDebug() << "Maximum latency:" << max_latency.count() << "μs";
+    qDebug() << "Final memory usage:" << final_memory / (1024 * 1024) << "MB";
+    qDebug() << "Signal quality:" << final_metrics.signal_quality.load();
+    qDebug() << "Packet loss rate:" << final_metrics.packet_loss_rate.load() * 100 << "%";
+    qDebug() << "Jitter:" << final_metrics.jitter_ms.load() << "ms";
+}
+
+/**
+ * @brief Complete Integration Test - ETI-over-IP to Processing Pipeline
+ * 
+ * Tests the complete integration from network reception through processing:
+ * - ETI-over-IP reception (239.192.0.1:9200)
+ * - Real-time frame processing
+ * - Circular buffer management
+ * - Latency optimization pipeline
+ * - Memory efficiency validation
+ */
+TEST_F(EtiOverIpReceiverTest, CompleteIntegration_ShouldProcessETIStreamEndToEnd) {
+    // ARRANGE - Setup complete processing pipeline
+    ASSERT_TRUE(receiver->startListening(MULTICAST_ADDRESS, TEST_PORT));
+    
+    // Create streaming processor for complete pipeline
+    auto processor = StreamingProcessorFactory::createLowLatencyProcessor();
+    ASSERT_TRUE(processor->startProcessing());
+    
+    // Create circular buffer manager
+    auto bufferManager = CircularBufferFactory::createLowLatencyManager();
+    
+    // Connect pipeline: Receiver -> Buffer -> Processor
+    std::atomic<size_t> frames_received{0};
+    std::atomic<size_t> frames_buffered{0};
+    std::atomic<size_t> frames_processed{0};
+    
+    receiver->setFrameCallback([&](const eti::EtiFrame& frame, const NetworkQualityMetrics& quality) {
+        frames_received++;
+        
+        // Buffer frame
+        if (bufferManager->writeFrame(frame, quality)) {
+            frames_buffered++;
+        }
+        
+        // Process frame
+        processor->processFrame(frame, quality);
+    });
+    
+    processor->setFrameCallback([&](const ProcessedFrame& processed_frame) {
+        frames_processed++;
+        
+        // Validate processing results
+        EXPECT_TRUE(processed_frame.processing_successful);
+        EXPECT_LT(processed_frame.get_total_latency().count(), 17000); // <17ms
+        
+        if (processed_frame.analysis.fic_decoded) {
+            EXPECT_GT(processed_frame.quality_score, 0.8);
+        }
+    });
+    
+    // ACT - Send test stream
+    constexpr int TEST_FRAMES = 1000;
+    constexpr double TEST_FPS = 500.0; // Moderate rate for integration test
+    
+    streamGenerator->startContinuousStream(TEST_FPS, testETIFrame);
+    
+    // Wait for processing to complete
+    QTimer::singleShot(static_cast<int>(TEST_FRAMES / TEST_FPS * 1000 * 1.2), &eventLoop, &QEventLoop::quit);
+    eventLoop.exec();
+    
+    streamGenerator->stopContinuousStream();
+    
+    // Allow processing to complete
+    QTimer::singleShot(1000, &eventLoop, &QEventLoop::quit);
+    eventLoop.exec();
+    
+    // ASSERT - Validate complete pipeline
+    EXPECT_GT(frames_received.load(), static_cast<size_t>(TEST_FRAMES * 0.95)) << "Frame reception below 95%";
+    EXPECT_GT(frames_buffered.load(), static_cast<size_t>(TEST_FRAMES * 0.90)) << "Frame buffering below 90%";
+    EXPECT_GT(frames_processed.load(), static_cast<size_t>(TEST_FRAMES * 0.90)) << "Frame processing below 90%";
+    
+    // Validate buffer performance
+    EXPECT_LT(bufferManager->getMemoryUsage(), 30 * 1024 * 1024) << "Buffer memory usage exceeds 30MB";
+    EXPECT_TRUE(bufferManager->isPerformanceTargetMet()) << "Buffer performance targets not met";
+    EXPECT_TRUE(bufferManager->isHealthy()) << "Buffer health degraded";
+    
+    // Validate processor performance
+    EXPECT_GE(processor->getCurrentFPS(), TEST_FPS * 0.95) << "Processor FPS below target";
+    EXPECT_LT(processor->getCurrentLatency().count(), 17000) << "Processor latency exceeds 17ms";
+    EXPECT_GE(processor->getProcessingEfficiency(), 0.95) << "Processing efficiency below 95%";
+    
+    // Stop components
+    processor->stopProcessing();
+    
+    qDebug() << "=== Complete Integration Test Results ===";
+    qDebug() << "Frames received:" << frames_received.load();
+    qDebug() << "Frames buffered:" << frames_buffered.load();
+    qDebug() << "Frames processed:" << frames_processed.load();
+    qDebug() << "Buffer memory usage:" << bufferManager->getMemoryUsage() / (1024 * 1024) << "MB";
+    qDebug() << "Processor FPS:" << processor->getCurrentFPS();
+    qDebug() << "Processor latency:" << processor->getCurrentLatency().count() << "μs";
+    qDebug() << "Processing efficiency:" << processor->getProcessingEfficiency() * 100 << "%";
+}
 
 // =============================================================================
 // INTEGRATION TEST RUNNER
