@@ -113,34 +113,38 @@ else()
     set(HAVE_YAML_CPP OFF)
 endif()
 
-# Optional nlohmann/json for StreamDAB integration
+# Optional nlohmann/json for Modern ETI Core integration
 find_package(nlohmann_json QUIET)
 if(nlohmann_json_FOUND)
-    message(STATUS "nlohmann/json found: Enhanced ETISnoop integration enabled")
+    message(STATUS "nlohmann/json found: Enhanced Modern ETI Core integration enabled")
     set(HAVE_NLOHMANN_JSON ON)
 else()
-    message(STATUS "nlohmann/json not found: ETISnoop features disabled (optional)")
+    message(STATUS "nlohmann/json not found: Modern ETI Core features disabled (optional)")
     set(HAVE_NLOHMANN_JSON OFF)
 endif()
 
-# ETISnoop Integration - Add submodule
-message(STATUS "Adding ETISnoop backend integration...")
-add_subdirectory(third_party/etisnoop)
+# Modern ETI Core Engine - No external submodules needed
+message(STATUS "Using integrated Modern ETI Core Engine...")
 
 # Include directories
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/etisnoop/src
 )
 
-# Core ETI processing source files
+# Core ETI processing source files with Modern ETI Core Engine
 set(CORE_SOURCE_FILES
     src/main.cpp
     src/core/eti_processor.cpp
     src/core/eti_processor.h
-    src/core/etisnoop_wrapper.cpp
-    src/core/etisnoop_wrapper.h
+    src/core/modern_eti_frame_parser.cpp
+    src/core/modern_eti_frame_parser.h
+    src/core/enhanced_fig_analyzer.cpp
+    src/core/enhanced_fig_analyzer.h
+
+    src/core/performance_profiler.cpp
+    src/core/performance_profiler.h
+    src/core/eti_processing_engine.cpp
+    src/core/eti_processing_engine.h
     src/core/eti_file_worker.cpp
     src/core/eti_file_worker.h
     src/core/eti_types.cpp
@@ -155,23 +159,32 @@ set(CORE_SOURCE_FILES
     src/core/service_manager.h
     src/core/dab_audio_decoder.cpp
     src/core/dab_audio_decoder.h
-    src/core/alert_system.cpp
-    src/core/alert_system.h
+    src/core/etsi/alert_system.cpp
+    src/core/etsi/alert_system.h
     src/core/network_stream_receiver.cpp
     src/core/network_stream_receiver.h
     src/core/stream_recording_manager.cpp
     src/core/stream_recording_manager.h
+    src/core/eti_processing_cache.cpp
+    src/core/eti_processing_cache.h
+    src/core/eti_memory_pool.cpp
+    src/core/eti_memory_pool.h
+    src/core/comprehensive_etsi_validator.cpp
+    src/core/comprehensive_etsi_validator.h
 )
 
 # Phase 8 Advanced Network Streaming Components
 set(NETWORK_SOURCE_FILES
     src/network/eti_over_ip_receiver.h
+    src/network/eti_over_ip_receiver.cpp
     src/network/streaming_processor.h
+    src/network/streaming_processor.cpp
     src/network/network_discovery.h
+    src/network/network_discovery.cpp
     src/network/stream_playback.h
-    src/network/broadcast_interface.h
+    src/network/stream_playback.cpp
     src/network/eti_network_integration.h
-    src/network/performance_validator.h
+    src/network/eti_network_integration.cpp
 )
 
 # GUI source files
@@ -254,7 +267,7 @@ set(COMMON_LIBS
     Qt6::Multimedia
     ${AUDIO_DECODER_LIBS}
     ${pkgcfg_lib_FFTW3_fftw3}
-    etisnoop::etisnoop
+
 )
 
 # Add optional YAML support
@@ -346,7 +359,7 @@ message(STATUS "Target platform: ${PLATFORM_NAME}")
 message(STATUS "Qt version: ${Qt6_VERSION}")
 message(STATUS "YAML support: ${HAVE_YAML_CPP}")
 message(STATUS "Audio decoder: ${AUDIO_DECODER_DEFINITIONS}")
-message(STATUS "ETISnoop integration: Enabled")
+message(STATUS "Modern ETI Core integration: Enabled")
 message(STATUS "Network streaming: Phase 8 Advanced Features")
 message(STATUS "- ETI-over-IP receiver with RTP/UDP multicast")
 message(STATUS "- Real-time streaming processor (<50ms latency)")

@@ -33,9 +33,9 @@
 #include "eti_over_ip_receiver.h"
 #include "streaming_processor.h"
 #include "network_discovery.h"
-#include "stream_recording_manager.h"
+#include "../core/stream_recording_manager.h"
 #include "stream_playback.h"
-#include "broadcast_interface.h"
+// #include "broadcast_interface.h" // Removed - stub implementation
 
 namespace eti_network {
 
@@ -245,11 +245,11 @@ public:
     QList<NetworkInterfaceInfo> getNetworkInterfaces() const;
     void setPreferredNetworkInterface(const QString& interfaceName);
     
-    // Broadcast equipment integration
-    bool connectToBroadcastEquipment(const EquipmentConfig& config);
-    void disconnectFromBroadcastEquipment(const QString& equipmentId);
-    QStringList getConnectedEquipment() const;
-    void enableEquipmentRedundancy(bool enabled);
+    // Broadcast equipment integration (removed - stub implementation)
+    // bool connectToBroadcastEquipment(const EquipmentConfig& config);
+    // void disconnectFromBroadcastEquipment(const QString& equipmentId);
+    // QStringList getConnectedEquipment() const;
+    // void enableEquipmentRedundancy(bool enabled);
     
     // Error handling and recovery
     QList<IntegrationEvent> getRecentEvents() const;
@@ -344,7 +344,7 @@ private slots:
     // Broadcast interface integration
     void handleEquipmentConnected(const QString& equipmentId);
     void handleEquipmentDisconnected(const QString& equipmentId);
-    void handleBroadcastParametersChanged(const BroadcastParams& params);
+    // void handleBroadcastParametersChanged(const BroadcastParams& params); // Removed - stub implementation
     void handleRedundancyStatusChanged(bool active);
     
     // Monitoring and maintenance
@@ -369,7 +369,7 @@ private:
     void integrateNetworkDiscovery();
     void integrateRecordingManager();
     void integratePlaybackEngine();
-    void integrateBroadcastInterface();
+    // void integrateBroadcastInterface(); // Removed - stub implementation
     
     // Performance optimization
     void optimizeProcessingPipeline();
@@ -402,7 +402,7 @@ private:
     std::unique_ptr<NetworkDiscovery> m_networkDiscovery;
     std::unique_ptr<eti::StreamRecordingManager> m_recordingManager;
     std::unique_ptr<StreamPlayback> m_playbackEngine;
-    std::unique_ptr<BroadcastInterface> m_broadcastInterface;
+    // std::unique_ptr<BroadcastInterface> m_broadcastInterface; // Removed - stub implementation
     
     // Integration configuration and state
     IntegrationConfig m_config;

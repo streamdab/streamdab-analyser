@@ -14,7 +14,7 @@
 
 #include "main_window.h"
 #include "alert_configuration_dialog.h"
-#include "core/alert_system.h"
+#include "core/etsi/alert_system.h"
 #include "core/stream_recording_manager.h"
 #include "core/audio_extraction_pipeline.h"
 

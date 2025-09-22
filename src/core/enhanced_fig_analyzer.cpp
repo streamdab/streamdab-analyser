@@ -9,6 +9,7 @@
 #include <bitset>
 #include <sstream>
 #include <iomanip>
+#include <shared_mutex>
 
 namespace eti::modern {
 
@@ -24,8 +25,8 @@ EnhancedFIGAnalyzer::EnhancedFIGAnalyzer(QObject* parent)
 EnhancedFIGAnalyzer::~EnhancedFIGAnalyzer() {
     Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
                           QString("FIG Analyzer destroyed - Stats: %1 FIGs processed, %.1f%% compliance")
-                          .arg(stats_.total_figs_processed.load())
-                          .arg(stats_.compliance_score.load()));
+                          .arg(stats_.total_figs_processed)
+                          .arg(stats_.compliance_score));
 }
 
 bool EnhancedFIGAnalyzer::initialize(bool enable_carousel_analysis, bool enable_thai_support) {
@@ -77,13 +78,13 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::processFICData(const eti::EtiFic
         for (const auto& fig : fig_blocks) {
             if (validateFIGStructure(fig)) {
                 if (analyzeFIGBlock(fig)) {
-                    stats_.total_figs_processed.fetch_add(1);
+                    stats_.total_figs_processed++;
                     
                     // Update type-specific counters
                     switch (fig.fig_type) {
-                        case 0: stats_.fig_type_0_count.fetch_add(1); break;
-                        case 1: stats_.fig_type_1_count.fetch_add(1); break;
-                        case 2: stats_.fig_type_2_count.fetch_add(1); break;
+                        case 0: stats_.fig_type_0_count++; break;
+                        case 1: stats_.fig_type_1_count++; break;
+                        case 2: stats_.fig_type_2_count++; break;
                     }
                     
                     // Update carousel analysis
@@ -91,13 +92,13 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::processFICData(const eti::EtiFic
                         updateCarouselAnalysis(fig.fig_type, fig.get_extension());
                     }
                 } else {
-                    stats_.parsing_errors.fetch_add(1);
+                    stats_.parsing_errors++;
                     Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
                                           QString("Failed to parse FIG %1/%2")
                                           .arg(fig.fig_type).arg(fig.get_extension()));
                 }
             } else {
-                stats_.invalid_figs.fetch_add(1);
+                stats_.invalid_figs++;
                 
                 // Attempt error recovery if enabled
                 if (error_recovery_enabled_ && attemptErrorRecovery(fig)) {
@@ -111,19 +112,16 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::processFICData(const eti::EtiFic
         auto end_time = std::chrono::high_resolution_clock::now();
         auto processing_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
         
-        stats_.total_processing_time_ns.fetch_add(processing_time.count());
+        stats_.total_processing_time_ns += processing_time.count();
         
-        uint64_t peak = stats_.peak_processing_time_ns.load();
-        while (processing_time.count() > peak && 
-               !stats_.peak_processing_time_ns.compare_exchange_weak(peak, processing_time.count())) {
-            // Retry if another thread updated peak
+        if (processing_time.count() > stats_.peak_processing_time_ns) {
+            stats_.peak_processing_time_ns = processing_time.count();
         }
         
         // Update average processing time
-        uint64_t total_figs = stats_.total_figs_processed.load();
-        if (total_figs > 0) {
-            double avg = static_cast<double>(stats_.total_processing_time_ns.load()) / total_figs;
-            stats_.average_processing_time_ns.store(avg);
+        if (stats_.total_figs_processed > 0) {
+            stats_.average_processing_time_ns = 
+                static_cast<double>(stats_.total_processing_time_ns) / stats_.total_figs_processed;
         }
         
         Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
@@ -135,7 +133,7 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::processFICData(const eti::EtiFic
     catch (const std::exception& e) {
         Logger::instance().log(Logger::Error, "EnhancedFIGAnalyzer", 
                               QString("FIC data processing failed: %1").arg(e.what()));
-        stats_.parsing_errors.fetch_add(1);
+        stats_.parsing_errors++;
     }
     
     return fig_blocks;
@@ -166,6 +164,15 @@ bool EnhancedFIGAnalyzer::analyzeFIGBlock(const eti::FigBlock& fig_block) {
 std::optional<EnhancedEnsembleInfo> EnhancedFIGAnalyzer::getCurrentEnsemble() const {
     std::shared_lock<std::shared_mutex> lock(data_mutex_);
     return current_ensemble_;
+}
+
+FIGProcessingStats EnhancedFIGAnalyzer::getProcessingStats() const {
+    std::shared_lock<std::shared_mutex> lock(data_mutex_);
+    
+    // Create a copy with current values (protected by shared_mutex)
+    FIGProcessingStats copy = stats_;
+    
+    return copy;
 }
 
 std::vector<EnhancedServiceInfo> EnhancedFIGAnalyzer::getDiscoveredServices() const {
@@ -229,7 +236,7 @@ void EnhancedFIGAnalyzer::reset() {
 }
 
 double EnhancedFIGAnalyzer::getETSIComplianceScore() const {
-    return stats_.compliance_score.load();
+    return stats_.compliance_score;
 }
 
 std::vector<std::string> EnhancedFIGAnalyzer::getComplianceIssues() const {
@@ -680,13 +687,11 @@ void EnhancedFIGAnalyzer::reportComplianceViolation(const std::string& standard,
     reported_issues_.insert(issue_key);
     compliance_issues_.push_back(issue);
     
-    stats_.etsi_violations.fetch_add(1);
+    stats_.etsi_violations++;
     
     // Update compliance score
-    double current_score = stats_.compliance_score.load();
     double penalty = (severity == "Error") ? 5.0 : 1.0;
-    double new_score = std::max(0.0, current_score - penalty);
-    stats_.compliance_score.store(new_score);
+    stats_.compliance_score = std::max(0.0, stats_.compliance_score - penalty);
     
     emit complianceIssue(QString::fromStdString(standard), 
                         QString::fromStdString(issue),

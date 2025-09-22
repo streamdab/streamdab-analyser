@@ -32,7 +32,7 @@
 #include <deque>
 
 #include "../core/eti_types.h"
-#include "stream_recording_manager.h"
+#include "../core/stream_recording_manager.h"
 
 namespace eti_network {
 

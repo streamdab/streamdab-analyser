@@ -7,7 +7,8 @@
  */
 
 #include "eti_frame_list_model.h"
-#include "core/etisnoop_wrapper.h"
+#include "core/modern_eti_frame_parser.h"
+#include "core/comprehensive_etsi_validator.h"
 #include "utils/logger.h"
 
 #include <QColor>
@@ -22,7 +23,8 @@
 
 EtiFrameListModel::EtiFrameListModel(QObject *parent)
     : QAbstractTableModel(parent)
-    , m_etisnoopWrapper(nullptr)
+    , m_frameParser(nullptr)
+    , m_etsiValidator(nullptr)
     , m_maxFrames(DEFAULT_MAX_FRAMES)
     , m_realTimeEnabled(false)
     , m_statsTimer(nullptr)
@@ -54,29 +56,36 @@ EtiFrameListModel::~EtiFrameListModel()
     Logger::instance().log(Logger::Info, "EtiFrameListModel", "Destructor completed");
 }
 
-bool EtiFrameListModel::initialize(EtisnoopWrapper *wrapper)
+bool EtiFrameListModel::initializeWithModernEngine(eti::modern::ModernETIFrameParser *frameParser, 
+                                                 eti::compliance::ComprehensiveETSIValidator *etsiValidator)
 {
-    if (!wrapper) {
-        Logger::instance().log(Logger::Error, "EtiFrameListModel", "Invalid ETISnoop wrapper provided");
+    if (!frameParser || !etsiValidator) {
+        Logger::instance().log(Logger::Error, "EtiFrameListModel", "Invalid Modern ETI Core Engine components provided");
         return false;
     }
     
-    Logger::instance().log(Logger::Info, "EtiFrameListModel", "Initializing with ETISnoop wrapper");
+    Logger::instance().log(Logger::Info, "EtiFrameListModel", "Initializing with Modern ETI Core Engine");
     
-    m_etisnoopWrapper = wrapper;
+    m_frameParser = frameParser;
+    m_etsiValidator = etsiValidator;
     
-    // Connect ETISnoop wrapper signals
-    connect(m_etisnoopWrapper, &EtisnoopWrapper::frameProcessed,
-            this, &EtiFrameListModel::onFrameProcessed);
-    connect(m_etisnoopWrapper, &EtisnoopWrapper::processingError,
-            this, &EtiFrameListModel::onProcessingError);
-    connect(m_etisnoopWrapper, &EtisnoopWrapper::statsUpdated,
-            this, &EtiFrameListModel::onStatsUpdated);
+    // Connect Modern ETI Core Engine signals - use lambda to adapt signal parameters
+    connect(m_frameParser, &eti::modern::ModernETIFrameParser::frameProcessed,
+            this, [this](uint32_t frame_number, const eti::EtiFrame& /*frame*/, std::chrono::nanoseconds parse_time) {
+                // Convert to ETIParseResult format expected by existing slot
+                eti::modern::ETIParseResult result;
+                result.frame_number = frame_number;
+                result.success = true; // Assume success if we got a frame
+                result.parse_time = parse_time;
+                // Note: frame data conversion would be needed for full compatibility
+                onFrameProcessed(result);
+            });
+    // Note: Other signals will be connected when the corresponding slots are implemented
     
     // Enable real-time updates by default
     setRealTimeEnabled(true);
     
-    Logger::instance().log(Logger::Info, "EtiFrameListModel", "Initialization completed successfully");
+    Logger::instance().log(Logger::Info, "EtiFrameListModel", "Modern ETI Core Engine initialization completed successfully");
     return true;
 }
 
@@ -468,7 +477,7 @@ QVariantMap EtiFrameListModel::getFrameStatistics() const
     return stats;
 }
 
-void EtiFrameListModel::onFrameProcessed(const EtisnoopWrapper::FrameAnalysis& analysis)
+void EtiFrameListModel::onFrameProcessed(const eti::modern::ETIParseResult& analysis)
 {
     FrameInfo frame = convertFromEtisnoopFrame(analysis);
     addFrame(frame);
@@ -493,10 +502,10 @@ void EtiFrameListModel::onProcessingError(const QString& error)
     addFrame(errorFrame);
 }
 
-void EtiFrameListModel::onStatsUpdated(const EtisnoopWrapper::ProcessingStats& stats)
+void EtiFrameListModel::onStatsUpdated(const eti::modern::ModernETIFrameParser::PerformanceStats& stats)
 {
-    // Update frame rate from ETISnoop wrapper statistics
-    m_currentFrameRate = stats.averageFrameRate;
+    // Update frame rate from Modern ETI Core statistics
+    m_currentFrameRate = stats.average_fps;
     emit frameRateChanged(m_currentFrameRate);
     emit statisticsChanged(getFrameStatistics());
 }
@@ -510,34 +519,37 @@ void EtiFrameListModel::updateStatistics()
     emit statisticsChanged(getFrameStatistics());
 }
 
-EtiFrameListModel::FrameInfo EtiFrameListModel::convertFromEtisnoopFrame(const EtisnoopWrapper::FrameAnalysis& analysis) const
+EtiFrameListModel::FrameInfo EtiFrameListModel::convertFromEtisnoopFrame(const eti::modern::ETIParseResult& analysis) const
 {
     FrameInfo frame;
-    frame.frameNumber = analysis.frameNumber;
-    frame.frameSize = analysis.rawData.size();
+    frame.frameNumber = analysis.frame_number;
+    frame.frameSize = 6144; // ETI frame size - rawData not available in ETIParseResult
     frame.timestamp = QDateTime::currentDateTime();
-    frame.processingTime = analysis.processingTime;
-    frame.hasErrors = !analysis.isValid;
-    frame.errorMessage = analysis.errorMessage;
-    frame.figData = analysis.figData;
-    frame.complianceData = analysis.compliance;
-    frame.rawData = analysis.rawData;
+    frame.processingTime = analysis.parse_time.count() / 1000.0; // Convert ns to microseconds
+    frame.hasErrors = !analysis.success;
+    frame.errorMessage = analysis.success ? QString() : "Parse failed";
+    frame.figData = QVariantMap(); // FIG data would need to be extracted from frame
+    frame.complianceData = QVariantMap(); // Compliance data would come from validation
+    frame.rawData = QByteArray(); // Raw data not directly available
     
-    // Detect frame type from raw data
-    frame.frameType = detectFrameType(analysis.rawData);
+    // Detect frame type - default to ETI_NI since we have parsed ETI frame
+    frame.frameType = FrameType::ETI_NI;
     
     // Determine frame status
-    if (!analysis.isValid) {
+    if (!analysis.success) {
         frame.status = FrameStatus::Error;
-    } else if (!analysis.errorMessage.isEmpty()) {
+    } else if (!frame.errorMessage.isEmpty()) {
         frame.status = FrameStatus::Warning;
     } else {
         frame.status = FrameStatus::Valid;
     }
     
     // Extract FIC and MSC information
-    frame.ficInfo = extractFicInfo(analysis.rawData);
-    frame.mscInfo = extractMscInfo(analysis.rawData);
+    // TODO: FIC/MSC extraction needs proper ETIParseResult integration
+    // frame.ficInfo = extractFicInfo(analysis.rawData);
+    // frame.mscInfo = extractMscInfo(analysis.rawData);
+    frame.ficInfo = "FIC parsing not yet integrated";
+    frame.mscInfo = "MSC parsing not yet integrated";
     
     // Calculate quality score
     frame.qualityScore = calculateQualityScore(frame);

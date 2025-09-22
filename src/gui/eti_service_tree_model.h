@@ -9,9 +9,21 @@
 #include <QIcon>
 #include <QDateTime>
 #include <memory>
-#include "core/etisnoop_wrapper.h"
 
-// Forward declarations
+#include "../core/eti_types.h"
+
+// Forward declarations for Modern ETI Core Engine
+namespace eti {
+namespace modern {
+    class ModernETIFrameParser;
+    class EnhancedFIGAnalyzer;
+    class ComprehensiveETSIValidator;
+    struct EnhancedServiceInfo;
+    struct EnhancedEnsembleInfo;
+    struct FIGAnalysisResult;
+    struct ETIParseResult;
+}
+}
 
 /**
  * @class EtiServiceTreeModel
@@ -167,7 +179,8 @@ public:
      * @param wrapper ETISnoop wrapper instance
      * @return true if successful
      */
-    bool initialize(EtisnoopWrapper *wrapper);
+    bool initializeWithModernEngine(eti::modern::ModernETIFrameParser *frameParser, 
+                                   eti::modern::EnhancedFIGAnalyzer *figAnalyzer);
 
     // QAbstractItemModel interface
     QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override;
@@ -191,6 +204,12 @@ public:
     void addService(const ServiceInfo& service);
 
     /**
+     * @brief Update FIG analysis data
+     * @param figAnalysis FIG analysis results
+     */
+    void updateFIGData(const FigAnalysis& figAnalysis);
+
+    /**
      * @brief Update service status
      * @param serviceId Service identifier
      * @param active Service active status
@@ -202,12 +221,6 @@ public:
      * @param subchannel Subchannel information
      */
     void addSubchannel(const SubchannelInfo& subchannel);
-
-    /**
-     * @brief Update FIG analysis data
-     * @param figData FIG analysis information
-     */
-    void updateFIGData(const FigAnalysis& figData);
 
     /**
      * @brief Get ensemble index
@@ -314,9 +327,10 @@ private slots:
     /**
      * @brief Handle ETISnoop wrapper signals
      */
-    void onServiceDiscovered(const EtisnoopWrapper::ServiceInfo& service);
-    void onEnsembleUpdated(const EtisnoopWrapper::EnsembleInfo& ensemble);
-    void onServiceStatusChanged(quint32 serviceId, bool isActive);
+    // Modern ETI Core Engine slot methods
+    void onModernServiceDiscovered(const eti::DabService& service);
+    void onModernEnsembleUpdated(const eti::modern::EnhancedEnsembleInfo& ensemble);
+    void onFIGAnalysisComplete(uint32_t frameNumber, const eti::modern::FIGAnalysisResult& analysis);
     void onFigAnalysisReady(const QVariantMap& figData);
 
     /**
@@ -400,18 +414,25 @@ private:
     void updateStatistics();
 
     /**
+     * @brief Convert DAB service to internal format
+     * @param service DAB service info
+     * @return Internal service info
+     */
+    ServiceInfo convertFromDabService(const eti::DabService& service) const;
+    
+    /**
      * @brief Convert ETISnoop service to internal format
      * @param etisnoopService ETISnoop service info
      * @return Internal service info
      */
-    ServiceInfo convertFromEtisnoopService(const EtisnoopWrapper::ServiceInfo& etisnoopService) const;
+    ServiceInfo convertFromModernService(const eti::modern::EnhancedServiceInfo& service) const;
 
     /**
      * @brief Convert ETISnoop ensemble to internal format
      * @param etisnoopEnsemble ETISnoop ensemble info
      * @return Internal ensemble info
      */
-    EnsembleInfo convertFromEtisnoopEnsemble(const EtisnoopWrapper::EnsembleInfo& etisnoopEnsemble) const;
+    EnsembleInfo convertFromModernEnsemble(const eti::modern::EnhancedEnsembleInfo& ensemble) const;
 
     /**
      * @brief Validate tree structure
@@ -420,7 +441,9 @@ private:
     bool validateTreeStructure() const;
 
     // Core components
-    EtisnoopWrapper *m_etisnoopWrapper;
+    // Modern ETI Core Engine components
+    eti::modern::ModernETIFrameParser *m_frameParser;
+    eti::modern::EnhancedFIGAnalyzer *m_figAnalyzer;
 
     // Tree structure
     std::shared_ptr<TreeItem> m_rootItem;

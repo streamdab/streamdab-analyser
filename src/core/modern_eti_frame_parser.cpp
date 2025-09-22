@@ -135,8 +135,9 @@ ETIParseResult ModernETIFrameParser::parseFrame(std::span<const uint8_t, ETI_FRA
         // Step 2: Check cache first for performance
         if (config_.enable_caching && cache_) {
             auto cached_result = cache_->lookup(frame_data);
-            if (cached_result.has_value()) {
-                result = std::move(cached_result.value());
+            if (cached_result) {
+                // Use cached result - create ETIParseResult from cached frame
+                result.frame = *cached_result;
                 result.performance.cache_hits++;
                 auto end_time = std::chrono::high_resolution_clock::now();
                 result.parse_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
@@ -391,7 +392,7 @@ ModernETIFrameParser::PerformanceStats ModernETIFrameParser::getPerformanceStats
         auto cache_stats = cache_->getStatistics();
         if (cache_stats.total_requests > 0) {
             stats.cache_hit_rate_percent = 
-                (cache_stats.hits * 100) / cache_stats.total_requests;
+                (cache_stats.cache_hits * 100) / cache_stats.total_requests;
         }
     }
     
@@ -418,7 +419,7 @@ void ModernETIFrameParser::resetStats() {
     }
     
     if (profiler_) {
-        profiler_->reset();
+        profiler_->resetStatistics();
     }
     
     compliance_stats_.etsi_799_violations.store(0);
@@ -530,6 +531,78 @@ void ModernETIFrameParser::updatePerformanceMetrics() {
                           .arg(stats.cache_hit_rate_percent));
 }
 
+double ModernETIFrameParser::calculateETSI799Compliance(const eti::EtiFrame& frame) {
+    double compliance_score = 100.0;
+    
+    // Basic frame structure validation
+    auto lidata = frame.get_lidata_field();
+    
+    // Check frame counter sequence
+    if (lidata.fc > 249) {
+        compliance_score -= 5.0; // Invalid frame counter
+    }
+    
+    // Check frame size
+    if (frame.frame_data.size() != 6144) {
+        compliance_score -= 10.0; // Invalid frame size
+    }
+    
+    // Additional ETSI EN 300 799 validations can be added here
+    return std::max(0.0, compliance_score);
+}
+
+double ModernETIFrameParser::calculateETSI401Compliance(const FIGAnalysisResult& result) {
+    double compliance_score = 100.0;
+    
+    // Check for essential FIG types
+    bool has_ensemble_info = result.has_ensemble_info();
+    bool has_services = result.has_services();
+    
+    if (!has_ensemble_info) {
+        compliance_score -= 20.0; // Missing ensemble information
+    }
+    
+    if (!has_services) {
+        compliance_score -= 15.0; // No services found
+    }
+    
+    // Check for compliance issues
+    compliance_score -= result.compliance.compliance_issues.size() * 5.0;
+    
+    return std::max(0.0, compliance_score);
+}
+
+void ModernETIFrameParser::validateFICStructure(const eti::EtiFrame& frame, eti::ValidationResult& result) const {
+    auto lidata = frame.get_lidata_field();
+    
+    if (lidata.ficf) {
+        // FIC present - validate structure
+        auto fic_field = frame.get_fic_field();
+        
+        if (sizeof(fic_field.fic_data) != 32) {
+            result.warnings.push_back("Invalid FIC size");
+            result.valid = false;
+        }
+        
+        // Additional FIC validation logic can be added here
+    } else {
+        result.warnings.push_back("No FIC data present");
+    }
+}
+
+void ModernETIFrameParser::validateMSCStructure(const eti::EtiFrame& frame, eti::ValidationResult& result) const {
+    auto lidata = frame.get_lidata_field();
+    
+    // Validate MSC structure
+    size_t expected_msc_size = (864 * (lidata.fl & 0x07));
+    auto msc_field = frame.get_msc_field();
+    
+    if (sizeof(msc_field.msc_data) != expected_msc_size) {
+        result.errors.push_back("MSC size mismatch");
+        result.valid = false;
+    }
+}
+
 double ModernETIFrameParser::calculateSpeedImprovement() const {
     // Compare against baseline ETISnoop wrapper performance
     // This would be measured during benchmarking
@@ -567,26 +640,36 @@ void ModernETIFrameParser::processFIG00_EnsembleInfo(const eti::FigBlock& fig, F
 }
 
 void ModernETIFrameParser::processFIG01_SubchannelOrg(const eti::FigBlock& fig, FIGAnalysisResult& result) {
+    (void)fig;
+    (void)result;
     // Implementation would parse subchannel organization
     Logger::instance().log(Logger::Debug, "ModernETIFrameParser", "Processing FIG 0/1: Subchannel organization");
 }
 
 void ModernETIFrameParser::processFIG02_ServiceOrg(const eti::FigBlock& fig, FIGAnalysisResult& result) {
+    (void)fig;
+    (void)result;
     // Implementation would parse service organization
     Logger::instance().log(Logger::Debug, "ModernETIFrameParser", "Processing FIG 0/2: Service organization");
 }
 
 void ModernETIFrameParser::processFIG03_ServiceComponent(const eti::FigBlock& fig, FIGAnalysisResult& result) {
+    (void)fig;
+    (void)result;
     // Implementation would parse service components
     Logger::instance().log(Logger::Debug, "ModernETIFrameParser", "Processing FIG 0/3: Service component");
 }
 
 void ModernETIFrameParser::processFIG10_EnsembleLabel(const eti::FigBlock& fig, FIGAnalysisResult& result) {
+    (void)fig;
+    (void)result;
     // Implementation would parse ensemble label
     Logger::instance().log(Logger::Debug, "ModernETIFrameParser", "Processing FIG 1/0: Ensemble label");
 }
 
 void ModernETIFrameParser::processFIG11_ServiceLabel(const eti::FigBlock& fig, FIGAnalysisResult& result) {
+    (void)fig;
+    (void)result;
     // Implementation would parse service labels
     Logger::instance().log(Logger::Debug, "ModernETIFrameParser", "Processing FIG 1/1: Service label");
 }

@@ -287,7 +287,11 @@ void PerformanceDashboard::connectEtiProcessor(EtiProcessor* processor)
     if (m_etiProcessor) {
         // Connect to ETI processor signals for real-time performance data
         connect(m_etiProcessor, &EtiProcessor::frameProcessed,
-                this, &PerformanceDashboard::onFrameProcessed, Qt::QueuedConnection);
+                this, [this](quint64 frameNumber, const QByteArray& /*data*/) {
+                    // Calculate processing time or use a default
+                    double processingTime = 1.0; // TODO: Get actual processing time
+                    onFrameProcessed(frameNumber, processingTime);
+                }, Qt::QueuedConnection);
         
         Logger::instance().log(Logger::Info, "PerformanceDashboard",
                               "Connected to ETI processor for real-time performance monitoring");

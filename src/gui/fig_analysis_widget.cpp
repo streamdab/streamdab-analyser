@@ -7,7 +7,6 @@
  */
 
 #include "fig_analysis_widget.h"
-#include "core/etisnoop_wrapper.h"
 #include "utils/logger.h"
 
 #include <QColor>
@@ -25,7 +24,7 @@
 
 FigAnalysisWidget::FigAnalysisWidget(QWidget *parent)
     : QWidget(parent)
-    , m_etisnoopWrapper(nullptr)
+    , m_figAnalyzer(nullptr)
     , m_mainLayout(nullptr)
     , m_mainTabs(nullptr)
     , m_overviewTab(nullptr)
@@ -88,21 +87,21 @@ FigAnalysisWidget::~FigAnalysisWidget()
     Logger::instance().log(Logger::Info, "FigAnalysisWidget", "Destructor completed");
 }
 
-bool FigAnalysisWidget::initialize(EtisnoopWrapper *wrapper)
+bool FigAnalysisWidget::initialize(eti::modern::EnhancedFIGAnalyzer *analyzer)
 {
-    if (!wrapper) {
-        Logger::instance().log(Logger::Error, "FigAnalysisWidget", "Invalid ETISnoop wrapper provided");
+    if (!analyzer) {
+        Logger::instance().log(Logger::Error, "FigAnalysisWidget", "Invalid FIG analyzer provided");
         return false;
     }
     
-    Logger::instance().log(Logger::Info, "FigAnalysisWidget", "Initializing with ETISnoop wrapper");
+    Logger::instance().log(Logger::Info, "FigAnalysisWidget", "Initializing with Enhanced FIG Analyzer");
     
-    m_etisnoopWrapper = wrapper;
+    m_figAnalyzer = analyzer;
     
-    // Connect ETISnoop wrapper signals (using generic signal names that should exist)
-    // Note: These connections would need to be adapted based on actual ETISnoop wrapper signals
-    connect(m_etisnoopWrapper, &EtisnoopWrapper::etsiComplianceIssue,
-            this, &FigAnalysisWidget::onEtsiComplianceIssue);
+    // Connect Modern ETI Core analyzer signals
+    // Note: These connections would need to be adapted based on actual analyzer signals
+    // connect(m_figAnalyzer, &eti::modern::EnhancedFIGAnalyzer::complianceIssue,
+    //         this, &FigAnalysisWidget::onEtsiComplianceIssue);
     
     // Enable real-time updates by default
     setRealTimeEnabled(true);

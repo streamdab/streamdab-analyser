@@ -1,9 +1,13 @@
 /**
  * @file performance_profiler.h
- * @brief Performance profiling and monitoring for ETI processing
+ * @brief Real-time Performance Profiler for Modern ETI Core Engine
  * 
- * Advanced performance monitoring to track and validate the >30% speed
- * improvement and >40% memory reduction targets for Phase 2 migration.
+ * Comprehensive performance monitoring and profiling system for ETI processing
+ * operations, providing detailed metrics and optimization insights.
+ * 
+ * @author Build Manager Agent
+ * @date 2025
+ * @copyright StreamDAB Analyzer Project
  */
 
 #pragma once
@@ -12,77 +16,28 @@
 #include <atomic>
 #include <vector>
 #include <string>
-#include <memory>
-#include <thread>
+#include <unordered_map>
+#include <mutex>
 
 namespace eti::modern {
 
 /**
- * @brief Detailed performance metrics
+ * @brief Performance metrics data structure
  */
-struct DetailedPerformanceMetrics {
-    // Processing metrics
-    std::atomic<uint64_t> frames_processed{0};
-    std::atomic<uint64_t> total_processing_time_ns{0};
-    std::atomic<uint64_t> peak_processing_time_ns{0};
-    std::atomic<uint64_t> min_processing_time_ns{UINT64_MAX};
-    
-    // Memory metrics
-    std::atomic<size_t> current_memory_bytes{0};
-    std::atomic<size_t> peak_memory_bytes{0};
-    std::atomic<size_t> allocated_memory_bytes{0};
-    std::atomic<size_t> deallocated_memory_bytes{0};
-    
-    // CPU metrics
-    std::atomic<double> cpu_usage_percent{0.0};
-    std::atomic<uint64_t> cpu_cycles_used{0};
-    std::atomic<double> cpu_efficiency{0.0};
-    
-    // Threading metrics
-    std::atomic<uint32_t> active_threads{0};
-    std::atomic<uint64_t> thread_context_switches{0};
-    std::atomic<uint64_t> thread_contention_events{0};
-    
-    // Cache metrics
-    std::atomic<uint64_t> cache_hits{0};
-    std::atomic<uint64_t> cache_misses{0};
-    std::atomic<uint64_t> cache_evictions{0};
-    
-    // Target validation
-    std::atomic<bool> speed_target_met{false};
-    std::atomic<bool> memory_target_met{false};
-    std::atomic<double> speed_improvement_percent{0.0};
-    std::atomic<double> memory_reduction_percent{0.0};
+struct PerformanceMetrics {
+    std::chrono::nanoseconds total_time{0};
+    std::chrono::nanoseconds min_time{std::chrono::nanoseconds::max()};
+    std::chrono::nanoseconds max_time{0};
+    std::chrono::nanoseconds avg_time{0};
+    uint64_t call_count{0};
+    uint64_t error_count{0};
 };
 
 /**
- * @brief Performance benchmark result
- */
-struct BenchmarkResult {
-    double average_fps;
-    double peak_fps;
-    double min_fps;
-    double average_memory_mb;
-    double peak_memory_mb;
-    double cpu_efficiency;
-    double cache_hit_rate;
-    
-    // Comparison with targets
-    bool meets_speed_target;
-    bool meets_memory_target;
-    double speed_improvement_percent;
-    double memory_reduction_percent;
-    
-    std::vector<std::string> performance_notes;
-    std::vector<std::string> optimization_recommendations;
-};
-
-/**
- * @brief Real-time performance profiler for ETI processing
+ * @brief High-performance profiler for ETI operations
  * 
- * Comprehensive performance monitoring and analysis to validate
- * Phase 2 migration performance targets and identify optimization
- * opportunities.
+ * Provides low-overhead performance monitoring for critical ETI processing
+ * paths with nanosecond precision timing and comprehensive statistics.
  */
 class PerformanceProfiler {
 public:
@@ -90,139 +45,130 @@ public:
     ~PerformanceProfiler();
 
     /**
-     * @brief Start performance monitoring
+     * @brief Start timing measurement for operation
+     * @param operation_name Name of the operation being timed
+     * @return Timer handle for ending measurement
      */
-    void start();
+    uint64_t startTiming(const std::string& operation_name);
 
     /**
-     * @brief Stop performance monitoring
+     * @brief End timing measurement
+     * @param timer_handle Handle returned from startTiming
      */
-    void stop();
+    void endTiming(uint64_t timer_handle);
 
     /**
-     * @brief Reset all performance counters
+     * @brief Record operation error
+     * @param operation_name Name of the operation that failed
      */
-    void reset();
+    void recordError(const std::string& operation_name);
 
     /**
-     * @brief Record frame processing event
-     * @param processing_time_ns Processing time in nanoseconds
+     * @brief Get performance metrics for operation
+     * @param operation_name Name of the operation
+     * @return Performance metrics or nullptr if not found
      */
-    void recordFrameProcessing(uint64_t processing_time_ns);
+    const PerformanceMetrics* getMetrics(const std::string& operation_name) const;
 
     /**
-     * @brief Record memory allocation event
-     * @param bytes Number of bytes allocated
+     * @brief Get all performance metrics
+     * @return Map of operation names to metrics
      */
-    void recordMemoryAllocation(size_t bytes);
+    std::unordered_map<std::string, PerformanceMetrics> getAllMetrics() const;
 
     /**
-     * @brief Record memory deallocation event
-     * @param bytes Number of bytes deallocated
+     * @brief Reset all performance statistics
      */
-    void recordMemoryDeallocation(size_t bytes);
+    void resetStatistics();
 
     /**
-     * @brief Record cache event
-     * @param hit True for cache hit, false for miss
+     * @brief Get current processing rate (operations per second)
+     * @param operation_name Name of the operation
+     * @return Operations per second
      */
-    void recordCacheEvent(bool hit);
+    double getProcessingRate(const std::string& operation_name) const;
 
     /**
-     * @brief Record cache eviction
+     * @brief Enable or disable profiling
+     * @param enabled true to enable profiling
      */
-    void recordCacheEviction();
+    void setEnabled(bool enabled);
 
     /**
-     * @brief Set performance targets for validation
+     * @brief Check if profiling is enabled
+     * @return true if profiling is enabled
+     */
+    bool isEnabled() const { return m_enabled; }
+
+    /**
+     * @brief Set target FPS for performance monitoring
      * @param target_fps Target frames per second
-     * @param baseline_fps Baseline performance for comparison
-     * @param memory_limit_mb Memory usage limit in MB
-     * @param baseline_memory_mb Baseline memory usage for comparison
      */
-    void setTargets(double target_fps, double baseline_fps, 
-                   double memory_limit_mb, double baseline_memory_mb);
+    void setTargetFPS(double target_fps);
 
     /**
-     * @brief Set target FPS
+     * @brief Set memory limit for performance monitoring
+     * @param memory_limit_bytes Memory limit in bytes
      */
-    void setTargetFPS(double fps) { target_fps_ = fps; }
+    void setMemoryLimit(size_t memory_limit_bytes);
 
     /**
-     * @brief Set memory limit
+     * @brief Get current memory usage
+     * @return Current memory usage in bytes
      */
-    void setMemoryLimit(size_t bytes) { memory_limit_bytes_ = bytes; }
+    size_t getCurrentMemoryUsage() const;
 
     /**
-     * @brief Get current performance metrics
+     * @brief Get current CPU efficiency
+     * @return CPU efficiency percentage (0-100)
      */
-    DetailedPerformanceMetrics getMetrics() const { return metrics_; }
-
-    /**
-     * @brief Get current memory usage in bytes
-     */
-    size_t getCurrentMemoryUsage() const { return metrics_.current_memory_bytes.load(); }
-
-    /**
-     * @brief Get current CPU efficiency (0.0 - 1.0)
-     */
-    double getCPUEfficiency() const { return metrics_.cpu_efficiency.load(); }
-
-    /**
-     * @brief Get current frames per second
-     */
-    double getCurrentFPS() const;
-
-    /**
-     * @brief Check if performance targets are being met
-     */
-    bool areTargetsMet() const;
-
-    /**
-     * @brief Get detailed benchmark results
-     */
-    BenchmarkResult getBenchmarkResults() const;
-
-    /**
-     * @brief Generate performance report
-     */
-    std::string generatePerformanceReport() const;
-
-    /**
-     * @brief Get optimization recommendations
-     */
-    std::vector<std::string> getOptimizationRecommendations() const;
+    double getCPUEfficiency() const;
 
 private:
-    DetailedPerformanceMetrics metrics_;
+    struct TimerEntry {
+        std::string operation_name;
+        std::chrono::high_resolution_clock::time_point start_time;
+        bool is_active{false};
+    };
+
+    mutable std::mutex m_metrics_mutex;
+    std::unordered_map<std::string, PerformanceMetrics> m_metrics;
+    std::unordered_map<uint64_t, TimerEntry> m_active_timers;
     
-    // Profiling control
-    std::atomic<bool> profiling_active_{false};
-    std::chrono::steady_clock::time_point start_time_;
-    std::chrono::steady_clock::time_point last_update_;
-    
-    // Targets and baselines
-    double target_fps_{1000.0};
-    double baseline_fps_{670.0}; // ETISnoop baseline
-    size_t memory_limit_bytes_{40 * 1024 * 1024}; // 40MB target
-    size_t baseline_memory_bytes_{100 * 1024 * 1024}; // 100MB baseline
-    
-    // Rolling averages for FPS calculation
-    std::vector<std::chrono::steady_clock::time_point> recent_frame_times_;
-    mutable std::mutex frame_times_mutex_;
-    
-    // CPU monitoring
-    std::unique_ptr<std::thread> cpu_monitor_thread_;
-    std::atomic<bool> cpu_monitoring_active_{false};
-    
-    // Internal methods
-    void updateCPUMetrics();
-    void updateMemoryMetrics();
-    void updateTargetValidation();
-    void cpuMonitorLoop();
-    double calculateCurrentFPS() const;
-    double calculateAverageFPS() const;
-    void cleanupOldFrameTimes();
+    std::atomic<uint64_t> m_next_timer_id{1};
+    std::atomic<bool> m_enabled{true};
+    std::chrono::high_resolution_clock::time_point m_start_time;
+
+    void updateMetrics(const std::string& operation_name, 
+                      std::chrono::nanoseconds duration);
+};
+
+/**
+ * @brief RAII-style timer for automatic profiling
+ */
+class ScopedTimer {
+public:
+    ScopedTimer(PerformanceProfiler& profiler, const std::string& operation_name)
+        : m_profiler(profiler)
+        , m_timer_id(profiler.startTiming(operation_name)) {}
+
+    ~ScopedTimer() {
+        m_profiler.endTiming(m_timer_id);
+    }
+
+    // Non-copyable, non-movable
+    ScopedTimer(const ScopedTimer&) = delete;
+    ScopedTimer& operator=(const ScopedTimer&) = delete;
+    ScopedTimer(ScopedTimer&&) = delete;
+    ScopedTimer& operator=(ScopedTimer&&) = delete;
+
+private:
+    PerformanceProfiler& m_profiler;
+    uint64_t m_timer_id;
 };
 
 } // namespace eti::modern
+
+// Convenience macro for scoped timing
+#define PROFILE_SCOPE(profiler, name) \
+    eti::modern::ScopedTimer _timer(profiler, name)

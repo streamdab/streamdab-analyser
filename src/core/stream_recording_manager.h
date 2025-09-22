@@ -28,6 +28,7 @@
 #include <functional>
 #include <vector>
 #include <string>
+#include <unordered_map>
 
 #include "eti_types.h"
 
@@ -88,6 +89,46 @@ struct RecordingSession {
     
     bool is_active = false;                       // Recording session active
     bool is_paused = false;                       // Recording session paused
+    
+    // Custom copy constructor to handle atomic members
+    RecordingSession() = default;
+    RecordingSession(const RecordingSession& other) 
+        : session_id(other.session_id)
+        , start_time(other.start_time)
+        , end_time(other.end_time)
+        , format(other.format)
+        , segmentation(other.segmentation)
+        , frames_recorded(other.frames_recorded.load())
+        , segments_created(other.segments_created.load())
+        , bytes_written(other.bytes_written.load())
+        , errors_encountered(other.errors_encountered.load())
+        , output_directory(other.output_directory)
+        , segment_files(other.segment_files)
+        , archive_files(other.archive_files)
+        , is_active(other.is_active)
+        , is_paused(other.is_paused)
+    {}
+    
+    // Custom assignment operator to handle atomic members
+    RecordingSession& operator=(const RecordingSession& other) {
+        if (this != &other) {
+            session_id = other.session_id;
+            start_time = other.start_time;
+            end_time = other.end_time;
+            format = other.format;
+            segmentation = other.segmentation;
+            frames_recorded = other.frames_recorded.load();
+            segments_created = other.segments_created.load();
+            bytes_written = other.bytes_written.load();
+            errors_encountered = other.errors_encountered.load();
+            output_directory = other.output_directory;
+            segment_files = other.segment_files;
+            archive_files = other.archive_files;
+            is_active = other.is_active;
+            is_paused = other.is_paused;
+        }
+        return *this;
+    }
     
     // Performance metrics
     double average_frame_rate = 0.0;              // Average recording frame rate
@@ -296,8 +337,8 @@ private:
     // Session management
     mutable QMutex m_sessions_mutex;
     QMap<QString, RecordingSession> m_sessions;
-    QMap<QString, std::unique_ptr<QThread>> m_worker_threads;
-    QMap<QString, std::unique_ptr<RecordingWorker>> m_workers;
+    std::unordered_map<std::string, std::unique_ptr<QThread>> m_worker_threads;
+    std::unordered_map<std::string, std::unique_ptr<RecordingWorker>> m_workers;
     
     // Configuration
     SegmentationConfig m_default_config;

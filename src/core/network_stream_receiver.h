@@ -54,7 +54,29 @@ struct NetworkStreamConfig {
 };
 
 /**
- * @brief Real-time network stream statistics
+ * @brief Copyable network stream statistics snapshot
+ */
+struct NetworkStreamStatisticsSnapshot {
+    size_t frames_received{0};
+    size_t frames_processed{0};
+    size_t frames_dropped{0};
+    size_t bytes_received{0};
+    size_t network_errors{0};
+    size_t buffer_overflows{0};
+    size_t buffer_underflows{0};
+    
+    double current_frame_rate{0.0};
+    double average_frame_rate{0.0};
+    double frame_loss_rate{0.0};
+    int64_t average_latency_us{0};
+    int64_t max_latency_us{0};
+    
+    std::chrono::steady_clock::time_point start_time;
+    std::chrono::steady_clock::time_point last_update;
+};
+
+/**
+ * @brief Real-time network stream statistics (atomic for thread safety)
  */
 struct NetworkStreamStatistics {
     std::atomic<size_t> frames_received{0};
@@ -221,7 +243,7 @@ public:
     size_t get_available_frame_count() const;
 
     // Statistics and monitoring
-    NetworkStreamStatistics get_statistics() const;
+    NetworkStreamStatisticsSnapshot get_statistics() const;
     double get_current_frame_rate() const;
     double get_average_frame_rate() const;
     double get_frame_loss_rate() const;

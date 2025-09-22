@@ -3,7 +3,7 @@
 #include <QSignalSpy>
 #include <QApplication>
 #include <QTime>
-#include "../../src/core/alert_system.h"
+#include "../../src/core/etsi/alert_system.h"
 #include "../../src/core/eti_types.h"
 
 using namespace testing;

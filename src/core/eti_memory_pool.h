@@ -22,18 +22,16 @@ namespace eti::modern {
  * @brief Memory pool statistics for monitoring
  */
 struct MemoryPoolStats {
-    std::atomic<size_t> total_allocations{0};
-    std::atomic<size_t> total_deallocations{0};
-    std::atomic<size_t> active_allocations{0};
-    std::atomic<size_t> pool_hits{0};
-    std::atomic<size_t> pool_misses{0};
-    std::atomic<size_t> peak_memory_usage{0};
-    std::atomic<size_t> current_memory_usage{0};
+    size_t total_allocations{0};
+    size_t total_deallocations{0};
+    size_t active_allocations{0};
+    size_t pool_hits{0};
+    size_t pool_misses{0};
+    size_t peak_memory_usage{0};
+    size_t current_memory_usage{0};
     
     double get_hit_rate() const {
-        size_t hits = pool_hits.load();
-        size_t misses = pool_misses.load();
-        return (hits + misses > 0) ? (static_cast<double>(hits) / (hits + misses)) : 0.0;
+        return (pool_hits + pool_misses > 0) ? (static_cast<double>(pool_hits) / (pool_hits + pool_misses)) : 0.0;
     }
 };
 
@@ -68,7 +66,10 @@ public:
     /**
      * @brief Get current memory usage in bytes
      */
-    size_t getCurrentMemoryUsage() const { return stats_.current_memory_usage.load(); }
+    size_t getCurrentMemoryUsage() const { 
+        std::lock_guard<std::mutex> lock(pool_mutex_);
+        return stats_.current_memory_usage; 
+    }
 
     /**
      * @brief Check if pool has available buffers

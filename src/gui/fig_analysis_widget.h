@@ -23,7 +23,10 @@
 #include <memory>
 
 // Forward declarations
-class EtisnoopWrapper;
+// Forward declarations for Modern ETI Core Engine
+namespace eti::modern {
+    class EnhancedFIGAnalyzer;
+}
 
 /**
  * @class FigAnalysisWidget
@@ -105,7 +108,7 @@ public:
      * @param wrapper ETISnoop wrapper instance
      * @return true if successful
      */
-    bool initialize(EtisnoopWrapper *wrapper);
+    bool initialize(eti::modern::EnhancedFIGAnalyzer *analyzer);
 
     /**
      * @brief Update FIG analysis data
@@ -371,7 +374,7 @@ private:
     bool validateFig02ServiceOrg();
 
     // Core components
-    EtisnoopWrapper *m_etisnoopWrapper;
+    eti::modern::EnhancedFIGAnalyzer *m_figAnalyzer;
 
     // Main layout
     QVBoxLayout *m_mainLayout;

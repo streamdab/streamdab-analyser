@@ -38,7 +38,7 @@
 #include <QMutex>
 #include <memory>
 
-#include "core/alert_system.h"
+#include "core/etsi/alert_system.h"
 
 /**
  * @class AlertConfigurationDialog

@@ -11,9 +11,17 @@
 #include <QList>
 #include <QHash>
 #include <memory>
-#include "core/etisnoop_wrapper.h"
+#include "core/modern_eti_frame_parser.h"
 
-// Forward declarations
+// Forward declarations for Modern ETI Core Engine
+namespace eti {
+namespace modern {
+    struct FrameAnalysisResult;
+}
+namespace compliance {
+    class ComprehensiveETSIValidator;
+}
+}
 
 /**
  * @class EtiFrameListModel
@@ -113,7 +121,8 @@ public:
      * @param wrapper ETISnoop wrapper instance
      * @return true if successful
      */
-    bool initialize(EtisnoopWrapper *wrapper);
+    bool initializeWithModernEngine(eti::modern::ModernETIFrameParser *frameParser, 
+                                   eti::compliance::ComprehensiveETSIValidator *etsiValidator);
 
     // QAbstractTableModel interface
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
@@ -244,9 +253,9 @@ private slots:
     /**
      * @brief Handle ETISnoop wrapper frame signals
      */
-    void onFrameProcessed(const EtisnoopWrapper::FrameAnalysis& analysis);
+    void onFrameProcessed(const eti::modern::ETIParseResult& analysis);
     void onProcessingError(const QString& error);
-    void onStatsUpdated(const EtisnoopWrapper::ProcessingStats& stats);
+    void onStatsUpdated(const eti::modern::ModernETIFrameParser::PerformanceStats& stats);
 
     /**
      * @brief Update frame statistics
@@ -259,7 +268,7 @@ private:
      * @param analysis ETISnoop frame analysis
      * @return Internal frame info
      */
-    FrameInfo convertFromEtisnoopFrame(const EtisnoopWrapper::FrameAnalysis& analysis) const;
+    FrameInfo convertFromEtisnoopFrame(const eti::modern::ETIParseResult& analysis) const;
 
     /**
      * @brief Get frame type from raw data
@@ -336,7 +345,9 @@ private:
     bool validateFrameData(const FrameInfo& frame) const;
 
     // Core components
-    EtisnoopWrapper *m_etisnoopWrapper;
+    // Modern ETI Core Engine components
+    eti::modern::ModernETIFrameParser *m_frameParser;
+    eti::compliance::ComprehensiveETSIValidator *m_etsiValidator;
 
     // Frame data storage
     QList<FrameInfo> m_frames;
