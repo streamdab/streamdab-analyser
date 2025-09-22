@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 # TDD MANDATE: All testing frameworks must be operational
 message(STATUS "=== TDD Framework Setup - Phase 1 Priority ===")
 
-# Find Google Test framework
+# Find Google Test framework with GMock
 find_package(GTest QUIET)
 if(NOT GTest_FOUND)
     message(STATUS "GTest not found, downloading and building from source")
@@ -13,7 +13,26 @@ if(NOT GTest_FOUND)
         GIT_REPOSITORY https://github.com/google/googletest.git
         GIT_TAG release-1.12.1
     )
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    set(gmock_build_tests OFF CACHE BOOL "" FORCE)
+    set(gtest_build_tests OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
+    # Make gmock and gtest available
+    set(GTEST_LIBS gtest gtest_main gmock gmock_main)
+else()
+    set(GTEST_LIBS GTest::GTest GTest::Main)
+    # Try to find GMock separately if GTest was found but GMock wasn't included
+    find_package(GMock QUIET)
+    if(GMock_FOUND)
+        list(APPEND GTEST_LIBS GMock::GMock GMock::Main)
+    else()
+        # Add gmock manually if available
+        find_library(GMOCK_LIB gmock)
+        find_library(GMOCK_MAIN_LIB gmock_main)
+        if(GMOCK_LIB AND GMOCK_MAIN_LIB)
+            list(APPEND GTEST_LIBS ${GMOCK_LIB} ${GMOCK_MAIN_LIB})
+        endif()
+    endif()
 endif()
 
 # Find Qt6 Test module for GUI testing
@@ -37,6 +56,9 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
     ${CMAKE_CURRENT_SOURCE_DIR}/../third_party
 )
+
+# Include TDD framework
+include(tdd_workflow.cmake)
 # TDD MANDATE: 80% minimum coverage enforcement
 set(COVERAGE_MINIMUM_PERCENTAGE 80)
 message(STATUS "TDD: Minimum coverage requirement: ${COVERAGE_MINIMUM_PERCENTAGE}%")
@@ -50,10 +72,14 @@ set(GTEST_UNIT_SOURCES
     # utils/test_file_utils.cpp  # Temporarily disabled - missing header
     utils/test_signal_processing.cpp
 
+    # TDD FRAMEWORK IMPLEMENTATION
+    tdd_framework.cpp
+
     # NEW COMPREHENSIVE TESTS FOR REAL IMPLEMENTATIONS
     unit/test_etsi_compliance_validation.cpp
     unit/test_real_service_discovery.cpp
     unit/test_cross_platform_performance.cpp
+    unit/test_modern_frame_parser.cpp
 
     # 100% ETSI COMPLIANCE VALIDATION TEST SUITE
     unit/test_100_percent_compliance.cpp
@@ -78,11 +104,26 @@ set(QT_GUI_TEST_SOURCES
     gui/test_service_browser.cpp
     gui/test_settings_dialog.cpp
     gui/test_about_dialog.cpp
+    # NEW PROFESSIONAL GUI TDD FRAMEWORK TESTS
+    gui/test_three_panel_professional_layout.cpp
+    gui/test_qt_designer_integration.cpp
+    gui/test_professional_user_workflows.cpp
+    gui/test_gui_performance_responsiveness.cpp
+)
+
+# E2E Test Framework - Complete workflow testing
+set(E2E_TEST_SOURCES
+    e2e/test_comprehensive_tdd_workflows.cpp
+    e2e/test_eti_file_processing.cpp
+    e2e/test_modern_eti_core_engine_integration.cpp
 )
 # GUI Test Framework Sources
 set(GUI_TEST_FRAMEWORK_SOURCES
     gui/gui_test_framework.h
     gui/gui_test_framework.cpp
+    # PROFESSIONAL GUI TDD FRAMEWORK
+    gui/professional_gui_tdd_framework.h
+    gui/professional_gui_tdd_framework.cpp
 )
 # GUI Mock Components
 set(GUI_MOCK_SOURCES
@@ -93,6 +134,13 @@ set(GUI_MOCK_SOURCES
 add_executable(eti_analyzer_unit_tests
     ${GTEST_UNIT_SOURCES}
     ${TEST_FIXTURE_SOURCES}
+)
+
+# E2E Test Executable - Complete workflow testing
+add_executable(eti_analyzer_e2e_tests
+    ${E2E_TEST_SOURCES}
+    ${TEST_FIXTURE_SOURCES}
+    tdd_framework.cpp
 )
 # TDD GUI TESTING: Professional Qt Test Framework Integration
 add_executable(eti_analyzer_gui_tests
@@ -115,7 +163,7 @@ add_executable(eti_analyzer_gui_tests
     ../src/gui/eti_analysis_widget.cpp
     # Add core sources that GUI depends on
     ../src/core/eti_processor.cpp
-    ../src/core/etisnoop_wrapper.cpp
+
     ../src/core/eti_file_worker.cpp
     ../src/core/eti_types.cpp
     ../src/core/dab_decoder.cpp
@@ -127,17 +175,21 @@ add_executable(eti_analyzer_gui_tests
     ../src/utils/logger.cpp
     ../src/utils/config_manager.cpp
 )
-# TDD FRAMEWORK: Link Google Test for unit tests
-if(GTest_FOUND)
-    set(GTEST_LIBS GTest::GTest GTest::Main)
-else()
-    set(GTEST_LIBS gtest gtest_main)
-endif()
-
+# TDD FRAMEWORK: Link Google Test for unit tests (GTEST_LIBS already set above)
 target_link_libraries(eti_analyzer_unit_tests
     ${GTEST_LIBS}
     Qt6::Core
     Qt6::Test
+    etisnoop_static
+)
+
+# Link E2E test executable
+target_link_libraries(eti_analyzer_e2e_tests
+    ${GTEST_LIBS}
+    Qt6::Core
+    Qt6::Test
+    Qt6::Widgets
+    Qt6::Gui
     etisnoop_static
 )
 # TDD REQUIREMENT: Link to main project components for testing
@@ -147,13 +199,15 @@ target_include_directories(eti_analyzer_unit_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/fixtures
     ${CMAKE_CURRENT_SOURCE_DIR}/mocks
 )
-# TDD FRAMEWORK: Link Qt Test for GUI tests with comprehensive framework
-if(GTest_FOUND)
-    set(GMOCK_LIBS GTest::GTest GTest::gmock)
-else()
-    set(GMOCK_LIBS gtest gmock)
-endif()
 
+# Include directories for E2E tests
+target_include_directories(eti_analyzer_e2e_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+    ${CMAKE_CURRENT_SOURCE_DIR}/mocks
+)
+# TDD FRAMEWORK: Link Qt Test for GUI tests with comprehensive framework
 target_link_libraries(eti_analyzer_gui_tests
     Qt6::Core
     Qt6::Test
@@ -161,7 +215,7 @@ target_link_libraries(eti_analyzer_gui_tests
     Qt6::Gui
     Qt6::Network
     etisnoop_static
-    ${GMOCK_LIBS}
+    ${GTEST_LIBS}
 )
 # TDD REQUIREMENT: Link to main project components for GUI testing
 target_include_directories(eti_analyzer_gui_tests PRIVATE
@@ -174,7 +228,7 @@ target_include_directories(eti_analyzer_gui_tests PRIVATE
 # This creates a more integrated testing approach
 set(MAIN_PROJECT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_processor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etisnoop_wrapper.cpp
+
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_file_worker.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_decoder.cpp
@@ -243,7 +297,6 @@ find_package(yaml-cpp QUIET)
 set(TEST_LIBS
     ${pkgcfg_lib_FAAD2_faad}
     ${pkgcfg_lib_FFTW3_fftw3}
-    etisnoop::etisnoop
 )
 if(yaml-cpp_FOUND)
     list(APPEND TEST_LIBS yaml-cpp::yaml-cpp)
@@ -257,12 +310,10 @@ target_link_libraries(eti_analyzer_gui_tests ${TEST_LIBS}
 target_include_directories(eti_analyzer_unit_tests PRIVATE
     ${FAAD2_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
-    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/etisnoop/src
 )
 target_include_directories(eti_analyzer_gui_tests PRIVATE
     ${FAAD2_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
-    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/etisnoop/src
 )
 # Compile definitions for dependencies
 target_compile_definitions(eti_analyzer_unit_tests PRIVATE
@@ -273,11 +324,18 @@ target_compile_definitions(eti_analyzer_gui_tests PRIVATE
     ${FAAD2_CFLAGS_OTHER}
     ${FFTW3_CFLAGS_OTHER}
 )
-# TDD MANDATE: Register both test suites with CTest
+# TDD MANDATE: Register all test suites with CTest
 add_test(NAME unit_tests
          COMMAND eti_analyzer_unit_tests)
 add_test(NAME gui_tests
          COMMAND eti_analyzer_gui_tests)
+add_test(NAME e2e_tests
+         COMMAND eti_analyzer_e2e_tests)
+
+# Register individual test categories using TDD framework
+tdd_register_test(eti_analyzer_unit_tests "UNIT" "CRITICAL")
+tdd_register_test(eti_analyzer_gui_tests "GUI" "HIGH")
+tdd_register_test(eti_analyzer_e2e_tests "E2E" "CRITICAL")
 # TDD FRAMEWORK: Test discovery integration
 # Note: eti_analyzer_unit_tests uses Qt Test framework, not Google Test
 # Google Test discovery is not applicable for Qt Test executables
@@ -290,25 +348,33 @@ endif()
 add_custom_target(tdd_red_phase
     COMMAND echo "🔴 TDD RED Phase: Running failing tests to verify test correctness"
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --verbose || true
-    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests
+    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests
     COMMENT "TDD RED: Expecting test failures (this is correct!)"
 )
 add_custom_target(tdd_green_phase
     COMMAND echo "🟢 TDD GREEN Phase: Running tests expecting all to pass"
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --verbose
-    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests
+    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests
     COMMENT "TDD GREEN: All tests must pass"
 )
 add_custom_target(run_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --verbose
-    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests
+    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests
     COMMENT "Running all TDD test suites"
 )
 add_custom_target(run_tests_quiet
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests
+    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests
     COMMENT "Running all tests (quiet mode)"
 )
+
+# TDD Workflow enforcement targets
+tdd_create_quality_gate(tdd_core_gate eti_analyzer_unit_tests)
+tdd_create_quality_gate(tdd_integration_gate eti_analyzer_e2e_tests)
+tdd_create_quality_gate(tdd_full_gate eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests)
+
+# TDD Compliance check
+tdd_create_compliance_check()
 add_custom_target(run_unit_tests_only
     COMMAND eti_analyzer_unit_tests --gtest_output=xml:unit_test_results.xml
     DEPENDS eti_analyzer_unit_tests
@@ -318,6 +384,12 @@ add_custom_target(run_gui_tests_only
     COMMAND eti_analyzer_gui_tests
     DEPENDS eti_analyzer_gui_tests
     COMMENT "Running GUI tests only"
+)
+
+add_custom_target(run_e2e_tests_only
+    COMMAND eti_analyzer_e2e_tests
+    DEPENDS eti_analyzer_e2e_tests
+    COMMENT "Running E2E tests only"
 )
 
 # TDD FRAMEWORK: 100% ETSI Compliance Validation Target
@@ -388,6 +460,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_link_options(eti_analyzer_unit_tests PRIVATE --coverage)
         target_compile_options(eti_analyzer_gui_tests PRIVATE --coverage)
         target_link_options(eti_analyzer_gui_tests PRIVATE --coverage)
+        target_compile_options(eti_analyzer_e2e_tests PRIVATE --coverage)
+        target_link_options(eti_analyzer_e2e_tests PRIVATE --coverage)
         find_program(GCOV_EXECUTABLE gcov)
         find_program(LCOV_EXECUTABLE lcov)
         find_program(GENHTML_EXECUTABLE genhtml)
@@ -505,6 +579,7 @@ message(STATUS "AVAILABLE TEST TARGETS:")
 message(STATUS "  - run_tests: Run all TDD test suites")
 message(STATUS "  - run_unit_tests_only: Unit tests with Google Test")
 message(STATUS "  - run_gui_tests_only: GUI tests with Qt Test")
+message(STATUS "  - run_e2e_tests_only: End-to-end workflow tests")
 message(STATUS "  - run_performance_tests: Comprehensive performance validation")
 message(STATUS "  - run_tests_quiet: Minimal output testing")
 message(STATUS "")

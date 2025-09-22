@@ -7,6 +7,7 @@
  */
 
 #include "stream_recording_manager.h"
+#include "../utils/logger.h"
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QStandardPaths>
@@ -590,7 +591,7 @@ StreamRecordingManager::~StreamRecordingManager() {
     }
     
     // Cleanup worker threads
-    for (auto& [session_id, thread] : m_worker_threads) {
+    for (auto& [session_key, thread] : m_worker_threads) {
         if (thread && thread->isRunning()) {
             thread->quit();
             if (!thread->wait(5000)) {
@@ -653,7 +654,8 @@ bool StreamRecordingManager::stop_recording_session(const QString& session_id) {
     }
     
     // Stop worker
-    auto worker_it = m_workers.find(session_id);
+    std::string session_key = session_id.toStdString();
+    auto worker_it = m_workers.find(session_key);
     if (worker_it != m_workers.end() && worker_it->second) {
         QMetaObject::invokeMethod(worker_it->second.get(), "stop_recording", Qt::QueuedConnection);
     }
@@ -678,7 +680,8 @@ void StreamRecordingManager::record_frame(const QString& session_id, const EtiFr
         return;
     }
     
-    auto worker_it = m_workers.find(session_id);
+    std::string session_key = session_id.toStdString();
+    auto worker_it = m_workers.find(session_key);
     if (worker_it != m_workers.end() && worker_it->second) {
         QMetaObject::invokeMethod(worker_it->second.get(), "record_frame", 
                                  Qt::QueuedConnection, Q_ARG(eti::EtiFrame, frame));
@@ -740,18 +743,20 @@ void StreamRecordingManager::initialize_session_worker(const QString& session_id
             this, &StreamRecordingManager::handle_worker_disk_warning);
     
     // Store worker and thread
-    m_workers[session_id] = std::move(worker);
-    m_worker_threads[session_id] = std::move(worker_thread);
+    std::string session_key = session_id.toStdString();
+    m_workers[session_key] = std::move(worker);
+    m_worker_threads[session_key] = std::move(worker_thread);
     
     // Start worker thread
-    m_worker_threads[session_id]->start();
+    m_worker_threads[session_key]->start();
     
     // Start recording
-    QMetaObject::invokeMethod(m_workers[session_id].get(), "start_recording", Qt::QueuedConnection);
+    QMetaObject::invokeMethod(m_workers[session_key].get(), "start_recording", Qt::QueuedConnection);
 }
 
 void StreamRecordingManager::cleanup_session_worker(const QString& session_id) {
-    auto thread_it = m_worker_threads.find(session_id);
+    std::string session_key = session_id.toStdString();
+    auto thread_it = m_worker_threads.find(session_key);
     if (thread_it != m_worker_threads.end() && thread_it->second) {
         thread_it->second->quit();
         if (!thread_it->second->wait(5000)) {
@@ -761,7 +766,7 @@ void StreamRecordingManager::cleanup_session_worker(const QString& session_id) {
         m_worker_threads.erase(thread_it);
     }
     
-    auto worker_it = m_workers.find(session_id);
+    auto worker_it = m_workers.find(session_key);
     if (worker_it != m_workers.end()) {
         m_workers.erase(worker_it);
     }
@@ -910,6 +915,24 @@ std::unique_ptr<StreamRecordingManager> StreamRecordingManagerFactory::create_ar
     return manager;
 }
 
+// Missing method implementations
+
+void StreamRecordingManager::set_default_segmentation_config(const SegmentationConfig& config) {
+    Logger::instance().log(Logger::Info, "StreamRecordingManager", "set_default_segmentation_config - Stub implementation");
+    Q_UNUSED(config);
+    // TODO: TDD Agent - Implement segmentation configuration
+}
+
+void StreamRecordingManager::enable_realtime_compression(bool enabled) {
+    Logger::instance().log(Logger::Info, "StreamRecordingManager", QString("enable_realtime_compression: %1").arg(enabled ? "true" : "false"));
+    // TODO: TDD Agent - Implement realtime compression control
+}
+
+void StreamRecordingManager::set_compression_level(int level) {
+    Logger::instance().log(Logger::Info, "StreamRecordingManager", QString("set_compression_level: %1").arg(level));
+    // TODO: TDD Agent - Implement compression level setting
+}
+
 } // namespace eti
 
-#include "stream_recording_manager.moc"
+// MOC file inclusion handled automatically by CMake

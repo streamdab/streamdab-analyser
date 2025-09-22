@@ -1,3 +1,0 @@
-[submodule "third_party/etisnoop"]
-	path = third_party/etisnoop
-	url = git@github.com:sekz/etisnoop.git

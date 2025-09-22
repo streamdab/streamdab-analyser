@@ -817,7 +817,8 @@ void MultiStreamProcessor::cleanup_stream_worker(const QString& stream_id) {
             thread_it->second->terminate();
             thread_it->second->wait(1000);
         }
-        m_worker_threads.erase(thread_it);
+        // Use remove() instead of erase() for QMap with unique_ptr
+        m_worker_threads.remove(stream_id);
     }
     
     auto worker_it = m_workers.find(stream_id);

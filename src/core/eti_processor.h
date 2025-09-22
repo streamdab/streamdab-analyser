@@ -5,7 +5,9 @@
 #include <QByteArray>
 #include <memory>
 #include "eti_types.h"
-#include "etisnoop_wrapper.h"
+#include "modern_eti_frame_parser.h"
+#include "enhanced_fig_analyzer.h"
+#include "performance_profiler.h"
 
 /**
  * @class EtiProcessor
@@ -51,10 +53,16 @@ public:
     bool processData(const QByteArray& data);
 
     /**
-     * @brief Get ETISnoop wrapper instance for direct access
-     * @return ETISnoop wrapper instance
+     * @brief Get Modern ETI Frame Parser instance for direct access
+     * @return Modern ETI parser instance
      */
-    EtisnoopWrapper* getEtisnoopWrapper() const { return m_etisnoopWrapper.get(); }
+    eti::modern::ModernETIFrameParser* getETIParser() const { return m_frameParser.get(); }
+
+    /**
+     * @brief Get Enhanced FIG Analyzer instance for direct access
+     * @return Enhanced FIG analyzer instance
+     */
+    eti::modern::EnhancedFIGAnalyzer* getFIGAnalyzer() const { return m_figAnalyzer.get(); }
 
     /**
      * @brief Check if processor is initialized
@@ -80,6 +88,41 @@ public:
      * @return true if frame was processed successfully
      */
     bool processEtiFrame(const QByteArray& frameData);
+
+    /**
+     * @brief Get current ETSI compliance status
+     * @return Current compliance status structure
+     */
+    eti::ETSIComplianceResult getComplianceStatus() const;
+
+    /**
+     * @brief Get discovered services
+     * @return Vector of discovered DAB services
+     */
+    std::vector<eti::DabService> getDiscoveredServices() const { return m_discoveredServices; }
+
+    /**
+     * @brief Get current ensemble information
+     * @return Current ensemble structure
+     */
+    eti::Ensemble getCurrentEnsemble() const { return m_currentEnsemble; }
+
+    /**
+     * @brief Get subchannel organization
+     * @return Vector of subchannel information
+     */
+    std::vector<eti::SubChannelInfo> getSubchannels() const { return m_subchannels; }
+
+    /**
+     * @brief Get processing performance statistics
+     * @return Current processing rate in FPS
+     */
+    double getProcessingRate() const { return m_averageFrameRate; }
+
+    /**
+     * @brief Reset processor state for new analysis
+     */
+    void reset();
 
 private:
     // ETI frame validation methods
@@ -118,8 +161,7 @@ private:
     void optimizeProcessingPipeline();
     void updateProcessingStatistics();
     
-    // Enhanced service management
-    eti::Ensemble getCurrentEnsemble() const { return m_currentEnsemble; }
+    // Enhanced service management (public methods moved to public section above)
     std::vector<eti::DabService> getCurrentServices() const { return m_discoveredServices; }
     std::vector<eti::SubChannelInfo> getCurrentSubchannels() const { return m_subchannels; }
     
@@ -180,17 +222,23 @@ signals:
     void serviceQualityChanged(uint16_t serviceId, double signalStrength, double errorRate);
 
 private slots:
-    // ETISnoop wrapper signal handlers
-    void onEtisnoopFrameProcessed(const EtisnoopWrapper::FrameAnalysis& analysis);
-    void onEtisnoopServiceDiscovered(const EtisnoopWrapper::ServiceInfo& service);
-    void onEtisnoopEnsembleUpdated(const EtisnoopWrapper::EnsembleInfo& ensemble);
-    void onEtisnoopError(const QString& error);
-    void onEtisnoopStatsUpdated(const EtisnoopWrapper::ProcessingStats& stats);
-    void onEtisnoopThaiComplianceChanged(const EtisnoopWrapper::ThaiComplianceStatus& status);
+    // Modern ETI Core Engine signal handlers
+    void onModernFrameProcessed(uint32_t frameNumber, const eti::EtiFrame& frame, 
+                               std::chrono::nanoseconds parseTime);
+    void onFIGAnalysisComplete(uint32_t frameNumber, const eti::modern::FIGAnalysisResult& analysis);
+    void onModernEnsembleDiscovered(const eti::modern::EnhancedEnsembleInfo& ensemble);
+    void onModernServiceDiscovered(const eti::modern::EnhancedServiceInfo& service);
+    void onComplianceIssueDetected(const QString& standard, const QString& issue, const QString& severity);
+    void onPerformanceTargetResult(bool targetMet, double currentFps, double targetFps);
 
 private:
-    // ETISnoop integration
-    std::unique_ptr<EtisnoopWrapper> m_etisnoopWrapper;
+    // Modern ETI Core Engine components
+    std::unique_ptr<eti::modern::ModernETIFrameParser> m_frameParser;
+    std::unique_ptr<eti::modern::EnhancedFIGAnalyzer> m_figAnalyzer;
+    std::unique_ptr<eti::modern::PerformanceProfiler> m_profiler;
+    
+    // Processing configuration
+    eti::modern::ProcessingConfig m_processingConfig;
     
     bool m_initialized;
     quint64 m_frameCount;
@@ -209,10 +257,10 @@ private:
     double m_averageFrameRate;
     uint64_t m_totalProcessingTime;
     
-    // Performance measurement utilities
+    // Modern ETI Core Engine utilities
     double getCurrentMemoryUsage() const;
     void validatePerformanceTargets(double fps, double memoryMB);
-    void generatePerformanceReport(const EtisnoopWrapper::ProcessingStats& stats);
+    void generatePerformanceReport(const eti::modern::ModernETIFrameParser::PerformanceStats& stats);
     
     // ETSI compliance tracking
     struct ComplianceStatus {

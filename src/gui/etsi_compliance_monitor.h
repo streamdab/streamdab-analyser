@@ -379,8 +379,8 @@ private:
     QMutex m_dataMutex;
     
     // Filter state
-    ETSIViolation::Severity m_severityFilter;
-    ETSIViolation::Category m_categoryFilter;
+    ETSIViolation::Severity m_selectedSeverity;
+    ETSIViolation::Category m_selectedCategory;
     bool m_showAllCategories;
     bool m_showAllSeverities;
     

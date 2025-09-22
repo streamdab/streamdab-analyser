@@ -41,7 +41,6 @@ class AboutDialog;
 class EtiProcessor;
 class EtiFileWorker;
 class ConfigManager;
-class EtisnoopWrapper;
 class EtiServiceTreeModel;
 class EtiFrameListModel;
 class AudioMonitoringWidget;
@@ -50,6 +49,17 @@ class ServiceExplorerPanel;
 class EtiAnalysisWidget;
 class PerformanceDashboard;
 class ETSIComplianceMonitor;
+
+// Modern ETI Core Engine components
+namespace eti {
+namespace modern {
+    class ModernETIFrameParser;
+    class EnhancedFIGAnalyzer;
+}
+namespace compliance {
+    class ComprehensiveETSIValidator;
+}
+}
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -418,7 +428,11 @@ private:
     std::unique_ptr<EtiProcessor> m_etiProcessor;
     std::unique_ptr<EtiFileWorker> m_etiFileWorker;
     std::unique_ptr<ConfigManager> m_configManager;
-    std::unique_ptr<EtisnoopWrapper> m_etisnoopWrapper;
+    
+    // Modern ETI Core Engine components
+    std::unique_ptr<eti::modern::ModernETIFrameParser> m_modernFrameParser;
+    std::unique_ptr<eti::modern::EnhancedFIGAnalyzer> m_enhancedFIGAnalyzer;
+    std::unique_ptr<eti::compliance::ComprehensiveETSIValidator> m_etsiValidator;
 
     // ETI-specific models for professional UI
     EtiServiceTreeModel *m_serviceTreeModel;

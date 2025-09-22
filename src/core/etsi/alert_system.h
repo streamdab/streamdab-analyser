@@ -35,6 +35,7 @@
 #include <mutex>
 #include <queue>
 #include <thread>
+#include <condition_variable>
 
 namespace etsi {
 namespace alerts {
@@ -460,5 +461,33 @@ namespace utils {
 
 } // namespace alerts
 } // namespace etsi
+
+// Backward compatibility wrapper for legacy GUI components
+class AlertSystem {
+public:
+    using AlertLevel = etsi::alerts::AlertSeverity;
+    using AlertType = etsi::alerts::AlertCategory;
+    
+    explicit AlertSystem(const etsi::alerts::AlertSystemConfig& config = {})
+        : impl_(std::make_unique<etsi::alerts::EtsiAlertSystem>(config)) {}
+    
+    bool initialize() { return impl_->initialize(); }
+    void shutdown() { impl_->shutdown(); }
+    
+    std::vector<etsi::alerts::Alert> get_active_alerts() const {
+        return impl_->get_active_alerts();
+    }
+    
+    bool acknowledge_alert(uint64_t alert_id) {
+        return impl_->acknowledge_alert(alert_id);
+    }
+    
+    void generate_emergency_alert(const std::string& title, const std::string& message) {
+        impl_->generate_emergency_alert(title, message);
+    }
+    
+private:
+    std::unique_ptr<etsi::alerts::EtsiAlertSystem> impl_;
+};
 
 #endif // ETSI_ALERT_SYSTEM_H

@@ -4,6 +4,9 @@
 #include <memory>
 
 #include "core/eti_processor.h"
+#include "core/modern_eti_frame_parser.h"
+#include "core/enhanced_fig_analyzer.h"
+#include "core/comprehensive_etsi_validator.h"
 #include "gui/main_window.h"
 
 /**

@@ -48,10 +48,11 @@ ETIFrameMemoryPool::~ETIFrameMemoryPool() {
                               .arg(active_blocks));
     }
     
+    std::lock_guard<std::mutex> lock(pool_mutex_);
     Logger::instance().log(Logger::Info, "ETIFrameMemoryPool", 
                           QString("Memory pool destroyed - Stats: %1 allocs, %2 deallocs, %.1f%% hit rate")
-                          .arg(stats_.total_allocations.load())
-                          .arg(stats_.total_deallocations.load())
+                          .arg(stats_.total_allocations)
+                          .arg(stats_.total_deallocations)
                           .arg(stats_.get_hit_rate() * 100.0));
 }
 
@@ -63,7 +64,7 @@ uint8_t* ETIFrameMemoryPool::allocate() {
     if (block_index == SIZE_MAX) {
         // No free blocks, try to expand pool
         if (!expandPool()) {
-            stats_.pool_misses.fetch_add(1);
+            stats_.pool_misses++;
             Logger::instance().log(Logger::Warning, "ETIFrameMemoryPool", 
                                   "Pool allocation failed - maximum memory reached");
             return nullptr;
@@ -81,18 +82,16 @@ uint8_t* ETIFrameMemoryPool::allocate() {
         free_indices_.erase(it);
     }
     
-    stats_.total_allocations.fetch_add(1);
-    stats_.active_allocations.fetch_add(1);
-    stats_.pool_hits.fetch_add(1);
+    stats_.total_allocations++;
+    stats_.active_allocations++;
+    stats_.pool_hits++;
     
-    size_t current_usage = stats_.active_allocations.load() * block_size_;
-    stats_.current_memory_usage.store(current_usage);
+    size_t current_usage = stats_.active_allocations * block_size_;
+    stats_.current_memory_usage = current_usage;
     
     // Update peak usage
-    size_t peak = stats_.peak_memory_usage.load();
-    while (current_usage > peak && 
-           !stats_.peak_memory_usage.compare_exchange_weak(peak, current_usage)) {
-        // Retry if another thread updated peak
+    if (current_usage > stats_.peak_memory_usage) {
+        stats_.peak_memory_usage = current_usage;
     }
     
     return memory_blocks_[block_index].data.get();
@@ -111,9 +110,9 @@ void ETIFrameMemoryPool::deallocate(uint8_t* buffer) {
                 memory_blocks_[i].last_used = std::chrono::steady_clock::now();
                 free_indices_.push_back(i);
                 
-                stats_.total_deallocations.fetch_add(1);
-                stats_.active_allocations.fetch_sub(1);
-                stats_.current_memory_usage.store(stats_.active_allocations.load() * block_size_);
+                stats_.total_deallocations++;
+                stats_.active_allocations--;
+                stats_.current_memory_usage = stats_.active_allocations * block_size_;
                 
                 return;
             } else {

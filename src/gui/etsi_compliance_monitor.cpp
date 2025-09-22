@@ -52,8 +52,8 @@ ETSIComplianceMonitor::ETSIComplianceMonitor(QWidget *parent)
     , m_etiProcessor(nullptr)
     , m_updateTimer(nullptr)
     , m_monitoringActive(false)
-    , m_severityFilter(ETSIViolation::Info)
-    , m_categoryFilter(ETSIViolation::FIG_Structure)
+    , m_selectedSeverity(ETSIViolation::Info)
+    , m_selectedCategory(ETSIViolation::FIG_Structure)
     , m_showAllCategories(true)
     , m_showAllSeverities(true)
 {
@@ -623,7 +623,7 @@ QIcon ETSIComplianceMonitor::getCategoryIcon(ETSIViolation::Category category) c
         case ETSIViolation::Timing_Compliance:
             return QApplication::style()->standardIcon(QStyle::SP_BrowserReload);
         case ETSIViolation::Thai_Standards:
-            return QApplication::style()->standardIcon(QStyle::SP_DialogInformation);
+            return QApplication::style()->standardIcon(QStyle::SP_MessageBoxInformation);
         default:
             return QApplication::style()->standardIcon(QStyle::SP_MessageBoxQuestion);
     }
@@ -649,12 +649,12 @@ void ETSIComplianceMonitor::applyFilters()
             
             // Apply severity filter
             if (!m_showAllSeverities) {
-                showItem &= (violation.severity >= m_severityFilter);
+                showItem &= (violation.severity >= m_selectedSeverity);
             }
             
             // Apply category filter
             if (!m_showAllCategories) {
-                showItem &= (violation.category == m_categoryFilter);
+                showItem &= (violation.category == m_selectedCategory);
             }
             
             item->setHidden(!showItem);
@@ -767,7 +767,7 @@ void ETSIComplianceMonitor::onSeverityFilterChanged(int severityIndex)
 {
     m_showAllSeverities = (severityIndex == 0);
     if (!m_showAllSeverities) {
-        m_severityFilter = static_cast<ETSIViolation::Severity>(severityIndex - 1);
+        m_selectedSeverity = static_cast<ETSIViolation::Severity>(severityIndex - 1);
     }
     applyFilters();
 }
@@ -776,7 +776,7 @@ void ETSIComplianceMonitor::onCategoryFilterChanged(int categoryIndex)
 {
     m_showAllCategories = (categoryIndex == 0);
     if (!m_showAllCategories) {
-        m_categoryFilter = static_cast<ETSIViolation::Category>(categoryIndex - 1);
+        m_selectedCategory = static_cast<ETSIViolation::Category>(categoryIndex - 1);
     }
     applyFilters();
 }
@@ -856,4 +856,25 @@ void ETSIComplianceMonitor::applyBroadcastingTheme()
      .arg(ACCENT_BLUE.name())
      .arg(TEXT_PRIMARY.name())
      .arg(STATUS_GOOD.name()));
+}
+
+// Missing method implementations
+
+void ETSIComplianceMonitor::onEtiComplianceUpdate(quint64 frameNumber, const QList<ETSIViolation>& violations) {
+    Logger::instance().log(Logger::Debug, "ETSIComplianceMonitor", QString("onEtiComplianceUpdate: frame %1, violations: %2").arg(frameNumber).arg(violations.size()));
+    // TODO: TDD Agent - Implement compliance update handling
+    Q_UNUSED(frameNumber);
+    Q_UNUSED(violations);
+}
+
+void ETSIComplianceMonitor::filterByCategory(ETSIViolation::Category category) {
+    Logger::instance().log(Logger::Debug, "ETSIComplianceMonitor", QString("filterByCategory: %1").arg(static_cast<int>(category)));
+    // TODO: TDD Agent - Implement category filtering
+    Q_UNUSED(category);
+}
+
+void ETSIComplianceMonitor::filterBySeverity(ETSIViolation::Severity severity) {
+    Logger::instance().log(Logger::Debug, "ETSIComplianceMonitor", QString("filterBySeverity: %1").arg(static_cast<int>(severity)));
+    // TODO: TDD Agent - Implement severity filtering
+    Q_UNUSED(severity);
 }

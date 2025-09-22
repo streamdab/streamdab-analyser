@@ -537,6 +537,87 @@ struct ValidationResult {
 };
 
 /**
+ * @brief Service Type enumeration for DAB services
+ * Reference: ETSI EN 300 401 Section 8.1
+ */
+enum class ServiceType : uint8_t {
+    DAB_AUDIO = 0x00,       // DAB audio service
+    DAB_PLUS_AUDIO = 0x01,  // DAB+ audio service (HE-AAC)
+    DATA_SERVICE = 0x02,    // Data service
+    PACKET_MODE = 0x03,     // Packet mode data
+    MSC_DATA = 0x04,        // MSC stream data
+    FIDC = 0x05,           // Fast Information Data Channel
+    UNKNOWN = 0xFF          // Unknown/invalid service type
+};
+
+/**
+ * @brief Service Information structure for testing and analysis
+ * This structure provides a simplified interface for service discovery tests
+ * while maintaining compatibility with the full DabService structure.
+ */
+struct ServiceInfo {
+    uint16_t service_id;        // Service identifier (SId)
+    std::string label;          // Service name/label (changed from 'name' to match test expectations)
+    ServiceType service_type;   // Type of service
+    uint16_t bitrate;          // Service bitrate in kbps
+    uint8_t protection_level;   // Protection level (1-5)
+    
+    // Constructor with default values
+    ServiceInfo() 
+        : service_id(0)
+        , label()
+        , service_type(ServiceType::UNKNOWN)
+        , bitrate(0)
+        , protection_level(1)
+    {
+    }
+    
+    // Constructor for easy initialization in tests
+    ServiceInfo(uint16_t sid, const std::string& service_label, 
+                ServiceType type, uint16_t br, uint8_t protection)
+        : service_id(sid)
+        , label(service_label)
+        , service_type(type)
+        , bitrate(br)
+        , protection_level(protection)
+    {
+    }
+    
+    // Validation methods
+    bool is_valid() const {
+        return service_id != 0 && 
+               service_type != ServiceType::UNKNOWN &&
+               protection_level >= 1 && protection_level <= 5;
+    }
+    
+    // Type checking methods
+    bool is_audio_service() const {
+        return service_type == ServiceType::DAB_AUDIO || 
+               service_type == ServiceType::DAB_PLUS_AUDIO;
+    }
+    
+    bool is_data_service() const {
+        return service_type == ServiceType::DATA_SERVICE ||
+               service_type == ServiceType::PACKET_MODE ||
+               service_type == ServiceType::MSC_DATA ||
+               service_type == ServiceType::FIDC;
+    }
+    
+    bool is_dab_plus() const {
+        return service_type == ServiceType::DAB_PLUS_AUDIO;
+    }
+    
+    // Convert to full DabService structure
+    DabService to_dab_service() const {
+        DabService service;
+        service.service_id = service_id;
+        service.label = label;
+        service.is_programme = is_audio_service();
+        return service;
+    }
+};
+
+/**
  * @brief Protection level enumeration
  * Reference: ETSI EN 300 401 Section 11.1
  */
@@ -559,6 +640,68 @@ enum class FigType : uint8_t {
     FIG_1_0_ENSEMBLE_LABEL = 0x10,
     FIG_1_1_SERVICE_LABEL = 0x11,
     // Additional FIG types as needed
+};
+
+/**
+ * @brief ETSI Compliance Test Result
+ * Used for testing and validation of ETSI compliance features
+ */
+struct ETSIComplianceResult {
+    bool is_compliant;                    // Overall compliance status
+    double compliance_score;              // Compliance score (0.0-100.0)
+    std::vector<std::string> errors;      // Compliance errors found
+    std::vector<std::string> warnings;    // Compliance warnings
+    std::string etsi_standard;           // ETSI standard reference (e.g., "EN 300 401")
+    std::string test_date;               // ISO date string of test
+    
+    // Constructor
+    ETSIComplianceResult() 
+        : is_compliant(false)
+        , compliance_score(0.0)
+        , etsi_standard("EN 300 401")
+        , test_date()
+    {
+    }
+    
+    // Add error with automatic compliance status update
+    void add_error(const std::string& error) {
+        errors.push_back(error);
+        is_compliant = false;
+        recalculate_score();
+    }
+    
+    // Add warning
+    void add_warning(const std::string& warning) {
+        warnings.push_back(warning);
+        recalculate_score();
+    }
+    
+    // Set compliance with score
+    void set_compliance(bool compliant, double score = 100.0) {
+        is_compliant = compliant;
+        compliance_score = score;
+    }
+    
+    // Calculate compliance percentage
+    double get_compliance_percentage() const {
+        return compliance_score;
+    }
+    
+    // Check if fully compliant (100%)
+    bool is_fully_compliant() const {
+        return is_compliant && compliance_score >= 100.0 && errors.empty();
+    }
+    
+private:
+    void recalculate_score() {
+        // Simple scoring: start at 100, subtract for each error/warning
+        compliance_score = 100.0 - (errors.size() * 10.0) - (warnings.size() * 2.0);
+        compliance_score = std::max(0.0, compliance_score);
+        
+        if (compliance_score < 100.0) {
+            is_compliant = false;
+        }
+    }
 };
 
 } // namespace eti

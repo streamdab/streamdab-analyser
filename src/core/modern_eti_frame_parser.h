@@ -28,6 +28,13 @@
 #include <QThreadPool>
 #include <memory>
 #include <span>
+
+// Forward declarations for Modern ETI Core components
+namespace eti::modern {
+    class ETIFrameMemoryPool;
+    class ETIProcessingCache;
+    class PerformanceProfiler;
+}
 #include <concepts>
 #include <vector>
 #include <atomic>
@@ -213,6 +220,18 @@ public:
     [[nodiscard]] PerformanceStats getPerformanceStats() const;
 
     /**
+     * @brief Calculate speed improvement percentage vs baseline
+     * @return Speed improvement percentage
+     */
+    [[nodiscard]] double calculateSpeedImprovement() const;
+
+    /**
+     * @brief Calculate memory reduction percentage vs baseline
+     * @return Memory reduction percentage
+     */
+    [[nodiscard]] double calculateMemoryReduction() const;
+
+    /**
      * @brief Reset performance counters
      */
     void resetStats();
@@ -309,15 +328,23 @@ private:
     // Performance tracking
     void updateFrameStats(std::chrono::nanoseconds parse_time);
     void checkPerformanceTargets();
+    
+    // Compliance calculation methods
+    double calculateETSI799Compliance(const eti::EtiFrame& frame);
+    double calculateETSI401Compliance(const FIGAnalysisResult& result);
+    
+    // Validation helper methods
+    void validateFICStructure(const eti::EtiFrame& frame, eti::ValidationResult& result) const;
+    void validateMSCStructure(const eti::EtiFrame& frame, eti::ValidationResult& result) const;
 
     // Member variables
     std::atomic<bool> initialized_{false};
     ProcessingConfig config_;
     
     // Performance components
-    std::unique_ptr<ETIFrameMemoryPool> memory_pool_;
-    std::unique_ptr<ETIProcessingCache> cache_;
-    std::unique_ptr<PerformanceProfiler> profiler_;
+    std::unique_ptr<eti::modern::ETIFrameMemoryPool> memory_pool_;
+    std::unique_ptr<eti::modern::ETIProcessingCache> cache_;
+    std::unique_ptr<eti::modern::PerformanceProfiler> profiler_;
     
     // Threading
     QThreadPool* thread_pool_;

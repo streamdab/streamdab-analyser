@@ -31,7 +31,7 @@ NetworkStreamWorker::NetworkStreamWorker(const NetworkStreamConfig& config, QObj
     // Connect socket signals
     connect(m_socket.get(), &QUdpSocket::readyRead,
             this, &NetworkStreamWorker::handle_datagram_ready);
-    connect(m_socket.get(), QOverload<QAbstractSocket::SocketError>::of(&QUdpSocket::error),
+    connect(m_socket.get(), &QUdpSocket::errorOccurred,
             this, &NetworkStreamWorker::handle_socket_error);
     
     // Setup statistics timer
@@ -450,9 +450,27 @@ void NetworkStreamReceiver::resume_reception() {
     }
 }
 
-NetworkStreamStatistics NetworkStreamReceiver::get_statistics() const {
+NetworkStreamStatisticsSnapshot NetworkStreamReceiver::get_statistics() const {
     QMutexLocker locker(&m_mutex);
-    return m_current_statistics;
+    
+    // Create a copyable snapshot by loading atomic values
+    NetworkStreamStatisticsSnapshot snapshot;
+    snapshot.frames_received = m_current_statistics.frames_received.load();
+    snapshot.frames_processed = m_current_statistics.frames_processed.load();
+    snapshot.frames_dropped = m_current_statistics.frames_dropped.load();
+    snapshot.bytes_received = m_current_statistics.bytes_received.load();
+    snapshot.network_errors = m_current_statistics.network_errors.load();
+    snapshot.buffer_overflows = m_current_statistics.buffer_overflows.load();
+    snapshot.buffer_underflows = m_current_statistics.buffer_underflows.load();
+    snapshot.current_frame_rate = m_current_statistics.current_frame_rate.load();
+    snapshot.average_frame_rate = m_current_statistics.average_frame_rate.load();
+    snapshot.frame_loss_rate = m_current_statistics.frame_loss_rate.load();
+    snapshot.average_latency_us = m_current_statistics.average_latency_us.load();
+    snapshot.max_latency_us = m_current_statistics.max_latency_us.load();
+    snapshot.start_time = m_current_statistics.start_time;
+    snapshot.last_update = m_current_statistics.last_update;
+    
+    return snapshot;
 }
 
 double NetworkStreamReceiver::get_current_frame_rate() const {
@@ -614,7 +632,21 @@ void NetworkStreamReceiver::handle_worker_error(const QString& error) {
 void NetworkStreamReceiver::handle_worker_statistics(const eti::NetworkStreamStatistics& stats) {
     {
         QMutexLocker locker(&m_mutex);
-        m_current_statistics = stats;
+        // Manually assign atomic values since operator= is deleted
+        m_current_statistics.frames_received = stats.frames_received.load();
+        m_current_statistics.frames_processed = stats.frames_processed.load();
+        m_current_statistics.frames_dropped = stats.frames_dropped.load();
+        m_current_statistics.bytes_received = stats.bytes_received.load();
+        m_current_statistics.network_errors = stats.network_errors.load();
+        m_current_statistics.buffer_overflows = stats.buffer_overflows.load();
+        m_current_statistics.buffer_underflows = stats.buffer_underflows.load();
+        m_current_statistics.current_frame_rate = stats.current_frame_rate.load();
+        m_current_statistics.average_frame_rate = stats.average_frame_rate.load();
+        m_current_statistics.frame_loss_rate = stats.frame_loss_rate.load();
+        m_current_statistics.average_latency_us = stats.average_latency_us.load();
+        m_current_statistics.max_latency_us = stats.max_latency_us.load();
+        m_current_statistics.start_time = stats.start_time;
+        m_current_statistics.last_update = stats.last_update;
     }
     
     // Check quality violations
@@ -737,4 +769,4 @@ std::unique_ptr<NetworkStreamReceiver> NetworkStreamReceiverFactory::create_low_
 
 } // namespace eti
 
-#include "network_stream_receiver.moc"
+// MOC file inclusion handled automatically by CMake

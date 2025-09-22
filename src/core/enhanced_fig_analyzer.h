@@ -22,6 +22,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <optional>
+#include <shared_mutex>
 #include <span>
 #include <chrono>
 #include <memory>
@@ -33,22 +34,22 @@ namespace eti::modern {
  * @brief FIG processing statistics and metrics
  */
 struct FIGProcessingStats {
-    std::atomic<uint64_t> total_figs_processed{0};
-    std::atomic<uint64_t> fig_type_0_count{0};
-    std::atomic<uint64_t> fig_type_1_count{0};
-    std::atomic<uint64_t> fig_type_2_count{0};
-    std::atomic<uint64_t> invalid_figs{0};
-    std::atomic<uint64_t> crc_errors{0};
-    std::atomic<uint64_t> parsing_errors{0};
+    uint64_t total_figs_processed{0};
+    uint64_t fig_type_0_count{0};
+    uint64_t fig_type_1_count{0};
+    uint64_t fig_type_2_count{0};
+    uint64_t invalid_figs{0};
+    uint64_t crc_errors{0};
+    uint64_t parsing_errors{0};
     
     // Performance metrics
-    std::atomic<uint64_t> total_processing_time_ns{0};
-    std::atomic<uint64_t> peak_processing_time_ns{0};
-    std::atomic<double> average_processing_time_ns{0.0};
+    uint64_t total_processing_time_ns{0};
+    uint64_t peak_processing_time_ns{0};
+    double average_processing_time_ns{0.0};
     
     // ETSI compliance
-    std::atomic<uint32_t> etsi_violations{0};
-    std::atomic<double> compliance_score{100.0};
+    uint32_t etsi_violations{0};
+    double compliance_score{100.0};
 };
 
 /**
@@ -200,9 +201,9 @@ public:
     FIGCarouselAnalysis getCarouselAnalysis() const;
 
     /**
-     * @brief Get processing statistics
+     * @brief Get processing statistics (thread-safe copy)
      */
-    FIGProcessingStats getProcessingStats() const { return stats_; }
+    FIGProcessingStats getProcessingStats() const;
 
     /**
      * @brief Reset analysis state and statistics

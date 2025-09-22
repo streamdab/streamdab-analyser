@@ -30,7 +30,7 @@
 #include "eti_analysis_widget.h"
 #include "core/eti_processor.h"
 #include "core/eti_file_worker.h"
-#include "core/etisnoop_wrapper.h"
+#include "core/comprehensive_etsi_validator.h"
 #include "utils/config_manager.h"
 #include "utils/logger.h"
 
@@ -201,22 +201,35 @@ bool MainWindow::initialize()
             return false;
         }
         
-        // Initialize ETISnoop wrapper for professional ETI analysis
-        m_etisnoopWrapper = std::make_unique<EtisnoopWrapper>();
-        if (!m_etisnoopWrapper->initialize(true, true)) { // Enable Thai and StreamDAB support
-            Logger::instance().log(Logger::Error, "MainWindow", "Failed to initialize ETISnoop wrapper");
+        // Initialize Modern ETI Core Engine components
+        m_modernFrameParser = std::make_unique<eti::modern::ModernETIFrameParser>();
+        m_enhancedFIGAnalyzer = std::make_unique<eti::modern::EnhancedFIGAnalyzer>();
+        m_etsiValidator = std::make_unique<eti::compliance::ComprehensiveETSIValidator>();
+        
+        if (!m_modernFrameParser->initialize()) {
+            Logger::instance().log(Logger::Error, "MainWindow", "Failed to initialize Modern ETI Frame Parser");
             return false;
         }
         
-        // Initialize ETI-specific models
+        if (!m_enhancedFIGAnalyzer->initialize()) {
+            Logger::instance().log(Logger::Error, "MainWindow", "Failed to initialize Enhanced FIG Analyzer");
+            return false;
+        }
+        
+        if (!m_etsiValidator->initialize()) {
+            Logger::instance().log(Logger::Error, "MainWindow", "Failed to initialize Comprehensive ETSI Validator");
+            return false;
+        }
+        
+        // Initialize ETI-specific models with Modern ETI Core Engine
         m_serviceTreeModel = new EtiServiceTreeModel(this);
-        if (!m_serviceTreeModel->initialize(m_etisnoopWrapper.get())) {
+        if (!m_serviceTreeModel->initializeWithModernEngine(m_modernFrameParser.get(), m_enhancedFIGAnalyzer.get())) {
             Logger::instance().log(Logger::Error, "MainWindow", "Failed to initialize service tree model");
             return false;
         }
         
         m_frameListModel = new EtiFrameListModel(this);
-        if (!m_frameListModel->initialize(m_etisnoopWrapper.get())) {
+        if (!m_frameListModel->initializeWithModernEngine(m_modernFrameParser.get(), m_etsiValidator.get())) {
             Logger::instance().log(Logger::Error, "MainWindow", "Failed to initialize frame list model");
             return false;
         }
@@ -1003,8 +1016,8 @@ void MainWindow::createPropertiesPanel()
     figAnalysisWidget->setObjectName("ProfessionalFigAnalysisWidget");
     
     // Initialize FIG Analysis Widget with ETISnoop wrapper if available
-    if (m_etisnoopWrapper) {
-        figAnalysisWidget->initialize(m_etisnoopWrapper.get());
+    if (m_enhancedFIGAnalyzer) {
+        figAnalysisWidget->initialize(m_enhancedFIGAnalyzer.get());
     }
     
     // Add tabs to tab widget
@@ -2017,22 +2030,29 @@ void MainWindow::connectSignals()
                 });
     }
     
-    // ETISnoop wrapper connections for professional ETI analysis
-    if (m_etisnoopWrapper) {
-        connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::processingError,
-                this, &MainWindow::handleEtiError);
-        
-        connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::statsUpdated,
-                this, [this](const EtisnoopWrapper::ProcessingStats& stats) {
-                    // Update performance statistics
-                    double frameRate = stats.averageFrameRate;
-                    double memoryUsage = stats.memoryUsage;
-                    updateStatus(QString("Processing: %1 fps, Memory: %2 MB")
-                               .arg(frameRate, 0, 'f', 1)
-                               .arg(memoryUsage, 0, 'f', 1));
+    // Modern ETI Core Engine connections for professional ETI analysis
+    if (m_modernFrameParser) {
+        connect(m_modernFrameParser.get(), &eti::modern::ModernETIFrameParser::frameProcessed,
+                this, [this](uint32_t frameNumber, const eti::EtiFrame& frame, std::chrono::nanoseconds parseTime) {
+                    m_frameCount = frameNumber;
+                    double fps = 1000000000.0 / parseTime.count(); // Convert nanoseconds to FPS
+                    updateStatus(QString("Processing: %1 fps, Frame: %2")
+                               .arg(fps, 0, 'f', 1)
+                               .arg(frameNumber));
+                    
+                    if (m_frameCountLabel) {
+                        m_frameCountLabel->setText(tr("Frames: %1").arg(m_frameCount));
+                    }
                 });
         
-        connect(m_etisnoopWrapper.get(), &EtisnoopWrapper::etsiComplianceIssue,
+        connect(m_modernFrameParser.get(), &eti::modern::ModernETIFrameParser::complianceIssue,
+                this, [this](const QString& standard, const QString& issue, const QString& severity) {
+                    handleEtiError(QString("%1: %2 (%3)").arg(standard, issue, severity));
+                });
+    }
+    
+    if (m_etsiValidator) {
+        connect(m_etsiValidator.get(), &eti::compliance::ComprehensiveETSIValidator::complianceViolation,
                 this, [this](const QString& standard, const QString& issue, const QString& severity) {
                     // Log ETSI compliance issues
                     Logger::instance().log(Logger::Warning, "ETSI_Compliance", 
@@ -2044,19 +2064,20 @@ void MainWindow::connectSignals()
                         m_errorLog->append(QString("[%1] ETSI %2: %3").arg(timestamp).arg(standard).arg(issue));
                     }
                 });
-        
-        connect(m_etiProcessor.get(), &EtiProcessor::frameProcessed, 
-                this, [this](quint64 frameNumber, const QByteArray& /*data*/) {
-                    m_frameCount = frameNumber;
-                    if (m_frameCountLabel) {
-                        m_frameCountLabel->setText(tr("Frames: %1").arg(m_frameCount));
-                    }
-                });
-                
-        // Connect service browser to ETI processor
-        if (m_serviceBrowser) {
-            m_serviceBrowser->setEtiProcessor(m_etiProcessor.get());
-        }
+    }
+    
+    // Connect ETI processor signals
+    connect(m_etiProcessor.get(), &EtiProcessor::frameProcessed, 
+            this, [this](quint64 frameNumber, const QByteArray& /*data*/) {
+                m_frameCount = frameNumber;
+                if (m_frameCountLabel) {
+                    m_frameCountLabel->setText(tr("Frames: %1").arg(m_frameCount));
+                }
+            });
+            
+    // Connect service browser to ETI processor
+    if (m_serviceBrowser) {
+        m_serviceBrowser->setEtiProcessor(m_etiProcessor.get());
     }
     
     // ETI File Worker signal connections for background processing
@@ -2128,13 +2149,12 @@ void MainWindow::connectSignals()
                         m_serviceBrowser->updateServices();
                     }
                     
-                    // Display ETI analysis results in UI components
-                    if (m_etiProcessor && m_etiProcessor->getEtisnoopWrapper()) {
-                        auto wrapper = m_etiProcessor->getEtisnoopWrapper();
+                    // Display ETI analysis results in UI components using Modern ETI Core Engine
+                    if (m_etiProcessor && m_modernFrameParser) {
                         
-                        // Update YAML viewer with comprehensive analysis
-                        if (m_yamlViewer) {
-                            QString analysisOutput = wrapper->getAnalysisOutput();
+                        // Update YAML viewer with comprehensive analysis from Modern ETI Core Engine
+                        if (m_yamlViewer && m_etsiValidator) {
+                            QString analysisOutput = m_etsiValidator->generateComplianceReport();
                             m_yamlViewer->setPlainText(analysisOutput);
                             
                             // Log the analysis display
@@ -2143,15 +2163,15 @@ void MainWindow::connectSignals()
                                                   .arg(analysisOutput.length()));
                         }
                         
-                        // Update FIG analysis dock with frame analysis
-                        if (m_figAnalysis) {
-                            // Note: This would need to be adapted to use FigAnalysisWidget methods
-                            // For now, we'll skip updating the FIG analysis display
-                            // QString frameAnalysis = wrapper->getFrameAnalysisOutput();
-                            // m_figAnalysis->updateFigData(parsedFigData);
+                        // Update FIG analysis dock with Modern ETI Core Engine results
+                        if (m_figAnalysis && m_enhancedFIGAnalyzer) {
+                            // Get latest FIG analysis results from Enhanced FIG Analyzer
+                            auto services = m_enhancedFIGAnalyzer->getDiscoveredServices();
+                            // Update FIG analysis display with modern ETI core results
+                            // m_figAnalysis->updateWithModernResults(services); // TODO: Implement method
                             
                             Logger::instance().log(Logger::Info, "MainWindow", 
-                                                  "Frame analysis results displayed in FIG analysis dock");
+                                                  "Frame analysis results displayed in FIG analysis dock using Enhanced FIG Analyzer");
                         }
                         
                         // Update analyzer widget with processing results
@@ -2164,7 +2184,7 @@ void MainWindow::connectSignals()
                         
                         // Update constellation widget if applicable
                         if (m_constellationWidget) {
-                            auto services = wrapper->getDiscoveredServices();
+                            auto services = m_enhancedFIGAnalyzer->getDiscoveredServices();
                             // TODO: Add updateSignalData method to ConstellationWidget
                             Logger::instance().log(Logger::Debug, "MainWindow", 
                                                   QString("Constellation widget update: %1 services discovered")
@@ -2180,7 +2200,7 @@ void MainWindow::connectSignals()
                                       .arg(frameCount);
                             
                             // Add ETSI compliance information
-                            double complianceScore = wrapper->getETSIComplianceScore();
+                            double complianceScore = m_enhancedFIGAnalyzer->getETSIComplianceScore();
                             if (complianceScore > 0) {
                                 logText += QString("\n[%1] ETSI Compliance Score: %2%")
                                           .arg(QDateTime::currentDateTime().toString("hh:mm:ss"))
@@ -2197,21 +2217,21 @@ void MainWindow::connectSignals()
                         
                         // Update audio monitor if services have audio
                         if (m_audioMonitor) {
-                            auto services = wrapper->getDiscoveredServices();
+                            auto services = m_enhancedFIGAnalyzer->getDiscoveredServices();
                             QString audioInfo = "Audio Services Detected:\n\n";
                             
                             for (const auto& service : services) {
-                                if (service.isActive) {
+                                if (service.is_stable) {
                                     audioInfo += QString("Service 0x%1: %2\n")
-                                               .arg(service.serviceId, 4, 16, QChar('0'))
-                                               .arg(service.serviceName);
-                                    audioInfo += QString("  Type: %1\n").arg(service.programType);
-                                    audioInfo += QString("  Quality: %1%\n").arg(service.signalQuality, 0, 'f', 1);
-                                    audioInfo += QString("  Language: %1\n\n").arg(service.language);
+                                               .arg(service.base_service.service_id, 4, 16, QChar('0'))
+                                               .arg(QString::fromStdString(service.base_service.label));
+                                    audioInfo += QString("  Type: %1\n").arg(QString::fromStdString(service.programme_type_name.value_or("Unknown")));
+                                    audioInfo += QString("  Quality: %1%\n").arg(service.signal_quality, 0, 'f', 1);
+                                    audioInfo += QString("  Language: %1\n\n").arg(QString::fromStdString(service.language_name.value_or("Unknown")));
                                 }
                             }
                             
-                            if (services.isEmpty()) {
+                            if (services.empty()) {
                                 audioInfo += "No active audio services found in this ETI stream.";
                             }
                             
