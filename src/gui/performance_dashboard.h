@@ -16,6 +16,7 @@
 #include <QColor>
 #include <QMutex>
 #include <QDateTime>
+#include <QComboBox>
 #include <deque>
 
 // Forward declarations
@@ -73,6 +74,18 @@ public:
     explicit PerformanceDashboard(QWidget *parent = nullptr);
     ~PerformanceDashboard();
     
+    // Professional broadcast industry colors (public for chart widgets)
+    static const QColor BACKGROUND_DARK;     // #2D2D30
+    static const QColor BACKGROUND_MEDIUM;   // #3E3E42
+    static const QColor ACCENT_BLUE;         // #0078D4
+    static const QColor STATUS_EXCELLENT;    // #00AA00 (Green)
+    static const QColor STATUS_GOOD;         // #4CAF50 (Light Green) 
+    static const QColor STATUS_FAIR;         // #FFC107 (Amber)
+    static const QColor STATUS_POOR;         // #FF9800 (Orange)
+    static const QColor STATUS_CRITICAL;     // #DC3545 (Red)
+    static const QColor TEXT_PRIMARY;        // #FFFFFF
+    static const QColor TEXT_SECONDARY;      // #CCCCCC
+    
     /**
      * @brief Connect to ETI processor for performance data
      * @param processor ETI processor instance
@@ -105,6 +118,24 @@ public:
      * @brief Apply professional broadcasting theme
      */
     void applyBroadcastingTheme();
+    
+    /**
+     * @brief Get target FPS for chart scaling
+     * @return Target FPS value
+     */
+    double getTargetFPS() const { return m_targetFPS; }
+    
+    /**
+     * @brief Get target memory MB for chart scaling
+     * @return Target memory MB value
+     */
+    double getTargetMemoryMB() const { return m_targetMemoryMB; }
+    
+    /**
+     * @brief Get target latency MS for chart scaling
+     * @return Target latency MS value
+     */
+    double getTargetLatencyMS() const { return m_targetLatencyMS; }
     
 public slots:
     /**
@@ -166,6 +197,12 @@ private slots:
      * @param processingTime Processing time in ms
      */
     void onFrameProcessed(quint64 frameNumber, double processingTime);
+    
+    /**
+     * @brief Handle time range selection change
+     * @param index Selected time range index
+     */
+    void onTimeRangeChanged(int index);
     
 private:
     /**
@@ -276,6 +313,11 @@ private:
     QProgressBar* m_complianceProgressBar;
     QTextEdit* m_violationsDisplay;
     
+    // Trend charts components
+    QFrame* m_trendChartsFrame;
+    QWidget* m_chartDisplayArea;
+    QComboBox* m_timeRangeCombo;
+    
     // Data and state
     EtiProcessor* m_etiProcessor;
     QTimer* m_updateTimer;
@@ -298,18 +340,6 @@ private:
     QFont m_headerFont;
     QFont m_valueFont;
     QFont m_statusFont;
-    
-    // Colors for broadcast industry theme
-    static const QColor BACKGROUND_DARK;     // #2D2D30
-    static const QColor BACKGROUND_MEDIUM;   // #3E3E42
-    static const QColor ACCENT_BLUE;         // #0078D4
-    static const QColor STATUS_EXCELLENT;    // #00AA00 (Green)
-    static const QColor STATUS_GOOD;         // #4CAF50 (Light Green) 
-    static const QColor STATUS_FAIR;         // #FFC107 (Amber)
-    static const QColor STATUS_POOR;         // #FF9800 (Orange)
-    static const QColor STATUS_CRITICAL;     // #DC3545 (Red)
-    static const QColor TEXT_PRIMARY;        // #FFFFFF
-    static const QColor TEXT_SECONDARY;      // #CCCCCC
     
     // Constants
     static constexpr int UPDATE_INTERVAL_MS = 1000;  // 1 second updates

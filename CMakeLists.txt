@@ -232,6 +232,8 @@ set(GUI_SOURCE_FILES
     src/gui/etsi_compliance_monitor.h
     src/gui/eti_analysis_widget.cpp
     src/gui/eti_analysis_widget.h
+    src/gui/professional_workflow_manager.cpp
+    src/gui/professional_workflow_manager.h
 )
 
 # Utility source files
