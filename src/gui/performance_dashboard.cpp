@@ -7,7 +7,234 @@
 #include <QDebug>
 #include <QMutexLocker>
 #include <QProcess>
+#include <QPainter>
+#include <QPainterPath>
+#include <QMouseEvent>
 #include <algorithm>
+
+// Forward declaration for internal chart widget
+class PerformanceChartWidget : public QWidget
+{
+    Q_OBJECT
+    
+public:
+    explicit PerformanceChartWidget(PerformanceDashboard* dashboard, QWidget* parent = nullptr)
+        : QWidget(parent), m_dashboard(dashboard)
+    {
+        setMinimumSize(200, 100);
+        setAttribute(Qt::WA_OpaquePaintEvent, true);
+        setMouseTracking(true);
+    }
+    
+    void setPerformanceData(const std::deque<PerformanceStats>& data) {
+        m_performanceData = data;
+        update();
+    }
+    
+protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event)
+        
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        
+        // Professional background
+        painter.fillRect(rect(), PerformanceDashboard::BACKGROUND_DARK);
+        
+        if (m_performanceData.empty() || !m_dashboard) {
+            // Draw "No Data" message
+            painter.setPen(PerformanceDashboard::TEXT_SECONDARY);
+            painter.setFont(QFont("Segoe UI", 10, QFont::Bold));
+            painter.drawText(rect(), Qt::AlignCenter, tr("No Performance Data\nMonitoring Not Active"));
+            return;
+        }
+        
+        // Get chart area with margins for professional appearance
+        QRect chartRect = rect().adjusted(40, 20, -20, -30);
+        if (chartRect.width() < 100 || chartRect.height() < 50) return;
+        
+        // Draw professional grid
+        drawGrid(painter, chartRect);
+        
+        // Draw performance metrics charts
+        drawFPSChart(painter, chartRect);
+        drawMemoryChart(painter, chartRect);
+        drawLatencyChart(painter, chartRect);
+        
+        // Draw legend
+        drawLegend(painter);
+        
+        // Draw professional axes labels
+        drawAxesLabels(painter, chartRect);
+    }
+    
+    void mouseMoveEvent(QMouseEvent* event) override
+    {
+        // Professional tooltip on hover (future enhancement)
+        Q_UNUSED(event)
+        QWidget::mouseMoveEvent(event);
+    }
+    
+private:
+    void drawGrid(QPainter& painter, const QRect& chartRect)
+    {
+        painter.setPen(QPen(PerformanceDashboard::BACKGROUND_MEDIUM, 1, Qt::DotLine));
+        
+        // Vertical grid lines (time intervals)
+        int numVerticalLines = 10;
+        for (int i = 0; i <= numVerticalLines; ++i) {
+            int x = chartRect.left() + (chartRect.width() * i / numVerticalLines);
+            painter.drawLine(x, chartRect.top(), x, chartRect.bottom());
+        }
+        
+        // Horizontal grid lines (performance levels)
+        int numHorizontalLines = 5;
+        for (int i = 0; i <= numHorizontalLines; ++i) {
+            int y = chartRect.top() + (chartRect.height() * i / numHorizontalLines);
+            painter.drawLine(chartRect.left(), y, chartRect.right(), y);
+        }
+    }
+    
+    void drawFPSChart(QPainter& painter, const QRect& chartRect)
+    {
+        if (m_performanceData.size() < 2) return;
+        
+        painter.setPen(QPen(PerformanceDashboard::STATUS_EXCELLENT, 2));
+        painter.setBrush(Qt::NoBrush);
+        
+        QPainterPath fpsPath;
+        bool firstPoint = true;
+        
+        int dataSize = static_cast<int>(m_performanceData.size());
+        double maxFPS = m_dashboard->getTargetFPS();
+        
+        for (int i = 0; i < dataSize; ++i) {
+            double x = chartRect.left() + (chartRect.width() * i / (dataSize - 1));
+            double normalizedFPS = qBound(0.0, m_performanceData[i].frameRate / maxFPS, 1.0);
+            double y = chartRect.bottom() - (normalizedFPS * chartRect.height());
+            
+            if (firstPoint) {
+                fpsPath.moveTo(x, y);
+                firstPoint = false;
+            } else {
+                fpsPath.lineTo(x, y);
+            }
+        }
+        
+        painter.drawPath(fpsPath);
+    }
+    
+    void drawMemoryChart(QPainter& painter, const QRect& chartRect)
+    {
+        if (m_performanceData.size() < 2) return;
+        
+        painter.setPen(QPen(PerformanceDashboard::STATUS_FAIR, 2));
+        painter.setBrush(Qt::NoBrush);
+        
+        QPainterPath memoryPath;
+        bool firstPoint = true;
+        
+        int dataSize = static_cast<int>(m_performanceData.size());
+        double maxMemory = m_dashboard->getTargetMemoryMB();
+        
+        for (int i = 0; i < dataSize; ++i) {
+            double x = chartRect.left() + (chartRect.width() * i / (dataSize - 1));
+            double normalizedMemory = qBound(0.0, m_performanceData[i].memoryUsage / maxMemory, 1.0);
+            double y = chartRect.bottom() - (normalizedMemory * chartRect.height());
+            
+            if (firstPoint) {
+                memoryPath.moveTo(x, y);
+                firstPoint = false;
+            } else {
+                memoryPath.lineTo(x, y);
+            }
+        }
+        
+        painter.drawPath(memoryPath);
+    }
+    
+    void drawLatencyChart(QPainter& painter, const QRect& chartRect)
+    {
+        if (m_performanceData.size() < 2) return;
+        
+        painter.setPen(QPen(PerformanceDashboard::ACCENT_BLUE, 2));
+        painter.setBrush(Qt::NoBrush);
+        
+        QPainterPath latencyPath;
+        bool firstPoint = true;
+        
+        int dataSize = static_cast<int>(m_performanceData.size());
+        double maxLatency = m_dashboard->getTargetLatencyMS();
+        
+        for (int i = 0; i < dataSize; ++i) {
+            double x = chartRect.left() + (chartRect.width() * i / (dataSize - 1));
+            double normalizedLatency = qBound(0.0, m_performanceData[i].averageLatency / maxLatency, 1.0);
+            double y = chartRect.bottom() - (normalizedLatency * chartRect.height());
+            
+            if (firstPoint) {
+                latencyPath.moveTo(x, y);
+                firstPoint = false;
+            } else {
+                latencyPath.lineTo(x, y);
+            }
+        }
+        
+        painter.drawPath(latencyPath);
+    }
+    
+    void drawLegend(QPainter& painter)
+    {
+        // Professional legend in top-right corner
+        QRect legendRect(width() - 120, 10, 110, 60);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QBrush(QColor(45, 45, 48, 200)));
+        painter.drawRoundedRect(legendRect, 3, 3);
+        
+        painter.setPen(PerformanceDashboard::TEXT_PRIMARY);
+        painter.setFont(QFont("Segoe UI", 8));
+        
+        // Legend items
+        int y = legendRect.top() + 12;
+        painter.setPen(PerformanceDashboard::STATUS_EXCELLENT);
+        painter.drawText(legendRect.left() + 20, y, tr("FPS"));
+        painter.drawLine(legendRect.left() + 5, y - 3, legendRect.left() + 15, y - 3);
+        
+        y += 15;
+        painter.setPen(PerformanceDashboard::STATUS_FAIR);
+        painter.drawText(legendRect.left() + 20, y, tr("Memory"));
+        painter.drawLine(legendRect.left() + 5, y - 3, legendRect.left() + 15, y - 3);
+        
+        y += 15;
+        painter.setPen(PerformanceDashboard::ACCENT_BLUE);
+        painter.drawText(legendRect.left() + 20, y, tr("Latency"));
+        painter.drawLine(legendRect.left() + 5, y - 3, legendRect.left() + 15, y - 3);
+    }
+    
+    void drawAxesLabels(QPainter& painter, const QRect& chartRect)
+    {
+        painter.setPen(PerformanceDashboard::TEXT_SECONDARY);
+        painter.setFont(QFont("Segoe UI", 8));
+        
+        // Y-axis label (Performance %)
+        painter.save();
+        painter.translate(15, chartRect.center().y());
+        painter.rotate(-90);
+        painter.drawText(-30, 0, tr("Performance %"));
+        painter.restore();
+        
+        // X-axis label (Time)
+        painter.drawText(chartRect.center().x() - 15, height() - 5, tr("Time"));
+        
+        // Y-axis scale
+        painter.drawText(5, chartRect.top() + 5, tr("100%"));
+        painter.drawText(5, chartRect.bottom() + 5, tr("0%"));
+    }
+    
+private:
+    PerformanceDashboard* m_dashboard;
+    std::deque<PerformanceStats> m_performanceData;
+};
 
 // Professional broadcast industry color definitions
 const QColor PerformanceDashboard::BACKGROUND_DARK = QColor(45, 45, 48);     // #2D2D30
@@ -62,6 +289,7 @@ PerformanceDashboard::PerformanceDashboard(QWidget *parent)
     setupUI();
     setupPerformanceIndicators();
     setupComplianceMonitor();
+    setupTrendCharts();
     applyBroadcastingTheme();
     
     // Initialize timer
@@ -273,6 +501,59 @@ void PerformanceDashboard::setupComplianceMonitor()
     complianceLayout->addWidget(m_violationsDisplay);
     
     m_mainLayout->addWidget(m_complianceFrame);
+}
+
+void PerformanceDashboard::setupTrendCharts()
+{
+    // Professional real-time trend charts for broadcast monitoring
+    
+    // Create trend chart container
+    m_trendChartsFrame = new QFrame();
+    m_trendChartsFrame->setFrameStyle(QFrame::StyledPanel | QFrame::Raised);
+    m_trendChartsFrame->setObjectName("TrendChartsFrame");
+    m_trendChartsFrame->setMinimumHeight(180);
+    
+    auto* trendLayout = new QVBoxLayout(m_trendChartsFrame);
+    trendLayout->setContentsMargins(8, 6, 8, 6);
+    trendLayout->setSpacing(4);
+    
+    // Trend charts header
+    auto* trendHeaderLayout = new QHBoxLayout();
+    
+    auto* trendLabel = new QLabel(tr("Performance Trends"));
+    trendLabel->setFont(m_headerFont);
+    trendHeaderLayout->addWidget(trendLabel);
+    
+    trendHeaderLayout->addStretch();
+    
+    // Time range selector for professional analysis
+    m_timeRangeCombo = new QComboBox();
+    m_timeRangeCombo->addItem(tr("Last 1 Min"), 60);
+    m_timeRangeCombo->addItem(tr("Last 5 Min"), 300);
+    m_timeRangeCombo->addItem(tr("Last 15 Min"), 900);
+    m_timeRangeCombo->addItem(tr("Last 30 Min"), 1800);
+    m_timeRangeCombo->setCurrentIndex(1); // Default to 5 minutes
+    trendHeaderLayout->addWidget(m_timeRangeCombo);
+    
+    trendLayout->addLayout(trendHeaderLayout);
+    
+    // Chart display area with custom rendering
+    m_chartDisplayArea = new PerformanceChartWidget(this);
+    m_chartDisplayArea->setMinimumHeight(140);
+    m_chartDisplayArea->setStyleSheet(QString(
+        "background-color: %1; "
+        "border: 1px solid %2; "
+        "border-radius: 3px;"
+    ).arg(BACKGROUND_DARK.name()).arg(ACCENT_BLUE.name()));
+    
+    trendLayout->addWidget(m_chartDisplayArea);
+    
+    // Add to main layout
+    m_mainLayout->addWidget(m_trendChartsFrame);
+    
+    // Connect time range selector
+    connect(m_timeRangeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PerformanceDashboard::onTimeRangeChanged);
 }
 
 void PerformanceDashboard::connectEtiProcessor(EtiProcessor* processor)
@@ -539,6 +820,14 @@ void PerformanceDashboard::updateHistoricalData()
     while (m_historicalStats.size() > MAX_HISTORICAL_POINTS) {
         m_historicalStats.pop_front();
     }
+    
+    // Update chart widget with new data
+    if (m_chartDisplayArea) {
+        auto* chartWidget = qobject_cast<PerformanceChartWidget*>(m_chartDisplayArea);
+        if (chartWidget) {
+            chartWidget->setPerformanceData(m_historicalStats);
+        }
+    }
 }
 
 void PerformanceDashboard::onUpdateTimer()
@@ -611,6 +900,20 @@ void PerformanceDashboard::resetStatistics()
     Logger::instance().log(Logger::Info, "PerformanceDashboard", "Performance statistics reset");
 }
 
+void PerformanceDashboard::onTimeRangeChanged(int index)
+{
+    Q_UNUSED(index)
+    
+    // Get selected time range in seconds
+    int timeRangeSeconds = m_timeRangeCombo->currentData().toInt();
+    
+    // Update chart display based on new time range
+    update();
+    
+    Logger::instance().log(Logger::Debug, "PerformanceDashboard",
+                          QString("Time range changed to %1 seconds").arg(timeRangeSeconds));
+}
+
 void PerformanceDashboard::updateTargets(double targetFPS, double targetMemoryMB)
 {
     m_targetFPS = targetFPS;
@@ -665,3 +968,6 @@ void PerformanceDashboard::applyBroadcastingTheme()
      .arg(TEXT_PRIMARY.name())
      .arg(STATUS_GOOD.name()));
 }
+
+// Include MOC file for embedded Q_OBJECT class
+#include "performance_dashboard.moc"

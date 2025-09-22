@@ -29,6 +29,7 @@
 #include "etsi_compliance_monitor.h"
 #include "service_explorer_panel.h"
 #include "eti_analysis_widget.h"
+#include "professional_workflow_manager.h"
 #include "core/eti_processor.h"
 #include "core/eti_file_worker.h"
 #include "core/comprehensive_etsi_validator.h"
@@ -238,6 +239,13 @@ bool MainWindow::initialize()
         // Initialize background ETI file worker
         m_etiFileWorker = std::make_unique<EtiFileWorker>(m_etiProcessor.get());
         
+        // Initialize Professional Workflow Manager
+        m_workflowManager = std::make_unique<ProfessionalWorkflowManager>(this, this);
+        if (!m_workflowManager->initialize()) {
+            Logger::instance().log(Logger::Error, "MainWindow", "Failed to initialize Professional Workflow Manager");
+            return false;
+        }
+        
         // Pre-initialize file system for faster dialog opening
         QTimer::singleShot(100, this, []() {
             // Pre-warm the file dialog system to avoid first-use delay
@@ -359,6 +367,42 @@ void MainWindow::createActions()
     
     m_loadTestDataAction = new QAction(QIcon(":/icons/test.png"), tr("&Load Test Services"), this);
     m_loadTestDataAction->setStatusTip(tr("Load test service data into the browser"));
+    
+    // Professional broadcast workflow actions with keyboard shortcuts
+    QAction* errorDetectionAction = new QAction(tr("Start &Error Detection"), this);
+    errorDetectionAction->setShortcut(QKeySequence(Qt::Key_F7));
+    errorDetectionAction->setStatusTip(tr("Start ETSI compliance error detection workflow"));
+    connect(errorDetectionAction, &QAction::triggered, this, &MainWindow::startErrorDetection);
+    
+    QAction* generateReportAction = new QAction(tr("&Generate Report"), this);
+    generateReportAction->setShortcut(QKeySequence(Qt::Key_F8));
+    generateReportAction->setStatusTip(tr("Generate professional broadcast compliance report"));
+    connect(generateReportAction, &QAction::triggered, this, &MainWindow::generateProfessionalReport);
+    
+    QAction* nextErrorAction = new QAction(tr("&Next Error"), this);
+    nextErrorAction->setShortcut(QKeySequence(Qt::Key_F2));
+    nextErrorAction->setStatusTip(tr("Navigate to next ETSI compliance error"));
+    connect(nextErrorAction, &QAction::triggered, this, &MainWindow::navigateToNextError);
+    
+    QAction* previousErrorAction = new QAction(tr("&Previous Error"), this);
+    previousErrorAction->setShortcut(QKeySequence(Qt::Key_F3));
+    previousErrorAction->setStatusTip(tr("Navigate to previous ETSI compliance error"));
+    connect(previousErrorAction, &QAction::triggered, this, &MainWindow::navigateToPreviousError);
+    
+    QAction* jumpToFrameAction = new QAction(tr("&Jump to Frame"), this);
+    jumpToFrameAction->setShortcut(QKeySequence(Qt::Key_F4));
+    jumpToFrameAction->setStatusTip(tr("Jump to specific ETI frame number"));
+    connect(jumpToFrameAction, &QAction::triggered, this, &MainWindow::jumpToFrame);
+    
+    QAction* selectAllServicesAction = new QAction(tr("Select &All Services"), this);
+    selectAllServicesAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_A));
+    selectAllServicesAction->setStatusTip(tr("Select all DAB services for analysis"));
+    connect(selectAllServicesAction, &QAction::triggered, this, &MainWindow::selectAllServices);
+    
+    QAction* deselectAllServicesAction = new QAction(tr("&Deselect All Services"), this);
+    deselectAllServicesAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_D));
+    deselectAllServicesAction->setStatusTip(tr("Deselect all DAB services"));
+    connect(deselectAllServicesAction, &QAction::triggered, this, &MainWindow::deselectAllServices);
 }
 
 void MainWindow::createMenuBar()
@@ -2591,34 +2635,11 @@ void MainWindow::updateWindowTitle()
 
 void MainWindow::openEtiFile()
 {
-    QElapsedTimer timer;
-    timer.start();
-    
-    Logger::instance().log(Logger::Info, "MainWindow", "=== DIALOG PERFORMANCE TEST ===");
-    Logger::instance().log(Logger::Info, "MainWindow", "Step 1: Starting openEtiFile() method...");
-    
-    qint64 step1 = timer.elapsed();
-    Logger::instance().log(Logger::Info, "MainWindow", QString("Step 2: Method start completed in %1ms").arg(step1));
-    
-    // Test directory access first
-    QString defaultDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-    qint64 step2 = timer.elapsed();
-    Logger::instance().log(Logger::Info, "MainWindow", QString("Step 3: Directory lookup (%1) took %2ms").arg(defaultDir).arg(step2 - step1));
-    
-    // Apply KDE-specific Qt platform optimization
-    Logger::instance().log(Logger::Info, "MainWindow", "Step 4: Applying KDE platform optimization...");
-    
-    // Log platform information
-    QString desktop = qgetenv("XDG_CURRENT_DESKTOP");
-    QString platform = QGuiApplication::platformName();
-    Logger::instance().log(Logger::Info, "MainWindow", QString("Desktop: %1, Platform: %2").arg(desktop, platform));
+    Logger::instance().log(Logger::Info, "MainWindow", "Opening ETI file via Professional Workflow Manager");
     
     // Use native system dialogs for better OS integration
-    QFileDialog::Options dialogOptions = QFileDialog::Options(); // Use native dialogs
-    Logger::instance().log(Logger::Info, "MainWindow", "Using native system dialogs for optimal user experience");
-    
-    qint64 platformTime = timer.elapsed();
-    Logger::instance().log(Logger::Info, "MainWindow", QString("Platform optimization took %1ms").arg(platformTime - step2));
+    QString defaultDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    QFileDialog::Options dialogOptions = QFileDialog::Options();
     
     QString fileName = QFileDialog::getOpenFileName(
         this,
@@ -2629,31 +2650,21 @@ void MainWindow::openEtiFile()
         dialogOptions
     );
     
-    qint64 dialogTime = timer.elapsed();
-    Logger::instance().log(Logger::Info, "MainWindow", 
-                          QString("Step 5: QFileDialog completed in %1ms TOTAL").arg(dialogTime));
-    
     if (fileName.isEmpty()) {
-        Logger::instance().log(Logger::Info, "MainWindow", "Step 6: Dialog cancelled by user");
+        Logger::instance().log(Logger::Info, "MainWindow", "File dialog cancelled by user");
         return;
     }
-    Logger::instance().log(Logger::Info, "MainWindow", QString("Step 6: File selected: %1").arg(fileName));
     
-    // Process the selected file
-        // Check if worker is available and not already processing
-        if (!m_etiFileWorker) {
-            QMessageBox::critical(this, tr("System Error"), 
-                tr("ETI file worker is not initialized. Please restart the application."));
-            return;
-        }
+    Logger::instance().log(Logger::Info, "MainWindow", QString("File selected: %1").arg(fileName));
+    
+    // Use Professional Workflow Manager for file analysis
+    if (m_workflowManager) {
+        m_workflowManager->startFileAnalysisWorkflow(fileName);
+    } else {
+        // Fallback to legacy processing if workflow manager not available
+        Logger::instance().log(Logger::Warning, "MainWindow", "Workflow manager not available, using legacy processing");
         
-        if (m_etiFileWorker->isProcessing()) {
-            QMessageBox::information(this, tr("Processing in Progress"), 
-                tr("An ETI file is already being processed. Please wait for completion or cancel the current operation."));
-            return;
-        }
-        
-        // Immediately update GUI state (non-blocking)
+        // Update GUI state
         m_currentFile = fileName;
         m_closeFileAction->setEnabled(true);
         updateWindowTitle();
@@ -2664,13 +2675,9 @@ void MainWindow::openEtiFile()
             m_frameCountLabel->setText(tr("Frames: 0"));
         }
         
-        qint64 processStartTime = timer.elapsed();
-        Logger::instance().log(Logger::Info, "MainWindow", 
-                              QString("Starting background processing of ETI file: %1 (dialog took %2ms)")
-                              .arg(fileName).arg(processStartTime));
-        
-        // Start background processing (non-blocking, returns immediately)
-        m_etiFileWorker->processEtiFile(fileName);
+        // Emit file opened signal
+        emit etiFileOpened(fileName);
+    }
         
         qint64 totalTime = timer.elapsed();
         Logger::instance().log(Logger::Debug, "MainWindow", 
@@ -2813,11 +2820,21 @@ void MainWindow::startRealTimeAnalysis()
         return;  // Already in real-time mode
     }
     
+    Logger::instance().log(Logger::Info, "MainWindow", "Starting real-time analysis via Professional Workflow Manager");
+    
+    // Use Professional Workflow Manager for real-time analysis
+    if (m_workflowManager) {
+        QHash<QString, QVariant> sourceConfig;
+        sourceConfig["address"] = "239.192.0.1";  // Default ETI-over-IP multicast address
+        sourceConfig["port"] = 9200;              // Default ETI-over-IP port
+        m_workflowManager->startRealTimeAnalysisWorkflow(sourceConfig);
+    }
+    
+    // Update UI state
     m_realTimeMode = true;
     m_frameCount = 0;
     m_lastUpdateTime = QDateTime::currentMSecsSinceEpoch();
     
-    // Update UI state
     m_startAnalysisAction->setEnabled(false);
     m_stopAnalysisAction->setEnabled(true);
     
@@ -2829,6 +2846,7 @@ void MainWindow::startRealTimeAnalysis()
     updateWindowTitle();
     updateStatus(tr("Real-time analysis started"));
     
+    // Emit real-time mode changed signal
     emit realTimeModeChanged(true);
     
     Logger::instance().log(Logger::Info, "MainWindow", "Real-time analysis started");
@@ -2839,6 +2857,8 @@ void MainWindow::stopRealTimeAnalysis()
     if (!m_realTimeMode) {
         return;  // Not in real-time mode
     }
+    
+    Logger::instance().log(Logger::Info, "MainWindow", "Stopping real-time analysis");
     
     m_realTimeMode = false;
     
@@ -2854,6 +2874,7 @@ void MainWindow::stopRealTimeAnalysis()
     updateWindowTitle();
     updateStatus(tr("Real-time analysis stopped"));
     
+    // Emit real-time mode changed signal
     emit realTimeModeChanged(false);
     
     Logger::instance().log(Logger::Info, "MainWindow", "Real-time analysis stopped");
@@ -3142,5 +3163,146 @@ void MainWindow::loadTestData()
     } else {
         QMessageBox::warning(this, tr("Error"),
             tr("Service browser is not available."));
+    }
+}
+
+// ==============================================
+// PROFESSIONAL KEYBOARD SHORTCUT IMPLEMENTATIONS
+// ==============================================
+
+void MainWindow::startErrorDetection()
+{
+    Logger::instance().log(Logger::Info, "MainWindow", "Starting error detection workflow via keyboard shortcut (F7)");
+    
+    if (m_workflowManager && !m_currentFile.isEmpty()) {
+        m_workflowManager->startErrorDetectionWorkflow(m_currentFile);
+        updateStatus(tr("Error Detection Started"), tr("Scanning for ETSI compliance issues"));
+    } else if (m_currentFile.isEmpty()) {
+        QMessageBox::information(this, tr("No File Loaded"),
+            tr("Please open an ETI file before starting error detection."));
+    } else {
+        updateStatus(tr("Error Detection Failed"), tr("Workflow manager not available"));
+    }
+}
+
+void MainWindow::generateProfessionalReport()
+{
+    Logger::instance().log(Logger::Info, "MainWindow", "Generating professional report via keyboard shortcut (F8)");
+    
+    if (m_workflowManager) {
+        QString reportPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + 
+                            "/eti_analysis_report_" + QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss") + ".txt";
+        
+        bool success = m_workflowManager->generateErrorReport(reportPath);
+        if (success) {
+            updateStatus(tr("Report Generated"), QString("Saved to: %1").arg(reportPath));
+            QMessageBox::information(this, tr("Report Generated"),
+                tr("Professional analysis report has been generated:\n\n%1").arg(reportPath));
+        } else {
+            updateStatus(tr("Report Generation Failed"), tr("Could not generate report"));
+            QMessageBox::warning(this, tr("Report Error"),
+                tr("Failed to generate professional analysis report."));
+        }
+    } else {
+        updateStatus(tr("Report Generation Failed"), tr("Workflow manager not available"));
+    }
+}
+
+void MainWindow::navigateToNextError()
+{
+    Logger::instance().log(Logger::Info, "MainWindow", "Navigating to next error via keyboard shortcut (F2)");
+    
+    if (m_workflowManager) {
+        // TODO: Implement navigation to next error when error list is available
+        updateStatus(tr("Next Error Navigation"), tr("Error navigation not yet implemented"));
+        QMessageBox::information(this, tr("Navigation"),
+            tr("Next error navigation will be available when error detection is complete."));
+    } else {
+        updateStatus(tr("Navigation Failed"), tr("Workflow manager not available"));
+    }
+}
+
+void MainWindow::navigateToPreviousError()
+{
+    Logger::instance().log(Logger::Info, "MainWindow", "Navigating to previous error via keyboard shortcut (F3)");
+    
+    if (m_workflowManager) {
+        // TODO: Implement navigation to previous error when error list is available
+        updateStatus(tr("Previous Error Navigation"), tr("Error navigation not yet implemented"));
+        QMessageBox::information(this, tr("Navigation"),
+            tr("Previous error navigation will be available when error detection is complete."));
+    } else {
+        updateStatus(tr("Navigation Failed"), tr("Workflow manager not available"));
+    }
+}
+
+void MainWindow::jumpToFrame()
+{
+    Logger::instance().log(Logger::Info, "MainWindow", "Jump to frame dialog via keyboard shortcut (F4)");
+    
+    bool ok;
+    int frameNumber = QInputDialog::getInt(this, tr("Jump to Frame"), 
+                                         tr("Enter ETI frame number:"), 
+                                         1, 1, 999999, 1, &ok);
+    
+    if (ok && m_workflowManager) {
+        m_workflowManager->navigateToErrorFrame(frameNumber, "User Navigation");
+        updateStatus(tr("Jumped to Frame %1").arg(frameNumber), tr("Manual navigation"));
+    } else if (!ok) {
+        Logger::instance().log(Logger::Info, "MainWindow", "Jump to frame cancelled by user");
+    } else {
+        updateStatus(tr("Jump Failed"), tr("Workflow manager not available"));
+    }
+}
+
+void MainWindow::toggleServiceExplorer()
+{
+    Logger::instance().log(Logger::Info, "MainWindow", "Toggle Service Explorer panel via keyboard shortcut (F9)");
+    
+    // TODO: Implement when Service Explorer panel is available
+    updateStatus(tr("Service Explorer Toggle"), tr("Panel toggle not yet implemented"));
+}
+
+void MainWindow::togglePropertiesPanel()
+{
+    Logger::instance().log(Logger::Info, "MainWindow", "Toggle Properties panel via keyboard shortcut (F10)");
+    
+    // TODO: Implement when Properties panel is available
+    updateStatus(tr("Properties Panel Toggle"), tr("Panel toggle not yet implemented"));
+}
+
+void MainWindow::toggleMessagesPanel()
+{
+    Logger::instance().log(Logger::Info, "MainWindow", "Toggle Messages panel via keyboard shortcut (F12)");
+    
+    // TODO: Implement when Messages panel is available
+    updateStatus(tr("Messages Panel Toggle"), tr("Panel toggle not yet implemented"));
+}
+
+void MainWindow::selectAllServices()
+{
+    Logger::instance().log(Logger::Info, "MainWindow", "Select all services via keyboard shortcut (Ctrl+A)");
+    
+    if (m_workflowManager) {
+        // TODO: Implement when service selection is available
+        updateStatus(tr("All Services Selected"), tr("Service selection not yet implemented"));
+        QMessageBox::information(this, tr("Service Selection"),
+            tr("All services selection will be available when service discovery is complete."));
+    } else {
+        updateStatus(tr("Selection Failed"), tr("Workflow manager not available"));
+    }
+}
+
+void MainWindow::deselectAllServices()
+{
+    Logger::instance().log(Logger::Info, "MainWindow", "Deselect all services via keyboard shortcut (Ctrl+D)");
+    
+    if (m_workflowManager) {
+        // TODO: Implement when service selection is available
+        updateStatus(tr("All Services Deselected"), tr("Service selection not yet implemented"));
+        QMessageBox::information(this, tr("Service Selection"),
+            tr("Service deselection will be available when service discovery is complete."));
+    } else {
+        updateStatus(tr("Deselection Failed"), tr("Workflow manager not available"));
     }
 }

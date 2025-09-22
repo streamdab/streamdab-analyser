@@ -99,6 +99,12 @@ void ServiceExplorerPanel::setupServiceTree()
     
     m_mainLayout->addWidget(m_serviceTree);
     
+    // Connect tree widget signals for professional interaction
+    connect(m_serviceTree, &QTreeWidget::itemClicked,
+            this, &ServiceExplorerPanel::onServiceTreeItemClicked);
+    connect(m_serviceTree, &QTreeWidget::itemChanged,
+            this, &ServiceExplorerPanel::onServiceTreeItemChanged);
+    
     // Connect signals for professional interaction
     connect(m_serviceTree, &QTreeWidget::itemClicked,
             this, &ServiceExplorerPanel::onServiceTreeItemClicked);

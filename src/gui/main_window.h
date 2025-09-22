@@ -53,6 +53,7 @@ class ServiceExplorerPanel;
 class EtiAnalysisWidget;
 class PerformanceDashboard;
 class ETSIComplianceMonitor;
+class ProfessionalWorkflowManager;
 
 // Modern ETI Core Engine components
 namespace eti {
@@ -136,6 +137,12 @@ public:
      * @return Pointer to service browser
      */
     ServiceBrowser* getServiceBrowser() const { return m_serviceBrowser; }
+
+    /**
+     * @brief Get professional workflow manager
+     * @return Pointer to workflow manager
+     */
+    ProfessionalWorkflowManager* getWorkflowManager() const { return m_workflowManager.get(); }
 
     /**
      * @brief Check if real-time updates are active
@@ -225,6 +232,56 @@ public slots:
      * @param serviceId Detected DAB+ service ID
      */
     void onDabPlusServiceDetected(const QString& serviceId);
+
+    /**
+     * @brief Start error detection workflow
+     */
+    void startErrorDetection();
+
+    /**
+     * @brief Generate professional report
+     */
+    void generateProfessionalReport();
+
+    /**
+     * @brief Navigate to next error
+     */
+    void navigateToNextError();
+
+    /**
+     * @brief Navigate to previous error
+     */
+    void navigateToPreviousError();
+
+    /**
+     * @brief Jump to specific frame
+     */
+    void jumpToFrame();
+
+    /**
+     * @brief Toggle service explorer panel
+     */
+    void toggleServiceExplorer();
+
+    /**
+     * @brief Toggle properties panel
+     */
+    void togglePropertiesPanel();
+
+    /**
+     * @brief Toggle messages panel
+     */
+    void toggleMessagesPanel();
+
+    /**
+     * @brief Select all services
+     */
+    void selectAllServices();
+
+    /**
+     * @brief Deselect all services
+     */
+    void deselectAllServices();
 
 signals:
     /**
@@ -490,6 +547,9 @@ private:
     // Professional analysis widgets
     PerformanceDashboard *m_performanceDashboard;
     ETSIComplianceMonitor *m_complianceMonitor;
+
+    // Professional workflow management
+    std::unique_ptr<ProfessionalWorkflowManager> m_workflowManager;
 
     // Dockable panels
     QDockWidget *m_fileExplorerDock;
