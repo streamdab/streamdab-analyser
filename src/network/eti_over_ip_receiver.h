@@ -86,6 +86,38 @@ struct NetworkQualityMetrics {
     std::atomic<int> continuity_errors{0};       // Continuity counter errors
     std::atomic<int> crc_errors{0};              // CRC errors detected
     
+    // Custom constructors to handle atomic members
+    NetworkQualityMetrics() = default;
+    
+    NetworkQualityMetrics(const NetworkQualityMetrics& other) {
+        jitter_ms = other.jitter_ms.load();
+        packet_loss_rate = other.packet_loss_rate.load();
+        out_of_order_rate = other.out_of_order_rate.load();
+        round_trip_time_us = other.round_trip_time_us.load();
+        bandwidth_mbps = other.bandwidth_mbps.load();
+        buffer_fill_level = other.buffer_fill_level.load();
+        sync_locked = other.sync_locked.load();
+        signal_quality = other.signal_quality.load();
+        continuity_errors = other.continuity_errors.load();
+        crc_errors = other.crc_errors.load();
+    }
+    
+    NetworkQualityMetrics& operator=(const NetworkQualityMetrics& other) {
+        if (this != &other) {
+            jitter_ms = other.jitter_ms.load();
+            packet_loss_rate = other.packet_loss_rate.load();
+            out_of_order_rate = other.out_of_order_rate.load();
+            round_trip_time_us = other.round_trip_time_us.load();
+            bandwidth_mbps = other.bandwidth_mbps.load();
+            buffer_fill_level = other.buffer_fill_level.load();
+            sync_locked = other.sync_locked.load();
+            signal_quality = other.signal_quality.load();
+            continuity_errors = other.continuity_errors.load();
+            crc_errors = other.crc_errors.load();
+        }
+        return *this;
+    }
+    
     void reset() {
         jitter_ms = 0.0;
         packet_loss_rate = 0.0;
@@ -190,6 +222,7 @@ private:
     void update_statistics(const RTPHeader& header, size_t payload_size, bool outgoing);
     void calculate_jitter(uint32_t timestamp);
     void detect_packet_loss(uint16_t sequence_number);
+    static uint32_t generate_random_ssrc();
     
     uint32_t m_ssrc;
     uint8_t m_payload_type = RTPHeader::ETI_PAYLOAD_TYPE;
@@ -372,9 +405,10 @@ private:
     // Initialization and cleanup
     void initializeReceiver();
     void cleanupReceiver();
-    void setupSocket();
+    bool setupSocket();  // Changed return type to bool
     void setupTimers();
-    void joinMulticastGroup();
+    void connectSignals();
+    bool joinMulticastGroup();
     void leaveMulticastGroup();
     
     // Packet processing

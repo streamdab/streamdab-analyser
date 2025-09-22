@@ -240,11 +240,11 @@ private:
 /**
  * @brief TDD Workflow validation macros
  */
-#define TDD_TEST_CASE(TestClass, Category, Priority) \
+#define TDD_TEST_CASE(TestClass, CategoryName, PriorityName) \
     class TestClass : public TDD::TestSuite { \
         Q_OBJECT \
     public: \
-        TestClass() : TDD::TestSuite(#TestClass, TDD::Category::Category, TDD::Priority::Priority) {} \
+        TestClass() : TDD::TestSuite(#TestClass, TDD::Category::CategoryName, TDD::Priority::PriorityName) {} \
     private slots:
 
 #define TDD_RED_PHASE(testName) \

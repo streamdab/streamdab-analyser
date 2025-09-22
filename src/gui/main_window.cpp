@@ -574,7 +574,7 @@ void MainWindow::createExplorerPanel()
     
     // Create the new professional service explorer panel
     m_serviceExplorerPanel = new ServiceExplorerPanel(this);
-    m_serviceExplorerPanel->setObjectName("ServiceExplorerPanel");
+    m_serviceExplorerPanel->setObjectName("explorerPanel");
     m_serviceExplorerPanel->setMinimumWidth(300);  // Professional layout width
     
     // Connect to ETI processor for real-time service data
@@ -633,7 +633,7 @@ void MainWindow::createMainContentArea()
     qDebug() << "Creating Professional Main Content Area with enhanced ETI analysis widget...";
     
     m_mainContentArea = new QWidget();
-    m_mainContentArea->setObjectName("MainContentArea");
+    m_mainContentArea->setObjectName("mainContentArea");
     
     QVBoxLayout *layout = new QVBoxLayout(m_mainContentArea);
     layout->setContentsMargins(4, 4, 4, 4);
@@ -690,7 +690,7 @@ void MainWindow::createPropertiesPanel()
     qDebug() << "Creating Professional Properties Panel with sync/compare modes...";
     
     m_propertiesPanel = new QWidget();
-    m_propertiesPanel->setObjectName("PropertiesPanel");
+    m_propertiesPanel->setObjectName("propertiesPanel");
     m_propertiesPanel->setMinimumWidth(280);  // Increased for professional layout
     
     QVBoxLayout *layout = new QVBoxLayout(m_propertiesPanel);
