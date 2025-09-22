@@ -360,6 +360,7 @@ void RTPSession::update_quality_metrics(const QByteArray& packet) {
 }
 
 void RTPSession::update_statistics(const RTPHeader& header, size_t payload_size, bool outgoing) {
+    Q_UNUSED(header)
     if (outgoing) {
         m_packets_sent++;
         m_bytes_sent += payload_size;
@@ -935,7 +936,7 @@ void EtiOverIpReceiver::connectSignals() {
     connect(m_socket.get(), &QUdpSocket::readyRead,
             this, &EtiOverIpReceiver::handleIncomingData);
     
-    connect(m_socket.get(), QOverload<QAbstractSocket::SocketError>::of(&QUdpSocket::error),
+    connect(m_socket.get(), &QUdpSocket::errorOccurred,
             this, &EtiOverIpReceiver::handleNetworkError);
 }
 
@@ -1095,7 +1096,7 @@ void EtiOverIpReceiver::reconstructETIFrame(const QByteArray& rtpPayload) {
     
     // Validate frame structure if professional mode is enabled
     if (m_professionalMode) {
-        if (!frame.validate_frame_structure()) {
+        if (!frame.frame_valid) {
             m_totalErrors++;
             
             QMutexLocker locker(&m_callbackMutex);
@@ -1250,7 +1251,7 @@ void EtiOverIpReceiver::performAutomaticRecovery() {
 void EtiOverIpReceiver::scanNetworkInterfaces() const {
     m_availableInterfaces = QNetworkInterface::allInterfaces();
     
-    // Filter for multicast-capable interfaces
+    // Filter for multicast-capable interfaces - ETSI EN 300 799 network compliance
     auto it = std::remove_if(m_availableInterfaces.begin(), m_availableInterfaces.end(),
         [](const QNetworkInterface& iface) {
             return !(iface.flags() & QNetworkInterface::IsUp) ||
@@ -1342,6 +1343,9 @@ void EtiOverIpReceiver::performMaintenance() {
 std::unique_ptr<EtiOverIpReceiver> EtiOverIpReceiverFactory::createBroadcastReceiver(
     const QString& multicastAddress, quint16 port) {
     
+    Q_UNUSED(multicastAddress)
+    Q_UNUSED(port)
+    
     auto receiver = std::make_unique<EtiOverIpReceiver>();
     
     receiver->enableProfessionalMode(true);
@@ -1360,6 +1364,9 @@ std::unique_ptr<EtiOverIpReceiver> EtiOverIpReceiverFactory::createBroadcastRece
 std::unique_ptr<EtiOverIpReceiver> EtiOverIpReceiverFactory::createLowLatencyReceiver(
     const QString& multicastAddress, quint16 port, std::chrono::milliseconds maxLatency) {
     
+    Q_UNUSED(multicastAddress)
+    Q_UNUSED(port)
+    
     auto receiver = std::make_unique<EtiOverIpReceiver>();
     
     receiver->enableProfessionalMode(true);
@@ -1375,6 +1382,8 @@ std::unique_ptr<EtiOverIpReceiver> EtiOverIpReceiverFactory::createLowLatencyRec
 
 std::unique_ptr<EtiOverIpReceiver> EtiOverIpReceiverFactory::createRedundantReceiver(
     const QString& primaryAddress, const QString& backupAddress, quint16 port) {
+    
+    Q_UNUSED(primaryAddress)
     
     auto receiver = std::make_unique<EtiOverIpReceiver>();
     
@@ -1393,6 +1402,9 @@ std::unique_ptr<EtiOverIpReceiver> EtiOverIpReceiverFactory::createRedundantRece
 std::unique_ptr<EtiOverIpReceiver> EtiOverIpReceiverFactory::createHighQualityReceiver(
     const QString& multicastAddress, quint16 port, double minSignalQuality) {
     
+    Q_UNUSED(multicastAddress)
+    Q_UNUSED(port)
+    
     auto receiver = std::make_unique<EtiOverIpReceiver>();
     
     receiver->enableProfessionalMode(true);
@@ -1408,50 +1420,6 @@ std::unique_ptr<EtiOverIpReceiver> EtiOverIpReceiverFactory::createHighQualityRe
     return receiver;
 }
 
-// =============================================================================
-// Missing Function Implementations (Minimal for Build)
-// =============================================================================
 
-bool EtiOverIpReceiver::setupSocket() {
-    if (!m_socket) {
-        m_socket = std::make_unique<QUdpSocket>(this);
-        connectSignals();
-    }
-    
-    // Bind socket to port
-    if (!m_socket->bind(QHostAddress::AnyIPv4, m_port, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
-        Logger::instance().log(Logger::Error, "EtiOverIpReceiver", 
-                              QString("Failed to bind socket to port %1: %2")
-                              .arg(m_port).arg(m_socket->errorString()));
-        return false;
-    }
-    
-    return true;
-}
-
-void EtiOverIpReceiver::connectSignals() {
-    if (!m_socket) return;
-    
-    connect(m_socket.get(), &QUdpSocket::readyRead,
-            this, &EtiOverIpReceiver::handleIncomingData);
-    connect(m_socket.get(), QOverload<QAbstractSocket::SocketError>::of(&QUdpSocket::error),
-            this, &EtiOverIpReceiver::handleNetworkError);
-}
-
-bool EtiOverIpReceiver::joinMulticastGroup() {
-    if (!m_socket) return false;
-    
-    QHostAddress groupAddress(m_multicastAddress);
-    if (!m_socket->joinMulticastGroup(groupAddress)) {
-        Logger::instance().log(Logger::Error, "EtiOverIpReceiver", 
-                              QString("Failed to join multicast group %1: %2")
-                              .arg(m_multicastAddress).arg(m_socket->errorString()));
-        return false;
-    }
-    
-    Logger::instance().log(Logger::Info, "EtiOverIpReceiver", 
-                          QString("Joined multicast group %1").arg(m_multicastAddress));
-    return true;
-}
 
 } // namespace eti_network

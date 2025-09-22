@@ -67,7 +67,41 @@ struct CircularBufferConfig {
 };
 
 /**
- * @brief Buffer performance metrics for monitoring and optimization
+ * @brief Copyable buffer metrics snapshot (for returning values)
+ */
+struct BufferMetricsSnapshot {
+    // Capacity and utilization
+    size_t capacity{0};                    // Current buffer capacity
+    size_t size{0};                        // Current number of items
+    double utilization{0.0};               // Buffer utilization (0.0-1.0)
+    size_t peak_utilization{0};            // Peak utilization reached
+    
+    // Memory usage
+    size_t memory_usage_bytes{0};          // Current memory usage
+    size_t peak_memory_bytes{0};           // Peak memory usage
+    double memory_efficiency{1.0};         // Memory efficiency ratio
+    
+    // Performance metrics
+    size_t items_written{0};               // Total items written
+    size_t items_read{0};                  // Total items read
+    size_t overflows{0};                   // Overflow events
+    size_t underflows{0};                  // Underflow events
+    size_t adaptations{0};                 // Adaptive resizing events
+    
+    // Timing metrics
+    int64_t avg_write_time_ns{0};          // Average write time (nanoseconds)
+    int64_t avg_read_time_ns{0};           // Average read time (nanoseconds)
+    int64_t max_latency_ns{0};             // Maximum latency observed
+    double throughput_fps{0.0};            // Current throughput (FPS)
+    
+    // Quality metrics
+    double data_integrity{1.0};            // Data integrity score (0.0-1.0)
+    size_t corruption_events{0};           // Data corruption events
+    size_t recovery_events{0};             // Recovery events triggered
+};
+
+/**
+ * @brief Buffer performance metrics for monitoring and optimization (atomic for thread safety)
  */
 struct BufferMetrics {
     // Capacity and utilization
@@ -119,6 +153,31 @@ struct BufferMetrics {
         data_integrity = 1.0;
         corruption_events = 0;
         recovery_events = 0;
+    }
+    
+    // Method to create a copyable snapshot
+    BufferMetricsSnapshot getSnapshot() const {
+        BufferMetricsSnapshot snapshot;
+        snapshot.capacity = capacity.load();
+        snapshot.size = size.load();
+        snapshot.utilization = utilization.load();
+        snapshot.peak_utilization = peak_utilization.load();
+        snapshot.memory_usage_bytes = memory_usage_bytes.load();
+        snapshot.peak_memory_bytes = peak_memory_bytes.load();
+        snapshot.memory_efficiency = memory_efficiency.load();
+        snapshot.items_written = items_written.load();
+        snapshot.items_read = items_read.load();
+        snapshot.overflows = overflows.load();
+        snapshot.underflows = underflows.load();
+        snapshot.adaptations = adaptations.load();
+        snapshot.avg_write_time_ns = avg_write_time_ns.load();
+        snapshot.avg_read_time_ns = avg_read_time_ns.load();
+        snapshot.max_latency_ns = max_latency_ns.load();
+        snapshot.throughput_fps = throughput_fps.load();
+        snapshot.data_integrity = data_integrity.load();
+        snapshot.corruption_events = corruption_events.load();
+        snapshot.recovery_events = recovery_events.load();
+        return snapshot;
     }
 };
 
@@ -316,7 +375,7 @@ public:
     CircularBufferConfig getConfig() const;
     
     // Metrics
-    BufferMetrics getMetrics() const;
+    BufferMetricsSnapshot getMetrics() const;
     void resetMetrics();
     
     // Adaptive behavior
@@ -401,7 +460,7 @@ public:
     void enableMemoryCompaction(bool enabled);
     
     // Performance metrics
-    BufferMetrics getMetrics() const;
+    BufferMetricsSnapshot getMetrics() const;
     double getCurrentThroughput() const;
     std::chrono::microseconds getCurrentLatency() const;
     bool isPerformanceTargetMet() const;
@@ -433,7 +492,7 @@ signals:
     void bufferAdapted(size_t oldSize, size_t newSize);
     void memoryLimitExceeded(size_t currentUsage, size_t limit);
     void performanceTargetMissed(double currentThroughput, double targetThroughput);
-    void metricsUpdated(const BufferMetrics& metrics);
+    void metricsUpdated(const BufferMetricsSnapshot& metrics);
     void dataIntegrityError(const QString& details);
 
 private slots:

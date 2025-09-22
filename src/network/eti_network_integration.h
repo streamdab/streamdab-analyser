@@ -227,7 +227,7 @@ private slots:
     // Buffer manager slots
     void handleBufferOverflow(size_t droppedFrames);
     void handleBufferUnderflow();
-    void handleBufferMetrics(const BufferMetrics& metrics);
+    void handleBufferMetrics(const BufferMetricsSnapshot& metrics);
     
     // System monitoring slots
     void updateStatus();

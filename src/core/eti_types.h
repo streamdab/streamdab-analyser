@@ -373,7 +373,7 @@ struct EtiFrame {
     explicit EtiFrame(const std::array<uint8_t, ETI_FRAME_SIZE>& data) 
         : frame_data(data), frame_valid(false) {
         receive_timestamp = std::chrono::system_clock::now();
-        validate_frame_structure();
+        initialize_frame_validation();
     }
     
     // Field accessors
@@ -478,7 +478,7 @@ struct EtiFrame {
     }
     
 private:
-    void validate_frame_structure() {
+    void initialize_frame_validation() {
         // Basic validation - check if frame has minimum required size
         frame_valid = (frame_data.size() >= ETI_SYNC_SIZE + ETI_LIDATA_SIZE);
     }

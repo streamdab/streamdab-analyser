@@ -71,7 +71,7 @@ private slots:
      * Connect Source → Enable Real-time Mode → Stream Processing → Live Updates → Record/Export
      * 
      * Testing Requirements:
-     * - Real-Time Mode Activation: UI toggle, ETISnoop setRealTimeMode(true), network dialog, status indicators
+     * - Real-Time Mode Activation: UI toggle, internal real-time processing, network dialog, status indicators
      * - Live Stream Processing: processEtiFrame() triggers, Qt signals, panel updates, >900 fps display
      * - Live Monitoring: Recording without interruption, dynamic service discovery, audio metrics, error alerts
      * - E2E Validation: <50ms latency, multicast validation, >900 fps sustained, no UI blocking

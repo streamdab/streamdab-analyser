@@ -291,9 +291,9 @@ void StreamingWorker::processFrameInternal(const eti::EtiFrame& frame, const Net
     auto receive_time = std::chrono::steady_clock::now();
     
     // Stage 1: Input processing
-    auto input_start = std::chrono::high_resolution_clock::now();
+    auto input_start = std::chrono::steady_clock::now();
     ProcessedFrame processed = inputStage(frame, quality);
-    auto input_end = std::chrono::high_resolution_clock::now();
+    auto input_end = std::chrono::steady_clock::now();
     
     if (!processed.processing_successful) {
         handleProcessingError(processed.error_message);
@@ -301,7 +301,7 @@ void StreamingWorker::processFrameInternal(const eti::EtiFrame& frame, const Net
     }
     
     // Stage 2: Decoding (if required by mode)
-    auto decode_start = std::chrono::high_resolution_clock::now();
+    auto decode_start = std::chrono::steady_clock::now();
     if (m_config.mode != ProcessingMode::ULTRA_LOW_LATENCY) {
         processed = decodeStage(std::move(processed));
         if (!processed.processing_successful) {
@@ -309,10 +309,10 @@ void StreamingWorker::processFrameInternal(const eti::EtiFrame& frame, const Net
             return;
         }
     }
-    auto decode_end = std::chrono::high_resolution_clock::now();
+    auto decode_end = std::chrono::steady_clock::now();
     
     // Stage 3: Analysis (if required by mode)
-    auto analysis_start = std::chrono::high_resolution_clock::now();
+    auto analysis_start = std::chrono::steady_clock::now();
     if (m_config.mode == ProcessingMode::BALANCED || 
         m_config.mode == ProcessingMode::HIGH_QUALITY) {
         processed = analysisStage(std::move(processed));
@@ -321,12 +321,12 @@ void StreamingWorker::processFrameInternal(const eti::EtiFrame& frame, const Net
             return;
         }
     }
-    auto analysis_end = std::chrono::high_resolution_clock::now();
+    auto analysis_end = std::chrono::steady_clock::now();
     
     // Stage 4: Output processing
-    auto output_start = std::chrono::high_resolution_clock::now();
+    auto output_start = std::chrono::steady_clock::now();
     processed = outputStage(std::move(processed));
-    auto output_end = std::chrono::high_resolution_clock::now();
+    auto output_end = std::chrono::steady_clock::now();
     
     // Update timing breakdown
     m_performance.input_time_us = std::chrono::duration_cast<std::chrono::microseconds>(input_end - input_start).count();
@@ -878,9 +878,9 @@ void StreamingProcessor::processFrameBatch(const std::vector<std::pair<eti::EtiF
     m_nextWorkerIndex.fetch_add(frames.size());
 }
 
-StreamingPerformance StreamingProcessor::getPerformanceMetrics() const {
+StreamingPerformanceSnapshot StreamingProcessor::getPerformanceMetrics() const {
     QMutexLocker locker(&m_performanceMutex);
-    return m_aggregatedPerformance;
+    return m_aggregatedPerformance.getSnapshot();
 }
 
 std::chrono::microseconds StreamingProcessor::getCurrentLatency() const {

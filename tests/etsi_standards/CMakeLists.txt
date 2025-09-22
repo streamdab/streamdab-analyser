@@ -150,7 +150,6 @@ target_link_libraries(eti_analyzer_etsi_comprehensive_tests
     ${GTEST_LIBS}
     Qt6::Core
     Qt6::Test
-    etisnoop_static
     ${TEST_LIBS}
 )
 
@@ -163,7 +162,7 @@ target_include_directories(eti_analyzer_etsi_comprehensive_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/etsi_test_data
     ${FAAD2_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/etisnoop/src
+
 )
 
 # Compile definitions for ETSI compliance tests

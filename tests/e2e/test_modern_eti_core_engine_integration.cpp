@@ -10,7 +10,7 @@
  * - Comprehensive ETSI Validator 100% compliance
  * - Memory efficiency <4MB operational footprint
  * - GUI integration with Modern ETI Core Engine
- * - Complete migration from ETISnoop wrapper
+ * - Complete internal implementation without external dependencies
  */
 
 #include <QtTest/QtTest>
@@ -53,7 +53,7 @@ private slots:
     void testFrameListModelModernEngine();
 
     // Complete Migration Tests
-    void testCompleteETISnoopMigration();
+    void testCompleteInternalImplementation();
     void testMemoryEfficiencyTargets();
     void testRealTimeProcessingCapability();
 
@@ -304,32 +304,32 @@ void TestModernETICoreEngineIntegration::testServiceTreeModelModernEngine()
     QVERIFY(serviceTreeModel->rowCount() > 0);
 }
 
-void TestModernETICoreEngineIntegration::testCompleteETISnoopMigration()
+void TestModernETICoreEngineIntegration::testCompleteInternalImplementation()
 {
-    // Test complete migration from ETISnoop wrapper
-    qDebug() << "Testing complete ETISnoop wrapper migration";
+    // Test complete internal implementation without external dependencies
+    qDebug() << "Testing complete internal implementation";
 
-    // Verify no ETISnoop wrapper dependencies remain
+    // Verify internal processing engine is available
     m_mainWindow = std::make_unique<MainWindow>();
     QVERIFY(m_mainWindow->initialize());
 
-    // Verify all functionality works without ETISnoop wrapper
+    // Verify all functionality works with internal implementation only
     auto processor = m_mainWindow->getEtiProcessor();
     QVERIFY(processor != nullptr);
 
-    // Test that Modern ETI Core Engine provides all required functionality
+    // Test that internal ETI processing engine provides all required functionality
     auto frameParser = processor->getETIParser();
     auto figAnalyzer = processor->getFIGAnalyzer();
     
     QVERIFY(frameParser != nullptr);
     QVERIFY(figAnalyzer != nullptr);
     
-    // Process test data to verify complete functionality
+    // Process test data to verify complete internal functionality
     QByteArray testFrame = generateTestETIFrame(1);
     bool processed = frameParser->processFrame(testFrame);
-    QVERIFY2(processed, "Modern ETI Core Engine failed to process frame");
+    QVERIFY2(processed, "Internal ETI processing engine failed to process frame");
 
-    qDebug() << "Complete ETISnoop migration test passed - no wrapper dependencies detected";
+    qDebug() << "Complete internal implementation test passed - using project's own code";
 }
 
 void TestModernETICoreEngineIntegration::testMemoryEfficiencyTargets()

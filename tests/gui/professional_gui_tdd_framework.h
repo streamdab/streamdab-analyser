@@ -45,7 +45,7 @@
 #include <QApplication>
 #include <QPalette>
 #include <QFont>
-#include <QStyleSheet>
+#include <QStyle>
 #include <QUiLoader>
 #include <QDir>
 #include <QFile>
