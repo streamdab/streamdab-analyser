@@ -15,6 +15,7 @@
  */
 
 #include "main_window.h"
+#include "ui_main_window.h"
 #include "analyzer_widget.h"
 #include "constellation_widget.h"
 #include "service_browser.h"
@@ -58,6 +59,7 @@
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
+    , ui(new Ui::MainWindow)
     , m_serviceTreeModel(nullptr)
     , m_frameListModel(nullptr)
     , m_centralWidget(nullptr)
@@ -139,12 +141,8 @@ MainWindow::MainWindow(QWidget *parent)
     // Initialize core components - TEMPORARILY DISABLED DUE TO LOGGER HANG
     // m_configManager = std::make_unique<ConfigManager>();
     
-    // Set window properties
-    setWindowTitle("StreamDAB Stream Analyzer");
-    setWindowIcon(QIcon(":/icons/application.png"));
-    
-    // Set default window size
-    resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
+    // Setup Qt Designer UI
+    ui->setupUi(this);
     
     // Center window on screen
     QScreen *screen = QGuiApplication::primaryScreen();
@@ -185,6 +183,9 @@ MainWindow::~MainWindow()
     // Cleanup dialogs
     delete m_settingsDialog;
     delete m_aboutDialog;
+    
+    // Cleanup Qt Designer UI
+    delete ui;
     
     Logger::instance().log(Logger::Info, "MainWindow", "Destructor completed");
 }
