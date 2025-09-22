@@ -40,11 +40,14 @@ public:
     
     EtsiEtiFrame();
     
-    // Structure validation
+    // Structure validation - Public interface for ETSI EN 300 799 compliance
     bool validate_sync_pattern() const;
-    bool validate_frame_structure() const;
+    bool validate_frame_structure() const;  // Public for network processing validation
     bool validate_crc() const;
     bool is_etsi_compliant() const;
+    
+    // Alternative public validation method for network integration
+    bool isValid() const { return validate_frame_structure(); }
     
     // Field accessors
     uint8_t get_frame_count() const;

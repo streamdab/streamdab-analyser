@@ -84,7 +84,45 @@ struct StreamingConfig {
 };
 
 /**
- * @brief Real-time streaming performance metrics
+ * @brief Copyable streaming performance metrics (for returning values)
+ */
+struct StreamingPerformanceSnapshot {
+    // Latency metrics (microseconds)
+    int64_t current_latency_us{0};
+    int64_t average_latency_us{0};
+    int64_t min_latency_us{LLONG_MAX};
+    int64_t max_latency_us{0};
+    int64_t jitter_us{0};
+    
+    // Throughput metrics
+    double current_fps{0.0};
+    double average_fps{0.0};
+    double peak_fps{0.0};
+    size_t frames_processed{0};
+    size_t frames_dropped{0};
+    
+    // Resource utilization
+    double cpu_usage{0.0};
+    double memory_usage_mb{0.0};
+    double network_bandwidth_mbps{0.0};
+    double buffer_utilization{0.0};
+    
+    // Quality metrics
+    double processing_efficiency{1.0};  // 0.0-1.0
+    double quality_score{1.0};          // 0.0-1.0
+    size_t processing_errors{0};
+    size_t quality_degradations{0};
+    
+    // Timing breakdown (microseconds)
+    int64_t input_time_us{0};           // Input processing time
+    int64_t decode_time_us{0};          // Decoding time
+    int64_t analysis_time_us{0};        // Analysis time
+    int64_t output_time_us{0};          // Output processing time
+    int64_t queue_wait_time_us{0};      // Queue waiting time
+};
+
+/**
+ * @brief Real-time streaming performance metrics (atomic for thread safety)
  */
 struct StreamingPerformance {
     // Latency metrics (microseconds)
@@ -119,6 +157,35 @@ struct StreamingPerformance {
     std::atomic<int64_t> analysis_time_us{0};        // Analysis time
     std::atomic<int64_t> output_time_us{0};          // Output processing time
     std::atomic<int64_t> queue_wait_time_us{0};      // Queue waiting time
+    
+    // Method to create a copyable snapshot
+    StreamingPerformanceSnapshot getSnapshot() const {
+        StreamingPerformanceSnapshot snapshot;
+        snapshot.current_latency_us = current_latency_us.load();
+        snapshot.average_latency_us = average_latency_us.load();
+        snapshot.min_latency_us = min_latency_us.load();
+        snapshot.max_latency_us = max_latency_us.load();
+        snapshot.jitter_us = jitter_us.load();
+        snapshot.current_fps = current_fps.load();
+        snapshot.average_fps = average_fps.load();
+        snapshot.peak_fps = peak_fps.load();
+        snapshot.frames_processed = frames_processed.load();
+        snapshot.frames_dropped = frames_dropped.load();
+        snapshot.cpu_usage = cpu_usage.load();
+        snapshot.memory_usage_mb = memory_usage_mb.load();
+        snapshot.network_bandwidth_mbps = network_bandwidth_mbps.load();
+        snapshot.buffer_utilization = buffer_utilization.load();
+        snapshot.processing_efficiency = processing_efficiency.load();
+        snapshot.quality_score = quality_score.load();
+        snapshot.processing_errors = processing_errors.load();
+        snapshot.quality_degradations = quality_degradations.load();
+        snapshot.input_time_us = input_time_us.load();
+        snapshot.decode_time_us = decode_time_us.load();
+        snapshot.analysis_time_us = analysis_time_us.load();
+        snapshot.output_time_us = output_time_us.load();
+        snapshot.queue_wait_time_us = queue_wait_time_us.load();
+        return snapshot;
+    }
     
     void reset() {
         current_latency_us = 0;
@@ -337,7 +404,7 @@ public:
     void processFrameBatch(const std::vector<std::pair<eti::EtiFrame, NetworkQualityMetrics>>& frames);
     
     // Performance monitoring
-    StreamingPerformance getPerformanceMetrics() const;
+    StreamingPerformanceSnapshot getPerformanceMetrics() const;
     std::chrono::microseconds getCurrentLatency() const;
     double getCurrentFPS() const;
     double getProcessingEfficiency() const;
@@ -417,7 +484,7 @@ private:
     // Worker thread management
     std::vector<std::unique_ptr<QThread>> m_workerThreads;
     std::vector<std::unique_ptr<StreamingWorker>> m_workers;
-    size_t m_nextWorkerIndex = 0;
+    std::atomic<size_t> m_nextWorkerIndex{0};
     
     // Timers for maintenance and monitoring
     std::unique_ptr<QTimer> m_maintenanceTimer;

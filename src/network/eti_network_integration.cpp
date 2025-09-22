@@ -442,7 +442,7 @@ void EtiNetworkIntegration::updateGuiStatus() {
             data["processing_active"] = m_status.processing_active;
             data["current_fps"] = m_status.current_fps;
             data["current_latency"] = static_cast<qint64>(m_status.current_latency.count());
-            data["memory_usage"] = m_status.memory_usage_mb;
+            data["memory_usage"] = static_cast<double>(m_status.memory_usage_mb);
             data["signal_quality"] = m_status.signal_quality;
             data["packet_loss"] = m_status.packet_loss_rate;
             data["jitter"] = m_status.jitter_ms;
@@ -625,7 +625,7 @@ void EtiNetworkIntegration::handleBufferUnderflow() {
     Logger::instance().log(Logger::Warning, "EtiNetworkIntegration", "Buffer underflow detected");
 }
 
-void EtiNetworkIntegration::handleBufferMetrics(const BufferMetrics& metrics) {
+void EtiNetworkIntegration::handleBufferMetrics(const BufferMetricsSnapshot& metrics) {
     // Update buffer utilization in status
     {
         QMutexLocker locker(&m_statusMutex);

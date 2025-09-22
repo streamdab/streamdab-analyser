@@ -5,19 +5,25 @@
 #include <QSignalSpy>
 #include <memory>
 
-#include "src/core/etisnoop_wrapper.h"
+// USE INTERNAL IMPLEMENTATIONS ONLY - NO ETISNOOP
 #include "src/core/eti_processor.h"
 #include "src/core/eti_file_worker.h"
+#include "src/core/modern_eti_frame_parser.h"
+#include "src/core/eti_processing_engine.h"
 #include "src/utils/logger.h"
 
 /**
  * @class FileOperationsTest
- * @brief E2E tests for ETI file operations to prevent segmentation faults
+ * @brief E2E tests for ETI file operations using INTERNAL implementations only
  * 
- * This test class specifically targets the critical bug that was fixed:
- * - Segmentation fault when opening ETI files
- * - GUI stability during file processing operations
- * - Error handling in file operations
+ * CRITICAL: This test class validates project functionality WITHOUT any ETISnoop dependencies.
+ * Tests use only internal ETI processing classes to ensure the project can operate independently.
+ * 
+ * Key Internal Components Tested:
+ * - EtiProcessor: Core ETI processing with internal engine
+ * - ModernETIFrameParser: C++20 frame parsing implementation
+ * - ETIProcessingEngine: Modern ETI processing backend
+ * - EtiFileWorker: Background file processing without external dependencies
  */
 class FileOperationsTest : public QObject
 {
@@ -27,31 +33,30 @@ private slots:
     void initTestCase();
     void cleanupTestCase();
     
-    // Core stability tests
-    void testEtisnoopWrapperStability();
-    void testEtiProcessorStability();
+    // Core stability tests using INTERNAL implementations
+    void testInternalEtiProcessorStability();
+    void testModernFrameParserStability();
     void testEtiFileWorkerStability();
     
-    // Regression tests for the fixed bug
-    void testSegmentationFaultFix();
-    void testFileOpeningWithoutCrash();
-    void testErrorHandlingStability();
+    // Regression tests for stability using internal components
+    void testInternalProcessingStability();
+    void testFileOpeningWithInternalEngine();
+    void testErrorHandlingWithInternalComponents();
     
-    // Performance and memory tests
-    void testMemoryLeakPrevention();
-    void testLongRunningOperations();
+    // Performance and memory tests with internal implementations
+    void testMemoryLeakPreventionInternal();
+    void testLongRunningInternalOperations();
 
 private:
     QString m_testEtiFile;
-    std::unique_ptr<EtisnoopWrapper> m_wrapper;
     std::unique_ptr<EtiProcessor> m_processor;
 };
 
 void FileOperationsTest::initTestCase()
 {
     // Initialize logger for test tracking
-    Logger::instance().enableFileLogging("/tmp/e2e_test.log");
-    Logger::instance().log(Logger::Info, "E2ETest", "=== FILE OPERATIONS E2E TEST STARTED ===");
+    Logger::instance().enableFileLogging("/tmp/e2e_internal_test.log");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "=== INTERNAL FILE OPERATIONS E2E TEST STARTED ===");
     
     // Set test ETI file path
     m_testEtiFile = "/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti";
@@ -62,65 +67,83 @@ void FileOperationsTest::initTestCase()
     QVERIFY2(fileInfo.isReadable(), "Test ETI file must be readable");
     
     qDebug() << "Test file:" << m_testEtiFile << "Size:" << fileInfo.size() << "bytes";
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Using INTERNAL implementations only - NO ETISnoop");
 }
 
 void FileOperationsTest::cleanupTestCase()
 {
-    Logger::instance().log(Logger::Info, "E2ETest", "=== FILE OPERATIONS E2E TEST COMPLETED ===");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "=== INTERNAL FILE OPERATIONS E2E TEST COMPLETED ===");
 }
 
-void FileOperationsTest::testEtisnoopWrapperStability()
+void FileOperationsTest::testInternalEtiProcessorStability()
 {
-    Logger::instance().log(Logger::Info, "E2ETest", "Testing EtisnoopWrapper stability...");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Testing INTERNAL EtiProcessor stability...");
     
-    // Test that was crashing before the fix
-    {
-        EtisnoopWrapper wrapper;
-        QVERIFY2(wrapper.initialize(), "EtisnoopWrapper should initialize successfully");
-        
-        // This call was causing segmentation fault before the fix
-        bool result = wrapper.processEtiFile(m_testEtiFile);
-        
-        // We don't require success (file format issues are acceptable)
-        // but we require NO CRASH
-        qDebug() << "ProcessEtiFile result:" << result;
-        if (!result) {
-            qDebug() << "Error (acceptable):" << wrapper.getLastError();
-        }
-        
-        // If we reach here without crash, the fix worked
-        QVERIFY2(true, "EtisnoopWrapper should not crash on processEtiFile");
-    }
-    
-    Logger::instance().log(Logger::Info, "E2ETest", "EtisnoopWrapper stability test passed");
-}
-
-void FileOperationsTest::testEtiProcessorStability()
-{
-    Logger::instance().log(Logger::Info, "E2ETest", "Testing EtiProcessor stability...");
-    
+    // Test using ONLY internal implementation
     {
         auto processor = std::make_unique<EtiProcessor>();
-        QVERIFY2(processor->initialize(), "EtiProcessor should initialize successfully");
+        QVERIFY2(processor->initialize(), "Internal EtiProcessor should initialize successfully");
         
-        // Test file processing (this chains to EtisnoopWrapper)
+        // Test internal file processing (NO ETISnoop dependency)
         bool result = processor->processFile(m_testEtiFile);
         
-        // Again, we care about NO CRASH, not necessarily success
-        qDebug() << "EtiProcessor result:" << result;
+        // Log results and verify no crash
+        qDebug() << "Internal EtiProcessor result:" << result;
         if (!result) {
             qDebug() << "Status:" << processor->getStatus();
         }
         
-        QVERIFY2(true, "EtiProcessor should not crash on processFile");
+        // Key test: processor should not crash and should provide status
+        QVERIFY2(true, "Internal EtiProcessor should not crash on processFile");
+        QVERIFY2(!processor->getStatus().isEmpty(), "Internal EtiProcessor should provide status");
     }
     
-    Logger::instance().log(Logger::Info, "E2ETest", "EtiProcessor stability test passed");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Internal EtiProcessor stability test passed");
+}
+
+void FileOperationsTest::testModernFrameParserStability()
+{
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Testing Modern ETI Frame Parser stability...");
+    
+    // Test the modern C++20 frame parser directly
+    {
+        // Create a small test ETI frame for parsing
+        QByteArray testFrameData(6144, 0); // Standard ETI frame size
+        
+        // Set basic ETI frame structure (minimal valid frame)
+        testFrameData[0] = 0x49; // 'I' - ETI sync
+        testFrameData[1] = 0x4E; // 'N' - ETI sync
+        testFrameData[2] = 0x49; // 'I' - ETI sync
+        testFrameData[3] = 0x54; // 'T' - ETI sync
+        
+        // Test frame parsing without external dependencies
+        try {
+            // This tests our internal modern frame parser
+            eti::modern::ModernETIFrameParser parser;
+            
+            // Test initialization
+            bool initResult = parser.initialize();
+            QVERIFY2(initResult, "Modern frame parser should initialize");
+            
+            // Test basic frame validation
+            bool isValid = parser.validateFrameStructure(testFrameData);
+            qDebug() << "Frame validation result:" << isValid;
+            
+            // Test should not crash regardless of validation result
+            QVERIFY2(true, "Modern frame parser should not crash on validation");
+            
+        } catch (const std::exception& e) {
+            qDebug() << "Exception in frame parser:" << e.what();
+            QFAIL("Modern frame parser should not throw exceptions");
+        }
+    }
+    
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Modern ETI Frame Parser stability test passed");
 }
 
 void FileOperationsTest::testEtiFileWorkerStability()
 {
-    Logger::instance().log(Logger::Info, "E2ETest", "Testing EtiFileWorker stability...");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Testing INTERNAL EtiFileWorker stability...");
     
     {
         auto processor = std::make_unique<EtiProcessor>();
@@ -133,7 +156,7 @@ void FileOperationsTest::testEtiFileWorkerStability()
         QSignalSpy completedSpy(worker.get(), &EtiFileWorker::processingCompleted);
         QSignalSpy failedSpy(worker.get(), &EtiFileWorker::processingFailed);
         
-        // Start processing
+        // Start processing using INTERNAL implementation only
         worker->processEtiFile(m_testEtiFile);
         
         // Wait for processing to complete (with timeout)
@@ -150,117 +173,113 @@ void FileOperationsTest::testEtiFileWorkerStability()
             QThread::msleep(10);
         }
         
-        QVERIFY2(startedSpy.count() > 0, "Worker should emit processingStarted signal");
+        QVERIFY2(startedSpy.count() > 0, "Internal worker should emit processingStarted signal");
         QVERIFY2(completedSpy.count() > 0 || failedSpy.count() > 0, 
-                 "Worker should emit either completed or failed signal");
+                 "Internal worker should emit either completed or failed signal");
         
-        // If we reach here, no crash occurred
-        QVERIFY2(true, "EtiFileWorker should not crash during background processing");
+        // If we reach here, no crash occurred with internal implementation
+        QVERIFY2(true, "Internal EtiFileWorker should not crash during background processing");
     }
     
-    Logger::instance().log(Logger::Info, "E2ETest", "EtiFileWorker stability test passed");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Internal EtiFileWorker stability test passed");
 }
 
-void FileOperationsTest::testSegmentationFaultFix()
+void FileOperationsTest::testInternalProcessingStability()
 {
-    Logger::instance().log(Logger::Info, "E2ETest", "Testing segmentation fault regression...");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Testing internal processing stability...");
     
-    // This test specifically validates the fix applied on September 20, 2025
-    // The original crash was in ETI_Analyser::analyse() called from EtisnoopWrapper
-    
+    // Test internal processing multiple times to ensure stability
     for (int i = 0; i < 3; i++) {
-        qDebug() << "Iteration" << (i + 1) << "of segfault regression test";
+        qDebug() << "Internal processing iteration" << (i + 1);
         
-        EtisnoopWrapper wrapper;
-        QVERIFY2(wrapper.initialize(), "Wrapper initialization should succeed");
+        auto processor = std::make_unique<EtiProcessor>();
+        QVERIFY2(processor->initialize(), "Internal processor initialization should succeed");
         
-        // The critical test: this was causing segfault before the fix
-        bool result = wrapper.processEtiFile(m_testEtiFile);
+        // Test internal processing (NO external dependencies)
+        bool result = processor->processFile(m_testEtiFile);
         
-        // Log the result but don't fail on processing failure
-        qDebug() << "Iteration" << (i + 1) << "result:" << result;
+        // Log the result but focus on stability
+        qDebug() << "Internal processing iteration" << (i + 1) << "result:" << result;
         
-        // The key assertion: we should reach this point without crashing
-        QVERIFY2(true, "Should complete without segmentation fault");
+        // Key assertion: we should complete without crashing
+        QVERIFY2(true, "Internal processing should complete without crashes");
+        
+        // Test that processor maintains valid state
+        QVERIFY2(!processor->getStatus().isEmpty(), "Processor should maintain valid status");
     }
     
-    Logger::instance().log(Logger::Info, "E2ETest", "Segmentation fault regression test passed");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Internal processing stability test passed");
 }
 
-void FileOperationsTest::testFileOpeningWithoutCrash()
+void FileOperationsTest::testFileOpeningWithInternalEngine()
 {
-    Logger::instance().log(Logger::Info, "E2ETest", "Testing file opening workflow...");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Testing file opening with internal engine...");
     
-    // Simulate the exact workflow that was crashing:
-    // 1. User opens file dialog
-    // 2. Selects ETI file
-    // 3. Application processes file
+    // Test the complete internal workflow
+    QString selectedFile = m_testEtiFile;
     
-    QString selectedFile = m_testEtiFile; // Simulate file dialog result
-    
-    // Test the MainWindow file opening workflow
+    // Create internal processor and worker
     auto processor = std::make_unique<EtiProcessor>();
     processor->initialize();
     
     auto worker = std::make_unique<EtiFileWorker>(processor.get());
     
-    // This mimics MainWindow::openEtiFile() behavior
+    // Test file accessibility
     QFileInfo fileInfo(selectedFile);
     QVERIFY2(fileInfo.exists() && fileInfo.isReadable(), "Selected file should be accessible");
     
-    // Start the processing that was crashing
+    // Start internal processing workflow
     worker->processEtiFile(selectedFile);
     
     // Wait briefly to ensure no immediate crash
     QTest::qWait(1000);
     
-    QVERIFY2(true, "File opening workflow should complete without crash");
+    QVERIFY2(true, "Internal file opening workflow should complete without crash");
     
-    Logger::instance().log(Logger::Info, "E2ETest", "File opening workflow test passed");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Internal file opening workflow test passed");
 }
 
-void FileOperationsTest::testErrorHandlingStability()
+void FileOperationsTest::testErrorHandlingWithInternalComponents()
 {
-    Logger::instance().log(Logger::Info, "E2ETest", "Testing error handling stability...");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Testing error handling with internal components...");
     
-    EtisnoopWrapper wrapper;
-    wrapper.initialize();
+    auto processor = std::make_unique<EtiProcessor>();
+    processor->initialize();
     
     // Test with non-existent file
-    bool result1 = wrapper.processEtiFile("/nonexistent/file.eti");
-    QVERIFY2(!result1, "Should fail gracefully with non-existent file");
-    QVERIFY2(!wrapper.getLastError().isEmpty(), "Should provide error message");
+    bool result1 = processor->processFile("/nonexistent/file.eti");
+    QVERIFY2(!result1, "Internal processor should fail gracefully with non-existent file");
+    QVERIFY2(!processor->getStatus().isEmpty(), "Internal processor should provide error status");
     
     // Test with invalid file
-    bool result2 = wrapper.processEtiFile("/etc/passwd"); // Text file, not ETI
-    // Should fail gracefully, not crash
-    qDebug() << "Invalid file result:" << result2 << "Error:" << wrapper.getLastError();
+    bool result2 = processor->processFile("/etc/passwd"); // Text file, not ETI
+    qDebug() << "Invalid file result:" << result2 << "Status:" << processor->getStatus();
     
-    QVERIFY2(true, "Error handling should not cause crashes");
+    QVERIFY2(true, "Internal error handling should not cause crashes");
     
-    Logger::instance().log(Logger::Info, "E2ETest", "Error handling stability test passed");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Internal error handling stability test passed");
 }
 
-void FileOperationsTest::testMemoryLeakPrevention()
+void FileOperationsTest::testMemoryLeakPreventionInternal()
 {
-    Logger::instance().log(Logger::Info, "E2ETest", "Testing memory leak prevention...");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Testing memory leak prevention with internal components...");
     
-    // Create and destroy multiple wrappers to test for memory leaks
+    // Create and destroy multiple internal processors
     for (int i = 0; i < 10; i++) {
-        auto wrapper = std::make_unique<EtisnoopWrapper>();
-        wrapper->initialize();
-        wrapper->processEtiFile(m_testEtiFile);
-        // Wrapper destroyed at end of scope
+        auto processor = std::make_unique<EtiProcessor>();
+        processor->initialize();
+        processor->processFile(m_testEtiFile);
+        // Processor destroyed at end of scope
     }
     
-    QVERIFY2(true, "Multiple wrapper creation/destruction should not leak memory");
+    QVERIFY2(true, "Multiple internal processor creation/destruction should not leak memory");
     
-    Logger::instance().log(Logger::Info, "E2ETest", "Memory leak prevention test passed");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Internal memory leak prevention test passed");
 }
 
-void FileOperationsTest::testLongRunningOperations()
+void FileOperationsTest::testLongRunningInternalOperations()
 {
-    Logger::instance().log(Logger::Info, "E2ETest", "Testing long-running operations...");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Testing long-running internal operations...");
     
     auto processor = std::make_unique<EtiProcessor>();
     processor->initialize();
@@ -269,15 +288,16 @@ void FileOperationsTest::testLongRunningOperations()
     
     QSignalSpy progressSpy(worker.get(), &EtiFileWorker::processingProgress);
     
+    // Start long-running internal operation
     worker->processEtiFile(m_testEtiFile);
     
     // Wait longer for progress updates
     QTest::qWait(5000);
     
-    // We should either get progress updates or completion without crash
-    QVERIFY2(true, "Long-running operations should not cause instability");
+    // Verify internal operations handle long processing without crashes
+    QVERIFY2(true, "Long-running internal operations should not cause instability");
     
-    Logger::instance().log(Logger::Info, "E2ETest", "Long-running operations test passed");
+    Logger::instance().log(Logger::Info, "E2EInternalTest", "Long-running internal operations test passed");
 }
 
 // Qt Test Framework integration

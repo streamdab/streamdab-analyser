@@ -2034,6 +2034,7 @@ void MainWindow::connectSignals()
     if (m_modernFrameParser) {
         connect(m_modernFrameParser.get(), &eti::modern::ModernETIFrameParser::frameProcessed,
                 this, [this](uint32_t frameNumber, const eti::EtiFrame& frame, std::chrono::nanoseconds parseTime) {
+                    (void)frame; // TODO: Use frame data for detailed analysis
                     m_frameCount = frameNumber;
                     double fps = 1000000000.0 / parseTime.count(); // Convert nanoseconds to FPS
                     updateStatus(QString("Processing: %1 fps, Frame: %2")

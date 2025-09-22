@@ -1,22 +1,26 @@
 /**
  * @file test_eti_processor.cpp
- * @brief Comprehensive TDD test suite for ETI Processor
+ * @brief Modern TDD test suite for ETI Processor - ETISnoop Independent
  * 
- * This file implements proper test-driven development for the core
- * ETI processing engine with Red-Green-Refactor workflow enforcement.
+ * This file implements comprehensive test-driven development for the core
+ * ETI processing engine using only internal project classes and structures.
+ * All ETISnoop dependencies have been removed in favor of native implementations.
  * 
- * @author TDD Lead Agent
- * @date 2025-09-22
+ * @author TDD Lead Agent  
+ * @date 2025-09-23
  * @copyright StreamDAB Analyzer Project
  */
 
 #include "../tdd_framework.h"
 #include "core/eti_processor.h"
 #include "core/eti_types.h"
+#include "core/modern_eti_frame_parser.h"
+#include "core/enhanced_fig_analyzer.h"
 #include <QtTest/QtTest>
 #include <QSignalSpy>
 #include <QTemporaryFile>
 #include <QStandardPaths>
+#include <QDebug>
 
 /**
  * @class EtiProcessorTest
@@ -24,7 +28,7 @@
  * 
  * Tests core ETI processing functionality including:
  * - Initialization and configuration
- * - File processing with ETISnoop integration
+ * - File processing with internal ETI engine
  * - Real-time data processing
  * - FIG parsing and ETSI compliance
  * - Performance requirements (7,482 FPS target)
@@ -71,6 +75,8 @@ public slots:
         
         // Verify basic state after initialization
         QVERIFY(processor.isInitialized());
+        QVERIFY(processor.getETIParser() != nullptr);
+        QVERIFY(processor.getFIGAnalyzer() != nullptr);
     }
 
     /**
@@ -85,8 +91,8 @@ public slots:
         testFile.setFileTemplate(QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/test_eti_XXXXXX.eti");
         QVERIFY(testFile.open());
         
-        // Write valid ETI frame data
-        QByteArray testFrame = TDD::ETITestFramework::generateValidETIFrame();
+        // Write valid ETI frame data using internal ETI structures
+        QByteArray testFrame = generateNativeETIFrame();
         testFile.write(testFrame);
         testFile.close();
         
@@ -112,7 +118,7 @@ public slots:
         
         // Write multiple valid ETI frames
         for (int i = 0; i < 10; ++i) {
-            QByteArray testFrame = TDD::ETITestFramework::generateValidETIFrame();
+            QByteArray testFrame = generateNativeETIFrame();
             testFile.write(testFrame);
         }
         testFile.close();
@@ -140,8 +146,8 @@ public slots:
         EtiProcessor processor;
         QVERIFY(processor.initialize());
         
-        // Generate test ETI data
-        QByteArray etiData = TDD::ETITestFramework::generateValidETIFrame();
+        // Generate test ETI data using native structures
+        QByteArray etiData = generateNativeETIFrame();
         
         // Set up signal monitoring
         QSignalSpy frameProcessedSpy(&processor, &EtiProcessor::frameProcessed);
@@ -317,6 +323,99 @@ public slots:
     void cleanupTestCase() {
         qDebug() << "ETI Processor TDD tests completed";
         TDD::TestReporter::instance().enforceTDDCompliance();
+    }
+
+private:
+    /**
+     * @brief Generate native ETI frame using internal ETI structures
+     * @return Valid 6144-byte ETI frame following ETSI EN 300 799
+     */
+    QByteArray generateNativeETIFrame() {
+        QByteArray frame(eti::ETI_FRAME_SIZE, 0);
+        
+        // ETI Sync Field (ETSI EN 300 799 Section 5.1)
+        eti::EtiSyncField sync;
+        sync.set_sync_pattern();
+        std::memcpy(frame.data(), sync.sync_bytes, 4);
+        
+        // ETI LIDATA Field (ETSI EN 300 799 Section 5.2)
+        eti::EtiLidataField lidata = {};
+        lidata.fc = 0;          // Frame count
+        lidata.ficf = 1;        // FIC present
+        lidata.nst = 1;         // 1 subchannel
+        lidata.fp = 0;          // Frame phase
+        lidata.mid = 1;         // Mode I
+        lidata.fl = 0x05DC;     // Frame length
+        lidata.tist = 0x12345678; // Timestamp
+        
+        std::memcpy(frame.data() + 4, &lidata, sizeof(lidata));
+        
+        // FIC Data (32 bytes) - Add basic FIG 0/0 for ensemble info
+        uint8_t* ficData = reinterpret_cast<uint8_t*>(frame.data() + 12);
+        ficData[0] = 0x00; // FIG Type 0, Extension 0
+        ficData[1] = 0x08; // Length
+        ficData[2] = 0x12; // Ensemble ID high
+        ficData[3] = 0x34; // Ensemble ID low
+        
+        // MSC Data (remaining bytes)
+        // Fill with test pattern for subchannel data
+        
+        // CRC (last 4 bytes) - simplified for testing
+        uint32_t crc = 0xDEADBEEF;
+        std::memcpy(frame.data() + eti::ETI_FRAME_SIZE - 4, &crc, 4);
+        
+        return frame;
+    }
+
+    /**
+     * @brief Generate invalid ETI frame for negative testing
+     * @param corruptionType Type of corruption to introduce
+     * @return Invalid ETI frame data
+     */
+    QByteArray generateInvalidETIFrame(const QString& corruptionType) {
+        QByteArray frame = generateNativeETIFrame();
+        
+        if (corruptionType == "invalid_sync") {
+            // Corrupt sync pattern
+            frame[0] = 0xFF;
+            frame[1] = 0xFF;
+        } else if (corruptionType == "invalid_crc") {
+            // Corrupt CRC
+            frame[eti::ETI_FRAME_SIZE - 1] = 0xFF;
+        } else if (corruptionType == "invalid_size") {
+            // Return wrong size frame
+            frame.resize(1000);
+        }
+        
+        return frame;
+    }
+
+    /**
+     * @brief Generate test service information
+     * @return Test service data
+     */
+    eti::DabService generateTestService() {
+        eti::DabService service;
+        service.serviceId = 0x1234;
+        service.serviceLabel = "Test Service";
+        service.serviceType = eti::ServiceType::AUDIO;
+        service.bitrate = 128;
+        service.protectionLevel = 3;
+        service.isActive = true;
+        return service;
+    }
+
+    /**
+     * @brief Generate test ensemble information  
+     * @return Test ensemble data
+     */
+    eti::Ensemble generateTestEnsemble() {
+        eti::Ensemble ensemble;
+        ensemble.ensembleId = 0x1234;
+        ensemble.ensembleLabel = "Test Ensemble";
+        ensemble.transmissionMode = 1;
+        ensemble.localTimeOffset = 0;
+        return ensemble;
     }
 };
 

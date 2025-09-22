@@ -191,6 +191,8 @@ set(NETWORK_SOURCE_FILES
     src/network/stream_playback.cpp
     src/network/eti_network_integration.h
     src/network/eti_network_integration.cpp
+    src/network/circular_buffer_manager.h
+    src/network/circular_buffer_manager.cpp
 )
 
 # GUI source files

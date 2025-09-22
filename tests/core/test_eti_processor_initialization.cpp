@@ -115,9 +115,9 @@ TEST_F(EtiProcessorInitializationTest, ProcessorHasRealImplementation)
     // 3. isInitialized should work correctly
     EXPECT_TRUE(processor->isInitialized()) << "isInitialized should return true after successful init";
     
-    // 4. getEtisnoopWrapper should return valid wrapper
-    auto* wrapper = processor->getEtisnoopWrapper();
-    EXPECT_NE(wrapper, nullptr) << "ETISnoop wrapper should be available (not mock)";
+    // 4. getInternalEngine should return valid processing engine
+    auto* engine = processor->getProcessingEngine();
+    EXPECT_NE(engine, nullptr) << "Internal processing engine should be available (not mock)";
 }
 
 /**

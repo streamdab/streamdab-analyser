@@ -482,6 +482,7 @@ void ConstellationWidget::handleSignalDataUpdate()
     if (m_etiProcessor) {
         // Get current frame count and processing rate
         quint64 frameCount = m_etiProcessor->getFrameCount();
+        (void)frameCount; // TODO: Use frameCount for display updates
         
         // Calculate current processing rate (FPS)
         qint64 currentTime = QElapsedTimer().elapsed();

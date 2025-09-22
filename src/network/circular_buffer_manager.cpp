@@ -245,14 +245,14 @@ CircularBufferConfig AdaptiveBufferManager::getConfig() const {
     return m_config;
 }
 
-BufferMetrics AdaptiveBufferManager::getMetrics() const {
+BufferMetricsSnapshot AdaptiveBufferManager::getMetrics() const {
     QMutexLocker locker(&m_metrics_mutex);
     
     // Update current metrics
     m_metrics.size = size();
     m_metrics.utilization = utilization();
     
-    return m_metrics;
+    return m_metrics.getSnapshot();
 }
 
 void AdaptiveBufferManager::resetMetrics() {
@@ -828,7 +828,7 @@ void CircularBufferManager::enableMemoryCompaction(bool enabled) {
     m_config.compact_on_idle = enabled;
 }
 
-BufferMetrics CircularBufferManager::getMetrics() const {
+BufferMetricsSnapshot CircularBufferManager::getMetrics() const {
     QMutexLocker locker(&m_metricsMutex);
     
     // Update current metrics
@@ -837,7 +837,7 @@ BufferMetrics CircularBufferManager::getMetrics() const {
     m_metrics.utilization = utilization();
     m_metrics.memory_usage_bytes = getMemoryUsage();
     
-    return m_metrics;
+    return m_metrics.getSnapshot();
 }
 
 double CircularBufferManager::getCurrentThroughput() const {
@@ -924,7 +924,7 @@ QString CircularBufferManager::getDiagnosticInfo() const {
 
 QStringList CircularBufferManager::getPerformanceReport() const {
     QStringList report;
-    BufferMetrics metrics = getMetrics();
+    BufferMetricsSnapshot metrics = getMetrics();
     
     report << "=== Circular Buffer Manager Performance Report ===";
     report << QString("Buffer Implementation: %1").arg(m_useLockFreeBuffer ? "Lock-Free" : "Adaptive");
@@ -999,7 +999,7 @@ void CircularBufferManager::updateMetrics() {
     calculateThroughputMetrics();
     updateMemoryMetrics();
     
-    BufferMetrics current_metrics = getMetrics();
+    BufferMetricsSnapshot current_metrics = getMetrics();
     emit metricsUpdated(current_metrics);
     
     // Call metrics callback if set
@@ -1051,7 +1051,7 @@ void CircularBufferManager::updateMemoryUsage() {
         memory_usage = m_lockFreeBuffer->capacity() * sizeof(BufferedETIFrame);
     } else if (m_adaptiveBuffer) {
         auto metrics = m_adaptiveBuffer->getMetrics();
-        memory_usage = metrics.memory_usage_bytes.load();
+        memory_usage = metrics.memory_usage_bytes;
     }
     
     m_memoryUsageBytes = memory_usage;

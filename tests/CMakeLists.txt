@@ -180,7 +180,6 @@ target_link_libraries(eti_analyzer_unit_tests
     ${GTEST_LIBS}
     Qt6::Core
     Qt6::Test
-    etisnoop_static
 )
 
 # Link E2E test executable
@@ -190,7 +189,6 @@ target_link_libraries(eti_analyzer_e2e_tests
     Qt6::Test
     Qt6::Widgets
     Qt6::Gui
-    etisnoop_static
 )
 # TDD REQUIREMENT: Link to main project components for testing
 target_include_directories(eti_analyzer_unit_tests PRIVATE
@@ -214,7 +212,6 @@ target_link_libraries(eti_analyzer_gui_tests
     Qt6::Widgets
     Qt6::Gui
     Qt6::Network
-    etisnoop_static
     ${GTEST_LIBS}
 )
 # TDD REQUIREMENT: Link to main project components for GUI testing
@@ -508,7 +505,6 @@ if(ENABLE_TDD_BENCHMARKS)
         ${GTEST_LIBS}
         Qt6::Core
         Qt6::Test
-        etisnoop_static
         ${TEST_LIBS}
     )
 
@@ -518,7 +514,7 @@ if(ENABLE_TDD_BENCHMARKS)
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures
         ${FAAD2_INCLUDE_DIRS}
         ${FFTW3_INCLUDE_DIRS}
-        ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/etisnoop/src
+
     )
 
     target_compile_definitions(eti_analyzer_performance_tests PRIVATE

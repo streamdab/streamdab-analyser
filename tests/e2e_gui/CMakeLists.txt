@@ -23,12 +23,10 @@ target_link_libraries(eti_analyzer_e2e_tests
     Qt6::Widgets
     Qt6::Core
     Qt6::Gui
-    # Link against the same libraries as main application
-    ${CMAKE_SOURCE_DIR}/build/CMakeFiles/ETIStreamAnalyzer.dir/src/core/etisnoop_wrapper.cpp.o
+    # Link against internal project components only
     ${CMAKE_SOURCE_DIR}/build/CMakeFiles/ETIStreamAnalyzer.dir/src/core/eti_processor.cpp.o
     ${CMAKE_SOURCE_DIR}/build/CMakeFiles/ETIStreamAnalyzer.dir/src/core/eti_file_worker.cpp.o
     ${CMAKE_SOURCE_DIR}/build/CMakeFiles/ETIStreamAnalyzer.dir/src/utils/logger.cpp.o
-    ${CMAKE_SOURCE_DIR}/build/lib/libetisnoop.a
 )
 
 # Enable Qt automoc

@@ -161,9 +161,7 @@ private:
     void optimizeProcessingPipeline();
     void updateProcessingStatistics();
     
-    // Enhanced service management (public methods moved to public section above)
-    std::vector<eti::DabService> getCurrentServices() const { return m_discoveredServices; }
-    std::vector<eti::SubChannelInfo> getCurrentSubchannels() const { return m_subchannels; }
+    // Enhanced service management methods are available in public section above
     
 public:
     // Service quality and status indicators

@@ -29,12 +29,6 @@
 #include <memory>
 #include <span>
 
-// Forward declarations for Modern ETI Core components
-namespace eti::modern {
-    class ETIFrameMemoryPool;
-    class ETIProcessingCache;
-    class PerformanceProfiler;
-}
 #include <concepts>
 #include <vector>
 #include <atomic>
@@ -42,10 +36,9 @@ namespace eti::modern {
 #include <optional>
 #include <functional>
 
-// Forward declarations
-class ETIFrameMemoryPool;
-class ETIProcessingCache;
-class PerformanceProfiler;
+// Forward declarations  
+#include "eti_memory_pool.h"
+#include "performance_profiler.h"
 
 namespace eti::modern {
 
@@ -332,6 +325,9 @@ private:
     // Compliance calculation methods
     double calculateETSI799Compliance(const eti::EtiFrame& frame);
     double calculateETSI401Compliance(const FIGAnalysisResult& result);
+    
+    // Performance calculation methods
+    double calculateCPUEfficiency(std::chrono::nanoseconds parse_time) const;
     
     // Validation helper methods
     void validateFICStructure(const eti::EtiFrame& frame, eti::ValidationResult& result) const;

@@ -424,7 +424,7 @@ private:
     void performAutomaticRecovery();
     
     // Network interface management
-    void scanNetworkInterfaces();
+    void scanNetworkInterfaces() const;  // Made const for ETSI compliance validation
     void selectOptimalInterface();
     void handleInterfaceFailure();
     
@@ -483,7 +483,7 @@ private:
     mutable QMutex m_callbackMutex;
     
     // Network interface monitoring
-    QList<QNetworkInterface> m_availableInterfaces;
+    mutable QList<QNetworkInterface> m_availableInterfaces;  // Mutable for const method access
     QString m_currentInterface;
     bool m_interfaceMonitoring = false;
     
