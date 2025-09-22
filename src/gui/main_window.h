@@ -1,6 +1,10 @@
 #pragma once
 
 #include <QMainWindow>
+
+QT_BEGIN_NAMESPACE
+namespace Ui { class MainWindow; }
+QT_END_NAMESPACE
 #include <QMenuBar>
 #include <QToolBar>
 #include <QStatusBar>
@@ -423,6 +427,9 @@ private:
      * @return Selected file path, empty if cancelled
      */
     QString getFastOpenFileName(const QString& defaultDir);
+
+    // Qt Designer UI
+    Ui::MainWindow *ui;
 
     // Core components
     std::unique_ptr<EtiProcessor> m_etiProcessor;

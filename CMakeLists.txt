@@ -40,7 +40,10 @@ find_package(Qt6 6.2 REQUIRED COMPONENTS
 # Enable Qt automation
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-# Qt Designer .ui files removed - using manual widget creation
+set(CMAKE_AUTOUIC ON)
+
+# Set UI search paths for Qt Designer files
+set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui)
 
 # Platform detection and configuration
 if(WIN32)
