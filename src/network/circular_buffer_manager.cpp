@@ -53,7 +53,7 @@ AdaptiveBufferManager::AdaptiveBufferManager(const CircularBufferConfig& config)
 }
 
 bool AdaptiveBufferManager::writeFrame(const BufferedETIFrame& frame) {
-    auto write_start = std::chrono::high_resolution_clock::now();
+    auto write_start = std::chrono::steady_clock::now();
     
     // Check if buffer is full
     size_t current_size = m_capacity.load() - ((m_head.load() - m_tail.load()) % m_capacity.load());
@@ -73,7 +73,7 @@ bool AdaptiveBufferManager::writeFrame(const BufferedETIFrame& frame) {
     m_head.fetch_add(1);
     
     // Update metrics
-    auto write_end = std::chrono::high_resolution_clock::now();
+    auto write_end = std::chrono::steady_clock::now();
     auto write_time = std::chrono::duration_cast<std::chrono::nanoseconds>(write_end - write_start);
     
     m_metrics.items_written.fetch_add(1);
@@ -84,7 +84,7 @@ bool AdaptiveBufferManager::writeFrame(const BufferedETIFrame& frame) {
 }
 
 bool AdaptiveBufferManager::readFrame(BufferedETIFrame& frame) {
-    auto read_start = std::chrono::high_resolution_clock::now();
+    auto read_start = std::chrono::steady_clock::now();
     
     // Check if buffer is empty
     if (m_head.load() == m_tail.load()) {
@@ -106,7 +106,7 @@ bool AdaptiveBufferManager::readFrame(BufferedETIFrame& frame) {
     m_tail.fetch_add(1);
     
     // Update metrics
-    auto read_end = std::chrono::high_resolution_clock::now();
+    auto read_end = std::chrono::steady_clock::now();
     auto read_time = std::chrono::duration_cast<std::chrono::nanoseconds>(read_end - read_start);
     
     m_metrics.items_read.fetch_add(1);
@@ -281,8 +281,6 @@ void AdaptiveBufferManager::checkAdaptation() {
 }
 
 void AdaptiveBufferManager::adaptToLoad() {
-    double util = utilization();
-    
     if (shouldGrow()) {
         growBuffer();
     } else if (shouldShrink()) {
@@ -545,7 +543,7 @@ bool CircularBufferManager::writeFrame(const eti::EtiFrame& frame, const Network
         return false;
     }
     
-    auto write_start = std::chrono::high_resolution_clock::now();
+    auto write_start = std::chrono::steady_clock::now();
     
     // Create buffered frame with sequence number
     BufferedETIFrame buffered_frame(frame, quality);
@@ -561,7 +559,7 @@ bool CircularBufferManager::writeFrame(const eti::EtiFrame& frame, const Network
     
     // Update metrics
     if (success) {
-        auto write_end = std::chrono::high_resolution_clock::now();
+        auto write_end = std::chrono::steady_clock::now();
         auto write_time = std::chrono::duration_cast<std::chrono::nanoseconds>(write_end - write_start);
         
         {
@@ -606,7 +604,7 @@ bool CircularBufferManager::readFrame(eti::EtiFrame& frame, NetworkQualityMetric
         return false;
     }
     
-    auto read_start = std::chrono::high_resolution_clock::now();
+    auto read_start = std::chrono::steady_clock::now();
     
     BufferedETIFrame buffered_frame;
     bool success = false;
@@ -627,7 +625,7 @@ bool CircularBufferManager::readFrame(eti::EtiFrame& frame, NetworkQualityMetric
             m_readSequence.fetch_add(1);
             
             // Update metrics
-            auto read_end = std::chrono::high_resolution_clock::now();
+            auto read_end = std::chrono::steady_clock::now();
             auto read_time = std::chrono::duration_cast<std::chrono::nanoseconds>(read_end - read_start);
             
             {
@@ -831,12 +829,7 @@ void CircularBufferManager::enableMemoryCompaction(bool enabled) {
 BufferMetricsSnapshot CircularBufferManager::getMetrics() const {
     QMutexLocker locker(&m_metricsMutex);
     
-    // Update current metrics
-    m_metrics.size = size();
-    m_metrics.capacity = capacity();
-    m_metrics.utilization = utilization();
-    m_metrics.memory_usage_bytes = getMemoryUsage();
-    
+    // Return snapshot of current metrics without modifying them
     return m_metrics.getSnapshot();
 }
 
@@ -931,38 +924,38 @@ QStringList CircularBufferManager::getPerformanceReport() const {
     report << "";
     
     report << "Capacity and Utilization:";
-    report << QString("  Capacity: %1").arg(metrics.capacity.load());
-    report << QString("  Current Size: %1").arg(metrics.size.load());
-    report << QString("  Utilization: %1%").arg(metrics.utilization.load() * 100, 0, 'f', 1);
-    report << QString("  Peak Utilization: %1").arg(metrics.peak_utilization.load());
+    report << QString("  Capacity: %1").arg(metrics.capacity);
+    report << QString("  Current Size: %1").arg(metrics.size);
+    report << QString("  Utilization: %1%").arg(metrics.utilization * 100, 0, 'f', 1);
+    report << QString("  Peak Utilization: %1").arg(metrics.peak_utilization);
     report << "";
     
     report << "Memory Usage:";
-    report << QString("  Current: %1 MB").arg(metrics.memory_usage_bytes.load() / (1024.0 * 1024.0), 0, 'f', 2);
-    report << QString("  Peak: %1 MB").arg(metrics.peak_memory_bytes.load() / (1024.0 * 1024.0), 0, 'f', 2);
+    report << QString("  Current: %1 MB").arg(metrics.memory_usage_bytes / (1024.0 * 1024.0), 0, 'f', 2);
+    report << QString("  Peak: %1 MB").arg(metrics.peak_memory_bytes / (1024.0 * 1024.0), 0, 'f', 2);
     report << QString("  Limit: %1 MB").arg(getMemoryLimit() / (1024.0 * 1024.0), 0, 'f', 2);
-    report << QString("  Efficiency: %1%").arg(metrics.memory_efficiency.load() * 100, 0, 'f', 1);
+    report << QString("  Efficiency: %1%").arg(metrics.memory_efficiency * 100, 0, 'f', 1);
     report << "";
     
     report << "Performance Metrics:";
-    report << QString("  Items Written: %1").arg(metrics.items_written.load());
-    report << QString("  Items Read: %1").arg(metrics.items_read.load());
-    report << QString("  Throughput: %1 FPS").arg(metrics.throughput_fps.load(), 0, 'f', 1);
-    report << QString("  Average Write Time: %1 ns").arg(metrics.avg_write_time_ns.load());
-    report << QString("  Average Read Time: %1 ns").arg(metrics.avg_read_time_ns.load());
-    report << QString("  Max Latency: %1 μs").arg(metrics.max_latency_ns.load() / 1000);
+    report << QString("  Items Written: %1").arg(metrics.items_written);
+    report << QString("  Items Read: %1").arg(metrics.items_read);
+    report << QString("  Throughput: %1 FPS").arg(metrics.throughput_fps, 0, 'f', 1);
+    report << QString("  Average Write Time: %1 ns").arg(metrics.avg_write_time_ns);
+    report << QString("  Average Read Time: %1 ns").arg(metrics.avg_read_time_ns);
+    report << QString("  Max Latency: %1 μs").arg(metrics.max_latency_ns / 1000);
     report << "";
     
     report << "Error and Event Counters:";
-    report << QString("  Overflows: %1").arg(metrics.overflows.load());
-    report << QString("  Underflows: %1").arg(metrics.underflows.load());
-    report << QString("  Adaptations: %1").arg(metrics.adaptations.load());
-    report << QString("  Corruption Events: %1").arg(metrics.corruption_events.load());
-    report << QString("  Recovery Events: %1").arg(metrics.recovery_events.load());
+    report << QString("  Overflows: %1").arg(metrics.overflows);
+    report << QString("  Underflows: %1").arg(metrics.underflows);
+    report << QString("  Adaptations: %1").arg(metrics.adaptations);
+    report << QString("  Corruption Events: %1").arg(metrics.corruption_events);
+    report << QString("  Recovery Events: %1").arg(metrics.recovery_events);
     report << "";
     
     report << "Quality Metrics:";
-    report << QString("  Data Integrity: %1%").arg(metrics.data_integrity.load() * 100, 0, 'f', 1);
+    report << QString("  Data Integrity: %1%").arg(metrics.data_integrity * 100, 0, 'f', 1);
     report << QString("  Performance Target Met: %1").arg(isPerformanceTargetMet() ? "Yes" : "No");
     report << QString("  Buffer Health: %1").arg(isHealthy() ? "Good" : "Degraded");
     
@@ -1006,7 +999,7 @@ void CircularBufferManager::updateMetrics() {
     {
         QMutexLocker locker(&m_callbackMutex);
         if (m_metricsCallback) {
-            m_metricsCallback(current_metrics);
+            m_metricsCallback(m_metrics);
         }
     }
 }
@@ -1116,7 +1109,6 @@ void CircularBufferManager::optimizeForThroughput() {
 }
 
 void CircularBufferManager::balanceLatencyThroughput() {
-    double util = utilization();
     auto current_latency = getCurrentLatency();
     double current_fps = getCurrentThroughput();
     
