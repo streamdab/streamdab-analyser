@@ -1,4 +1,5 @@
 #include "dab_decoder.h"
+#include "../utils/logger.h"
 #include <QDebug>
 #include <QDateTime>
 #include <QtEndian>
@@ -264,19 +265,27 @@ bool DabDecoder::parseServiceInformation(const eti::EtiFrameData& frame)
         service1.label = "Test Radio 1";
         service1.isProtected = true;
         
+        // Add the test service to our component list
+        addServiceComponent(service1);
+        
+        // Create and add a second test service
         ServiceComponent service2;
         service2.serviceId = 0xD002;
         service2.subChannelId = 1;
         service2.codec = AudioCodec::DAB_MP2;
-        service2.bitrate = 160;
+        service2.bitrate = 64;
         service2.label = "Test Radio 2";
         service2.isProtected = false;
-        
-        addServiceComponent(service1);
         addServiceComponent(service2);
         
+        // Mark services as initialized
         servicesInitialized = true;
+        
+        // Emit the discovered services
         emit servicesDiscovered(m_discoveredServices);
+        Logger::instance().log(Logger::Info, "DabDecoder", 
+                              QString("Initialized %1 mock services for testing")
+                              .arg(m_discoveredServices.size()));
     }
     
     return true;

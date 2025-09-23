@@ -1,0 +1,61 @@
+---
+# StreamDAB Analyzer - Professional Qt6 clang-tidy Configuration
+# Optimized for Qt6 development with broadcast industry standards
+
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  readability-*,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-naming,
+  -readability-magic-numbers,
+  -readability-function-size,
+  -modernize-use-nodiscard,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic
+
+# Header filtering - CRITICAL for Qt6 integration
+HeaderFilterRegex: '^(?!.*/(qt6|Qt6|usr/include)).*/src/.*\.(h|hpp)$'
+
+# Qt6-specific configuration
+CheckOptions:
+  # Allow Qt naming conventions
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: camelCase
+  - key: readability-identifier-naming.VariableCase
+    value: camelCase
+  - key: readability-identifier-naming.ParameterCase
+    value: camelCase
+  - key: readability-identifier-naming.MacroCase
+    value: UPPER_CASE
+
+  # Qt-specific exceptions
+  - key: readability-identifier-naming.IgnoreMainLikeFunctions
+    value: true
+
+  # Function size limits for broadcast industry
+  - key: readability-function-size.LineThreshold
+    value: 150
+  - key: readability-function-size.StatementThreshold
+    value: 100
+
+  # Performance settings
+  - key: performance-for-range-copy.WarnOnAllAutoCopies
+    value: true
+
+# System headers to ignore (Qt6 libraries)
+SystemHeaders: false
+
+# Treat warnings as informational, not errors during development
+WarningsAsErrors: ''
+
+# Format style
+FormatStyle: none

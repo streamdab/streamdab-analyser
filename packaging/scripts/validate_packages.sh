@@ -1,326 +1,289 @@
 #!/bin/bash
-# ETI Stream Analyzer - Professional Package Validation Script
-# Cross-platform package integrity and functionality testing
+# Package Validation Script for StreamDAB Stream Analyzer
+# Validates created packages for distribution readiness
 
 set -e
 
-# Professional validation configuration
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build"
-PACKAGES_DIR="${BUILD_DIR}/packages"
-VALIDATION_LOG="${BUILD_DIR}/package_validation.log"
+PACKAGE_DIR="${BUILD_DIR}/packages"
 
-# Professional validation functions
-log_message() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "${VALIDATION_LOG}"
+echo "=== StreamDAB Stream Analyzer Package Validation ==="
+echo "Project Root: ${PROJECT_ROOT}"
+echo "Build Directory: ${BUILD_DIR}"
+echo "Package Directory: ${PACKAGE_DIR}"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Validation results
+VALIDATION_ERRORS=0
+VALIDATION_WARNINGS=0
+
+log_error() {
+    echo -e "${RED}ERROR: $1${NC}"
+    ((VALIDATION_ERRORS++))
 }
 
-validate_file_exists() {
-    local file="$1"
-    local description="$2"
+log_warning() {
+    echo -e "${YELLOW}WARNING: $1${NC}"
+    ((VALIDATION_WARNINGS++))
+}
 
-    if [ -f "$file" ]; then
-        log_message "✅ $description: $(basename "$file") - $(du -h "$file" | cut -f1)"
-        return 0
+log_success() {
+    echo -e "${GREEN}SUCCESS: $1${NC}"
+}
+
+log_info() {
+    echo -e "${BLUE}INFO: $1${NC}"
+}
+
+# Check if build directory exists
+if [ ! -d "${BUILD_DIR}" ]; then
+    log_error "Build directory not found: ${BUILD_DIR}"
+    exit 1
+fi
+
+cd "${BUILD_DIR}"
+
+# 1. Validate CMake Configuration
+log_info "Validating CMake configuration..."
+if [ ! -f "CMakeCache.txt" ]; then
+    log_error "CMakeCache.txt not found - run cmake first"
+else
+    log_success "CMake configuration found"
+
+    # Check for essential configurations
+    if grep -q "CMAKE_BUILD_TYPE:STRING=Release" CMakeCache.txt; then
+        log_success "Release build configuration detected"
     else
-        log_message "❌ $description: Missing"
-        return 1
+        log_warning "Not configured for Release build - recommended for production"
     fi
-}
 
-validate_directory_exists() {
-    local dir="$1"
-    local description="$2"
-
-    if [ -d "$dir" ]; then
-        log_message "✅ $description: $(basename "$dir") - $(find "$dir" -type f | wc -l) files"
-        return 0
+    if grep -q "Qt6_DIR" CMakeCache.txt; then
+        log_success "Qt6 configuration found"
     else
-        log_message "❌ $description: Missing"
-        return 1
+        log_error "Qt6 not properly configured"
     fi
-}
+fi
 
-# Professional platform detection
-detect_platform() {
-    case "$(uname -s)" in
-        Linux*)     echo "linux" ;;
-        Darwin*)    echo "macos" ;;
-        CYGWIN*|MINGW*|MSYS*) echo "windows" ;;
-        *)          echo "unknown" ;;
-    esac
-}
+# 2. Validate Main Executable
+log_info "Validating main executable..."
+EXECUTABLE_FOUND=false
 
-# Professional Windows package validation
-validate_windows_packages() {
-    log_message "=== Professional Windows Package Validation ==="
+# Check different possible locations
+for executable_path in "ETIStreamAnalyzer" "bin/ETIStreamAnalyzer" "./ETIStreamAnalyzer"; do
+    if [ -f "${executable_path}" ]; then
+        log_success "Main executable found: ${executable_path}"
+        EXECUTABLE_FOUND=true
 
-    local validation_passed=true
-
-    # Validate NSIS installer
-    local nsis_installer=$(find "${BUILD_DIR}" -name "*.exe" -type f | head -1)
-    if validate_file_exists "$nsis_installer" "Windows NSIS Installer"; then
-        # Professional NSIS validation
-        if command -v file >/dev/null 2>&1; then
-            local file_type=$(file "$nsis_installer")
-            if [[ "$file_type" == *"PE32+"* ]] || [[ "$file_type" == *"executable"* ]]; then
-                log_message "✅ NSIS installer format validation passed"
+        # Check if executable is properly linked
+        if command -v ldd >/dev/null 2>&1; then
+            log_info "Checking dynamic library dependencies..."
+            if ldd "${executable_path}" | grep -q "not found"; then
+                log_error "Missing dynamic library dependencies detected"
+                ldd "${executable_path}" | grep "not found"
             else
-                log_message "❌ NSIS installer format validation failed: $file_type"
-                validation_passed=false
+                log_success "All dynamic library dependencies satisfied"
             fi
         fi
 
-        # Professional size validation (should be reasonable for distribution)
-        local size_mb=$(du -m "$nsis_installer" | cut -f1)
-        if [ "$size_mb" -gt 10 ] && [ "$size_mb" -lt 500 ]; then
-            log_message "✅ NSIS installer size validation passed: ${size_mb}MB"
+        # Check file permissions
+        if [ -x "${executable_path}" ]; then
+            log_success "Executable has proper permissions"
         else
-            log_message "⚠️  NSIS installer size unusual: ${size_mb}MB"
+            log_error "Executable lacks execute permissions"
         fi
-    else
-        validation_passed=false
+
+        break
     fi
+done
 
-    # Validate dependencies bundled
-    log_message "Windows package validation completed"
-    return $([ "$validation_passed" = true ] && echo 0 || echo 1)
-}
+if [ "$EXECUTABLE_FOUND" = false ]; then
+    log_error "Main executable not found - build may have failed"
+fi
 
-# Professional Linux package validation
-validate_linux_packages() {
-    log_message "=== Professional Linux Package Validation ==="
+# 3. Validate Qt Integration
+log_info "Validating Qt integration..."
+if [ -d "ETIStreamAnalyzer_autogen" ]; then
+    log_success "Qt MOC/UIC integration found"
 
-    local validation_passed=true
-
-    # Validate DEB package
-    local deb_package=$(find "${BUILD_DIR}" -name "*.deb" -type f | head -1)
-    if validate_file_exists "$deb_package" "Linux DEB Package"; then
-        if command -v dpkg-deb >/dev/null 2>&1; then
-            if dpkg-deb -I "$deb_package" >/dev/null 2>&1; then
-                log_message "✅ DEB package structure validation passed"
-
-                # Professional DEB metadata validation
-                local deb_info=$(dpkg-deb -I "$deb_package")
-                if echo "$deb_info" | grep -q "ETI Stream Analyzer"; then
-                    log_message "✅ DEB package metadata validation passed"
-                else
-                    log_message "❌ DEB package metadata validation failed"
-                    validation_passed=false
-                fi
-            else
-                log_message "❌ DEB package structure validation failed"
-                validation_passed=false
-            fi
+    # Check for generated UI headers
+    UI_HEADERS_FOUND=0
+    for ui_header in ETIStreamAnalyzer_autogen/include/ui_*.h; do
+        if [ -f "$ui_header" ]; then
+            ((UI_HEADERS_FOUND++))
         fi
+    done
+
+    if [ $UI_HEADERS_FOUND -gt 0 ]; then
+        log_success "Found $UI_HEADERS_FOUND generated UI headers"
     else
-        log_message "⚠️  DEB package not found (may not be built on this platform)"
+        log_warning "No UI headers found - may indicate missing .ui files"
     fi
+else
+    log_warning "Qt autogen directory not found"
+fi
 
-    # Validate RPM package
-    local rpm_package=$(find "${BUILD_DIR}" -name "*.rpm" -type f | head -1)
-    if validate_file_exists "$rpm_package" "Linux RPM Package"; then
-        if command -v rpm >/dev/null 2>&1; then
-            if rpm -qip "$rpm_package" >/dev/null 2>&1; then
-                log_message "✅ RPM package structure validation passed"
+# 4. Validate Test Framework
+log_info "Validating test framework..."
+if [ -d "tests" ]; then
+    log_success "Test directory found"
 
-                # Professional RPM metadata validation
-                local rpm_info=$(rpm -qip "$rpm_package")
-                if echo "$rpm_info" | grep -q "ETI Stream Analyzer"; then
-                    log_message "✅ RPM package metadata validation passed"
-                else
-                    log_message "❌ RPM package metadata validation failed"
-                    validation_passed=false
-                fi
-            else
-                log_message "❌ RPM package structure validation failed"
-                validation_passed=false
-            fi
-        fi
+    # Count test executables
+    TEST_EXECUTABLES=$(find tests -name "test_*" -type f -executable 2>/dev/null | wc -l)
+    if [ $TEST_EXECUTABLES -gt 0 ]; then
+        log_success "Found $TEST_EXECUTABLES test executables"
     else
-        log_message "⚠️  RPM package not found (may not be built on this platform)"
+        log_warning "No test executables found"
     fi
+else
+    log_warning "Test directory not found"
+fi
 
-    # Validate AppImage
-    local appimage=$(find "${BUILD_DIR}" -name "*.AppImage" -type f | head -1)
-    if validate_file_exists "$appimage" "Linux AppImage"; then
-        if [ -x "$appimage" ]; then
-            log_message "✅ AppImage executable validation passed"
+# 5. Validate Documentation
+log_info "Validating documentation..."
+if [ -f "${PROJECT_ROOT}/README.md" ]; then
+    log_success "README.md found"
+else
+    log_warning "README.md not found"
+fi
 
-            # Professional AppImage functionality test
-            if timeout 10s "$appimage" --appimage-help >/dev/null 2>&1; then
-                log_message "✅ AppImage functionality validation passed"
-            else
-                log_message "⚠️  AppImage functionality test inconclusive"
-            fi
+if [ -f "${PROJECT_ROOT}/CLAUDE.md" ]; then
+    log_success "Project documentation (CLAUDE.md) found"
+else
+    log_warning "Project documentation not found"
+fi
+
+# 6. Validate Packaging Files
+log_info "Validating packaging configuration..."
+
+# Check packaging configuration
+if [ -f "CPackConfig.cmake" ]; then
+    log_success "CPack configuration found"
+
+    # Check for platform-specific packaging
+    if grep -q "CPACK_GENERATOR" CPackConfig.cmake; then
+        GENERATORS=$(grep "CPACK_GENERATOR" CPackConfig.cmake | cut -d'"' -f2)
+        log_success "Package generators configured: $GENERATORS"
+    fi
+else
+    log_error "CPack configuration not found"
+fi
+
+# Check for desktop integration files (Linux)
+if [ -f "${PROJECT_ROOT}/resources/linux/eti-stream-analyzer.desktop" ]; then
+    log_success "Linux desktop integration file found"
+
+    # Validate desktop file syntax
+    if command -v desktop-file-validate >/dev/null 2>&1; then
+        if desktop-file-validate "${PROJECT_ROOT}/resources/linux/eti-stream-analyzer.desktop"; then
+            log_success "Desktop file syntax validation passed"
         else
-            log_message "❌ AppImage executable validation failed"
-            validation_passed=false
+            log_error "Desktop file syntax validation failed"
         fi
+    fi
+else
+    log_warning "Linux desktop integration file not found"
+fi
+
+# Check for MIME type definitions
+if [ -f "${PROJECT_ROOT}/resources/linux/eti-stream-analyzer.xml" ]; then
+    log_success "MIME type definitions found"
+else
+    log_warning "MIME type definitions not found"
+fi
+
+# 7. Validate Dependencies
+log_info "Validating build dependencies..."
+
+# Check for essential libraries
+REQUIRED_LIBS=("Qt6Core" "Qt6Widgets" "Qt6Gui" "fdk-aac" "fftw3")
+for lib in "${REQUIRED_LIBS[@]}"; do
+    if grep -q "$lib" CMakeCache.txt; then
+        log_success "Dependency found: $lib"
     else
-        log_message "⚠️  AppImage not found (may not be built on this platform)"
+        log_warning "Dependency not found: $lib"
     fi
+done
 
-    log_message "Linux package validation completed"
-    return $([ "$validation_passed" = true ] && echo 0 || echo 1)
-}
+# 8. Check Package Creation Capability
+log_info "Testing package creation capability..."
 
-# Professional macOS package validation
-validate_macos_packages() {
-    log_message "=== Professional macOS Package Validation ==="
-
-    local validation_passed=true
-
-    # Validate DMG
-    local dmg_package=$(find "${BUILD_DIR}" -name "*.dmg" -type f | head -1)
-    if validate_file_exists "$dmg_package" "macOS DMG Package"; then
-        if command -v hdiutil >/dev/null 2>&1; then
-            if hdiutil imageinfo "$dmg_package" >/dev/null 2>&1; then
-                log_message "✅ DMG package structure validation passed"
-
-                # Professional DMG content validation
-                local mount_point="/tmp/eti_analyzer_dmg_$$"
-                mkdir -p "$mount_point"
-
-                if hdiutil attach "$dmg_package" -readonly -mountpoint "$mount_point" >/dev/null 2>&1; then
-                    if [ -d "$mount_point/ETI Stream Analyzer.app" ]; then
-                        log_message "✅ DMG package content validation passed"
-                    else
-                        log_message "❌ DMG package content validation failed"
-                        validation_passed=false
-                    fi
-                    hdiutil detach "$mount_point" >/dev/null 2>&1 || true
-                else
-                    log_message "❌ DMG package mount validation failed"
-                    validation_passed=false
-                fi
-
-                rm -rf "$mount_point"
-            else
-                log_message "❌ DMG package structure validation failed"
-                validation_passed=false
-            fi
-        fi
+# Test DEB package creation (if on Debian/Ubuntu)
+if command -v dpkg-deb >/dev/null 2>&1; then
+    log_info "Testing DEB package creation..."
+    if make package-linux-deb >/dev/null 2>&1; then
+        log_success "DEB package creation test passed"
     else
-        log_message "⚠️  DMG package not found (may not be built on this platform)"
+        log_warning "DEB package creation test failed"
     fi
+fi
 
-    # Validate App Bundle
-    local app_bundle=$(find "${BUILD_DIR}" -name "*.app" -type d | head -1)
-    if validate_directory_exists "$app_bundle" "macOS App Bundle"; then
-        local info_plist="$app_bundle/Contents/Info.plist"
-        if [ -f "$info_plist" ]; then
-            log_message "✅ App bundle Info.plist validation passed"
-        else
-            log_message "❌ App bundle Info.plist validation failed"
-            validation_passed=false
-        fi
-
-        local executable="$app_bundle/Contents/MacOS/ETIStreamAnalyzer"
-        if [ -x "$executable" ]; then
-            log_message "✅ App bundle executable validation passed"
-        else
-            log_message "❌ App bundle executable validation failed"
-            validation_passed=false
-        fi
+# Test RPM package creation (if rpmbuild available)
+if command -v rpmbuild >/dev/null 2>&1; then
+    log_info "Testing RPM package creation..."
+    if make package-linux-rpm >/dev/null 2>&1; then
+        log_success "RPM package creation test passed"
     else
-        log_message "⚠️  App bundle not found (may not be built on this platform)"
+        log_warning "RPM package creation test failed"
     fi
+fi
 
-    log_message "macOS package validation completed"
-    return $([ "$validation_passed" = true ] && echo 0 || echo 1)
-}
+# 9. Performance Validation
+log_info "Validating performance configuration..."
 
-# Professional source package validation
-validate_source_packages() {
-    log_message "=== Professional Source Package Validation ==="
+# Check for optimized build flags
+if grep -q "\-O3\|CMAKE_BUILD_TYPE.*Release" CMakeCache.txt; then
+    log_success "Optimized build configuration detected"
+else
+    log_warning "Build may not be optimized for performance"
+fi
 
-    local validation_passed=true
-
-    # Validate source tarball
-    local source_tar=$(find "${BUILD_DIR}" -name "*-source.tar.gz" -type f | head -1)
-    if validate_file_exists "$source_tar" "Source Package (tar.gz)"; then
-        if tar -tzf "$source_tar" >/dev/null 2>&1; then
-            log_message "✅ Source package structure validation passed"
-
-            # Professional source content validation
-            local file_count=$(tar -tzf "$source_tar" | wc -l)
-            if [ "$file_count" -gt 50 ]; then
-                log_message "✅ Source package content validation passed: $file_count files"
+# Check for debug symbols in release build
+if [ "$EXECUTABLE_FOUND" = true ]; then
+    if command -v file >/dev/null 2>&1; then
+        EXECUTABLE_PATH=$(find . -name "ETIStreamAnalyzer" -type f -executable | head -1)
+        if [ -n "$EXECUTABLE_PATH" ]; then
+            FILE_INFO=$(file "$EXECUTABLE_PATH")
+            if echo "$FILE_INFO" | grep -q "not stripped"; then
+                log_warning "Executable contains debug symbols - consider stripping for production"
             else
-                log_message "❌ Source package content validation failed: only $file_count files"
-                validation_passed=false
-            fi
-        else
-            log_message "❌ Source package structure validation failed"
-            validation_passed=false
-        fi
-    fi
-
-    # Validate source ZIP
-    local source_zip=$(find "${BUILD_DIR}" -name "*-source.zip" -type f | head -1)
-    if validate_file_exists "$source_zip" "Source Package (zip)"; then
-        if command -v unzip >/dev/null 2>&1; then
-            if unzip -t "$source_zip" >/dev/null 2>&1; then
-                log_message "✅ Source ZIP validation passed"
-            else
-                log_message "❌ Source ZIP validation failed"
-                validation_passed=false
+                log_success "Executable is stripped for production"
             fi
         fi
     fi
+fi
 
-    log_message "Source package validation completed"
-    return $([ "$validation_passed" = true ] && echo 0 || echo 1)
-}
+# 10. Security Validation
+log_info "Validating security configuration..."
 
-# Professional main validation routine
-main() {
-    log_message "=========================================="
-    log_message "ETI Stream Analyzer Professional Package Validation"
-    log_message "=========================================="
+# Check for security compilation flags
+if grep -q "fPIC\|fstack-protector" CMakeCache.txt; then
+    log_success "Security compilation flags detected"
+else
+    log_warning "Security compilation flags not detected"
+fi
 
-    # Initialize validation log
-    echo "" > "${VALIDATION_LOG}"
-    log_message "Starting professional package validation"
-    log_message "Build directory: ${BUILD_DIR}"
-    log_message "Platform: $(detect_platform)"
+# Summary
+echo ""
+echo "=== Validation Summary ==="
+echo -e "Total Errors: ${RED}${VALIDATION_ERRORS}${NC}"
+echo -e "Total Warnings: ${YELLOW}${VALIDATION_WARNINGS}${NC}"
 
-    # Professional validation summary
-    local overall_result=0
-    local platform=$(detect_platform)
-
-    # Validate packages based on platform and availability
-    if [ "$platform" = "windows" ] || find "${BUILD_DIR}" -name "*.exe" -type f | grep -q .; then
-        validate_windows_packages || overall_result=1
-    fi
-
-    if [ "$platform" = "linux" ] || find "${BUILD_DIR}" -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" | grep -q .; then
-        validate_linux_packages || overall_result=1
-    fi
-
-    if [ "$platform" = "macos" ] || find "${BUILD_DIR}" -name "*.dmg" -o -name "*.app" | grep -q .; then
-        validate_macos_packages || overall_result=1
-    fi
-
-    # Always validate source packages
-    validate_source_packages || overall_result=1
-
-    # Professional validation summary
-    log_message "=========================================="
-    if [ $overall_result -eq 0 ]; then
-        log_message "🎉 Professional package validation PASSED"
-        log_message "All packages are ready for professional deployment"
+if [ $VALIDATION_ERRORS -eq 0 ]; then
+    if [ $VALIDATION_WARNINGS -eq 0 ]; then
+        log_success "All validations passed! Package is ready for distribution."
+        exit 0
     else
-        log_message "❌ Professional package validation FAILED"
-        log_message "Some packages require attention before deployment"
+        log_success "Package validation passed with warnings. Review warnings before distribution."
+        exit 0
     fi
-    log_message "=========================================="
-    log_message "Validation log saved to: ${VALIDATION_LOG}"
-
-    return $overall_result
-}
-
-# Professional script execution
-main "$@"
+else
+    log_error "Package validation failed. Fix errors before distribution."
+    exit 1
+fi

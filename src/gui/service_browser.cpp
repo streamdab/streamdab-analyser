@@ -498,8 +498,53 @@ void ServiceBrowser::selectService(quint32 serviceId)
     if (m_selectedServiceId != serviceId) {
         m_selectedServiceId = serviceId;
         
-        // Update selection in current view
-        // TODO: Implement selection update for all views
+        // Update selection in current view across all view modes
+        switch (m_viewMode) {
+        case ViewMode::Tree:
+            if (m_treeView) {
+                // Find and select the service in tree view
+                for (int i = 0; i < m_treeView->topLevelItemCount(); ++i) {
+                    QTreeWidgetItem* ensembleItem = m_treeView->topLevelItem(i);
+                    for (int j = 0; j < ensembleItem->childCount(); ++j) {
+                        QTreeWidgetItem* serviceItem = ensembleItem->child(j);
+                        if (serviceItem->data(0, Qt::UserRole).toUInt() == serviceId) {
+                            m_treeView->setCurrentItem(serviceItem);
+                            m_treeView->scrollToItem(serviceItem);
+                            break;
+                        }
+                    }
+                }
+            }
+            break;
+            
+        case ViewMode::Table:
+            if (m_tableView) {
+                // Find and select the service in table view
+                for (int row = 0; row < m_tableView->rowCount(); ++row) {
+                    QTableWidgetItem* item = m_tableView->item(row, 0);
+                    if (item && item->data(Qt::UserRole).toUInt() == serviceId) {
+                        m_tableView->selectRow(row);
+                        m_tableView->scrollToItem(item);
+                        break;
+                    }
+                }
+            }
+            break;
+            
+        case ViewMode::List:
+            if (m_listView) {
+                // Find and select the service in list view
+                for (int row = 0; row < m_listView->count(); ++row) {
+                    QListWidgetItem* item = m_listView->item(row);
+                    if (item && item->data(Qt::UserRole).toUInt() == serviceId) {
+                        m_listView->setCurrentItem(item);
+                        m_listView->scrollToItem(item);
+                        break;
+                    }
+                }
+            }
+            break;
+        }
         
         emit serviceSelectionChanged(serviceId);
         
@@ -729,10 +774,73 @@ void ServiceBrowser::handleExportServices()
     );
     
     if (!fileName.isEmpty()) {
-        // TODO: Implement actual service export
-        QMessageBox::information(this, tr("Export"), 
-                                tr("Service export functionality will be implemented.\n"
-                                   "Target file: %1").arg(fileName));
+        // Implement comprehensive service export functionality
+        QFile file(fileName);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&file);
+            
+            // Determine export format based on file extension
+            bool isCsvFormat = fileName.endsWith(".csv", Qt::CaseInsensitive);
+            QString separator = isCsvFormat ? "," : "\t";
+            
+            // Write header
+            if (isCsvFormat) {
+                out << "Service ID,Service Name,Ensemble,Type,Bit Rate (kbps),Quality,Audio Format,Language,Active,Description\n";
+            } else {
+                out << "DAB/DAB+ Service Export - " << QDateTime::currentDateTime().toString() << "\n";
+                out << "==========================================\n\n";
+            }
+            
+            // Export services from current data
+            QList<ServiceInfo> services = getAllServices();
+            for (const ServiceInfo& service : services) {
+                if (isCsvFormat) {
+                    // CSV format with proper escaping
+                    out << QString("0x%1").arg(service.serviceId, 4, 16, QChar('0')).toUpper() << separator;
+                    out << "\"" << service.serviceName.replace("\"", "\"\"") << "\"" << separator;
+                    out << "\"" << service.ensembleName.replace("\"", "\"\"") << "\"" << separator;
+                    out << getServiceTypeString(service.serviceType) << separator;
+                    out << service.bitRate << separator;
+                    out << getServiceQualityString(service.quality) << separator;
+                    out << service.audioFormat << separator;
+                    out << service.language << separator;
+                    out << (service.isActive ? "Yes" : "No") << separator;
+                    out << "\"" << service.description.replace("\"", "\"\"") << "\"\n";
+                } else {
+                    // Human-readable text format
+                    out << "Service: " << service.serviceName << "\n";
+                    out << "  ID: 0x" << QString::number(service.serviceId, 16).toUpper() << "\n";
+                    out << "  Ensemble: " << service.ensembleName << "\n";
+                    out << "  Type: " << getServiceTypeString(service.serviceType) << "\n";
+                    out << "  Bit Rate: " << service.bitRate << " kbps\n";
+                    out << "  Quality: " << getServiceQualityString(service.quality) << "\n";
+                    out << "  Audio Format: " << service.audioFormat << "\n";
+                    out << "  Language: " << service.language << "\n";
+                    out << "  Active: " << (service.isActive ? "Yes" : "No") << "\n";
+                    if (!service.description.isEmpty()) {
+                        out << "  Description: " << service.description << "\n";
+                    }
+                    out << "\n";
+                }
+            }
+            
+            // Add summary for text format
+            if (!isCsvFormat) {
+                out << "Export Summary:\n";
+                out << "Total Services: " << services.size() << "\n";
+                out << "Active Services: " << std::count_if(services.begin(), services.end(), 
+                                                           [](const ServiceInfo& s) { return s.isActive; }) << "\n";
+                out << "Export Date: " << QDateTime::currentDateTime().toString(Qt::ISODate) << "\n";
+            }
+            
+            file.close();
+            QMessageBox::information(this, tr("Export Successful"), 
+                                   tr("Service list exported successfully to:\n%1\n\n"
+                                      "Exported %2 services").arg(fileName).arg(services.size()));
+        } else {
+            QMessageBox::warning(this, tr("Export Failed"), 
+                               tr("Could not write to file:\n%1").arg(fileName));
+        }
         
         Logger::instance().log(Logger::Info, "ServiceBrowser", 
                              QString("Service export requested: %1").arg(fileName));

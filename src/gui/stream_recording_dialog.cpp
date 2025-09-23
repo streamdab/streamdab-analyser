@@ -39,12 +39,7 @@ StreamRecordingDialog::StreamRecordingDialog(eti::StreamRecordingManager *record
     Logger::instance().log(Logger::Info, "StreamRecordingDialog", "Constructor completed");
 }
 
-StreamRecordingDialog::~StreamRecordingDialog()
-{
-    // Qt handles widget cleanup automatically
-    
-    Logger::instance().log(Logger::Info, "StreamRecordingDialog", "Destructor completed");
-}
+StreamRecordingDialog::~StreamRecordingDialog() = default;
 
 void StreamRecordingDialog::createUI()
 {
@@ -145,8 +140,17 @@ void StreamRecordingDialog::browseOutputDirectory()
 {
     QString dir = QFileDialog::getExistingDirectory(this, tr("Select Recording Directory"), 
                                                    QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
-    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Browse output directory - placeholder");
-    Q_UNUSED(dir);
+    
+    if (!dir.isEmpty()) {
+        // Update the output directory in the UI using actual member variable
+        if (m_outputPathEdit) {
+            m_outputPathEdit->setText(dir);
+        }
+        Logger::instance().log(Logger::Info, "StreamRecordingDialog", 
+                              QString("Output directory selected: %1").arg(dir));
+    } else {
+        Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Directory selection cancelled");
+    }
 }
 
 void StreamRecordingDialog::handleOutputFormatChanged()
@@ -212,26 +216,83 @@ void StreamRecordingDialog::updateSessionList()
 
 void StreamRecordingDialog::handleRecordingSessionStarted(const QString& sessionId)
 {
-    Q_UNUSED(sessionId)
-    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Handle recording session started - placeholder");
+    // Update UI to show active recording session
+    Logger::instance().log(Logger::Info, "StreamRecordingDialog", 
+                          QString("Recording session started: %1").arg(sessionId));
+    
+    // Update start/stop button to show stop state
+    if (m_startStopButton) {
+        m_startStopButton->setText(tr("Stop Recording"));
+        m_startStopButton->setEnabled(true);
+    }
+    
+    // Update status display
+    if (m_statusLabel) {
+        m_statusLabel->setText(tr("Recording in progress..."));
+        m_statusLabel->setStyleSheet("color: green; font-weight: bold;");
+    }
 }
 
 void StreamRecordingDialog::handleRecordingSessionStopped(const QString& sessionId)
 {
-    Q_UNUSED(sessionId)
-    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Handle recording session stopped - placeholder");
+    // Update UI to show recording session has ended
+    Logger::instance().log(Logger::Info, "StreamRecordingDialog", 
+                          QString("Recording session stopped: %1").arg(sessionId));
+    
+    // Update start/stop button to show start state
+    if (m_startStopButton) {
+        m_startStopButton->setText(tr("Start Recording"));
+        m_startStopButton->setEnabled(true);
+    }
+    
+    // Update status display
+    if (m_statusLabel) {
+        m_statusLabel->setText(tr("Recording stopped"));
+        m_statusLabel->setStyleSheet("color: blue; font-weight: normal;");
+    }
 }
 
 void StreamRecordingDialog::handleSessionStatisticsUpdate(const QString& sessionId, const eti::RecordingSession& session)
 {
-    Q_UNUSED(sessionId)
-    Q_UNUSED(session)
-    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Handle session statistics update - placeholder");
+    // Update statistics display with real-time recording metrics
+    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", 
+                          QString("Statistics update for session %1").arg(sessionId));
+    
+    // Update recording progress and status using actual member variables
+    if (m_recordingProgress) {
+        // Update progress based on session statistics
+        m_recordingProgress->setValue(static_cast<int>(session.duration_seconds % 100));
+    }
+    
+    // Update status label with recording statistics
+    if (m_statusLabel) {
+        QString statusText = QString("Recording: %1s, %2 frames, %3 MB")
+                            .arg(session.duration_seconds)
+                            .arg(session.frame_count)
+                            .arg(session.file_size_bytes / (1024 * 1024));
+        m_statusLabel->setText(statusText);
+    }
 }
 
 void StreamRecordingDialog::handleRecordingError(const QString& sessionId, const QString& error)
 {
-    Q_UNUSED(sessionId)
-    Q_UNUSED(error)
-    Logger::instance().log(Logger::Debug, "StreamRecordingDialog", "Handle recording error - placeholder");
+    // Display error message and update UI state
+    Logger::instance().log(Logger::Error, "StreamRecordingDialog", 
+                          QString("Recording error in session %1: %2").arg(sessionId, error));
+    
+    // Show error message to user
+    QMessageBox::critical(this, tr("Recording Error"), 
+                         tr("Recording failed for session %1:\n%2").arg(sessionId, error));
+    
+    // Reset UI to stopped state
+    if (m_startStopButton) {
+        m_startStopButton->setText(tr("Start Recording"));
+        m_startStopButton->setEnabled(true);
+    }
+    
+    // Update status display with error indication
+    if (m_statusLabel) {
+        m_statusLabel->setText(tr("Recording error occurred"));
+        m_statusLabel->setStyleSheet("color: red; font-weight: bold;");
+    }
 }

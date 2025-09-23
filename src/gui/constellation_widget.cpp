@@ -325,13 +325,59 @@ void ConstellationWidget::exportData()
     );
     
     if (!fileName.isEmpty()) {
-        // TODO: Implement actual data export
-        QMessageBox::information(this, tr("Export"), 
-                                tr("Constellation data export functionality will be implemented.\n"
-                                   "Target file: %1").arg(fileName));
+        // Implement comprehensive constellation data export
+        QFile file(fileName);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&file);
+            
+            // Export header with metadata
+            out << "Constellation Diagram Export\n";
+            out << "Generated: " << QDateTime::currentDateTime().toString(Qt::ISODate) << "\n";
+            out << "Signal Analysis: DAB OFDM Constellation\n";
+            out << "========================================\n\n";
+            
+            // Export signal metrics
+            out << "Signal Quality Metrics:\n";
+            out << "SNR: " << QString::number(m_currentSnr, 'f', 2) << " dB\n";
+            out << "Signal Level: " << QString::number(m_signalLevel, 'f', 1) << " dBm\n";
+            out << "Error Rate: " << QString::number(m_errorRate, 'f', 4) << "\n";
+            out << "Modulation: " << getModulationString() << "\n";
+            out << "Total Samples: " << m_constellationPoints.size() << "\n\n";
+            
+            // Export constellation points (I/Q data)
+            out << "Constellation Points (I, Q):\n";
+            for (int i = 0; i < m_constellationPoints.size(); ++i) {
+                const QPointF& point = m_constellationPoints[i];
+                out << QString::number(point.x(), 'f', 6) << ", " 
+                    << QString::number(point.y(), 'f', 6) << "\n";
+                
+                // Limit output for very large datasets
+                if (i >= 10000) {
+                    out << "... (truncated at 10000 samples)\n";
+                    break;
+                }
+            }
+            
+            // Export signal statistics
+            out << "\nSignal Statistics:\n";
+            out << "Average I: " << QString::number(calculateAverageI(), 'f', 6) << "\n";
+            out << "Average Q: " << QString::number(calculateAverageQ(), 'f', 6) << "\n";
+            out << "I Standard Deviation: " << QString::number(calculateStdDevI(), 'f', 6) << "\n";
+            out << "Q Standard Deviation: " << QString::number(calculateStdDevQ(), 'f', 6) << "\n";
+            out << "Peak Amplitude: " << QString::number(calculatePeakAmplitude(), 'f', 6) << "\n";
+            out << "RMS Amplitude: " << QString::number(calculateRmsAmplitude(), 'f', 6) << "\n";
+            
+            file.close();
+            QMessageBox::information(this, tr("Export Successful"), 
+                                   tr("Constellation data exported successfully to:\n%1\n\n"
+                                      "Exported %2 constellation points").arg(fileName).arg(m_constellationPoints.size()));
+        } else {
+            QMessageBox::warning(this, tr("Export Failed"), 
+                               tr("Could not write to file:\n%1").arg(fileName));
+        }
         
         Logger::instance().log(Logger::Info, "ConstellationWidget", 
-                             QString("Data export requested: %1").arg(fileName));
+                             QString("Constellation data export completed: %1").arg(fileName));
     }
 }
 

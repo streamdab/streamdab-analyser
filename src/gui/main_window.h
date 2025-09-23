@@ -3,7 +3,9 @@
 #include <QMainWindow>
 
 QT_BEGIN_NAMESPACE
+// NOLINTBEGIN(readability-identifier-naming) - Qt standard namespace convention
 namespace Ui { class MainWindow; }
+// NOLINTEND(readability-identifier-naming)
 QT_END_NAMESPACE
 #include <QMenuBar>
 #include <QToolBar>
@@ -18,6 +20,7 @@ QT_END_NAMESPACE
 #include <QLabel>
 #include <QProgressBar>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QAction>
 #include <QActionGroup>
 #include <QFileDialog>
@@ -35,6 +38,9 @@ QT_END_NAMESPACE
 #include <QPushButton>
 #include <QHeaderView>
 #include <memory>
+
+// Network components - full include needed for value members
+#include "../network/eti_over_ip_receiver.h"
 
 // Forward declarations
 class AnalyzerWidget;
@@ -54,6 +60,14 @@ class EtiAnalysisWidget;
 class PerformanceDashboard;
 class ETSIComplianceMonitor;
 class ProfessionalWorkflowManager;
+
+// Network streaming components (EtiOverIpReceiver and NetworkQualityMetrics included above)
+namespace eti_network {
+    struct ETIStreamInfo;
+}
+namespace eti {
+    class StreamRecordingManager;
+}
 
 // Modern ETI Core Engine components
 namespace eti {
@@ -106,7 +120,13 @@ public:
     /**
      * @brief Destructor
      */
-    ~MainWindow();
+    ~MainWindow() override;
+
+    // Disable copy and move operations for proper resource management
+    MainWindow(const MainWindow&) = delete;
+    MainWindow& operator=(const MainWindow&) = delete;
+    MainWindow(MainWindow&&) = delete;
+    MainWindow& operator=(MainWindow&&) = delete;
 
     /**
      * @brief Initialize the main window with all components
@@ -118,13 +138,13 @@ public:
      * @brief Get current ETI processor instance
      * @return Pointer to ETI processor (may be nullptr)
      */
-    EtiProcessor* getEtiProcessor() const { return m_etiProcessor.get(); }
+    [[nodiscard]] EtiProcessor* getEtiProcessor() const { return m_etiProcessor.get(); }
 
     /**
      * @brief Get current analyzer widget
      * @return Pointer to analyzer widget
      */
-    AnalyzerWidget* getAnalyzerWidget() const { return m_analyzerWidget; }
+    [[nodiscard]] AnalyzerWidget* getAnalyzerWidget() const { return m_analyzerWidget; }
 
     /**
      * @brief Get constellation widget
@@ -163,7 +183,7 @@ public:
     static constexpr int UPDATE_INTERVAL_MS = 1000 / TARGET_FPS;  // ~16.67ms for 60 FPS
     static constexpr int STATUS_MESSAGE_TIMEOUT = 5000;  // 5 seconds
 
-public slots:
+    // Public slots
     /**
      * @brief Open ETI file for analysis
      */
@@ -183,6 +203,31 @@ public slots:
      * @brief Stop real-time analysis
      */
     void stopRealTimeAnalysis();
+
+    /**
+     * @brief Start ETI-over-IP stream reception
+     */
+    void startNetworkStreaming();
+
+    /**
+     * @brief Stop ETI-over-IP stream reception
+     */
+    void stopNetworkStreaming();
+
+    /**
+     * @brief Configure network streaming settings
+     */
+    void configureNetworkStreaming();
+
+    /**
+     * @brief Start recording current stream
+     */
+    void startStreamRecording();
+
+    /**
+     * @brief Stop recording current stream
+     */
+    void stopStreamRecording();
 
     /**
      * @brief Show settings dialog
@@ -338,7 +383,8 @@ protected:
      */
     void moveEvent(QMoveEvent *event) override;
 
-private slots:
+private:
+    // Private slots
     /**
      * @brief Update real-time display (called by timer)
      */
@@ -355,8 +401,6 @@ private slots:
      * @param visible Visibility state
      */
     void handleDockVisibilityChanged(bool visible);
-
-private:
     /**
      * @brief Create menu bar with professional broadcast menus
      */
@@ -386,6 +430,11 @@ private:
      * @brief Setup three-panel professional layout
      */
     void setupThreePanelLayout();
+
+    /**
+     * @brief Initialize custom visualization widgets in Qt Designer UI
+     */
+    void initializeVisualizationWidgets();
 
     /**
      * @brief Create Explorer Panel (left 25%) - ETI service tree
@@ -598,6 +647,13 @@ private:
     QAction *m_fullScreenAction;
     QAction *m_resetLayoutAction;
 
+    // Network streaming actions
+    QAction *m_startNetworkStreamingAction;
+    QAction *m_stopNetworkStreamingAction;
+    QAction *m_configureNetworkAction;
+    QAction *m_startRecordingAction;
+    QAction *m_stopRecordingAction;
+
     // View actions for docks
     QAction *m_showFileExplorerAction;
     QAction *m_showYamlViewerAction;
@@ -624,6 +680,15 @@ private:
     qint64 m_lastUpdateTime;
     int m_frameDropCount;
     double m_averageFrameTime;
+
+    // Network streaming components
+    std::unique_ptr<eti_network::EtiOverIpReceiver> m_networkReceiver;
+    std::unique_ptr<eti::StreamRecordingManager> m_recordingManager;
+    bool m_networkStreamingActive;
+    bool m_recordingActive;
+    QString m_currentStreamAddress;
+    quint16 m_currentStreamPort;
+    eti_network::NetworkQualityMetrics m_networkQuality;
 
     // Dialog instances
     SettingsDialog *m_settingsDialog;

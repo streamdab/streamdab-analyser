@@ -11,6 +11,9 @@ project(ETIStreamAnalyzer
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Export compile commands for clang-tidy integration
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Build type default
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -36,6 +39,18 @@ find_package(Qt6 6.2 REQUIRED COMPONENTS
     Test
     Multimedia
 )
+
+# Optional components
+find_package(Qt6StateMachine QUIET)
+if(Qt6StateMachine_FOUND)
+    message(STATUS "Qt6StateMachine found - enabling advanced state machine features")
+    set(HAVE_QT6_STATEMACHINE TRUE)
+    add_compile_definitions(HAVE_QT6_STATEMACHINE=1)
+else()
+    message(STATUS "Qt6StateMachine not found - disabling state machine features")
+    set(HAVE_QT6_STATEMACHINE FALSE)
+    add_compile_definitions(HAVE_QT6_STATEMACHINE=0)
+endif()
 
 # Enable Qt automation
 set(CMAKE_AUTOMOC ON)
@@ -326,6 +341,73 @@ endif()
 
 if(HAVE_NLOHMANN_JSON)
     target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_NLOHMANN_JSON)
+endif()
+
+# Static analysis with clang-tidy integration
+option(ENABLE_CLANG_TIDY "Enable clang-tidy static analysis" ON)
+
+if(ENABLE_CLANG_TIDY)
+    find_program(CLANG_TIDY_EXE
+        NAMES clang-tidy
+        DOC "Path to clang-tidy executable"
+    )
+
+    if(CLANG_TIDY_EXE)
+        message(STATUS "clang-tidy found: ${CLANG_TIDY_EXE}")
+
+        # Set clang-tidy command with configuration
+        set(CLANG_TIDY_COMMAND
+            ${CLANG_TIDY_EXE}
+            --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy
+            --header-filter=.*
+            --warnings-as-errors=*
+        )
+
+        # Apply clang-tidy to the main target
+        set_target_properties(${PROJECT_NAME} PROPERTIES
+            CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}"
+        )
+
+        message(STATUS "clang-tidy integration enabled for ${PROJECT_NAME}")
+    else()
+        message(WARNING "clang-tidy not found. Static analysis disabled.")
+        set(ENABLE_CLANG_TIDY OFF)
+    endif()
+else()
+    message(STATUS "clang-tidy static analysis disabled")
+endif()
+
+# Custom target for running clang-tidy on all source files
+if(ENABLE_CLANG_TIDY AND CLANG_TIDY_EXE)
+    add_custom_target(clang-tidy-analysis
+        COMMAND ${CMAKE_COMMAND} -E echo "Running clang-tidy analysis on all source files..."
+        COMMAND ${CLANG_TIDY_EXE}
+            --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy
+            --header-filter=.*
+            --format-style=file
+            ${SOURCE_FILES}
+            -- -I${CMAKE_CURRENT_SOURCE_DIR}/src
+               -I${CMAKE_CURRENT_BINARY_DIR}
+               ${Qt6_INCLUDE_DIRS}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Running clang-tidy static analysis"
+    )
+
+    add_custom_target(clang-tidy-fix
+        COMMAND ${CMAKE_COMMAND} -E echo "Running clang-tidy with auto-fix on all source files..."
+        COMMAND ${CLANG_TIDY_EXE}
+            --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy
+            --header-filter=.*
+            --format-style=file
+            --fix
+            --fix-errors
+            ${SOURCE_FILES}
+            -- -I${CMAKE_CURRENT_SOURCE_DIR}/src
+               -I${CMAKE_CURRENT_BINARY_DIR}
+               ${Qt6_INCLUDE_DIRS}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Running clang-tidy with automatic fixes"
+    )
 endif()
 
 # Testing configuration

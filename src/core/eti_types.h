@@ -52,7 +52,7 @@ constexpr size_t MAX_FIG_LENGTH = 29;                      // Maximum FIG data l
 constexpr size_t FIG_HEADER_SIZE = 1;                      // bytes
 
 // Sync pattern for ETI frames (ETSI EN 300 799)
-constexpr uint8_t ETI_SYNC_PATTERN[4] = {0x49, 0x93, 0x1E, 0x03};
+constexpr std::array<uint8_t, 4> ETI_SYNC_PATTERN = {0x49, 0x93, 0x1E, 0x03};
 
 // Forward declarations
 struct EtiFrame;
@@ -63,18 +63,18 @@ struct FigBlock;
  * Reference: ETSI EN 300 799 Section 5.1
  */
 struct EtiSyncField {
-    uint8_t sync_bytes[4];
+    std::array<uint8_t, 4> sync_bytes;
     
-    EtiSyncField() {
+    EtiSyncField() : sync_bytes{} {
         set_sync_pattern();
     }
     
     bool is_valid() const {
-        return std::memcmp(sync_bytes, ETI_SYNC_PATTERN, 4) == 0;
+        return std::memcmp(sync_bytes.data(), ETI_SYNC_PATTERN.data(), 4) == 0;
     }
     
     void set_sync_pattern() {
-        std::memcpy(sync_bytes, ETI_SYNC_PATTERN, 4);
+        std::memcpy(sync_bytes.data(), ETI_SYNC_PATTERN.data(), 4);
     }
 };
 
@@ -114,14 +114,13 @@ struct EtiLidataField {
  * Reference: ETSI EN 300 401 Section 6.4
  */
 struct EtiFicField {
-    uint8_t fic_data[32];
+    std::array<uint8_t, 32> fic_data;
     
-    EtiFicField() {
-        std::memset(fic_data, 0, sizeof(fic_data));
+    EtiFicField() : fic_data{} {
+        fic_data.fill(0);
     }
     
-    explicit EtiFicField(const uint8_t data[32]) {
-        std::memcpy(fic_data, data, 32);
+    explicit EtiFicField(const std::array<uint8_t, 32>& data) : fic_data(data) {
     }
     
     std::vector<FigBlock> decode_fig_blocks() const;
@@ -183,14 +182,13 @@ struct SubChannelInfo {
  * Reference: ETSI EN 300 799 Section 5.3
  */
 struct EtiMscField {
-    uint8_t msc_data[ETI_MSC_SIZE];
+    std::array<uint8_t, ETI_MSC_SIZE> msc_data;
     
-    EtiMscField() {
-        std::memset(msc_data, 0, sizeof(msc_data));
+    EtiMscField() : msc_data{} {
+        msc_data.fill(0);
     }
     
-    explicit EtiMscField(const uint8_t data[ETI_MSC_SIZE]) {
-        std::memcpy(msc_data, data, ETI_MSC_SIZE);
+    explicit EtiMscField(const std::array<uint8_t, ETI_MSC_SIZE>& data) : msc_data(data) {
     }
     
     std::vector<uint8_t> extract_subchannel_data(const SubChannelInfo& subchannel) const;
@@ -206,10 +204,10 @@ struct EtiMscField {
  * Reference: ETSI EN 300 799 Section 5.4
  */
 struct EtiCrcField {
-    uint8_t crc_bytes[4];
+    std::array<uint8_t, 4> crc_bytes;
     
-    EtiCrcField() {
-        std::memset(crc_bytes, 0, sizeof(crc_bytes));
+    EtiCrcField() : crc_bytes{} {
+        crc_bytes.fill(0);
     }
     
     bool validate_frame(const EtiFrame& frame) const;
@@ -293,6 +291,7 @@ struct DabService {
     
     std::vector<uint8_t> get_subchannel_ids() const {
         std::vector<uint8_t> subchannel_ids;
+        subchannel_ids.reserve(components.size()); // Pre-allocate for performance
         for (const auto& component : components) {
             subchannel_ids.push_back(component.sub_channel_id);
         }
@@ -349,6 +348,7 @@ struct Ensemble {
     
     std::vector<uint16_t> get_service_ids() const {
         std::vector<uint16_t> service_ids;
+        service_ids.reserve(services.size()); // Pre-allocate for performance
         for (const auto& service : services) {
             service_ids.push_back(service.service_id);
         }
@@ -379,7 +379,7 @@ struct EtiFrame {
     // Field accessors
     EtiSyncField get_sync_field() const {
         EtiSyncField sync;
-        std::memcpy(sync.sync_bytes, frame_data.data(), 4);
+        std::memcpy(sync.sync_bytes.data(), frame_data.data(), 4);
         return sync;
     }
     
@@ -406,19 +406,19 @@ struct EtiFrame {
     
     EtiFicField get_fic_field() const {
         EtiFicField fic;
-        std::memcpy(fic.fic_data, frame_data.data() + 12, 32);
+        std::memcpy(fic.fic_data.data(), frame_data.data() + 12, 32);
         return fic;
     }
     
     EtiMscField get_msc_field() const {
         EtiMscField msc;
-        std::memcpy(msc.msc_data, frame_data.data() + 44, ETI_MSC_SIZE);
+        std::memcpy(msc.msc_data.data(), frame_data.data() + 44, ETI_MSC_SIZE);
         return msc;
     }
     
     EtiCrcField get_crc_field() const {
         EtiCrcField crc;
-        std::memcpy(crc.crc_bytes, frame_data.data() + ETI_FRAME_SIZE - 4, 4);
+        std::memcpy(crc.crc_bytes.data(), frame_data.data() + ETI_FRAME_SIZE - 4, 4);
         return crc;
     }
     
@@ -695,7 +695,7 @@ struct ETSIComplianceResult {
 private:
     void recalculate_score() {
         // Simple scoring: start at 100, subtract for each error/warning
-        compliance_score = 100.0 - (errors.size() * 10.0) - (warnings.size() * 2.0);
+        compliance_score = 100.0 - (static_cast<double>(errors.size()) * 10.0) - (static_cast<double>(warnings.size()) * 2.0);
         compliance_score = std::max(0.0, compliance_score);
         
         if (compliance_score < 100.0) {

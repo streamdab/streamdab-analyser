@@ -45,7 +45,7 @@ ProfessionalWorkflowManager::ProfessionalWorkflowManager(MainWindow* mainWindow,
     , m_audioMonitor(nullptr)
     , m_figAnalysis(nullptr)
     , m_currentState(Idle)
-    , m_workflowStateMachine(nullptr)
+    // No QStateMachine initialization needed
     , m_panelSyncActive(false)
     , m_panelSyncMode(AutoSync)
     , m_panelSyncTimer(nullptr)
@@ -813,6 +813,7 @@ void ProfessionalWorkflowManager::initializeWorkflowStateMachine()
 {
     Logger::instance().log(Logger::Info, "ProfessionalWorkflowManager", "Initializing workflow state machine");
     
+#if HAVE_QT6_STATEMACHINE
     // Create state machine
     m_workflowStateMachine = new QStateMachine(this);
     
@@ -841,6 +842,10 @@ void ProfessionalWorkflowManager::initializeWorkflowStateMachine()
     m_workflowStateMachine->start();
     
     Logger::instance().log(Logger::Info, "ProfessionalWorkflowManager", "Workflow state machine initialized");
+#else
+    Logger::instance().log(Logger::Warning, "ProfessionalWorkflowManager", "QStateMachine not available - using simplified workflow management");
+    m_workflowStateMachine = nullptr;
+#endif
 }
 
 void ProfessionalWorkflowManager::createPanelSyncTimer()

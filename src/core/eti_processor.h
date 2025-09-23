@@ -129,6 +129,9 @@ private:
     bool validateSyncPattern(const eti::EtiFrame& frame);
     bool validateLidataField(const eti::EtiLidataField& lidata);
     bool validateFrameCrc(const eti::EtiFrame& frame);
+    
+    // CRC-32 calculation according to ETSI EN 300 799
+    uint32_t calculateCrc32(const uint8_t* data, size_t length);
 
     // FIC and MSC processing methods
     bool processFicData(const eti::EtiFicField& fic);
@@ -146,6 +149,12 @@ private:
     bool parseFig03_ServiceComponent(const eti::FigBlock& figBlock);
     bool parseFig10_EnsembleLabel(const eti::FigBlock& figBlock);
     bool parseFig11_ServiceLabel(const eti::FigBlock& figBlock);
+    
+    // FIG Type 2 parsers for extended service information
+    bool parseFig20_ServiceComponentGlobal(const eti::FigBlock& figBlock);
+    bool parseFig21_MOTConfiguration(const eti::FigBlock& figBlock);
+    bool parseFig22_ServiceComponentLanguage(const eti::FigBlock& figBlock);
+    bool parseFig23_ServiceComponentTrigger(const eti::FigBlock& figBlock);
     
     // Enhanced service discovery methods
     void updateEnsembleInformation(const eti::Ensemble& ensemble);

@@ -1,97 +1,72 @@
 #!/bin/bash
-# ETI Stream Analyzer - Debian/Ubuntu Post-Installation Script
-# Professional desktop integration for broadcast engineers
+# Post-installation script for StreamDAB Stream Analyzer
+# Debian/Ubuntu package post-installation
 
 set -e
 
-# Professional application information
-APP_NAME="ETI Stream Analyzer"
-DESKTOP_FILE="/usr/share/applications/eti-stream-analyzer.desktop"
-ICON_PATH="/usr/share/pixmaps/eti-stream-analyzer.png"
-MIME_TYPE_FILE="/usr/share/mime/packages/eti-stream-analyzer.xml"
-
 case "$1" in
     configure)
-        echo "Configuring ETI Stream Analyzer for professional broadcast use..."
+        # Update MIME database for ETI file associations
+        if [ -x /usr/bin/update-mime-database ]; then
+            update-mime-database /usr/share/mime >/dev/null 2>&1 || true
+        fi
 
-        # Create professional desktop entry
-        cat > "${DESKTOP_FILE}" << EOF
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=ETI Stream Analyzer
-GenericName=ETI/DAB Stream Analysis Tool
-Comment=Professional ETI and DAB/DAB+ stream analyzer for broadcast engineers
-Keywords=ETI;DAB;DAB+;Broadcast;Audio;Stream;Analysis;ETSI;Professional;
-Icon=eti-stream-analyzer
-Exec=ETIStreamAnalyzer %F
-Terminal=false
-MimeType=application/x-eti-stream;application/x-eti-ni;application/x-eti-li;
-Categories=AudioVideo;Audio;Professional;Engineering;
-StartupNotify=true
-StartupWMClass=ETIStreamAnalyzer
+        # Update desktop database for application menu
+        if [ -x /usr/bin/update-desktop-database ]; then
+            update-desktop-database >/dev/null 2>&1 || true
+        fi
+
+        # Update icon cache
+        if [ -x /usr/bin/gtk-update-icon-cache ]; then
+            gtk-update-icon-cache -f -t /usr/share/icons/hicolor >/dev/null 2>&1 || true
+        fi
+
+        # Create user configuration directory template
+        if [ ! -d /etc/skel/.config/StreamDAB ]; then
+            mkdir -p /etc/skel/.config/StreamDAB
+            cat > /etc/skel/.config/StreamDAB/analyzer.conf << 'EOF'
+# StreamDAB Stream Analyzer Default Configuration
+[General]
+AutoOpenRecentFiles=true
+ShowWelcomeDialog=true
+DefaultAnalysisMode=Professional
+
+[Audio]
+DefaultDecoder=fdk-aac
+SampleRate=48000
+BufferSize=1024
+
+[Network]
+DefaultPort=9200
+MulticastGroup=239.192.0.1
+EnableAutoDiscovery=true
+
+[ETSI]
+ComplianceLevel=Strict
+ValidateFrameStructure=true
+CheckAudioQuality=true
 EOF
-
-        # Register professional MIME types for broadcast files
-        cat > "${MIME_TYPE_FILE}" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
-    <mime-type type="application/x-eti-stream">
-        <comment>ETI Stream File</comment>
-        <comment xml:lang="en">ETI (Ensemble Transport Interface) Stream File</comment>
-        <icon name="eti-stream-analyzer"/>
-        <glob pattern="*.eti"/>
-        <magic priority="50">
-            <match value="ETI" type="string" offset="0"/>
-        </magic>
-    </mime-type>
-    <mime-type type="application/x-eti-ni">
-        <comment>ETI-NI Stream File</comment>
-        <comment xml:lang="en">ETI Network Interface Stream File</comment>
-        <icon name="eti-stream-analyzer"/>
-        <glob pattern="*.eti"/>
-        <glob pattern="*.etini"/>
-    </mime-type>
-    <mime-type type="application/x-eti-li">
-        <comment>ETI-LI Stream File</comment>
-        <comment xml:lang="en">ETI Linear Interface Stream File</comment>
-        <icon name="eti-stream-analyzer"/>
-        <glob pattern="*.eti"/>
-        <glob pattern="*.etili"/>
-    </mime-type>
-</mime-info>
-EOF
-
-        # Professional directory structure
-        mkdir -p /var/log/eti-stream-analyzer
-        mkdir -p /etc/eti-stream-analyzer
-        mkdir -p /usr/share/eti-stream-analyzer/samples
-        mkdir -p /usr/share/doc/eti-stream-analyzer
-
-        # Set professional permissions
-        chmod 755 /var/log/eti-stream-analyzer
-        chmod 755 /etc/eti-stream-analyzer
-
-        # Update desktop database for professional integration
-        if command -v update-desktop-database >/dev/null 2>&1; then
-            update-desktop-database /usr/share/applications
         fi
 
-        # Update MIME database for broadcast file support
-        if command -v update-mime-database >/dev/null 2>&1; then
-            update-mime-database /usr/share/mime
+        # Add ETI file type to shared-mime-info
+        if [ -d /usr/share/mime/packages ]; then
+            # MIME type should already be installed by package
+            echo "ETI file associations configured"
         fi
 
-        # Update icon cache for professional appearance
-        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-            gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+        # Create log directory for system-wide logging
+        if [ ! -d /var/log/streamdab ]; then
+            mkdir -p /var/log/streamdab
+            chmod 755 /var/log/streamdab
         fi
 
-        # Professional system integration
-        ldconfig
+        # Add broadcast group for professional users (optional)
+        if ! getent group broadcast >/dev/null 2>&1; then
+            groupadd -r broadcast 2>/dev/null || true
+        fi
 
-        echo "ETI Stream Analyzer professional configuration complete."
-        echo "Application ready for broadcast engineering workflows."
+        echo "StreamDAB Stream Analyzer installation completed successfully"
+        echo "Professional ETI analysis tools are now available"
         ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

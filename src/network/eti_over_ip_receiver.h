@@ -238,7 +238,10 @@ private:
     // Quality tracking
     NetworkQualityMetrics m_quality_metrics;
     uint16_t m_last_sequence_received = 0;
+    uint16_t m_last_sequence_sent = 0;
     uint32_t m_last_timestamp_received = 0;
+    uint32_t m_last_timestamp = 0;
+    std::atomic<size_t> m_packets_lost{0};
     std::chrono::steady_clock::time_point m_last_packet_time;
     
     // Jitter calculation (RFC 3550)
@@ -283,10 +286,14 @@ private:
     struct StreamInfo {
         QQueue<QByteArray> frame_buffer;
         std::chrono::steady_clock::time_point last_packet_time;
+        std::chrono::steady_clock::time_point last_seen;
+        QString address;
+        quint16 port = 0;
         size_t packet_count = 0;
         size_t error_count = 0;
         double quality_score = 1.0;
         bool is_healthy = true;
+        bool is_active = false;
     };
     
     void update_stream_quality(StreamInfo& stream, bool packet_ok);
@@ -296,6 +303,7 @@ private:
     RedundancyMode m_mode;
     StreamInfo m_primary_stream;
     StreamInfo m_backup_stream;
+    QList<StreamInfo> m_backup_streams;
     
     double m_failover_threshold = 0.05;  // 5% packet loss triggers failover
     double m_recovery_threshold = 0.01;  // 1% packet loss for recovery
