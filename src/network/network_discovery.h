@@ -461,6 +461,8 @@ private slots:
     void validateDiscoveredStreams();
     void updateStreamQuality();
     void checkRedundancyStatus();
+    void discoveryProgress(int percentage);
+    void discoveryCompleted();
 
 private:
     // Initialization
@@ -531,8 +533,11 @@ private:
     
     // Statistics
     std::chrono::steady_clock::time_point m_discoveryStartTime;
+    std::chrono::steady_clock::time_point m_lastDiscoveryStart;
     size_t m_totalStreamsDiscovered = 0;
+    size_t m_totalDiscoveryCycles = 0;
     size_t m_activeDiscoveryProtocols = 0;
+    int m_discoveryProgress = 0;
     
     static constexpr std::chrono::milliseconds VALIDATION_INTERVAL{30000};
     static constexpr std::chrono::milliseconds QUALITY_UPDATE_INTERVAL{5000};

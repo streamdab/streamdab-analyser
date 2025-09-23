@@ -399,8 +399,28 @@ NetworkDiscovery::NetworkDiscovery(QObject* parent)
     
     // Connect signals for automatic discovery workflow
     connect(m_discoveryTimer.get(), &QTimer::timeout, this, &NetworkDiscovery::performPeriodicDiscovery);
-    // TODO: Connect stream discovery signals when methods are implemented
-    // TODO: Connect announcement signals when methods are implemented
+    
+    // Connect MulticastScanner signals for stream discovery
+    if (m_multicastScanner) {
+        connect(m_multicastScanner.get(), &MulticastScanner::streamDiscovered,
+                this, &NetworkDiscovery::streamDiscovered);
+        connect(m_multicastScanner.get(), &MulticastScanner::streamLost,
+                this, &NetworkDiscovery::streamLost);
+        connect(m_multicastScanner.get(), &MulticastScanner::scanningProgress,
+                this, &NetworkDiscovery::discoveryProgress);
+        connect(m_multicastScanner.get(), &MulticastScanner::scanningCompleted,
+                this, &NetworkDiscovery::discoveryCompleted);
+    }
+    
+    // Connect BroadcastAnnouncer signals for SAP/SDP discovery
+    if (m_broadcastAnnouncer) {
+        connect(m_broadcastAnnouncer.get(), &BroadcastAnnouncer::streamAnnounced,
+                this, &NetworkDiscovery::streamDiscovered);
+        connect(m_broadcastAnnouncer.get(), &BroadcastAnnouncer::streamWithdrawn,
+                this, &NetworkDiscovery::streamLost);
+        connect(m_broadcastAnnouncer.get(), &BroadcastAnnouncer::announcementUpdated,
+                this, &NetworkDiscovery::streamUpdated);
+    }
     
     // TODO: Initialize network interface monitoring when function is implemented
     
@@ -723,6 +743,54 @@ ETIStreamInfo MulticastScanner::analyzeETIStream(const QHostAddress& address, qu
     }
     
     return streamInfo;
+}
+
+// NetworkDiscovery slot implementations for discovery progress
+void NetworkDiscovery::discoveryProgress(int percentage) {
+    // Professional discovery progress tracking with broadcast industry standards
+    Logger::instance().log(Logger::Debug, "NetworkDiscovery",
+                          QString("Discovery progress: %1%").arg(percentage));
+    
+    // Emit progress signal for GUI updates
+    emit discoveryProgress(percentage);
+    
+    // Update internal discovery metrics
+    if (percentage >= 0 && percentage <= 100) {
+        m_discoveryProgress = percentage;
+        
+        // Log milestone progress for professional monitoring
+        if (percentage % 25 == 0 && percentage > 0) {
+            Logger::instance().log(Logger::Info, "NetworkDiscovery",
+                                  QString("Discovery milestone: %1% complete").arg(percentage));
+        }
+    }
+}
+
+void NetworkDiscovery::discoveryCompleted() {
+    // Professional discovery completion handling with comprehensive reporting
+    Logger::instance().log(Logger::Info, "NetworkDiscovery", "Discovery cycle completed");
+    
+    // Update discovery statistics
+    m_totalDiscoveryCycles++;
+    auto now = std::chrono::steady_clock::now();
+    auto cycleDuration = now - m_lastDiscoveryStart;
+    
+    // Log discovery cycle performance metrics
+    Logger::instance().log(Logger::Info, "NetworkDiscovery",
+                          QString("Discovery cycle #%1 completed in %2ms. Total streams discovered: %3")
+                          .arg(m_totalDiscoveryCycles)
+                          .arg(std::chrono::duration_cast<std::chrono::milliseconds>(cycleDuration).count())
+                          .arg(m_discoveredStreams.size()));
+    
+    // Emit completion signal for professional monitoring
+    emit discoveryCompleted();
+    
+    // Reset progress tracking
+    m_discoveryProgress = 0;
+    m_lastDiscoveryStart = now;
+    
+    // Trigger validation of discovered streams
+    validateDiscoveredStreams();
 }
 
 } // namespace eti_network
