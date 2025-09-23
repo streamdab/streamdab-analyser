@@ -1,5 +1,6 @@
 #include "network_discovery.h"
 #include "../utils/logger.h"
+#include <QtEndian>
 
 namespace eti_network {
 
@@ -15,13 +16,225 @@ BroadcastAnnouncer::~BroadcastAnnouncer() {
 }
 
 void BroadcastAnnouncer::handleSAPMessage() {
-    Logger::instance().log(Logger::Debug, "BroadcastAnnouncer", "handleSAPMessage - Stub implementation");
-    // TODO: TDD Agent - Implement SAP message handling
+    // Professional SAP (Session Announcement Protocol) message handling
+    // RFC 2974 - Session Announcement Protocol for broadcast stream discovery
+    
+    if (!m_sapSocket) {
+        Logger::instance().log(Logger::Warning, "BroadcastAnnouncer", "SAP socket not initialized");
+        return;
+    }
+    
+    while (m_sapSocket->hasPendingDatagrams()) {
+        QByteArray datagram;
+        QHostAddress sender;
+        quint16 senderPort;
+        
+        datagram.resize(static_cast<int>(m_sapSocket->pendingDatagramSize()));
+        m_sapSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        
+        // Parse SAP message header (RFC 2974)
+        if (datagram.size() < 8) {
+            Logger::instance().log(Logger::Debug, "BroadcastAnnouncer", "SAP message too short, ignoring");
+            continue;
+        }
+        
+        quint8 sapVersion = (datagram.at(0) >> 5) & 0x07;
+        bool isIPv6 = (datagram.at(0) >> 4) & 0x01;
+        bool isAnnouncement = !((datagram.at(0) >> 2) & 0x01); // D bit inverted
+        bool isCompressed = (datagram.at(0) >> 1) & 0x01;
+        
+        if (sapVersion != 1) {
+            Logger::instance().log(Logger::Debug, "BroadcastAnnouncer", 
+                                  QString("Unsupported SAP version %1").arg(sapVersion));
+            continue;
+        }
+        
+        if (isIPv6) {
+            Logger::instance().log(Logger::Debug, "BroadcastAnnounner", "IPv6 SAP not currently supported");
+            continue;
+        }
+        
+        // Extract authentication length and message identifier hash
+        quint8 authLength = datagram.at(1);
+        quint16 messageId = qFromBigEndian<quint16>(reinterpret_cast<const uchar*>(datagram.data() + 2));
+        
+        // Skip originating source address (4 bytes for IPv4)
+        int payloadOffset = 8 + (authLength * 4);
+        
+        if (datagram.size() <= payloadOffset) {
+            Logger::instance().log(Logger::Debug, "BroadcastAnnouncer", "SAP payload too short");
+            continue;
+        }
+        
+        // Extract SDP (Session Description Protocol) payload
+        QByteArray sdpPayload = datagram.mid(payloadOffset);
+        
+        if (isCompressed) {
+            // Handle compressed SDP if needed (not common for ETI streams)
+            Logger::instance().log(Logger::Debug, "BroadcastAnnouncer", "Compressed SAP not implemented");
+            continue;
+        }
+        
+        // Parse SDP for ETI stream information
+        parseSAPAnnouncement(QString::fromUtf8(sdpPayload), sender, isAnnouncement, messageId);
+    }
 }
 
 void BroadcastAnnouncer::cleanupExpiredAnnouncements() {
-    Logger::instance().log(Logger::Debug, "BroadcastAnnouncer", "cleanupExpiredAnnouncements - Stub implementation");
-    // TODO: TDD Agent - Implement announcement cleanup
+    // Professional announcement cleanup with configurable expiration
+    auto now = std::chrono::steady_clock::now();
+    auto expirationThreshold = std::chrono::minutes(5); // 5-minute expiration
+    
+    auto it = m_announcements.begin();
+    while (it != m_announcements.end()) {
+        if (now - it->second.last_seen > expirationThreshold) {
+            Logger::instance().log(Logger::Info, "BroadcastAnnouncer",
+                                  QString("Removing expired announcement: %1").arg(it->first));
+            
+            // Emit stream lost signal if this was an active ETI stream
+            if (it->second.encoding_format == "ETI") {
+                emit streamWithdrawn(it->first);
+            }
+            
+            it = m_announcements.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
+    Logger::instance().log(Logger::Debug, "BroadcastAnnouncer",
+                          QString("Cleanup complete. %1 active announcements remaining")
+                          .arg(m_announcements.size()));
+}
+
+void BroadcastAnnouncer::parseSAPAnnouncement(const QString& sdpContent, 
+                                            const QHostAddress& sender, 
+                                            bool isAnnouncement, 
+                                            quint16 messageId) {
+    // Professional SDP parsing for ETI stream discovery
+    // RFC 4566 - Session Description Protocol for multimedia sessions
+    
+    Logger::instance().log(Logger::Debug, "BroadcastAnnouncer",
+                          QString("Parsing %1 from %2 (ID: %3)")
+                          .arg(isAnnouncement ? "announcement" : "deletion")
+                          .arg(sender.toString()).arg(messageId));
+    
+    if (!isAnnouncement) {
+        // Handle stream deletion announcement
+        QString streamKey = QString("%1_%2").arg(sender.toString()).arg(messageId);
+        if (m_announcements.contains(streamKey)) {
+            Logger::instance().log(Logger::Info, "BroadcastAnnouncer",
+                                  QString("Stream deletion received: %1").arg(streamKey));
+            
+            emit streamWithdrawn(streamKey);
+            m_announcements.erase(streamKey);
+        }
+        return;
+    }
+    
+    // Parse SDP lines for ETI stream information
+    ETIStreamInfo streamInfo;
+    streamInfo.discovery_method = DiscoveryProtocol::SAP_SDP;
+    streamInfo.last_seen = std::chrono::steady_clock::now();
+    streamInfo.source_address = sender.toString();
+    
+    QStringList sdpLines = sdpContent.split('\n', Qt::SkipEmptyParts);
+    
+    for (const QString& line : sdpLines) {
+        QString trimmedLine = line.trimmed();
+        if (trimmedLine.length() < 2 || trimmedLine.at(1) != '=') {
+            continue; // Invalid SDP line format
+        }
+        
+        char sdpType = trimmedLine.at(0).toLatin1();
+        QString sdpValue = trimmedLine.mid(2);
+        
+        switch (sdpType) {
+            case 's': // Session name
+                streamInfo.ensemble_name = sdpValue;
+                break;
+                
+            case 'i': // Session information
+                if (sdpValue.contains("ETI", Qt::CaseInsensitive)) {
+                    streamInfo.encoding_format = "ETI";
+                }
+                break;
+                
+            case 'c': // Connection information (c=IN IP4 239.192.0.1/255)
+                if (sdpValue.startsWith("IN IP4 ")) {
+                    QString connectionInfo = sdpValue.mid(7);
+                    QStringList parts = connectionInfo.split('/');
+                    if (!parts.isEmpty()) {
+                        streamInfo.multicast_address = QHostAddress(parts.first());
+                    }
+                }
+                break;
+                
+            case 'm': // Media description (m=application 9200 udp eti)
+                {
+                    QStringList mediaParts = sdpValue.split(' ');
+                    if (mediaParts.size() >= 4) {
+                        QString mediaType = mediaParts[0];
+                        QString portStr = mediaParts[1];
+                        QString protocol = mediaParts[2];
+                        QString format = mediaParts[3];
+                        
+                        if (mediaType == "application" && 
+                            protocol.contains("udp", Qt::CaseInsensitive) &&
+                            format.contains("eti", Qt::CaseInsensitive)) {
+                            
+                            streamInfo.port = static_cast<quint16>(portStr.toUInt());
+                            streamInfo.encoding_format = "ETI";
+                        }
+                    }
+                }
+                break;
+                
+            case 'a': // Attributes
+                if (sdpValue.startsWith("tool:")) {
+                    streamInfo.equipment_manufacturer = sdpValue.mid(5);
+                } else if (sdpValue.startsWith("type:broadcast")) {
+                    // This is a broadcast stream
+                    streamInfo.signal_strength = 0.9; // High confidence for SAP announced streams
+                }
+                break;
+                
+            default:
+                // Ignore unknown SDP line types
+                break;
+        }
+    }
+    
+    // Validate that we have enough information for an ETI stream
+    if (streamInfo.encoding_format == "ETI" && 
+        !streamInfo.multicast_address.isNull() && 
+        streamInfo.port > 0) {
+        
+        QString streamKey = QString("%1_%2").arg(sender.toString()).arg(messageId);
+        
+        // Update or add stream announcement
+        if (m_announcements.contains(streamKey)) {
+            // Update existing announcement
+            m_announcements[streamKey] = streamInfo;
+            Logger::instance().log(Logger::Debug, "BroadcastAnnouncer",
+                                  QString("Updated ETI stream: %1:%2")
+                                  .arg(streamInfo.multicast_address.toString())
+                                  .arg(streamInfo.port));
+        } else {
+            // New stream discovered
+            m_announcements[streamKey] = streamInfo;
+            emit streamAnnounced(streamInfo);
+            
+            Logger::instance().log(Logger::Info, "BroadcastAnnouncer",
+                                  QString("New ETI stream discovered via SAP: %1:%2 (%3)")
+                                  .arg(streamInfo.multicast_address.toString())
+                                  .arg(streamInfo.port)
+                                  .arg(streamInfo.ensemble_name));
+        }
+    } else {
+        Logger::instance().log(Logger::Debug, "BroadcastAnnouncer",
+                              "SAP announcement does not contain valid ETI stream information");
+    }
 }
 
 // MulticastScanner Implementation

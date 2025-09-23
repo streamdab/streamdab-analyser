@@ -280,6 +280,7 @@ private slots:
     
 private:
     void parseSAPPacket(const QByteArray& packet, const QHostAddress& sender);
+    void parseSAPAnnouncement(const QString& sdpContent, const QHostAddress& sender, bool isAnnouncement, quint16 messageId);
     ETIStreamInfo parseSDPSession(const QString& sdpContent, const QHostAddress& sender);
     void processSessionAnnouncement(const ETIStreamInfo& streamInfo);
     void processSessionDeletion(const QString& streamId);
