@@ -364,15 +364,61 @@ void EtiServiceTreeModel::updateModel() {
 }
 
 void EtiServiceTreeModel::createTreeStructure() {
-    Logger::instance().log(Logger::Debug, "EtiServiceTreeModel", "createTreeStructure - Stub implementation");
-    // TODO: TDD Agent - Implement tree structure creation
+    Logger::instance().log(Logger::Debug, "EtiServiceTreeModel", "Creating professional DAB service tree structure");
+    
     if (!m_rootItem) {
+        // Create root item for ETI stream analysis
         m_rootItem = std::make_shared<TreeItem>();
         m_rootItem->type = ItemType::Root;
-        m_rootItem->name = "Root";
-        m_rootItem->value = "ETI Stream Analysis";
+        m_rootItem->name = "ETI Stream";
+        m_rootItem->value = "Professional DAB Analysis";
         m_rootItem->status = ServiceStatus::Active;
         m_rootItem->lastUpdate = QDateTime::currentDateTime();
+        
+        // Create Ensemble container (top-level DAB broadcast structure)
+        auto ensembleItem = std::make_shared<TreeItem>();
+        ensembleItem->type = ItemType::Ensemble;
+        ensembleItem->name = "DAB Ensemble";
+        ensembleItem->value = "Multiplex Container";
+        ensembleItem->status = ServiceStatus::Active;
+        ensembleItem->metadata["ensembleId"] = 0xC000; // Default ensemble ID
+        ensembleItem->metadata["countryCode"] = "TH"; // Thailand DAB
+        ensembleItem->lastUpdate = QDateTime::currentDateTime();
+        ensembleItem->parent = m_rootItem;
+        m_rootItem->children.push_back(ensembleItem);
+        
+        // Create Service Groups container
+        auto servicesGroupItem = std::make_shared<TreeItem>();
+        servicesGroupItem->type = ItemType::Parameter;
+        servicesGroupItem->name = "DAB Services";
+        servicesGroupItem->value = "Audio & Data Services";
+        servicesGroupItem->status = ServiceStatus::Active;
+        servicesGroupItem->lastUpdate = QDateTime::currentDateTime();
+        servicesGroupItem->parent = ensembleItem;
+        ensembleItem->children.push_back(servicesGroupItem);
+        
+        // Create FIC Information container
+        auto ficGroupItem = std::make_shared<TreeItem>();
+        ficGroupItem->type = ItemType::Parameter;
+        ficGroupItem->name = "FIC Information";
+        ficGroupItem->value = "Fast Information Channel";
+        ficGroupItem->status = ServiceStatus::Active;
+        ficGroupItem->lastUpdate = QDateTime::currentDateTime();
+        ficGroupItem->parent = ensembleItem;
+        ensembleItem->children.push_back(ficGroupItem);
+        
+        // Create Technical Information container
+        auto techGroupItem = std::make_shared<TreeItem>();
+        techGroupItem->type = ItemType::Parameter;
+        techGroupItem->name = "Technical Info";
+        techGroupItem->value = "ETI & Transport Parameters";
+        techGroupItem->status = ServiceStatus::Active;
+        techGroupItem->lastUpdate = QDateTime::currentDateTime();
+        techGroupItem->parent = ensembleItem;
+        ensembleItem->children.push_back(techGroupItem);
+        
+        Logger::instance().log(Logger::Info, "EtiServiceTreeModel", 
+                              "Professional DAB tree structure created with Ensemble/Services/FIC hierarchy");
     }
 }
 
@@ -395,13 +441,185 @@ void EtiServiceTreeModel::updateFromEnsemble(const EnsembleInfo& ensemble) {
 }
 
 void EtiServiceTreeModel::addService(const ServiceInfo& service) {
-    Logger::instance().log(Logger::Debug, "EtiServiceTreeModel", QString("addService: %1").arg(service.serviceName));
-    // TODO: TDD Agent - Implement service addition logic
-    Q_UNUSED(service);
+    Logger::instance().log(Logger::Debug, "EtiServiceTreeModel", 
+                          QString("Adding DAB service: %1 (SID: 0x%2)")
+                          .arg(service.serviceName)
+                          .arg(QString::number(service.serviceId, 16).toUpper()));
+    
+    if (!m_rootItem) {
+        createTreeStructure();
+    }
+    
+    // Find the DAB Services group in the tree hierarchy
+    std::shared_ptr<TreeItem> servicesGroup = nullptr;
+    
+    // Navigate: Root -> Ensemble -> DAB Services
+    for (const auto& ensembleChild : m_rootItem->children) {
+        if (ensembleChild->type == ItemType::Ensemble) {
+            for (const auto& groupChild : ensembleChild->children) {
+                if (groupChild->type == ItemType::Parameter && 
+                    groupChild->name == "DAB Services") {
+                    servicesGroup = groupChild;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    
+    if (!servicesGroup) {
+        Logger::instance().log(Logger::Warning, "EtiServiceTreeModel", 
+                              "DAB Services group not found in tree structure");
+        return;
+    }
+    
+    // Check if service already exists (avoid duplicates)
+    for (const auto& existingService : servicesGroup->children) {
+        if (existingService->type == ItemType::Service && 
+            existingService->metadata.value("serviceId").toUInt() == service.serviceId) {
+            Logger::instance().log(Logger::Debug, "EtiServiceTreeModel", 
+                                  QString("Service %1 already exists, skipping").arg(service.serviceName));
+            return;
+        }
+    }
+    
+    // Create new service item with professional DAB characteristics
+    auto serviceItem = std::make_shared<TreeItem>();
+    serviceItem->type = ItemType::Service;
+    serviceItem->name = service.serviceName.isEmpty() ? 
+                       QString("Service 0x%1").arg(QString::number(service.serviceId, 16).toUpper()) :
+                       service.serviceName;
+    
+    // Professional service value display with DAB technical details
+    QString serviceValue = QString("SID: 0x%1").arg(QString::number(service.serviceId, 16).toUpper());
+    if (service.bitrate > 0) {
+        serviceValue += QString(" | %1 kbps").arg(service.bitrate);
+    }
+    serviceValue += QString(" | %1").arg(service.audioType == "DAB+" ? "DAB+" : "DAB");
+    
+    serviceItem->value = serviceValue;
+    
+    // Store service properties in metadata
+    serviceItem->metadata["serviceId"] = service.serviceId;
+    serviceItem->metadata["subChannelId"] = service.subChannelId;
+    serviceItem->metadata["bitrate"] = service.bitrate;
+    serviceItem->metadata["audioType"] = service.audioType;
+    serviceItem->metadata["status"] = static_cast<int>(ServiceStatus::Active);
+    serviceItem->metadata["lastUpdate"] = QDateTime::currentDateTime();
+    serviceItem->parent = servicesGroup;
+    
+    // Add to services group
+    beginInsertRows(createIndex(servicesGroup->children.size(), 0, servicesGroup.get()),
+                    static_cast<int>(servicesGroup->children.size()),
+                    static_cast<int>(servicesGroup->children.size()));
+    
+    servicesGroup->children.push_back(serviceItem);
+    
+    endInsertRows();
+    
+    Logger::instance().log(Logger::Info, "EtiServiceTreeModel", 
+                          QString("Successfully added DAB service: %1 with %2 kbps %3 audio")
+                          .arg(service.serviceName)
+                          .arg(service.bitrate)
+                          .arg(service.audioType));
 }
 
 void EtiServiceTreeModel::updateFIGData(const FigAnalysis& figAnalysis) {
-    Logger::instance().log(Logger::Debug, "EtiServiceTreeModel", QString("updateFIGData: %1").arg(figAnalysis.figName));
-    // TODO: TDD Agent - Implement FIG data update logic
-    Q_UNUSED(figAnalysis);
+    Logger::instance().log(Logger::Debug, "EtiServiceTreeModel", 
+                          QString("Updating FIG data: %1 (Type %2/%3)")
+                          .arg(figAnalysis.figName)
+                          .arg(figAnalysis.figType)
+                          .arg(figAnalysis.figExtension));
+    
+    if (!m_rootItem) {
+        createTreeStructure();
+    }
+    
+    // Find the FIC Information group in the tree hierarchy
+    std::shared_ptr<TreeItem> ficGroup = nullptr;
+    
+    // Navigate: Root -> Ensemble -> FIC Information
+    for (const auto& ensembleChild : m_rootItem->children) {
+        if (ensembleChild->type == ItemType::Ensemble) {
+            for (const auto& groupChild : ensembleChild->children) {
+                if (groupChild->type == ItemType::Parameter && 
+                    groupChild->name == "FIC Information") {
+                    ficGroup = groupChild;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    
+    if (!ficGroup) {
+        Logger::instance().log(Logger::Warning, "EtiServiceTreeModel", 
+                              "FIC Information group not found in tree structure");
+        return;
+    }
+    
+    // Create unique FIG identifier for tracking
+    QString figIdentifier = QString("FIG %1/%2").arg(figAnalysis.figType).arg(figAnalysis.figExtension);
+    
+    // Check if FIG item already exists (update existing or create new)
+    std::shared_ptr<TreeItem> figItem = nullptr;
+    for (const auto& existingFig : ficGroup->children) {
+        if (existingFig->type == ItemType::FigData && 
+            existingFig->name == figIdentifier) {
+            figItem = existingFig;
+            break;
+        }
+    }
+    
+    if (!figItem) {
+        // Create new FIG item
+        figItem = std::make_shared<TreeItem>();
+        figItem->type = ItemType::FigData;
+        figItem->name = figIdentifier;
+        figItem->parent = ficGroup;
+        
+        // Add to FIC group with proper model notifications
+        beginInsertRows(createIndex(ficGroup->children.size(), 0, ficGroup.get()),
+                        static_cast<int>(ficGroup->children.size()),
+                        static_cast<int>(ficGroup->children.size()));
+        
+        ficGroup->children.push_back(figItem);
+        
+        endInsertRows();
+        
+        Logger::instance().log(Logger::Debug, "EtiServiceTreeModel", 
+                              QString("Created new FIG item: %1").arg(figIdentifier));
+    }
+    
+    // Update FIG item with current analysis data
+    figItem->value = QString("%1 | %2 bytes | %3")
+                    .arg(figAnalysis.figName)
+                    .arg(figAnalysis.dataLength)
+                    .arg(figAnalysis.isValid ? "Valid" : "Invalid");
+    
+    figItem->figType = figAnalysis.figType;
+    figItem->figExtension = figAnalysis.figExtension;
+    figItem->dataLength = figAnalysis.dataLength;
+    figItem->status = figAnalysis.isValid ? ServiceStatus::Active : ServiceStatus::Error;
+    figItem->lastUpdate = QDateTime::currentDateTime();
+    
+    // Update display for existing item
+    if (figItem->parent) {
+        auto parentIndex = createIndex(0, 0, figItem->parent.get());
+        auto figIndex = createIndex(
+            static_cast<int>(std::distance(figItem->parent->children.begin(),
+                                         std::find(figItem->parent->children.begin(),
+                                                  figItem->parent->children.end(), figItem))),
+            0, figItem.get());
+        
+        emit dataChanged(figIndex, figIndex, {Qt::DisplayRole, Qt::UserRole});
+    }
+    
+    Logger::instance().log(Logger::Info, "EtiServiceTreeModel", 
+                          QString("Updated FIG %1/%2: %3 (%4 bytes, %5)")
+                          .arg(figAnalysis.figType)
+                          .arg(figAnalysis.figExtension)
+                          .arg(figAnalysis.figName)
+                          .arg(figAnalysis.dataLength)
+                          .arg(figAnalysis.isValid ? "Valid" : "Invalid"));
 }

@@ -681,19 +681,20 @@ void AnalyzerWidget::exportData()
             if (m_etiProcessor) {
                 auto ensemble = m_etiProcessor->getCurrentEnsemble();
                 out << "Ensemble Information:\n";
-                out << "Ensemble ID: 0x" << QString::number(ensemble.ensembleId, 16).toUpper() << "\n";
-                out << "Country ID: 0x" << QString::number(ensemble.countryId, 16).toUpper() << "\n";
+                out << "Ensemble ID: 0x" << QString::number(ensemble.ensemble_id, 16).toUpper() << "\n";
+                out << "Country ID: 0x" << QString::number(ensemble.country_id, 16).toUpper() << "\n";
                 out << "Service Count: " << ensemble.services.size() << "\n\n";
                 
                 // Export service list
                 out << "DAB Services:\n";
                 for (const auto& service : ensemble.services) {
-                    out << "  Service ID: 0x" << QString::number(service.serviceId, 16).toUpper() << "\n";
-                    out << "  Label: " << service.label << "\n";
-                    out << "  Sub-Channel ID: " << service.subChannelId << "\n";
-                    out << "  Bit Rate: " << service.bitRate << " kbps\n";
-                    out << "  Protection Level: " << service.protectionLevel << "\n";
-                    out << "  Service Type: " << (service.isDabPlus ? "DAB+" : "DAB") << "\n";
+                    out << "  Service ID: 0x" << QString::number(service.service_id, 16).toUpper() << "\n";
+                    out << "  Label: " << QString::fromStdString(service.label) << "\n";
+                    out << "  Programme Service: " << (service.is_programme ? "Yes" : "No") << "\n";
+                    if (!service.components.empty()) {
+                        out << "  Sub-Channel ID: " << service.components[0].sub_channel_id << "\n";
+                        out << "  Component Type: " << service.components[0].component_type << "\n";
+                    }
                     out << "  ---\n";
                 }
             }
@@ -825,38 +826,34 @@ void AnalyzerWidget::handleEtiData()
                     
                     // Service ID
                     QTableWidgetItem* idItem = new QTableWidgetItem(
-                        QString("0x%1").arg(service.serviceId, 4, 16, QChar('0')).toUpper()
+                        QString("0x%1").arg(service.service_id, 4, 16, QChar('0')).toUpper()
                     );
                     m_servicesTable->setItem(i, 0, idItem);
                     
                     // Service Label
-                    QTableWidgetItem* labelItem = new QTableWidgetItem(service.label);
+                    QTableWidgetItem* labelItem = new QTableWidgetItem(QString::fromStdString(service.label));
                     m_servicesTable->setItem(i, 1, labelItem);
                     
-                    // Service Type
+                    // Service Type (determine from programme flag)
                     QTableWidgetItem* typeItem = new QTableWidgetItem(
-                        service.isDabPlus ? "DAB+" : "DAB"
+                        service.is_programme ? "Programme" : "Data"
                     );
                     m_servicesTable->setItem(i, 2, typeItem);
                     
-                    // Bit Rate
-                    QTableWidgetItem* bitrateItem = new QTableWidgetItem(
-                        QString("%1 kbps").arg(service.bitRate)
-                    );
+                    // Bit Rate (placeholder - would need subchannel info)
+                    QTableWidgetItem* bitrateItem = new QTableWidgetItem("N/A");
                     m_servicesTable->setItem(i, 3, bitrateItem);
                     
-                    // Protection Level
-                    QTableWidgetItem* protectionItem = new QTableWidgetItem(
-                        QString("UEP-%1").arg(service.protectionLevel)
-                    );
+                    // Protection Level (placeholder - would need subchannel info)
+                    QTableWidgetItem* protectionItem = new QTableWidgetItem("N/A");
                     m_servicesTable->setItem(i, 4, protectionItem);
                 }
             }
             
             // Update ensemble information display
             if (m_ensembleId && m_ensembleName) {
-                m_ensembleId->setText(QString("0x%1").arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper());
-                m_ensembleName->setText(ensemble.label.isEmpty() ? tr("Unknown Ensemble") : ensemble.label);
+                m_ensembleId->setText(QString("0x%1").arg(ensemble.ensemble_id, 4, 16, QChar('0')).toUpper());
+                m_ensembleName->setText(ensemble.label.empty() ? tr("Unknown Ensemble") : QString::fromStdString(ensemble.label));
             }
             
             // Update status information
