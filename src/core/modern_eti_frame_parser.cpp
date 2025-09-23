@@ -706,9 +706,50 @@ void ModernETIFrameParser::validateFICStructure(const eti::EtiFrame& frame, eti:
 {
     try {
         auto fic = frame.get_fic_field();
-        (void)fic; // TODO: Implement FIC validation logic
-        // Basic FIC validation would go here
-        // For now, assume FIC is valid if present
+        
+        // Validate FIC CRC according to ETSI EN 300 401
+        if (!fic.validate_fic_crc()) {
+            result.add_error("FIC CRC validation failed - corrupted FIC field detected");
+        }
+        
+        // Decode and validate FIG blocks structure
+        try {
+            auto fig_blocks = fic.decode_fig_blocks();
+            
+            // Check for mandatory FIG blocks (ETSI EN 300 401 Section 6.4)
+            bool has_fig_0_0 = false;  // Ensemble information
+            bool has_fig_0_1 = false;  // Sub-channel organization
+            bool has_fig_0_2 = false;  // Basic service information
+            
+            for (const auto& fig : fig_blocks) {
+                if (fig.fig_type == 0) {
+                    if (fig.extension == 0) has_fig_0_0 = true;
+                    else if (fig.extension == 1) has_fig_0_1 = true;
+                    else if (fig.extension == 2) has_fig_0_2 = true;
+                }
+                
+                // Validate FIG length constraints
+                if (fig.length == 0) {
+                    result.add_warning("Empty FIG block detected");
+                } else if (fig.length > 29) {  // Max FIG length in FIC
+                    result.add_error("FIG block exceeds maximum length (29 bytes)");
+                }
+            }
+            
+            // Check for mandatory FIG presence
+            if (!has_fig_0_0) {
+                result.add_warning("Missing mandatory FIG 0/0 (Ensemble information)");
+            }
+            if (!has_fig_0_1) {
+                result.add_warning("Missing mandatory FIG 0/1 (Sub-channel organization)");
+            }
+            if (!has_fig_0_2) {
+                result.add_warning("Missing mandatory FIG 0/2 (Basic service information)");
+            }
+            
+        } catch (const std::exception& fig_error) {
+            result.add_error(QString("FIG block parsing error: %1").arg(fig_error.what()).toStdString());
+        }
     } catch (const std::exception& e) {
         result.add_error(QString("FIC validation error: %1").arg(e.what()).toStdString());
     }
@@ -718,9 +759,40 @@ void ModernETIFrameParser::validateMSCStructure(const eti::EtiFrame& frame, eti:
 {
     try {
         auto msc = frame.get_msc_field();
-        (void)msc; // TODO: Implement MSC validation logic
-        // Basic MSC validation would go here
-        // For now, assume MSC is valid if present
+        
+        // Validate MSC capacity units according to ETSI EN 300 799
+        size_t expected_capacity_units = eti::ETI_MSC_SIZE / eti::CAPACITY_UNIT_SIZE;  // 762 CUs
+        if (msc.get_capacity_units_count() != expected_capacity_units) {
+            result.add_error(QString("Invalid MSC capacity units count: %1 (expected %2)")
+                           .arg(msc.get_capacity_units_count())
+                           .arg(expected_capacity_units).toStdString());
+        }
+        
+        // Validate MSC data field size
+        if (sizeof(msc.msc_data) != eti::ETI_MSC_SIZE) {
+            result.add_error(QString("MSC data field size mismatch: %1 bytes (expected %2)")
+                           .arg(sizeof(msc.msc_data))
+                           .arg(eti::ETI_MSC_SIZE).toStdString());
+        }
+        
+        // Check for all-zero MSC data (suspicious pattern)
+        bool all_zero = true;
+        for (size_t i = 0; i < eti::ETI_MSC_SIZE && all_zero; ++i) {
+            if (msc.msc_data[i] != 0) {
+                all_zero = false;
+            }
+        }
+        if (all_zero) {
+            result.add_warning("MSC field contains all-zero data - no active services detected");
+        }
+        
+        // Validate MSC structure alignment (capacity units must be 8-byte aligned)
+        size_t total_cu_bytes = msc.get_capacity_units_count() * eti::CAPACITY_UNIT_SIZE;
+        if (total_cu_bytes != eti::ETI_MSC_SIZE) {
+            result.add_error(QString("MSC capacity unit alignment error: %1 bytes calculated vs %2 bytes expected")
+                           .arg(total_cu_bytes)
+                           .arg(eti::ETI_MSC_SIZE).toStdString());
+        }
     } catch (const std::exception& e) {
         result.add_error(QString("MSC validation error: %1").arg(e.what()).toStdString());
     }

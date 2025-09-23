@@ -537,41 +537,280 @@ bool EnhancedFIGAnalyzer::processFIG0_3_ServiceComponent(const eti::FigBlock& fi
 // Simplified implementations for other FIG 0 types
 bool EnhancedFIGAnalyzer::processFIG0_5_ServiceComponentLang(const eti::FigBlock& fig) 
 {
-    (void)fig; // TODO: Implement FIG 0/5 processing
-    // Simplified implementation
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "FIG 0/5: Service component language (simplified)");
+    // FIG 0/5: Service component language (ETSI EN 300 401 Section 8.1.7)
+    if (fig.data.size() < 2) {
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+                              "FIG 0/5: Insufficient data length");
+        return false;
+    }
+    
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                          QString("FIG 0/5: Processing service component language info (%1 bytes)")
+                          .arg(fig.data.size()));
+    
+    size_t offset = 0;
+    while (offset + 3 < fig.data.size()) {
+        // Parse service component language information
+        uint8_t scid_ps = (fig.data[offset] >> 2) & 0x3F;  // Service Component ID (Primary/Secondary)
+        uint8_t language = fig.data[offset + 1];            // Language code (ISO 639-2/B)
+        
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                              QString("FIG 0/5: SCID %1, Language code: 0x%2")
+                              .arg(scid_ps).arg(language, 2, 16, QChar('0')));
+        
+        // Store language information for service components
+        if (m_serviceComponents.find(scid_ps) != m_serviceComponents.end()) {
+            m_serviceComponents[scid_ps].language_code = language;
+        }
+        
+        offset += 2;  // Each entry is 2 bytes
+    }
+    
     return true;
 }
 
 bool EnhancedFIGAnalyzer::processFIG0_8_ServiceComponentGlobal(const eti::FigBlock& fig) 
 {
-    (void)fig; // TODO: Implement FIG 0/8 processing
-    // Simplified implementation
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "FIG 0/8: Service component global (simplified)");
+    // FIG 0/8: Service component global (ETSI EN 300 401 Section 8.1.13)
+    if (fig.data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+                              "FIG 0/8: Insufficient data length");
+        return false;
+    }
+    
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                          QString("FIG 0/8: Processing service component global definition (%1 bytes)")
+                          .arg(fig.data.size()));
+    
+    size_t offset = 0;
+    while (offset + 4 <= fig.data.size()) {
+        // Parse service component global definition
+        uint32_t sid = (fig.data[offset] << 24) | (fig.data[offset + 1] << 16) |
+                       (fig.data[offset + 2] << 8) | fig.data[offset + 3];  // Service ID
+        
+        if (offset + 5 < fig.data.size()) {
+            uint8_t ext_flag = (fig.data[offset + 4] >> 7) & 0x01;  // Extension flag
+            uint8_t scids = (fig.data[offset + 4] >> 4) & 0x0F;     // Service Component IDs
+            uint8_t ls_flag = (fig.data[offset + 4] >> 3) & 0x01;   // Long/Short form flag
+            uint8_t sct = fig.data[offset + 4] & 0x3F;              // Service Component Type
+            
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                                  QString("FIG 0/8: SID 0x%1, SCIdS %2, SCT %3, LS %4")
+                                  .arg(sid, 8, 16, QChar('0')).arg(scids).arg(sct).arg(ls_flag));
+            
+            // Store global service component information
+            if (m_dabServices.find(sid) != m_dabServices.end()) {
+                ServiceComponentInfo comp_info;
+                comp_info.scids = scids;
+                comp_info.service_component_type = sct;
+                comp_info.long_short_flag = ls_flag;
+                m_serviceComponents[scids] = comp_info;
+            }
+            
+            offset += 5;  // Basic entry is 5 bytes
+            
+            // Handle extension if present
+            if (ext_flag && offset < fig.data.size()) {
+                offset++;  // Skip extension byte for now
+            }
+        } else {
+            break;  // Insufficient data for complete entry
+        }
+    }
+    
     return true;
 }
 
 bool EnhancedFIGAnalyzer::processFIG0_9_CountryLTOInt(const eti::FigBlock& fig) 
 {
-    (void)fig; // TODO: Implement FIG 0/9 processing
-    // Simplified implementation
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "FIG 0/9: Country LTO (simplified)");
+    // FIG 0/9: Country, LTO and International table (ETSI EN 300 401 Section 8.1.15)
+    if (fig.data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+                              "FIG 0/9: Insufficient data length");
+        return false;
+    }
+    
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                          QString("FIG 0/9: Processing country/LTO/international table (%1 bytes)")
+                          .arg(fig.data.size()));
+    
+    size_t offset = 0;
+    while (offset + 4 <= fig.data.size()) {
+        // Parse country, LTO and international table information
+        uint8_t ext = (fig.data[offset] >> 3) & 0x1F;      // Extension
+        uint8_t lto_unique = (fig.data[offset] >> 2) & 0x01;  // LTO unique flag
+        uint8_t ensemble_lto = fig.data[offset] & 0x3F;    // Ensemble LTO
+        
+        uint8_t ensemble_ecc = fig.data[offset + 1];       // Ensemble ECC (Extended Country Code)
+        uint8_t international_table_id = fig.data[offset + 2];  // International table ID
+        
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                              QString("FIG 0/9: ECC 0x%1, LTO %2 (%3), International table ID 0x%4")
+                              .arg(ensemble_ecc, 2, 16, QChar('0'))
+                              .arg(ensemble_lto)
+                              .arg(lto_unique ? "unique" : "shared")
+                              .arg(international_table_id, 2, 16, QChar('0')));
+        
+        // Store ensemble geographical and temporal information
+        if (current_ensemble_) {
+            current_ensemble_->extended_country_code = ensemble_ecc;
+            current_ensemble_->local_time_offset = ensemble_lto;
+            current_ensemble_->international_table_id = international_table_id;
+            current_ensemble_->lto_unique = lto_unique;
+        }
+        
+        offset += 3;  // Each entry is 3 bytes minimum
+        
+        // Handle additional services if present (variable length)
+        if (offset < fig.data.size()) {
+            uint8_t num_services = fig.data[offset];
+            offset++;
+            
+            for (uint8_t i = 0; i < num_services && offset + 3 < fig.data.size(); ++i) {
+                uint32_t sid = (fig.data[offset] << 24) | (fig.data[offset + 1] << 16) |
+                               (fig.data[offset + 2] << 8) | fig.data[offset + 3];
+                
+                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                                      QString("FIG 0/9: Service SID 0x%1 in international table")
+                                      .arg(sid, 8, 16, QChar('0')));
+                
+                offset += 4;
+            }
+        }
+    }
+    
     return true;
 }
 
 bool EnhancedFIGAnalyzer::processFIG0_10_DateTime(const eti::FigBlock& fig) 
 {
-    (void)fig; // TODO: Implement FIG 0/10 processing
-    // Simplified implementation
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "FIG 0/10: Date and time (simplified)");
+    // FIG 0/10: Date and time (ETSI EN 300 401 Section 8.1.16)
+    if (fig.data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+                              "FIG 0/10: Insufficient data length");
+        return false;
+    }
+    
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                          QString("FIG 0/10: Processing date and time information (%1 bytes)")
+                          .arg(fig.data.size()));
+    
+    // Parse Modified Julian Date (MJD) and time
+    uint32_t mjd_time = (fig.data[0] << 24) | (fig.data[1] << 16) | 
+                        (fig.data[2] << 8) | fig.data[3];
+    
+    // Extract MJD (17 bits) and UTC time (10 bits for hours/minutes)
+    uint32_t mjd = (mjd_time >> 17) & 0x1FFFF;          // Modified Julian Date
+    uint16_t utc_time = (mjd_time >> 7) & 0x3FF;        // UTC time (hours * 32 + minutes/2)
+    uint8_t utc_flag = (mjd_time >> 3) & 0x01;          // UTC time flag
+    uint8_t lsi = (mjd_time >> 2) & 0x01;               // Leap second indicator
+    
+    // Convert UTC time to hours and minutes
+    uint8_t hours = utc_time / 32;
+    uint8_t minutes = (utc_time % 32) * 2;
+    
+    // Convert MJD to Gregorian date (simplified calculation)
+    // MJD 0 = November 17, 1858
+    int julian_day = mjd + 2400001;  // Convert to Julian Day Number
+    int a = julian_day + 32044;
+    int b = (4 * a + 3) / 146097;
+    int c = a - (146097 * b) / 4;
+    int d = (4 * c + 3) / 1461;
+    int e = c - (1461 * d) / 4;
+    int m = (5 * e + 2) / 153;
+    
+    int day = e - (153 * m + 2) / 5 + 1;
+    int month = m + 3 - 12 * (m / 10);
+    int year = 100 * b + d - 4800 + m / 10;
+    
+    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+                          QString("FIG 0/10: Date/Time: %1-%2-%3 %4:%5 UTC (MJD %6) %7%8")
+                          .arg(year, 4, 10, QChar('0'))
+                          .arg(month, 2, 10, QChar('0'))
+                          .arg(day, 2, 10, QChar('0'))
+                          .arg(hours, 2, 10, QChar('0'))
+                          .arg(minutes, 2, 10, QChar('0'))
+                          .arg(mjd)
+                          .arg(utc_flag ? " [UTC valid]" : " [UTC invalid]")
+                          .arg(lsi ? " [Leap second pending]" : ""));
+    
+    // Store date/time information for the ensemble
+    if (current_ensemble_) {
+        current_ensemble_->date_time_mjd = mjd;
+        current_ensemble_->date_time_utc_hours = hours;
+        current_ensemble_->date_time_utc_minutes = minutes;
+        current_ensemble_->utc_time_valid = utc_flag;
+        current_ensemble_->leap_second_indicator = lsi;
+    }
+    
     return true;
 }
 
 bool EnhancedFIGAnalyzer::processFIG0_13_UserAppInfo(const eti::FigBlock& fig) 
 {
-    (void)fig; // TODO: Implement FIG 0/13 processing
-    // Simplified implementation
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "FIG 0/13: User application info (simplified)");
+    // FIG 0/13: User application information (ETSI EN 300 401 Section 8.1.19)
+    if (fig.data.size() < 5) {
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+                              "FIG 0/13: Insufficient data length");
+        return false;
+    }
+    
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                          QString("FIG 0/13: Processing user application information (%1 bytes)")
+                          .arg(fig.data.size()));
+    
+    size_t offset = 0;
+    while (offset + 5 <= fig.data.size()) {
+        // Parse user application information
+        uint32_t sid = (fig.data[offset] << 24) | (fig.data[offset + 1] << 16) |
+                       (fig.data[offset + 2] << 8) | fig.data[offset + 3];  // Service ID
+        
+        uint8_t scids = (fig.data[offset + 4] >> 4) & 0x0F;  // Service Component ID
+        uint8_t num_user_apps = fig.data[offset + 4] & 0x0F; // Number of user applications
+        
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                              QString("FIG 0/13: SID 0x%1, SCIdS %2, %3 user applications")
+                              .arg(sid, 8, 16, QChar('0')).arg(scids).arg(num_user_apps));
+        
+        offset += 5;
+        
+        // Parse each user application
+        for (uint8_t app = 0; app < num_user_apps && offset + 2 < fig.data.size(); ++app) {
+            uint16_t user_app_type = (fig.data[offset] << 8) | fig.data[offset + 1];
+            uint8_t user_app_data_length = 0;
+            
+            offset += 2;
+            
+            // Check if there's application data length field
+            if (offset < fig.data.size()) {
+                user_app_data_length = fig.data[offset];
+                offset++;
+                
+                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                                      QString("FIG 0/13: User App Type 0x%1, Data length %2")
+                                      .arg(user_app_type, 4, 16, QChar('0'))
+                                      .arg(user_app_data_length));
+                
+                // Store user application information
+                if (m_dabServices.find(sid) != m_dabServices.end()) {
+                    UserApplicationInfo app_info;
+                    app_info.application_type = user_app_type;
+                    app_info.data_length = user_app_data_length;
+                    app_info.service_component_id = scids;
+                    
+                    // Copy application data if present
+                    if (user_app_data_length > 0 && offset + user_app_data_length <= fig.data.size()) {
+                        app_info.application_data.assign(fig.data.begin() + offset, 
+                                                        fig.data.begin() + offset + user_app_data_length);
+                        offset += user_app_data_length;
+                    }
+                    
+                    m_userApplications[sid].push_back(app_info);
+                }
+            }
+        }
+    }
+    
     return true;
 }
 

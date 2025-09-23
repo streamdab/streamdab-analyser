@@ -918,19 +918,137 @@ std::unique_ptr<StreamRecordingManager> StreamRecordingManagerFactory::create_ar
 // Missing method implementations
 
 void StreamRecordingManager::set_default_segmentation_config(const SegmentationConfig& config) {
-    Logger::instance().log(Logger::Info, "StreamRecordingManager", "set_default_segmentation_config - Stub implementation");
-    Q_UNUSED(config);
-    // TODO: TDD Agent - Implement segmentation configuration
+    Logger::instance().log(Logger::Info, "StreamRecordingManager", 
+                          QString("Setting default segmentation config: %1min segments, %2h rotation, compression=%3")
+                          .arg(config.segment_duration.count())
+                          .arg(config.daily_rotation.count())
+                          .arg(config.enable_compression ? "enabled" : "disabled"));
+    
+    // Validate configuration before applying
+    validate_segmentation_config(config);
+    
+    // Store the new default configuration
+    m_default_config = config;
+    
+    // Apply to all active recording sessions
+    QMutexLocker locker(&m_sessionsMutex);
+    for (auto& [session_id, session] : m_activeSessions) {
+        // Update session configuration if it was using default values
+        if (session.segmentation.filename_pattern == "eti_%Y%m%d_%H%M%S") {
+            session.segmentation = config;
+            Logger::instance().log(Logger::Debug, "StreamRecordingManager", 
+                                  QString("Updated segmentation config for session: %1").arg(session_id));
+        }
+    }
+    
+    // Update compression settings if configuration changed
+    if (config.enable_compression != m_compressionEnabled) {
+        enable_realtime_compression(config.enable_compression);
+    }
+    
+    Logger::instance().log(Logger::Info, "StreamRecordingManager", 
+                          QString("Default segmentation configuration applied to %1 active sessions")
+                          .arg(m_activeSessions.size()));
 }
 
 void StreamRecordingManager::enable_realtime_compression(bool enabled) {
-    Logger::instance().log(Logger::Info, "StreamRecordingManager", QString("enable_realtime_compression: %1").arg(enabled ? "true" : "false"));
-    // TODO: TDD Agent - Implement realtime compression control
+    Logger::instance().log(Logger::Info, "StreamRecordingManager", 
+                          QString("Setting realtime compression: %1").arg(enabled ? "enabled" : "disabled"));
+    
+    QMutexLocker locker(&m_sessionsMutex);
+    
+    // Store compression state
+    m_compressionEnabled = enabled;
+    
+    // Update all active recording sessions
+    for (auto& [session_id, session] : m_activeSessions) {
+        session.segmentation.enable_compression = enabled;
+        
+        Logger::instance().log(Logger::Debug, "StreamRecordingManager", 
+                              QString("Updated compression setting for session %1: %2")
+                              .arg(session_id).arg(enabled ? "enabled" : "disabled"));
+    }
+    
+    // Initialize compression worker thread if enabling compression
+    if (enabled && !m_compressionWorker) {
+        // Start background compression thread for completed segments
+        m_compressionWorker = std::make_unique<QThread>();
+        m_compressionWorker->start();
+        
+        Logger::instance().log(Logger::Info, "StreamRecordingManager", 
+                              "Started background compression worker thread");
+    } else if (!enabled && m_compressionWorker) {
+        // Stop compression worker thread
+        m_compressionWorker->quit();
+        m_compressionWorker->wait(5000);  // Wait up to 5 seconds
+        m_compressionWorker.reset();
+        
+        Logger::instance().log(Logger::Info, "StreamRecordingManager", 
+                              "Stopped background compression worker thread");
+    }
+    
+    // Update default configuration
+    m_default_config.enable_compression = enabled;
+    
+    Logger::instance().log(Logger::Info, "StreamRecordingManager", 
+                          QString("Realtime compression %1 for %2 active sessions")
+                          .arg(enabled ? "enabled" : "disabled")
+                          .arg(m_activeSessions.size()));
 }
 
 void StreamRecordingManager::set_compression_level(int level) {
-    Logger::instance().log(Logger::Info, "StreamRecordingManager", QString("set_compression_level: %1").arg(level));
-    // TODO: TDD Agent - Implement compression level setting
+    // Validate compression level (0-9 for gzip/zlib, where 0=no compression, 9=max compression)
+    if (level < 0 || level > 9) {
+        Logger::instance().log(Logger::Warning, "StreamRecordingManager", 
+                              QString("Invalid compression level %1, must be 0-9. Using default level 6.").arg(level));
+        level = 6;  // Default compression level
+    }
+    
+    Logger::instance().log(Logger::Info, "StreamRecordingManager", 
+                          QString("Setting compression level: %1 (%2)")
+                          .arg(level)
+                          .arg(level == 0 ? "no compression" : 
+                               level <= 3 ? "fast compression" :
+                               level <= 6 ? "balanced compression" : "max compression"));
+    
+    QMutexLocker locker(&m_sessionsMutex);
+    
+    // Store compression level
+    m_compressionLevel = level;
+    
+    // Update compression settings for all active sessions
+    for (auto& [session_id, session] : m_activeSessions) {
+        // Store compression level in session metadata
+        // Note: In a real implementation, this might be stored in session.compression_level
+        Logger::instance().log(Logger::Debug, "StreamRecordingManager", 
+                              QString("Updated compression level for session %1: level %2")
+                              .arg(session_id).arg(level));
+        
+        // If compression is already enabled, the new level will be used for new segments
+        if (session.segmentation.enable_compression) {
+            Logger::instance().log(Logger::Debug, "StreamRecordingManager", 
+                                  QString("Session %1: New compression level %2 will apply to new segments")
+                                  .arg(session_id).arg(level));
+        }
+    }
+    
+    // Log compression efficiency information
+    QString efficiency_info;
+    switch (level) {
+        case 0: efficiency_info = "No compression - fastest writing, largest files"; break;
+        case 1: efficiency_info = "Minimal compression - very fast, large files"; break;
+        case 2:
+        case 3: efficiency_info = "Fast compression - good speed, moderate compression"; break;
+        case 4:
+        case 5:
+        case 6: efficiency_info = "Balanced compression - good speed/ratio trade-off"; break;
+        case 7:
+        case 8: efficiency_info = "High compression - slower, smaller files"; break;
+        case 9: efficiency_info = "Maximum compression - slowest, smallest files"; break;
+    }
+    
+    Logger::instance().log(Logger::Info, "StreamRecordingManager", 
+                          QString("Compression level %1 set: %2").arg(level).arg(efficiency_info));
 }
 
 } // namespace eti

@@ -392,8 +392,8 @@ private:
     std::atomic<bool> m_fileLoggingAvailable{false};
     std::atomic<bool> m_asyncLoggingEnabled{false};
     std::atomic<int> m_logLevel{static_cast<int>(LogLevel::Info)};
-    std::atomic<qint64> m_maxMemoryUsage{50 * 1024 * 1024}; // 50MB default
-    std::atomic<qint64> m_maxLogFileSize{10 * 1024 * 1024}; // 10MB default
+    std::atomic<qint64> m_maxMemoryUsage{static_cast<qint64>(50) * 1024 * 1024}; // 50MB default
+    std::atomic<qint64> m_maxLogFileSize{static_cast<qint64>(10) * 1024 * 1024}; // 10MB default
     
     // Thread-safe containers
     mutable QMutex m_messagesMutex;
@@ -422,8 +422,8 @@ private:
     static constexpr int MAX_RECENT_MESSAGES = 1000;
     static constexpr int INIT_RETRY_INTERVAL_MS = 1000;
     static constexpr int MAX_INIT_RETRIES = 5;
-    static constexpr qint64 DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;  // 10MB
-    static constexpr qint64 DEFAULT_MAX_MEMORY = 50 * 1024 * 1024;     // 50MB
+    static constexpr qint64 DEFAULT_MAX_FILE_SIZE = static_cast<qint64>(10) * 1024 * 1024;  // 10MB
+    static constexpr qint64 DEFAULT_MAX_MEMORY = static_cast<qint64>(50) * 1024 * 1024;     // 50MB
 };
 
 // Register metatypes for Qt signals

@@ -517,25 +517,37 @@ void MainWindow::createStatusBar()
 
 void MainWindow::setupThreePanelLayout()
 {
-    qDebug() << "Setting up three-panel professional layout...";
+    qDebug() << "Setting up three-panel professional layout using Qt Designer UI...";
     
-    // Professional docking framework with broadcast industry standards
-    setDockNestingEnabled(true);
-    setTabPosition(Qt::AllDockWidgetAreas, QTabWidget::North);
+    // Qt Designer has already created the perfect three-panel layout!
+    // We just need to initialize the custom widgets and connect them properly
     
-    // Corner configuration for professional layout
-    setCorner(Qt::TopLeftCorner, Qt::LeftDockWidgetArea);
-    setCorner(Qt::TopRightCorner, Qt::RightDockWidgetArea);
-    setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
-    setCorner(Qt::BottomRightCorner, Qt::RightDockWidgetArea);
+    // Initialize references to Qt Designer created widgets
+    m_horizontalSplitter = ui->horizontalSplitter;
+    m_verticalSplitter = ui->verticalSplitter;
+    m_serviceExplorerPanel = nullptr; // Will be created below
+    m_mainContentArea = ui->mainContentArea;
+    m_propertiesPanel = ui->propertiesPanel;
+    m_bottomToolTabs = ui->bottomToolTabs;
     
-    // Create central widget
-    m_centralWidget = new QWidget;
-    setCentralWidget(m_centralWidget);
+    // Initialize Qt Designer UI elements
+    m_refreshServicesBtn = ui->refreshServicesBtn;
+    m_frameListTable = ui->frameListTable;
+    m_propertiesTabs = ui->propertiesTabs;
+    m_parametersText = ui->parametersText;
+    m_yamlOutputText = ui->yamlOutputText;
+    m_syncModeBtn = ui->syncModeBtn;
+    m_compareModeBtn = ui->compareModeBtn;
+    m_hexViewer = ui->hexViewer;
+    m_messagesLog = ui->messagesLog;
     
-    // Create the main vertical splitter (top area + bottom tools)
-    m_verticalSplitter = new QSplitter(Qt::Vertical, m_centralWidget);
-    m_verticalSplitter->setHandleWidth(3);  // Professional handle width
+    // Set up splitter proportions for professional layout (25% - 50% - 25%)
+    m_horizontalSplitter->setStretchFactor(0, 1);  // Explorer panel: 25%
+    m_horizontalSplitter->setStretchFactor(1, 2);  // Main content: 50%
+    m_horizontalSplitter->setStretchFactor(2, 1);  // Properties panel: 25%
+    
+    m_verticalSplitter->setStretchFactor(0, 3);    // Top area: 75%
+    m_verticalSplitter->setStretchFactor(1, 1);    // Bottom tools: 25%
     m_verticalSplitter->setChildrenCollapsible(false);  // Prevent accidental collapse
     
     // Create the main horizontal splitter for the three panels
@@ -611,6 +623,69 @@ void MainWindow::setupThreePanelLayout()
     );
     
     qDebug() << "Three-panel layout setup completed";
+}
+
+void MainWindow::initializeVisualizationWidgets()
+{
+    qDebug() << "Initializing custom visualization widgets in Qt Designer UI...";
+    
+    // Replace the placeholder in the visualization area with real widgets
+    QWidget* visualizationArea = ui->visualizationArea;
+    if (visualizationArea) {
+        // Remove the placeholder label
+        QLabel* placeholder = visualizationArea->findChild<QLabel*>("visualizationPlaceholder");
+        if (placeholder) {
+            placeholder->hide();
+        }
+        
+        // Get the layout (should be QHBoxLayout from Qt Designer)
+        QHBoxLayout* layout = qobject_cast<QHBoxLayout*>(visualizationArea->layout());
+        if (!layout) {
+            layout = new QHBoxLayout(visualizationArea);
+            layout->setContentsMargins(4, 4, 4, 4);
+            layout->setSpacing(4);
+        }
+        
+        // Create and add the AnalyzerWidget if it doesn't exist
+        if (!m_analyzerWidget) {
+            m_analyzerWidget = new AnalyzerWidget(visualizationArea);
+            m_analyzerWidget->setMinimumSize(300, 150);
+            if (m_etiProcessor) {
+                m_analyzerWidget->setEtiProcessor(m_etiProcessor.get());
+            }
+            layout->addWidget(m_analyzerWidget);
+            
+            // Connect analyzer widget signals
+            connect(m_analyzerWidget, &AnalyzerWidget::statisticsUpdated,
+                    this, [this](quint64 frames, quint32 errors) {
+                        qDebug() << "Statistics updated - Frames:" << frames << "Errors:" << errors;
+                        // Update status bar with statistics
+                        updateStatus(QString("Frames: %1 | Errors: %2").arg(frames).arg(errors));
+                    });
+        }
+        
+        // Create and add the ConstellationWidget if it doesn't exist  
+        if (!m_constellationWidget) {
+            m_constellationWidget = new ConstellationWidget(visualizationArea);
+            m_constellationWidget->setMinimumSize(200, 150);
+            if (m_etiProcessor) {
+                m_constellationWidget->setEtiProcessor(m_etiProcessor.get());
+            }
+            layout->addWidget(m_constellationWidget);
+            
+            // Connect constellation widget signals
+            connect(m_constellationWidget, &ConstellationWidget::signalQualityChanged,
+                    this, [this](double quality) {
+                        updateStatus(QString("Signal Quality: %1%").arg(quality, 0, 'f', 1));
+                    });
+        }
+        
+        // Set layout stretch factors for professional proportions
+        layout->setStretchFactor(m_analyzerWidget, 2);     // 66% - Analysis takes priority
+        layout->setStretchFactor(m_constellationWidget, 1); // 33% - Constellation
+    }
+    
+    qDebug() << "Custom visualization widgets initialized successfully";
 }
 
 void MainWindow::createExplorerPanel()
@@ -1964,18 +2039,90 @@ void MainWindow::createDockWidgets()
 
 void MainWindow::connectSignals()
 {
-    // File actions
-    connect(m_openFileAction, &QAction::triggered, this, &MainWindow::openEtiFile);
-    connect(m_closeFileAction, &QAction::triggered, this, &MainWindow::closeEtiFile);
-    connect(m_exitAction, &QAction::triggered, this, &QWidget::close);
+    qDebug() << "Connecting signals for Qt Designer UI elements...";
+    
+    // Connect Qt Designer actions (these are already created by setupUi)
+    connect(ui->openFileAction, &QAction::triggered, this, &MainWindow::openEtiFile);
+    connect(ui->closeFileAction, &QAction::triggered, this, &MainWindow::closeEtiFile);
+    connect(ui->exitAction, &QAction::triggered, this, &QWidget::close);
     
     // Analysis actions
-    connect(m_startAnalysisAction, &QAction::triggered, this, &MainWindow::startRealTimeAnalysis);
-    connect(m_stopAnalysisAction, &QAction::triggered, this, &MainWindow::stopRealTimeAnalysis);
+    connect(ui->startAnalysisAction, &QAction::triggered, this, &MainWindow::startRealTimeAnalysis);
+    connect(ui->stopAnalysisAction, &QAction::triggered, this, &MainWindow::stopRealTimeAnalysis);
     
-    // View actions
-    connect(m_fullScreenAction, &QAction::triggered, this, &MainWindow::toggleFullScreen);
-    connect(m_resetLayoutAction, &QAction::triggered, this, &MainWindow::resetLayout);
+    // View actions  
+    connect(ui->fullScreenAction, &QAction::triggered, this, &MainWindow::toggleFullScreen);
+    connect(ui->resetLayoutAction, &QAction::triggered, this, &MainWindow::resetLayout);
+    
+    // Settings and help actions
+    connect(ui->settingsAction, &QAction::triggered, this, &MainWindow::showSettings);
+    connect(ui->aboutAction, &QAction::triggered, this, &MainWindow::showAbout);
+    
+    // Qt Designer UI element connections
+    if (m_refreshServicesBtn) {
+        connect(m_refreshServicesBtn, &QPushButton::clicked, this, [this]() {
+            qDebug() << "Refresh services button clicked";
+            // Trigger service discovery refresh
+            if (m_etiProcessor) {
+                // TODO: Add service refresh logic
+                updateStatus("Refreshing DAB services...");
+            }
+        });
+    }
+    
+    // Service tree widget connections
+    if (ui->serviceTreeWidget) {
+        connect(ui->serviceTreeWidget, &QTreeWidget::itemSelectionChanged,
+                this, [this]() {
+                    auto selectedItems = ui->serviceTreeWidget->selectedItems();
+                    if (!selectedItems.isEmpty()) {
+                        QTreeWidgetItem* item = selectedItems.first();
+                        QString serviceName = item->text(0);
+                        QString serviceType = item->text(1);
+                        QString bitrate = item->text(2);
+                        
+                        // Update properties panel with service details
+                        if (m_parametersText) {
+                            QString details = QString("Service: %1\nType: %2\nBitrate: %3")
+                                            .arg(serviceName, serviceType, bitrate);
+                            m_parametersText->setPlainText(details);
+                        }
+                        
+                        qDebug() << "Service selected:" << serviceName << serviceType << bitrate;
+                    }
+                });
+    }
+    
+    // Frame list table connections
+    if (m_frameListTable) {
+        connect(m_frameListTable, &QTableWidget::itemSelectionChanged,
+                this, [this]() {
+                    int currentRow = m_frameListTable->currentRow();
+                    if (currentRow >= 0) {
+                        // Update properties with frame details
+                        QString frameInfo = QString("Frame #%1 selected").arg(currentRow + 1);
+                        updateStatus(frameInfo);
+                        qDebug() << "Frame selected:" << currentRow;
+                    }
+                });
+    }
+    
+    // Properties panel mode buttons
+    if (m_syncModeBtn && m_compareModeBtn) {
+        connect(m_syncModeBtn, &QPushButton::toggled, this, [this](bool checked) {
+            if (checked && m_compareModeBtn) {
+                m_compareModeBtn->setChecked(false);
+                qDebug() << "Switched to Sync mode";
+            }
+        });
+        
+        connect(m_compareModeBtn, &QPushButton::toggled, this, [this](bool checked) {
+            if (checked && m_syncModeBtn) {
+                m_syncModeBtn->setChecked(false);
+                qDebug() << "Switched to Compare mode";
+            }
+        });
+    }
     
     // Dock visibility actions
     connect(m_showFileExplorerAction, &QAction::triggered, m_fileExplorerDock, &QDockWidget::setVisible);
@@ -2635,6 +2782,9 @@ void MainWindow::updateWindowTitle()
 
 void MainWindow::openEtiFile()
 {
+    QElapsedTimer timer;
+    timer.start();
+    
     Logger::instance().log(Logger::Info, "MainWindow", "Opening ETI file via Professional Workflow Manager");
     
     // Use native system dialogs for better OS integration

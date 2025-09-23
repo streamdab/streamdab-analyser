@@ -1,54 +1,39 @@
 #!/bin/bash
-# ETI Stream Analyzer - RPM Post-Installation Script
-# Professional desktop integration for Red Hat/Fedora/SUSE systems
+# Post-installation script for StreamDAB Stream Analyzer
+# RPM-based distributions (Fedora/RHEL/SUSE) post-installation
 
-# Professional application configuration
-APP_NAME="ETI Stream Analyzer"
-DESKTOP_FILE="/usr/share/applications/eti-stream-analyzer.desktop"
-ICON_PATH="/usr/share/pixmaps/eti-stream-analyzer.png"
-MIME_TYPE_FILE="/usr/share/mime/packages/eti-stream-analyzer.xml"
-
-echo "Configuring ETI Stream Analyzer for professional broadcast use..."
-
-# Professional directory structure
-mkdir -p /var/log/eti-stream-analyzer
-mkdir -p /etc/eti-stream-analyzer
-mkdir -p /usr/share/eti-stream-analyzer/samples
-mkdir -p /usr/share/doc/eti-stream-analyzer
-
-# Set professional permissions
-chmod 755 /var/log/eti-stream-analyzer
-chmod 755 /etc/eti-stream-analyzer
-chown root:root /var/log/eti-stream-analyzer
-chown root:root /etc/eti-stream-analyzer
-
-# Professional system integration
-/sbin/ldconfig
-
-# Update desktop database for professional integration
-if command -v update-desktop-database >/dev/null 2>&1; then
-    update-desktop-database /usr/share/applications &>/dev/null || true
+# Update MIME database for ETI file associations
+if [ -x /usr/bin/update-mime-database ]; then
+    /usr/bin/update-mime-database /usr/share/mime >/dev/null 2>&1 || true
 fi
 
-# Update MIME database for broadcast file support
-if command -v update-mime-database >/dev/null 2>&1; then
-    update-mime-database /usr/share/mime &>/dev/null || true
+# Update desktop database for application menu
+if [ -x /usr/bin/update-desktop-database ]; then
+    /usr/bin/update-desktop-database >/dev/null 2>&1 || true
 fi
 
-# Update icon cache for professional appearance
-if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-    gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor &>/dev/null || true
+# Update icon cache
+if [ -x /usr/bin/gtk-update-icon-cache ]; then
+    /usr/bin/gtk-update-icon-cache -f -t /usr/share/icons/hicolor >/dev/null 2>&1 || true
 fi
 
-# Professional SELinux context (if SELinux is enabled)
-if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
-    if command -v restorecon >/dev/null 2>&1; then
-        restorecon -R /usr/bin/ETIStreamAnalyzer &>/dev/null || true
-        restorecon -R /usr/share/eti-stream-analyzer &>/dev/null || true
-    fi
+# Reload systemd if present (for potential future service integration)
+if [ -x /usr/bin/systemctl ]; then
+    /usr/bin/systemctl daemon-reload >/dev/null 2>&1 || true
 fi
 
-echo "ETI Stream Analyzer professional configuration complete."
-echo "Application ready for broadcast engineering workflows."
+# SELinux context restoration for RHEL/CentOS/Fedora
+if [ -x /usr/sbin/restorecon ]; then
+    /usr/sbin/restorecon -R /usr/bin/ETIStreamAnalyzer >/dev/null 2>&1 || true
+    /usr/sbin/restorecon -R /usr/share/applications/eti-stream-analyzer.desktop >/dev/null 2>&1 || true
+fi
+
+# Create broadcast group for professional users
+if ! getent group broadcast >/dev/null 2>&1; then
+    groupadd -r broadcast 2>/dev/null || true
+fi
+
+echo "StreamDAB Stream Analyzer installation completed successfully"
+echo "Professional ETI analysis tools are now available"
 
 exit 0

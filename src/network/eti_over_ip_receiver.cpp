@@ -360,13 +360,24 @@ void RTPSession::update_quality_metrics(const QByteArray& packet) {
 }
 
 void RTPSession::update_statistics(const RTPHeader& header, size_t payload_size, bool outgoing) {
-    Q_UNUSED(header)
     if (outgoing) {
         m_packets_sent++;
         m_bytes_sent += payload_size;
+        // Update sequence number for outgoing packets
+        m_last_sequence_sent = header.sequence_number;
     } else {
         m_packets_received++;
         m_bytes_received += payload_size;
+        // Update sequence number for incoming packets and detect loss
+        if (m_last_sequence_received != 0) {
+            uint16_t expected_seq = m_last_sequence_received + 1;
+            if (header.sequence_number != expected_seq) {
+                // Packet loss detected
+                m_packets_lost += (header.sequence_number - expected_seq);
+            }
+        }
+        m_last_sequence_received = header.sequence_number;
+        m_last_timestamp = header.timestamp;
     }
 }
 
@@ -443,10 +454,21 @@ void RedundancyManager::set_redundancy_mode(RedundancyMode mode) {
 }
 
 void RedundancyManager::add_backup_stream(const QString& multicast_address, quint16 port) {
-    // Store backup stream configuration for future use
-    Q_UNUSED(multicast_address)
-    Q_UNUSED(port)
-    // Implementation would store backup stream parameters
+    QMutexLocker locker(&m_mutex);
+    
+    // Store backup stream configuration for redundancy switching
+    StreamInfo backup;
+    backup.address = multicast_address;
+    backup.port = port;
+    backup.is_active = false;
+    backup.last_seen = std::chrono::steady_clock::now();
+    backup.quality_score = 0.0;
+    
+    m_backup_streams.append(backup);
+    
+    Logger::instance().log(Logger::Info, "RedundancyManager", 
+                          QString("Added backup stream: %1:%2 (total: %3)")
+                          .arg(multicast_address).arg(port).arg(m_backup_streams.size()));
 }
 
 void RedundancyManager::set_failover_threshold(double packet_loss_threshold) {

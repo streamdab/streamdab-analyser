@@ -658,13 +658,56 @@ void AnalyzerWidget::exportData()
     );
     
     if (!fileName.isEmpty()) {
-        // TODO: Implement actual data export
-        QMessageBox::information(this, tr("Export"), 
-                                tr("Data export functionality will be implemented.\n"
-                                   "Target file: %1").arg(fileName));
+        // Implement comprehensive data export functionality
+        QFile file(fileName);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&file);
+            
+            // Export header with timestamp
+            out << "ETI Stream Analysis Export\n";
+            out << "Generated: " << QDateTime::currentDateTime().toString(Qt::ISODate) << "\n";
+            out << "========================================\n\n";
+            
+            // Export processed frame statistics
+            out << "Processing Statistics:\n";
+            out << "Processed Frames: " << m_processedFrames << "\n";
+            out << "Error Count: " << m_errorCount << "\n";
+            out << "Current Frame Rate: " << QString::number(m_currentFrameRate, 'f', 2) << " fps\n";
+            out << "Average Processing Time: " << QString::number(m_averageProcessingTime, 'f', 3) << " ms\n";
+            out << "Max Processing Time: " << QString::number(m_maxProcessingTime, 'f', 3) << " ms\n";
+            out << "Frame Drops: " << m_frameDropCount << "\n\n";
+            
+            // Export ensemble information if available
+            if (m_etiProcessor) {
+                auto ensemble = m_etiProcessor->getCurrentEnsemble();
+                out << "Ensemble Information:\n";
+                out << "Ensemble ID: 0x" << QString::number(ensemble.ensembleId, 16).toUpper() << "\n";
+                out << "Country ID: 0x" << QString::number(ensemble.countryId, 16).toUpper() << "\n";
+                out << "Service Count: " << ensemble.services.size() << "\n\n";
+                
+                // Export service list
+                out << "DAB Services:\n";
+                for (const auto& service : ensemble.services) {
+                    out << "  Service ID: 0x" << QString::number(service.serviceId, 16).toUpper() << "\n";
+                    out << "  Label: " << service.label << "\n";
+                    out << "  Sub-Channel ID: " << service.subChannelId << "\n";
+                    out << "  Bit Rate: " << service.bitRate << " kbps\n";
+                    out << "  Protection Level: " << service.protectionLevel << "\n";
+                    out << "  Service Type: " << (service.isDabPlus ? "DAB+" : "DAB") << "\n";
+                    out << "  ---\n";
+                }
+            }
+            
+            file.close();
+            QMessageBox::information(this, tr("Export Successful"), 
+                                   tr("Analysis data exported successfully to:\n%1").arg(fileName));
+        } else {
+            QMessageBox::warning(this, tr("Export Failed"), 
+                               tr("Could not write to file:\n%1").arg(fileName));
+        }
         
         Logger::instance().log(Logger::Info, "AnalyzerWidget", 
-                             QString("Data export requested: %1").arg(fileName));
+                             QString("Data export completed: %1").arg(fileName));
     }
 }
 
@@ -740,10 +783,99 @@ void AnalyzerWidget::handleDisplayModeChanged()
 
 void AnalyzerWidget::handleEtiData()
 {
-    // Handle new ETI data from processor
+    // Handle new ETI data from processor with real-time processing
     if (m_etiProcessor && m_analysisRunning) {
-        // TODO: Process real ETI data
-        updateDisplay();
+        QElapsedTimer timer;
+        timer.start();
+        
+        try {
+            // Get current ensemble data from processor
+            auto ensemble = m_etiProcessor->getCurrentEnsemble();
+            
+            // Update frame count and processing statistics
+            ++m_processedFrames;
+            
+            // Calculate real-time frame rate
+            qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+            if (m_lastUpdateTime > 0) {
+                qint64 timeDiff = currentTime - m_lastUpdateTime;
+                if (timeDiff > 0) {
+                    m_currentFrameRate = 1000.0 / timeDiff; // FPS calculation
+                }
+            }
+            m_lastUpdateTime = currentTime;
+            
+            // Update processing time statistics
+            qint64 processingTime = timer.elapsed();
+            if (m_processedFrames == 1) {
+                m_averageProcessingTime = processingTime;
+            } else {
+                m_averageProcessingTime = (m_averageProcessingTime * 0.9) + (processingTime * 0.1);
+            }
+            m_maxProcessingTime = qMax(m_maxProcessingTime, static_cast<double>(processingTime));
+            
+            // Update display with fresh data
+            updateDisplay();
+            
+            // Update service tables with current ensemble services
+            if (m_servicesTable) {
+                m_servicesTable->setRowCount(ensemble.services.size());
+                for (int i = 0; i < ensemble.services.size(); ++i) {
+                    const auto& service = ensemble.services[i];
+                    
+                    // Service ID
+                    QTableWidgetItem* idItem = new QTableWidgetItem(
+                        QString("0x%1").arg(service.serviceId, 4, 16, QChar('0')).toUpper()
+                    );
+                    m_servicesTable->setItem(i, 0, idItem);
+                    
+                    // Service Label
+                    QTableWidgetItem* labelItem = new QTableWidgetItem(service.label);
+                    m_servicesTable->setItem(i, 1, labelItem);
+                    
+                    // Service Type
+                    QTableWidgetItem* typeItem = new QTableWidgetItem(
+                        service.isDabPlus ? "DAB+" : "DAB"
+                    );
+                    m_servicesTable->setItem(i, 2, typeItem);
+                    
+                    // Bit Rate
+                    QTableWidgetItem* bitrateItem = new QTableWidgetItem(
+                        QString("%1 kbps").arg(service.bitRate)
+                    );
+                    m_servicesTable->setItem(i, 3, bitrateItem);
+                    
+                    // Protection Level
+                    QTableWidgetItem* protectionItem = new QTableWidgetItem(
+                        QString("UEP-%1").arg(service.protectionLevel)
+                    );
+                    m_servicesTable->setItem(i, 4, protectionItem);
+                }
+            }
+            
+            // Update ensemble information display
+            if (m_ensembleId && m_ensembleName) {
+                m_ensembleId->setText(QString("0x%1").arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper());
+                m_ensembleName->setText(ensemble.label.isEmpty() ? tr("Unknown Ensemble") : ensemble.label);
+            }
+            
+            // Update status information
+            if (m_statusLabel) {
+                m_statusLabel->setText(tr("Processing - %1 fps").arg(QString::number(m_currentFrameRate, 'f', 1)));
+            }
+            
+            // Detect frame drops for quality monitoring
+            if (m_currentFrameRate < 30.0 && m_processedFrames > 100) {
+                ++m_frameDropCount;
+                Logger::instance().log(Logger::Warning, "AnalyzerWidget", 
+                                     QString("Frame rate below threshold: %1 fps").arg(m_currentFrameRate));
+            }
+            
+        } catch (const std::exception& e) {
+            ++m_errorCount;
+            Logger::instance().log(Logger::Error, "AnalyzerWidget", 
+                                 QString("ETI data processing error: %1").arg(e.what()));
+        }
     }
 }
 

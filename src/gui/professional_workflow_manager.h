@@ -4,9 +4,7 @@
 #include <QTimer>
 #include <QHash>
 #include <QSharedPointer>
-#include <QStateMachine>
-#include <QState>
-#include <QSignalTransition>
+// QStateMachine not available - using enum-based state management
 #include <QKeySequence>
 #include <QElapsedTimer>
 #include "core/eti_types.h"
@@ -198,7 +196,7 @@ public slots:
      * @brief Handle ETSI compliance error detected
      * @param error Error information
      */
-    void onETSIComplianceError(const eti::ETSIComplianceError& error);
+    void onETSIComplianceError(const eti::ETSIComplianceResult& error);
 
     /**
      * @brief Navigate to error frame
@@ -274,13 +272,13 @@ public slots:
      * @brief Synchronize Main panel with frame data
      * @param frames List of ETI frames to display
      */
-    void synchronizeMainPanel(const QList<eti::ETIFrame>& frames);
+    void synchronizeMainPanel(const QList<eti::EtiFrame>& frames);
 
     /**
      * @brief Synchronize Messages panel with errors
      * @param errors List of ETSI compliance errors
      */
-    void synchronizeMessagesPanel(const QList<eti::ETSIComplianceError>& errors);
+    void synchronizeMessagesPanel(const QList<eti::ETSIComplianceResult>& errors);
 
     // ==============================================
     // PROFESSIONAL USER EXPERIENCE
@@ -423,8 +421,7 @@ private:
 
     // Workflow state management
     WorkflowState m_currentState;
-    QStateMachine* m_workflowStateMachine;
-    QHash<WorkflowState, QState*> m_workflowStates;
+    // QStateMachine not available - using simple enum-based state management
 
     // Panel synchronization
     bool m_panelSyncActive;
@@ -444,7 +441,7 @@ private:
     // Current workflow data
     QString m_currentFilename;
     QHash<quint32, eti::DabService> m_discoveredServices;
-    QList<eti::ETSIComplianceError> m_detectedErrors;
+    QList<eti::ETSIComplianceResult> m_detectedErrors;
     quint32 m_selectedServiceId;
 
     // Performance constants

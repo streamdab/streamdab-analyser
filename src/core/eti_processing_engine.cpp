@@ -141,9 +141,58 @@ bool UnifiedETIProcessingEngine::processFile(const QString& filename) {
         Logger::instance().log(Logger::Info, "UnifiedETIProcessingEngine", 
                               "Processing ETI file with Modern ETI Core frame-by-frame parser");
         
-        // TODO: Implement file-based processing wrapper around frame processing
-        // For now, return true to indicate successful setup
-        return true;
+        // File-based processing wrapper around frame processing
+        QFile file(filename);
+        if (!file.open(QIODevice::ReadOnly)) {
+            QString error = QString("Failed to open ETI file for reading: %1").arg(filename);
+            Logger::instance().log(Logger::Error, "UnifiedETIProcessingEngine", error);
+            return false;
+        }
+        
+        QByteArray fileData = file.readAll();
+        file.close();
+        
+        if (fileData.size() == 0) {
+            Logger::instance().log(Logger::Warning, "UnifiedETIProcessingEngine", 
+                                  QString("Empty file detected: %1").arg(filename));
+            return true; // Success with warnings - no frames to process
+        }
+        
+        // Process file frame by frame (6144 bytes per ETI frame)
+        const int frameSize = eti::ETI_FRAME_SIZE;
+        int totalFrames = fileData.size() / frameSize;
+        int processedFrames = 0;
+        
+        Logger::instance().log(Logger::Info, "UnifiedETIProcessingEngine", 
+                              QString("Processing %1 ETI frames from file: %2")
+                              .arg(totalFrames).arg(filename));
+        
+        for (int i = 0; i < totalFrames; ++i) {
+            QByteArray frameData = fileData.mid(i * frameSize, frameSize);
+            if (frameData.size() != frameSize) {
+                Logger::instance().log(Logger::Warning, "UnifiedETIProcessingEngine", 
+                                      QString("Incomplete frame %1: %2 bytes (expected %3)")
+                                      .arg(i).arg(frameData.size()).arg(frameSize));
+                break;
+            }
+            
+            // Process individual frame
+            UnifiedProcessingResult result = processFrame(frameData);
+            if (!result.success) {
+                Logger::instance().log(Logger::Error, "UnifiedETIProcessingEngine", 
+                                      QString("Failed to process frame %1: %2")
+                                      .arg(i).arg(result.error_message));
+                return false;
+            }
+            
+            processedFrames++;
+        }
+        
+        Logger::instance().log(Logger::Info, "UnifiedETIProcessingEngine", 
+                              QString("Successfully processed %1/%2 ETI frames from file")
+                              .arg(processedFrames).arg(totalFrames));
+        
+        return processedFrames > 0;
     }
     
     Logger::instance().log(Logger::Error, "UnifiedETIProcessingEngine", 
