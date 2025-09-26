@@ -338,7 +338,7 @@ void ETSIComplianceMonitor::setupViolationDetails()
     m_violationDetails->setPlainText(tr("Select a violation to view details..."));
 }
 
-void ETSIComplianceMonitor::connectEtiProcessor(EtiProcessor* processor)
+void ETSIComplianceMonitor::connectEtiProcessor(eti_processor* processor)
 {
     if (m_etiProcessor) {
         // Disconnect previous processor
@@ -861,20 +861,81 @@ void ETSIComplianceMonitor::applyBroadcastingTheme()
 // Missing method implementations
 
 void ETSIComplianceMonitor::onEtiComplianceUpdate(quint64 frameNumber, const QList<ETSIViolation>& violations) {
-    Logger::instance().log(Logger::Debug, "ETSIComplianceMonitor", QString("onEtiComplianceUpdate: frame %1, violations: %2").arg(frameNumber).arg(violations.size()));
-    // TODO: TDD Agent - Implement compliance update handling
-    Q_UNUSED(frameNumber);
-    Q_UNUSED(violations);
+    Logger::instance().log(Logger::Debug, "ETSIComplianceMonitor", 
+        QString("onEtiComplianceUpdate: frame %1, violations: %2").arg(frameNumber).arg(violations.size()));
+    
+    // Process each violation from the ETI frame analysis
+    for (const auto& violation : violations) {
+        // Create frame-specific violation with context
+        ETSIViolation frameViolation = violation;
+        frameViolation.frameContext = QString("Frame %1").arg(frameNumber);
+        frameViolation.timestamp = QDateTime::currentDateTime();
+        
+        // Generate unique violation ID including frame number
+        frameViolation.violationId = QString("ETI_%1_%2_%3")
+            .arg(frameNumber)
+            .arg(static_cast<int>(violation.category))
+            .arg(static_cast<int>(violation.severity));
+        
+        // Add violation to monitoring system
+        addViolation(frameViolation);
+        
+        Logger::instance().log(Logger::Debug, "ETSIComplianceMonitor",
+            QString("Added ETI frame %1 violation: %2 (%3)")
+            .arg(frameNumber)
+            .arg(violation.description)
+            .arg(violation.getSeverityString()));
+    }
+    
+    // Update compliance score based on violations
+    double oldScore = m_statistics.overallScore;
+    m_statistics.overallScore = calculateComplianceScore();
+    
+    // Emit signal for UI updates if critical violations detected
+    bool hasCritical = std::any_of(violations.begin(), violations.end(),
+        [](const ETSIViolation& v) { return v.severity == ETSIViolation::Critical; });
+    
+    if (hasCritical) {
+        emit complianceScoreChanged(m_statistics.overallScore, oldScore);
+    }
 }
 
 void ETSIComplianceMonitor::filterByCategory(ETSIViolation::Category category) {
-    Logger::instance().log(Logger::Debug, "ETSIComplianceMonitor", QString("filterByCategory: %1").arg(static_cast<int>(category)));
-    // TODO: TDD Agent - Implement category filtering
-    Q_UNUSED(category);
+    Logger::instance().log(Logger::Debug, "ETSIComplianceMonitor", 
+        QString("filterByCategory: %1").arg(static_cast<int>(category)));
+    
+    // Update category filter state
+    m_selectedCategory = category;
+    m_showAllCategories = false;
+    
+    // Update category filter combo box to reflect selection
+    if (m_categoryFilter) {
+        m_categoryFilter->setCurrentIndex(static_cast<int>(category) + 1); // +1 for "All Categories" option
+    }
+    
+    // Apply filters to violation tree
+    applyFilters();
+    
+    Logger::instance().log(Logger::Info, "ETSIComplianceMonitor",
+        QString("Filtered violations by category: %1").arg(static_cast<int>(category)));
 }
 
 void ETSIComplianceMonitor::filterBySeverity(ETSIViolation::Severity severity) {
-    Logger::instance().log(Logger::Debug, "ETSIComplianceMonitor", QString("filterBySeverity: %1").arg(static_cast<int>(severity)));
-    // TODO: TDD Agent - Implement severity filtering
-    Q_UNUSED(severity);
+    Logger::instance().log(Logger::Debug, "ETSIComplianceMonitor", 
+        QString("filterBySeverity: %1").arg(static_cast<int>(severity)));
+    
+    // Update severity filter state
+    m_selectedSeverity = severity;
+    m_showAllSeverities = false;
+    
+    // Update severity filter combo box to reflect selection
+    if (m_severityFilter) {
+        m_severityFilter->setCurrentIndex(static_cast<int>(severity) + 1); // +1 for "All Severities" option
+    }
+    
+    // Apply filters to violation tree
+    applyFilters();
+    
+    Logger::instance().log(Logger::Info, "ETSIComplianceMonitor",
+        QString("Filtered violations by severity: %1").arg(static_cast<int>(severity)));
 }

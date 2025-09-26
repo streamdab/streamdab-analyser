@@ -107,12 +107,12 @@ bool ProfessionalWorkflowManager::initialize()
         m_constellationWidget = m_mainWindow->getConstellationWidget();
         m_serviceBrowser = m_mainWindow->getServiceBrowser();
         
-        // TODO: Get additional component references when available
-        // m_serviceExplorerPanel = m_mainWindow->getServiceExplorerPanel();
-        // m_performanceDashboard = m_mainWindow->getPerformanceDashboard();
-        // m_complianceMonitor = m_mainWindow->getComplianceMonitor();
-        // m_audioMonitor = m_mainWindow->getAudioMonitor();
-        // m_figAnalysis = m_mainWindow->getFigAnalysis();
+        // Get additional component references from main window
+        m_serviceExplorerPanel = m_mainWindow->findChild<ServiceExplorerPanel*>();
+        m_performanceDashboard = m_mainWindow->findChild<PerformanceDashboard*>();
+        m_complianceMonitor = m_mainWindow->findChild<ETSIComplianceMonitor*>();
+        m_audioMonitor = m_mainWindow->findChild<AudioMonitoringWidget*>();
+        m_figAnalysis = m_mainWindow->findChild<FigAnalysisWidget*>();
         
         // Validate essential components
         if (!m_etiProcessor) {
@@ -183,11 +183,11 @@ void ProfessionalWorkflowManager::startFileAnalysisWorkflow(const QString& filen
     updateWorkflowStatus("File Analysis Workflow Started", QString("Analyzing: %1").arg(QFileInfo(filename).fileName()));
     
     // Process file with ETI processor
-    if (m_etiProcessor && m_etiProcessor->isInitialized()) {
+    if (m_etiProcessor && m_etiProcessor->is_initialized()) {
         Logger::instance().log(Logger::Info, "ProfessionalWorkflowManager", "Processing ETI file");
         
         // Process file asynchronously to avoid blocking UI
-        bool result = m_etiProcessor->processFile(filename);
+        bool result = m_etiProcessor->process_file(filename);
         if (!result) {
             Logger::instance().log(Logger::Error, "ProfessionalWorkflowManager", "Failed to process ETI file");
             updateWorkflowStatus("File Analysis Failed", "Could not process ETI file");
@@ -366,11 +366,14 @@ void ProfessionalWorkflowManager::startErrorDetectionWorkflow(const QString& fil
     startFileAnalysisWorkflow(filename);
 }
 
-void ProfessionalWorkflowManager::onETSIComplianceError(const eti::ETSIComplianceError& error)
+void ProfessionalWorkflowManager::onETSIComplianceError(const eti::ETSIComplianceResult& error)
 {
+    QString errorDetails = QString("Compliance: %1, Score: %2%, Errors: %3")
+                           .arg(error.is_compliant ? "PASS" : "FAIL")
+                           .arg(error.compliance_score, 0, 'f', 1)
+                           .arg(error.errors.size());
     Logger::instance().log(Logger::Warning, "ProfessionalWorkflowManager", 
-                           QString("ETSI compliance error detected: %1 at frame %2")
-                           .arg(error.description).arg(error.frameNumber));
+                           QString("ETSI compliance error detected: %1").arg(errorDetails));
     
     // Store error
     m_detectedErrors.append(error);
@@ -379,9 +382,10 @@ void ProfessionalWorkflowManager::onETSIComplianceError(const eti::ETSIComplianc
     // Synchronize messages panel with new error
     synchronizeMessagesPanel(m_detectedErrors);
     
-    // Update status
-    updateWorkflowStatus(QString("Error Detected: %1").arg(error.severity), 
-                        QString("Frame %1: %2").arg(error.frameNumber).arg(error.description));
+    // Update status with detailed error information
+    QString statusMessage = QString("ETSI compliance issues: %1 errors, %2 warnings")
+                            .arg(error.errors.size()).arg(error.warnings.size());
+    updateWorkflowStatus("Error Detected", statusMessage);
 }
 
 void ProfessionalWorkflowManager::navigateToErrorFrame(quint64 frameNumber, const QString& errorType)
@@ -436,7 +440,11 @@ bool ProfessionalWorkflowManager::generateErrorReport(const QString& outputPath)
         // Error summary by severity
         QHash<QString, int> errorsBySeverity;
         for (const auto& error : m_detectedErrors) {
-            errorsBySeverity[error.severity]++;
+            QString severity = error.is_compliant ? "Warning" : "Critical";
+            if (error.compliance_score < 50.0) severity = "Critical";
+            else if (error.compliance_score < 80.0) severity = "Major";
+            else severity = "Minor";
+            errorsBySeverity[severity]++;
         }
         
         out << "Error Summary by Severity:\n";
@@ -452,12 +460,29 @@ bool ProfessionalWorkflowManager::generateErrorReport(const QString& outputPath)
         for (int i = 0; i < m_detectedErrors.size(); ++i) {
             const auto& error = m_detectedErrors[i];
             out << QString("Error %1:\n").arg(i + 1);
-            out << "  Frame Number: " << error.frameNumber << "\n";
-            out << "  Severity: " << error.severity << "\n";
-            out << "  Error Code: " << error.errorCode << "\n";
-            out << "  Description: " << error.description << "\n";
-            out << "  ETSI Standard: " << error.etsiStandard << "\n";
-            out << "  Timestamp: " << error.timestamp.toString(Qt::ISODate) << "\n\n";
+            out << "  Compliance Status: " << (error.is_compliant ? "PASS" : "FAIL") << "\n";
+            out << "  Compliance Score: " << QString::number(error.compliance_score, 'f', 1) << "%\n";
+            out << "  Error Count: " << error.errors.size() << "\n";
+            out << "  Warning Count: " << error.warnings.size() << "\n";
+            out << "  ETSI Standard: " << QString::fromStdString(error.etsi_standard) << "\n";
+            out << "  Test Date: " << QString::fromStdString(error.test_date) << "\n";
+            
+            // List individual errors
+            if (!error.errors.empty()) {
+                out << "  Individual Errors:\n";
+                for (const auto& err : error.errors) {
+                    out << "    - " << QString::fromStdString(err) << "\n";
+                }
+            }
+            
+            // List warnings
+            if (!error.warnings.empty()) {
+                out << "  Warnings:\n";
+                for (const auto& warn : error.warnings) {
+                    out << "    - " << QString::fromStdString(warn) << "\n";
+                }
+            }
+            out << "  Timestamp: " << QDateTime::currentDateTime().toString(Qt::ISODate) << "\n\n";
         }
         
         reportFile.close();
@@ -530,7 +555,7 @@ void ProfessionalWorkflowManager::onServiceSelected(quint32 serviceId)
     
     // Update status
     QString serviceName = m_discoveredServices.contains(serviceId) ? 
-                         m_discoveredServices[serviceId].label : QString("Service %1").arg(serviceId);
+                         QString::fromStdString(m_discoveredServices[serviceId].label) : QString("Service %1").arg(serviceId);
     updateWorkflowStatus(QString("Service Selected: %1").arg(serviceName), 
                         QString("Sync Latency: %1ms").arg(syncLatency));
 }
@@ -545,10 +570,11 @@ void ProfessionalWorkflowManager::onServicePropertiesUpdated(quint32 serviceId, 
         // Update service properties (simplified for now)
         auto& service = m_discoveredServices[serviceId];
         if (properties.contains("label")) {
-            service.label = properties["label"].toString();
+            service.label = properties["label"].toString().toStdString();
         }
         if (properties.contains("bitrate")) {
-            service.bitrate = properties["bitrate"].toInt();
+            // TODO: service.bitrate = properties["bitrate"].toInt(); // Field not available in DabService struct
+            Q_UNUSED(properties); // Suppress unused variable warning
         }
     }
     
@@ -659,7 +685,7 @@ void ProfessionalWorkflowManager::synchronizePropertiesPanel(quint32 serviceId)
     // }
 }
 
-void ProfessionalWorkflowManager::synchronizeMainPanel(const QList<eti::ETIFrame>& frames)
+void ProfessionalWorkflowManager::synchronizeMainPanel(const QList<eti::EtiFrame>& frames)
 {
     Logger::instance().log(Logger::Debug, "ProfessionalWorkflowManager", 
                            QString("Synchronizing Main panel with %1 frames").arg(frames.size()));
@@ -670,7 +696,7 @@ void ProfessionalWorkflowManager::synchronizeMainPanel(const QList<eti::ETIFrame
     // }
 }
 
-void ProfessionalWorkflowManager::synchronizeMessagesPanel(const QList<eti::ETSIComplianceError>& errors)
+void ProfessionalWorkflowManager::synchronizeMessagesPanel(const QList<eti::ETSIComplianceResult>& errors)
 {
     Logger::instance().log(Logger::Debug, "ProfessionalWorkflowManager", 
                            QString("Synchronizing Messages panel with %1 errors").arg(errors.size()));
@@ -844,7 +870,7 @@ void ProfessionalWorkflowManager::initializeWorkflowStateMachine()
     Logger::instance().log(Logger::Info, "ProfessionalWorkflowManager", "Workflow state machine initialized");
 #else
     Logger::instance().log(Logger::Warning, "ProfessionalWorkflowManager", "QStateMachine not available - using simplified workflow management");
-    m_workflowStateMachine = nullptr;
+    // TODO: m_workflowStateMachine = nullptr; // Variable not declared in header
 #endif
 }
 
@@ -931,6 +957,9 @@ void ProfessionalWorkflowManager::updateWorkflowMetrics()
 
 void ProfessionalWorkflowManager::onEtiFrameProcessed(quint64 frameNumber, const QByteArray& data)
 {
+    Q_UNUSED(frameNumber);
+    Q_UNUSED(data);
+    
     // Handle ETI frame processed signal
     m_workflowMetrics.totalFramesProcessed++;
     
@@ -946,21 +975,21 @@ void ProfessionalWorkflowManager::onEtiFrameProcessed(quint64 frameNumber, const
 void ProfessionalWorkflowManager::onEtiServiceDiscovered(const eti::DabService& service)
 {
     // Handle service discovered signal
-    m_discoveredServices[service.serviceId] = service;
+    m_discoveredServices[service.service_id] = service;
     m_workflowMetrics.servicesDiscovered = m_discoveredServices.size();
     
     Logger::instance().log(Logger::Info, "ProfessionalWorkflowManager", 
-                           QString("Service discovered: %1 (%2)").arg(service.label).arg(service.serviceId));
+                           QString("Service discovered: %1 (%2)").arg(QString::fromStdString(service.label)).arg(service.service_id));
 }
 
 void ProfessionalWorkflowManager::onEtiEnsembleDiscovered(const eti::Ensemble& ensemble)
 {
     // Handle ensemble discovered signal
     Logger::instance().log(Logger::Info, "ProfessionalWorkflowManager", 
-                           QString("Ensemble discovered: %1 (%2)").arg(ensemble.label).arg(ensemble.ensembleId));
+                           QString("Ensemble discovered: %1 (%2)").arg(QString::fromStdString(ensemble.label)).arg(ensemble.ensemble_id));
     
     // Update workflow status
-    updateWorkflowStatus("Ensemble Discovered", QString("%1 (ID: %2)").arg(ensemble.label).arg(ensemble.ensembleId));
+    updateWorkflowStatus("Ensemble Discovered", QString("%1 (ID: %2)").arg(QString::fromStdString(ensemble.label)).arg(ensemble.ensemble_id));
 }
 
 void ProfessionalWorkflowManager::onEtiErrorOccurred(const QString& error)

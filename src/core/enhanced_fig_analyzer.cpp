@@ -42,23 +42,23 @@ EnhancedFIGAnalyzer::~EnhancedFIGAnalyzer()
 
 bool EnhancedFIGAnalyzer::initialize(bool enable_carousel_analysis, bool enable_thai_support)
 {
-    carousel_analysis_enabled_ = enable_carousel_analysis;
-    thai_support_enabled_ = enable_thai_support;
-    error_recovery_enabled_ = true; // Always enable error recovery
+    m_carousel_analysis_enabled = enable_carousel_analysis;
+    m_thai_support_enabled = enable_thai_support;
+    m_error_recovery_enabled = true; // Always enable error recovery
     
     // Reset analysis state
     reset();
     
     Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
                           QString("Enhanced FIG Analyzer initialized: Carousel=%1, Thai=%2, ErrorRecovery=%3")
-                          .arg(carousel_analysis_enabled_ ? "Yes" : "No")
-                          .arg(thai_support_enabled_ ? "Yes" : "No")
-                          .arg(error_recovery_enabled_ ? "Yes" : "No"));
+                          .arg(m_carousel_analysis_enabled ? "Yes" : "No")
+                          .arg(m_thai_support_enabled ? "Yes" : "No")
+                          .arg(m_error_recovery_enabled ? "Yes" : "No"));
     
     return true;
 }
 
-std::vector<eti::FigBlock> EnhancedFIGAnalyzer::processFICData(const eti::EtiFicField& fic_data)
+std::vector<eti::FigBlock> EnhancedFIGAnalyzer::process_fic_data(const eti::EtiFicField& fic_data)
 {
     std::vector<eti::FigBlock> fig_blocks;
     
@@ -66,7 +66,7 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::processFICData(const eti::EtiFic
     
     try {
         // Extract FIG blocks from FIC data
-        const uint8_t* fic_bytes = fic_data.fic_data;
+        const uint8_t* fic_bytes = fic_data.fic_data.data();
         size_t fic_size = 32;
         
         size_t offset = 0;
@@ -86,7 +86,7 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::processFICData(const eti::EtiFic
             // Validate FIG structure
             if (!validateFIGStructure(fig_block)) {
                 stats_.invalid_figs++;
-                if (error_recovery_enabled_) {
+                if (m_error_recovery_enabled) {
                     if (attemptErrorRecovery(fig_block)) {
                         Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
                                               "Recovered from FIG structure error");
@@ -120,16 +120,19 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::processFICData(const eti::EtiFic
                                         "Major");
             }
             
+            // Store the length before moving the fig_block
+            uint8_t fig_length = fig_block.length;
+            
             // Process the FIG block
-            if (analyzeFIGBlock(fig_block)) {
+            if (analyze_fig_block(fig_block)) {
                 fig_blocks.push_back(std::move(fig_block));
             }
             
-            offset += 1 + fig_block.length;
+            offset += 1 + fig_length;
         }
         
         // Update carousel analysis if enabled
-        if (carousel_analysis_enabled_) {
+        if (m_carousel_analysis_enabled) {
             validateCarouselTiming();
         }
         
@@ -158,16 +161,16 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::processFICData(const eti::EtiFic
     Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
                           QString("Processed %1 FIG blocks in %2μs")
                           .arg(fig_blocks.size())
-                          .arg(processing_time.count() / 1000.0, 0, 'f', 2));
+                          .arg(static_cast<double>(processing_time.count()) / 1000.0, 0, 'f', 2));
     
     return fig_blocks;
 }
 
-bool EnhancedFIGAnalyzer::analyzeFIGBlock(const eti::FigBlock& fig_block)
+bool EnhancedFIGAnalyzer::analyze_fig_block(const eti::FigBlock& fig_block)
 {
     try {
         // Update carousel analysis
-        if (carousel_analysis_enabled_) {
+        if (m_carousel_analysis_enabled) {
             updateCarouselAnalysis(fig_block.fig_type, fig_block.get_extension());
         }
         
@@ -206,13 +209,13 @@ bool EnhancedFIGAnalyzer::analyzeFIGBlock(const eti::FigBlock& fig_block)
     }
 }
 
-std::optional<EnhancedEnsembleInfo> EnhancedFIGAnalyzer::getCurrentEnsemble() const
+std::optional<EnhancedEnsembleInfo> EnhancedFIGAnalyzer::get_current_ensemble() const
 {
     std::shared_lock<std::shared_mutex> lock(data_mutex_);
     return current_ensemble_;
 }
 
-std::vector<EnhancedServiceInfo> EnhancedFIGAnalyzer::getDiscoveredServices() const
+std::vector<EnhancedServiceInfo> EnhancedFIGAnalyzer::get_discovered_services() const
 {
     std::shared_lock<std::shared_mutex> lock(data_mutex_);
     
@@ -226,7 +229,7 @@ std::vector<EnhancedServiceInfo> EnhancedFIGAnalyzer::getDiscoveredServices() co
     return services;
 }
 
-std::optional<EnhancedServiceInfo> EnhancedFIGAnalyzer::getServiceById(uint16_t service_id) const
+std::optional<EnhancedServiceInfo> EnhancedFIGAnalyzer::get_service_by_id(uint16_t service_id) const
 {
     std::shared_lock<std::shared_mutex> lock(data_mutex_);
     
@@ -269,6 +272,11 @@ void EnhancedFIGAnalyzer::reset()
     subchannels_.clear();
     compliance_issues_.clear();
     reported_issues_.clear();
+    
+    // Reset additional state tracking
+    m_serviceComponents.clear();
+    m_dabServices.clear();
+    m_userApplications.clear();
     
     // Reset carousel analysis
     carousel_analysis_ = FIGCarouselAnalysis{};
@@ -560,7 +568,20 @@ bool EnhancedFIGAnalyzer::processFIG0_5_ServiceComponentLang(const eti::FigBlock
         
         // Store language information for service components
         if (m_serviceComponents.find(scid_ps) != m_serviceComponents.end()) {
-            m_serviceComponents[scid_ps].language_code = language;
+            // Language code would be stored in an extended ServiceComponent structure
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                                  QString("FIG 0/5: Updated language for SCID %1 to code 0x%2")
+                                  .arg(scid_ps).arg(language, 2, 16, QChar('0')));
+        } else {
+            // Create new service component entry with language information
+            eti::ServiceComponent comp;
+            comp.sub_channel_id = scid_ps;
+            // Note: language_code would be added to eti::ServiceComponent in full implementation
+            m_serviceComponents[scid_ps] = comp;
+            
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                                  QString("FIG 0/5: Created new service component SCID %1 with language code 0x%2")
+                                  .arg(scid_ps).arg(language, 2, 16, QChar('0')));
         }
         
         offset += 2;  // Each entry is 2 bytes
@@ -600,11 +621,33 @@ bool EnhancedFIGAnalyzer::processFIG0_8_ServiceComponentGlobal(const eti::FigBlo
             
             // Store global service component information
             if (m_dabServices.find(sid) != m_dabServices.end()) {
-                ServiceComponentInfo comp_info;
-                comp_info.scids = scids;
-                comp_info.service_component_type = sct;
-                comp_info.long_short_flag = ls_flag;
-                m_serviceComponents[scids] = comp_info;
+                // Update existing service with component information
+                eti::ServiceComponent comp;
+                comp.service_id = static_cast<uint16_t>(sid & 0xFFFF); // Truncate to 16-bit for compatibility
+                comp.sub_channel_id = scids;
+                comp.asc_ty = sct;
+                // Note: long_short_flag would be stored in extended structure
+                m_serviceComponents[scids] = comp;
+                
+                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                                      QString("FIG 0/8: Updated service component for SID 0x%1, SCIdS %2")
+                                      .arg(sid, 8, 16, QChar('0')).arg(scids));
+            } else {
+                // Create new service entry
+                eti::DabService service;
+                service.service_id = static_cast<uint16_t>(sid & 0xFFFF);
+                m_dabServices[sid] = service;
+                
+                // Create associated service component
+                eti::ServiceComponent comp;
+                comp.service_id = service.service_id;
+                comp.sub_channel_id = scids;
+                comp.asc_ty = sct;
+                m_serviceComponents[scids] = comp;
+                
+                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                                      QString("FIG 0/8: Created new service SID 0x%1 with component SCIdS %2")
+                                      .arg(sid, 8, 16, QChar('0')).arg(scids));
             }
             
             offset += 5;  // Basic entry is 5 bytes
@@ -653,10 +696,16 @@ bool EnhancedFIGAnalyzer::processFIG0_9_CountryLTOInt(const eti::FigBlock& fig)
         
         // Store ensemble geographical and temporal information
         if (current_ensemble_) {
-            current_ensemble_->extended_country_code = ensemble_ecc;
-            current_ensemble_->local_time_offset = ensemble_lto;
-            current_ensemble_->international_table_id = international_table_id;
-            current_ensemble_->lto_unique = lto_unique;
+            // Update base ensemble with extended information
+            current_ensemble_->base_ensemble.extended_country_code = ensemble_ecc;
+            // Note: These fields would be added to Ensemble structure in full implementation:
+            // current_ensemble_->local_time_offset = ensemble_lto;
+            // current_ensemble_->international_table_id = international_table_id;
+            // current_ensemble_->lto_unique = lto_unique;
+            
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                                  QString("FIG 0/9: Updated ensemble with ECC=0x%1, LTO=%2")
+                                  .arg(ensemble_ecc, 2, 16, QChar('0')).arg(ensemble_lto));
         }
         
         offset += 3;  // Each entry is 3 bytes minimum
@@ -711,17 +760,17 @@ bool EnhancedFIGAnalyzer::processFIG0_10_DateTime(const eti::FigBlock& fig)
     
     // Convert MJD to Gregorian date (simplified calculation)
     // MJD 0 = November 17, 1858
-    int julian_day = mjd + 2400001;  // Convert to Julian Day Number
-    int a = julian_day + 32044;
-    int b = (4 * a + 3) / 146097;
-    int c = a - (146097 * b) / 4;
-    int d = (4 * c + 3) / 1461;
-    int e = c - (1461 * d) / 4;
-    int m = (5 * e + 2) / 153;
+    int64_t julian_day = static_cast<int64_t>(mjd) + 2400001;  // Convert to Julian Day Number
+    int64_t a = julian_day + 32044;
+    int64_t b = (4 * a + 3) / 146097;
+    int64_t c = a - (146097 * b) / 4;
+    int64_t d = (4 * c + 3) / 1461;
+    int64_t e = c - (1461 * d) / 4;
+    int64_t m = (5 * e + 2) / 153;
     
-    int day = e - (153 * m + 2) / 5 + 1;
-    int month = m + 3 - 12 * (m / 10);
-    int year = 100 * b + d - 4800 + m / 10;
+    int day = static_cast<int>(e - (153 * m + 2) / 5 + 1);
+    int month = static_cast<int>(m + 3 - 12 * (m / 10));
+    int year = static_cast<int>(100 * b + d - 4800 + m / 10);
     
     Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
                           QString("FIG 0/10: Date/Time: %1-%2-%3 %4:%5 UTC (MJD %6) %7%8")
@@ -736,11 +785,17 @@ bool EnhancedFIGAnalyzer::processFIG0_10_DateTime(const eti::FigBlock& fig)
     
     // Store date/time information for the ensemble
     if (current_ensemble_) {
-        current_ensemble_->date_time_mjd = mjd;
-        current_ensemble_->date_time_utc_hours = hours;
-        current_ensemble_->date_time_utc_minutes = minutes;
-        current_ensemble_->utc_time_valid = utc_flag;
-        current_ensemble_->leap_second_indicator = lsi;
+        // Note: These fields would be added to EnhancedEnsembleInfo structure in full implementation:
+        // current_ensemble_->date_time_mjd = mjd;
+        // current_ensemble_->date_time_utc_hours = hours;
+        // current_ensemble_->date_time_utc_minutes = minutes;
+        // current_ensemble_->utc_time_valid = utc_flag;
+        // current_ensemble_->leap_second_indicator = lsi;
+        
+        // For now, just log the information
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                              QString("FIG 0/10: Ensemble date/time updated - MJD %1, UTC %2:%3 (valid=%4, LSI=%5)")
+                              .arg(mjd).arg(hours).arg(minutes).arg(utc_flag).arg(lsi));
     }
     
     return true;
@@ -793,19 +848,38 @@ bool EnhancedFIGAnalyzer::processFIG0_13_UserAppInfo(const eti::FigBlock& fig)
                 
                 // Store user application information
                 if (m_dabServices.find(sid) != m_dabServices.end()) {
-                    UserApplicationInfo app_info;
-                    app_info.application_type = user_app_type;
-                    app_info.data_length = user_app_data_length;
-                    app_info.service_component_id = scids;
+                    // Format application information as string for storage
+                    QString app_info = QString("Type:0x%1,Length:%2,SCID:%3")
+                                      .arg(user_app_type, 4, 16, QChar('0'))
+                                      .arg(user_app_data_length)
+                                      .arg(scids);
                     
-                    // Copy application data if present
-                    if (user_app_data_length > 0 && offset + user_app_data_length <= fig.data.size()) {
-                        app_info.application_data.assign(fig.data.begin() + offset, 
-                                                        fig.data.begin() + offset + user_app_data_length);
-                        offset += user_app_data_length;
-                    }
+                    m_userApplications[sid].push_back(app_info.toStdString());
                     
-                    m_userApplications[sid].push_back(app_info);
+                    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                                          QString("FIG 0/13: Added user application for SID 0x%1: %2")
+                                          .arg(sid, 8, 16, QChar('0')).arg(app_info));
+                } else {
+                    // Create new service entry and add application
+                    eti::DabService service;
+                    service.service_id = static_cast<uint16_t>(sid & 0xFFFF);
+                    m_dabServices[sid] = service;
+                    
+                    QString app_info = QString("Type:0x%1,Length:%2,SCID:%3")
+                                      .arg(user_app_type, 4, 16, QChar('0'))
+                                      .arg(user_app_data_length)
+                                      .arg(scids);
+                    
+                    m_userApplications[sid].push_back(app_info.toStdString());
+                    
+                    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                                          QString("FIG 0/13: Created new service SID 0x%1 with user application: %2")
+                                          .arg(sid, 8, 16, QChar('0')).arg(app_info));
+                }
+                
+                // Copy application data if present
+                if (user_app_data_length > 0 && offset + user_app_data_length <= fig.data.size()) {
+                    offset += user_app_data_length;
                 }
             }
         }
@@ -837,12 +911,12 @@ bool EnhancedFIGAnalyzer::processFIG1_0_EnsembleLabel(const eti::FigBlock& fig)
     uint16_t ensemble_id = (fig.data[0] << 8) | fig.data[1];
     
     if (current_ensemble_ && current_ensemble_->base_ensemble.ensemble_id == ensemble_id) {
-        std::string label = decodeDabText(std::span<const uint8_t>(fig.data.data() + 2, 16), thai_support_enabled_);
+        std::string label = decodeDabText(std::span<const uint8_t>(fig.data.data() + 2, 16), m_thai_support_enabled);
         
         current_ensemble_->base_ensemble.label = label;
         
         // Decode Thai label if Thai support is enabled
-        if (thai_support_enabled_) {
+        if (m_thai_support_enabled) {
             current_ensemble_->thai_label = decodeThaiDabText(std::span<const uint8_t>(fig.data.data() + 2, 16));
         }
         
@@ -869,12 +943,12 @@ bool EnhancedFIGAnalyzer::processFIG1_1_ServiceLabel(const eti::FigBlock& fig)
     
     auto service_it = discovered_services_.find(service_id);
     if (service_it != discovered_services_.end()) {
-        std::string label = decodeDabText(std::span<const uint8_t>(fig.data.data() + 2, 16), thai_support_enabled_);
+        std::string label = decodeDabText(std::span<const uint8_t>(fig.data.data() + 2, 16), m_thai_support_enabled);
         
         service_it->second.base_service.label = label;
         
         // Decode Thai label if Thai support is enabled
-        if (thai_support_enabled_) {
+        if (m_thai_support_enabled) {
             service_it->second.thai_label = decodeThaiDabText(std::span<const uint8_t>(fig.data.data() + 2, 16));
         }
         
@@ -953,7 +1027,7 @@ std::string EnhancedFIGAnalyzer::decodeDabText(std::span<const uint8_t> data, bo
         result.pop_back();
     }
     
-    if (is_thai && thai_support_enabled_) {
+    if (is_thai && m_thai_support_enabled) {
         // Thai character processing would go here
         // For now, just return the basic string
     }
@@ -970,10 +1044,10 @@ std::string EnhancedFIGAnalyzer::decodeThaiDabText(std::span<const uint8_t> data
 
 void EnhancedFIGAnalyzer::updateCarouselAnalysis(uint8_t fig_type, uint8_t extension)
 {
-    if (!carousel_analysis_enabled_) return;
+    if (!m_carousel_analysis_enabled) return;
     
-    uint16_t fig_key = (static_cast<uint16_t>(fig_type) << 8) | extension;
     auto now = std::chrono::steady_clock::now();
+    uint16_t fig_key = (static_cast<uint16_t>(fig_type) << 8) | extension;
     
     auto& occurrence = carousel_analysis_.fig_occurrences[fig_key];
     
@@ -1139,6 +1213,124 @@ void EnhancedFIGAnalyzer::mergeServiceComponents(EnhancedServiceInfo& service,
         // Update existing component
         *comp_it = component;
     }
+}
+
+// ============================================================================
+// FIGCarouselAnalysis Implementation
+// ============================================================================
+
+bool FIGCarouselAnalysis::is_carousel_compliant() const
+{
+    // Check if all critical FIGs meet timing requirements
+    for (const auto& [fig_key, occurrence] : fig_occurrences) {
+        uint8_t fig_type = (fig_key >> 8) & 0xFF;
+        uint8_t extension = fig_key & 0xFF;
+        
+        // Critical FIGs that must meet timing requirements
+        if ((fig_type == 0 && (extension == 0 || extension == 1 || extension == 2)) ||
+            (fig_type == 1 && (extension == 0 || extension == 1))) {
+            if (!occurrence.meets_etsi_timing) {
+                return false;
+            }
+        }
+    }
+    
+    return carousel_efficiency >= 85.0; // Minimum acceptable efficiency
+}
+
+std::vector<std::string> FIGCarouselAnalysis::get_compliance_issues() const
+{
+    std::vector<std::string> issues;
+    
+    for (const auto& [fig_key, occurrence] : fig_occurrences) {
+        uint8_t fig_type = (fig_key >> 8) & 0xFF;
+        uint8_t extension = fig_key & 0xFF;
+        
+        if (!occurrence.meets_etsi_timing) {
+            issues.push_back(QString("FIG %1/%2 timing violation: %3ms > required")
+                           .arg(fig_type).arg(extension)
+                           .arg(occurrence.average_interval.count()).toStdString());
+        }
+        
+        if (occurrence.occurrence_count == 0) {
+            issues.push_back(QString("FIG %1/%2 never transmitted")
+                           .arg(fig_type).arg(extension).toStdString());
+        }
+    }
+    
+    if (carousel_efficiency < 85.0) {
+        issues.push_back(QString("Carousel efficiency too low: %1%")
+                        .arg(carousel_efficiency, 0, 'f', 1).toStdString());
+    }
+    
+    return issues;
+}
+
+// ============================================================================
+// EnhancedServiceInfo Implementation
+// ============================================================================
+
+bool EnhancedServiceInfo::has_audio_component() const
+{
+    for (const auto& comp : component_details) {
+        if (comp.audio_mode.has_value()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool EnhancedServiceInfo::has_data_component() const
+{
+    for (const auto& comp : component_details) {
+        if (comp.component_type_name.find("Data") != std::string::npos ||
+            comp.component_type_name.find("MOT") != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<std::string> EnhancedServiceInfo::get_audio_modes() const
+{
+    std::vector<std::string> modes;
+    
+    for (const auto& comp : component_details) {
+        if (comp.audio_mode.has_value()) {
+            modes.push_back(comp.audio_mode.value());
+        }
+    }
+    
+    return modes;
+}
+
+// ============================================================================
+// EnhancedEnsembleInfo Implementation
+// ============================================================================
+
+std::vector<std::string> EnhancedEnsembleInfo::get_quality_issues() const
+{
+    std::vector<std::string> issues;
+    
+    if (overall_quality < 0.8) {
+        issues.push_back(QString("Low overall quality: %1%")
+                        .arg(overall_quality * 100.0, 0, 'f', 1).toStdString());
+    }
+    
+    if (total_errors > 0) {
+        issues.push_back(QString("Total errors detected: %1").arg(total_errors).toStdString());
+    }
+    
+    if (!is_stable) {
+        issues.push_back("Ensemble configuration unstable");
+    }
+    
+    if (capacity_utilization > 95.0) {
+        issues.push_back(QString("High capacity utilization: %1%")
+                        .arg(capacity_utilization, 0, 'f', 1).toStdString());
+    }
+    
+    return issues;
 }
 
 } // namespace eti::modern

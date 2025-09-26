@@ -30,7 +30,11 @@ set(E2E_LIB_SOURCES
     ../../src/gui/eti_service_tree_model.cpp
     ../../src/gui/eti_frame_list_model.cpp
     ../../src/gui/fig_analysis_widget.cpp
+    ../../src/gui/professional_workflow_manager.cpp
     ../../src/core/eti_processor.cpp
+    ../../src/core/modern_eti_frame_parser.cpp
+    ../../src/core/enhanced_fig_analyzer.cpp
+    ../../src/core/comprehensive_etsi_validator.cpp
 
     ../../src/core/eti_file_worker.cpp
     ../../src/core/eti_types.cpp
@@ -46,7 +50,7 @@ set(E2E_LIB_SOURCES
 
 add_executable(test_file_opening_workflow test_eti_file_opening.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_file_opening_workflow PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_file_opening_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport  ${CMAKE_DL_LIBS})
+target_link_libraries(test_file_opening_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport Qt6::Network ${CMAKE_DL_LIBS})
 target_include_directories(test_file_opening_workflow PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils )
 target_compile_definitions(test_file_opening_workflow PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 
@@ -56,7 +60,7 @@ set_tests_properties(FileOpeningWorkflow PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM
 # Create mandatory workflow coverage test target
 add_executable(test_mandatory_workflow_coverage test_mandatory_workflow_coverage.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_mandatory_workflow_coverage PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_mandatory_workflow_coverage Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport ${CMAKE_DL_LIBS})
+target_link_libraries(test_mandatory_workflow_coverage Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport Qt6::Network ${CMAKE_DL_LIBS})
 target_include_directories(test_mandatory_workflow_coverage PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils)
 target_compile_definitions(test_mandatory_workflow_coverage PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 
@@ -70,7 +74,7 @@ set(CMAKE_CTEST_ARGUMENTS "--output-on-failure")
 # ETI File Processing Test
 add_executable(test_eti_file_processing_workflow test_eti_file_processing.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_eti_file_processing_workflow PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_eti_file_processing_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport ${CMAKE_DL_LIBS})
+target_link_libraries(test_eti_file_processing_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport Qt6::Network ${CMAKE_DL_LIBS})
 target_include_directories(test_eti_file_processing_workflow PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils)
 target_compile_definitions(test_eti_file_processing_workflow PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 
@@ -80,7 +84,7 @@ set_tests_properties(ETIFileProcessingWorkflow PROPERTIES ENVIRONMENT "QT_QPA_PL
 # Service Discovery Test
 add_executable(test_service_discovery_workflow test_service_discovery.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_service_discovery_workflow PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_service_discovery_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport ${CMAKE_DL_LIBS})
+target_link_libraries(test_service_discovery_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport Qt6::Network ${CMAKE_DL_LIBS})
 target_include_directories(test_service_discovery_workflow PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils)
 target_compile_definitions(test_service_discovery_workflow PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 
@@ -90,7 +94,7 @@ set_tests_properties(ServiceDiscoveryWorkflow PROPERTIES ENVIRONMENT "QT_QPA_PLA
 # GUI Integration Test
 add_executable(test_gui_integration_workflow test_gui_integration.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_gui_integration_workflow PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_gui_integration_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport ${CMAKE_DL_LIBS})
+target_link_libraries(test_gui_integration_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport Qt6::Network ${CMAKE_DL_LIBS})
 target_include_directories(test_gui_integration_workflow PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils)
 target_compile_definitions(test_gui_integration_workflow PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 
@@ -100,7 +104,7 @@ set_tests_properties(GUIIntegrationWorkflow PROPERTIES ENVIRONMENT "QT_QPA_PLATF
 # Frame Analysis Test
 add_executable(test_frame_analysis_workflow test_frame_analysis.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_frame_analysis_workflow PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_frame_analysis_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport ${CMAKE_DL_LIBS})
+target_link_libraries(test_frame_analysis_workflow Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport Qt6::Network ${CMAKE_DL_LIBS})
 target_include_directories(test_frame_analysis_workflow PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils)
 target_compile_definitions(test_frame_analysis_workflow PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 
@@ -110,7 +114,7 @@ set_tests_properties(FrameAnalysisWorkflow PROPERTIES ENVIRONMENT "QT_QPA_PLATFO
 # Additional Qt Test Framework Tests
 add_executable(test_main_window_workflows test_main_window_workflows.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_main_window_workflows PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_main_window_workflows Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport ${CMAKE_DL_LIBS})
+target_link_libraries(test_main_window_workflows Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport Qt6::Network ${CMAKE_DL_LIBS})
 target_include_directories(test_main_window_workflows PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils )
 target_compile_definitions(test_main_window_workflows PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME MainWindowWorkflows COMMAND test_main_window_workflows)
@@ -118,7 +122,7 @@ set_tests_properties(MainWindowWorkflows PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM
 
 add_executable(test_file_operations test_file_operations.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_file_operations PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_file_operations Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport ${CMAKE_DL_LIBS})
+target_link_libraries(test_file_operations Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport Qt6::Network ${CMAKE_DL_LIBS})
 target_include_directories(test_file_operations PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils )
 target_compile_definitions(test_file_operations PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME FileOperations COMMAND test_file_operations)
@@ -126,7 +130,7 @@ set_tests_properties(FileOperations PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offs
 
 add_executable(test_menu_interactions test_menu_interactions.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_menu_interactions PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_menu_interactions Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport ${CMAKE_DL_LIBS})
+target_link_libraries(test_menu_interactions Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport Qt6::Network ${CMAKE_DL_LIBS})
 target_include_directories(test_menu_interactions PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils )
 target_compile_definitions(test_menu_interactions PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME MenuInteractions COMMAND test_menu_interactions)
@@ -134,7 +138,7 @@ set_tests_properties(MenuInteractions PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=of
 
 add_executable(test_comprehensive_workflows test_comprehensive_workflows.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_comprehensive_workflows PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_comprehensive_workflows Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport ${CMAKE_DL_LIBS})
+target_link_libraries(test_comprehensive_workflows Qt6::Core Qt6::Widgets Qt6::Test Qt6::PrintSupport Qt6::Network ${CMAKE_DL_LIBS})
 target_include_directories(test_comprehensive_workflows PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils )
 target_compile_definitions(test_comprehensive_workflows PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME ComprehensiveWorkflows COMMAND test_comprehensive_workflows)
@@ -145,7 +149,7 @@ set_tests_properties(ComprehensiveWorkflows PROPERTIES ENVIRONMENT "QT_QPA_PLATF
 
 add_executable(test_user_workflow_patterns test_user_workflow_patterns.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_user_workflow_patterns PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_user_workflow_patterns Qt6::Core Qt6::Widgets Qt6::Test gtest gtest_main gmock ${CMAKE_DL_LIBS})
+target_link_libraries(test_user_workflow_patterns Qt6::Core Qt6::Widgets Qt6::Test Qt6::Network gtest gtest_main gmock ${CMAKE_DL_LIBS})
 target_include_directories(test_user_workflow_patterns PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils  .. ../fixtures ../mocks)
 target_compile_definitions(test_user_workflow_patterns PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME UserWorkflowPatterns COMMAND test_user_workflow_patterns)
@@ -153,7 +157,7 @@ set_tests_properties(UserWorkflowPatterns PROPERTIES ENVIRONMENT "QT_QPA_PLATFOR
 
 add_executable(test_panel_interactions test_panel_interactions.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_panel_interactions PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_panel_interactions Qt6::Core Qt6::Widgets Qt6::Test gtest gtest_main gmock ${CMAKE_DL_LIBS})
+target_link_libraries(test_panel_interactions Qt6::Core Qt6::Widgets Qt6::Test Qt6::Network gtest gtest_main gmock ${CMAKE_DL_LIBS})
 target_include_directories(test_panel_interactions PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils )
 target_compile_definitions(test_panel_interactions PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME PanelInteractions COMMAND test_panel_interactions)
@@ -161,7 +165,7 @@ set_tests_properties(PanelInteractions PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=o
 
 add_executable(test_performance_validation test_performance_validation.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_performance_validation PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_performance_validation Qt6::Core Qt6::Widgets Qt6::Test gtest gtest_main gmock ${CMAKE_DL_LIBS})
+target_link_libraries(test_performance_validation Qt6::Core Qt6::Widgets Qt6::Test Qt6::Network gtest gtest_main gmock ${CMAKE_DL_LIBS})
 target_include_directories(test_performance_validation PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils )
 target_compile_definitions(test_performance_validation PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME PerformanceValidation COMMAND test_performance_validation)
@@ -169,7 +173,7 @@ set_tests_properties(PerformanceValidation PROPERTIES ENVIRONMENT "QT_QPA_PLATFO
 
 add_executable(test_etsi_compliance_validation test_etsi_compliance_validation.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_etsi_compliance_validation PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_etsi_compliance_validation Qt6::Core Qt6::Widgets Qt6::Test gtest gtest_main gmock ${CMAKE_DL_LIBS})
+target_link_libraries(test_etsi_compliance_validation Qt6::Core Qt6::Widgets Qt6::Test Qt6::Network gtest gtest_main gmock ${CMAKE_DL_LIBS})
 target_include_directories(test_etsi_compliance_validation PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils )
 target_compile_definitions(test_etsi_compliance_validation PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME ETSIComplianceValidation COMMAND test_etsi_compliance_validation)
@@ -178,7 +182,7 @@ set_tests_properties(ETSIComplianceValidation PROPERTIES ENVIRONMENT "QT_QPA_PLA
 # Modern ETI Core Engine GUI Integration Tests
 add_executable(test_gui_modern_eti_integration ../gui/test_gui_modern_eti_integration.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_gui_modern_eti_integration PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_gui_modern_eti_integration Qt6::Core Qt6::Widgets Qt6::Test gtest gtest_main gmock ${CMAKE_DL_LIBS})
+target_link_libraries(test_gui_modern_eti_integration Qt6::Core Qt6::Widgets Qt6::Test Qt6::Network gtest gtest_main gmock ${CMAKE_DL_LIBS})
 target_include_directories(test_gui_modern_eti_integration PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils  .. ../fixtures ../mocks)
 target_compile_definitions(test_gui_modern_eti_integration PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME GUIModernETIIntegration COMMAND test_gui_modern_eti_integration)
@@ -186,7 +190,7 @@ set_tests_properties(GUIModernETIIntegration PROPERTIES ENVIRONMENT "QT_QPA_PLAT
 
 add_executable(test_service_tree_performance ../gui/test_service_tree_performance.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_service_tree_performance PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_service_tree_performance Qt6::Core Qt6::Widgets Qt6::Test gtest gtest_main gmock ${CMAKE_DL_LIBS})
+target_link_libraries(test_service_tree_performance Qt6::Core Qt6::Widgets Qt6::Test Qt6::Network gtest gtest_main gmock ${CMAKE_DL_LIBS})
 target_include_directories(test_service_tree_performance PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils  .. ../fixtures ../mocks)
 target_compile_definitions(test_service_tree_performance PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME ServiceTreePerformance COMMAND test_service_tree_performance)
@@ -194,7 +198,7 @@ set_tests_properties(ServiceTreePerformance PROPERTIES ENVIRONMENT "QT_QPA_PLATF
 
 add_executable(test_performance_dashboard_validation ../gui/test_performance_dashboard_validation.cpp ${E2E_LIB_SOURCES})
 set_target_properties(test_performance_dashboard_validation PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(test_performance_dashboard_validation Qt6::Core Qt6::Widgets Qt6::Test gtest gtest_main gmock ${CMAKE_DL_LIBS})
+target_link_libraries(test_performance_dashboard_validation Qt6::Core Qt6::Widgets Qt6::Test Qt6::Network gtest gtest_main gmock ${CMAKE_DL_LIBS})
 target_include_directories(test_performance_dashboard_validation PRIVATE ../../src ../../src/gui ../../src/core ../../src/utils  .. ../fixtures ../mocks)
 target_compile_definitions(test_performance_dashboard_validation PRIVATE QT_TESTCASE_BUILDDIR="${CMAKE_CURRENT_BINARY_DIR}" TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data" ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../eti")
 add_test(NAME PerformanceDashboardValidation COMMAND test_performance_dashboard_validation)

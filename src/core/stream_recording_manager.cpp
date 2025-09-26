@@ -931,8 +931,10 @@ void StreamRecordingManager::set_default_segmentation_config(const SegmentationC
     m_default_config = config;
     
     // Apply to all active recording sessions
-    QMutexLocker locker(&m_sessionsMutex);
-    for (auto& [session_id, session] : m_activeSessions) {
+    QMutexLocker locker(&m_sessions_mutex);
+    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        const QString& session_id = it.key();
+        RecordingSession& session = it.value();
         // Update session configuration if it was using default values
         if (session.segmentation.filename_pattern == "eti_%Y%m%d_%H%M%S") {
             session.segmentation = config;
@@ -942,26 +944,28 @@ void StreamRecordingManager::set_default_segmentation_config(const SegmentationC
     }
     
     // Update compression settings if configuration changed
-    if (config.enable_compression != m_compressionEnabled) {
+    if (config.enable_compression != m_realtime_compression) {
         enable_realtime_compression(config.enable_compression);
     }
     
     Logger::instance().log(Logger::Info, "StreamRecordingManager", 
                           QString("Default segmentation configuration applied to %1 active sessions")
-                          .arg(m_activeSessions.size()));
+                          .arg(m_sessions.size()));
 }
 
 void StreamRecordingManager::enable_realtime_compression(bool enabled) {
     Logger::instance().log(Logger::Info, "StreamRecordingManager", 
                           QString("Setting realtime compression: %1").arg(enabled ? "enabled" : "disabled"));
     
-    QMutexLocker locker(&m_sessionsMutex);
+    QMutexLocker locker(&m_sessions_mutex);
     
     // Store compression state
-    m_compressionEnabled = enabled;
+    m_realtime_compression = enabled;
     
     // Update all active recording sessions
-    for (auto& [session_id, session] : m_activeSessions) {
+    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        const QString& session_id = it.key();
+        RecordingSession& session = it.value();
         session.segmentation.enable_compression = enabled;
         
         Logger::instance().log(Logger::Debug, "StreamRecordingManager", 
@@ -969,7 +973,9 @@ void StreamRecordingManager::enable_realtime_compression(bool enabled) {
                               .arg(session_id).arg(enabled ? "enabled" : "disabled"));
     }
     
-    // Initialize compression worker thread if enabling compression
+    // TODO: Initialize compression worker thread if enabling compression
+    // Note: m_compressionWorker member variable needs to be declared in header
+    /*
     if (enabled && !m_compressionWorker) {
         // Start background compression thread for completed segments
         m_compressionWorker = std::make_unique<QThread>();
@@ -986,6 +992,7 @@ void StreamRecordingManager::enable_realtime_compression(bool enabled) {
         Logger::instance().log(Logger::Info, "StreamRecordingManager", 
                               "Stopped background compression worker thread");
     }
+    */
     
     // Update default configuration
     m_default_config.enable_compression = enabled;
@@ -993,7 +1000,7 @@ void StreamRecordingManager::enable_realtime_compression(bool enabled) {
     Logger::instance().log(Logger::Info, "StreamRecordingManager", 
                           QString("Realtime compression %1 for %2 active sessions")
                           .arg(enabled ? "enabled" : "disabled")
-                          .arg(m_activeSessions.size()));
+                          .arg(m_sessions.size()));
 }
 
 void StreamRecordingManager::set_compression_level(int level) {
@@ -1011,13 +1018,15 @@ void StreamRecordingManager::set_compression_level(int level) {
                                level <= 3 ? "fast compression" :
                                level <= 6 ? "balanced compression" : "max compression"));
     
-    QMutexLocker locker(&m_sessionsMutex);
+    QMutexLocker locker(&m_sessions_mutex);
     
     // Store compression level
-    m_compressionLevel = level;
+    m_compression_level = level;
     
     // Update compression settings for all active sessions
-    for (auto& [session_id, session] : m_activeSessions) {
+    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        const QString& session_id = it.key();
+        RecordingSession& session = it.value();
         // Store compression level in session metadata
         // Note: In a real implementation, this might be stored in session.compression_level
         Logger::instance().log(Logger::Debug, "StreamRecordingManager", 

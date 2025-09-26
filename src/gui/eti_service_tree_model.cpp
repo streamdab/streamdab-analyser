@@ -492,18 +492,18 @@ void EtiServiceTreeModel::addService(const ServiceInfo& service) {
     
     // Professional service value display with DAB technical details
     QString serviceValue = QString("SID: 0x%1").arg(QString::number(service.serviceId, 16).toUpper());
-    if (service.bitrate > 0) {
-        serviceValue += QString(" | %1 kbps").arg(service.bitrate);
+    if (service.bitRate > 0) {
+        serviceValue += QString(" | %1 kbps").arg(service.bitRate);
     }
-    serviceValue += QString(" | %1").arg(service.audioType == "DAB+" ? "DAB+" : "DAB");
+    serviceValue += QString(" | %1").arg(service.audioFormat == "DAB+" ? "DAB+" : "DAB");
     
     serviceItem->value = serviceValue;
     
     // Store service properties in metadata
     serviceItem->metadata["serviceId"] = service.serviceId;
     serviceItem->metadata["subChannelId"] = service.subChannelId;
-    serviceItem->metadata["bitrate"] = service.bitrate;
-    serviceItem->metadata["audioType"] = service.audioType;
+    serviceItem->metadata["bitRate"] = service.bitRate;
+    serviceItem->metadata["audioFormat"] = service.audioFormat;
     serviceItem->metadata["status"] = static_cast<int>(ServiceStatus::Active);
     serviceItem->metadata["lastUpdate"] = QDateTime::currentDateTime();
     serviceItem->parent = servicesGroup;
@@ -520,8 +520,8 @@ void EtiServiceTreeModel::addService(const ServiceInfo& service) {
     Logger::instance().log(Logger::Info, "EtiServiceTreeModel", 
                           QString("Successfully added DAB service: %1 with %2 kbps %3 audio")
                           .arg(service.serviceName)
-                          .arg(service.bitrate)
-                          .arg(service.audioType));
+                          .arg(service.bitRate)
+                          .arg(service.audioFormat));
 }
 
 void EtiServiceTreeModel::updateFIGData(const FigAnalysis& figAnalysis) {
@@ -529,7 +529,7 @@ void EtiServiceTreeModel::updateFIGData(const FigAnalysis& figAnalysis) {
                           QString("Updating FIG data: %1 (Type %2/%3)")
                           .arg(figAnalysis.figName)
                           .arg(figAnalysis.figType)
-                          .arg(figAnalysis.figExtension));
+                          .arg(figAnalysis.figName));
     
     if (!m_rootItem) {
         createTreeStructure();
@@ -559,7 +559,7 @@ void EtiServiceTreeModel::updateFIGData(const FigAnalysis& figAnalysis) {
     }
     
     // Create unique FIG identifier for tracking
-    QString figIdentifier = QString("FIG %1/%2").arg(figAnalysis.figType).arg(figAnalysis.figExtension);
+    QString figIdentifier = QString("FIG %1").arg(figAnalysis.figType);
     
     // Check if FIG item already exists (update existing or create new)
     std::shared_ptr<TreeItem> figItem = nullptr;
@@ -592,34 +592,154 @@ void EtiServiceTreeModel::updateFIGData(const FigAnalysis& figAnalysis) {
     }
     
     // Update FIG item with current analysis data
-    figItem->value = QString("%1 | %2 bytes | %3")
+    figItem->value = QString("%1 | %2 | Status: %3")
                     .arg(figAnalysis.figName)
-                    .arg(figAnalysis.dataLength)
-                    .arg(figAnalysis.isValid ? "Valid" : "Invalid");
+                    .arg(figAnalysis.description)
+                    .arg(figAnalysis.complianceStatus == ServiceStatus::Active ? "Valid" : "Invalid");
     
-    figItem->figType = figAnalysis.figType;
-    figItem->figExtension = figAnalysis.figExtension;
-    figItem->dataLength = figAnalysis.dataLength;
-    figItem->status = figAnalysis.isValid ? ServiceStatus::Active : ServiceStatus::Error;
+    // Update TreeItem with available FigAnalysis data
+    figItem->status = (figAnalysis.complianceStatus == ServiceStatus::Active) ? ServiceStatus::Active : ServiceStatus::Error;
     figItem->lastUpdate = QDateTime::currentDateTime();
     
     // Update display for existing item
-    if (figItem->parent) {
-        auto parentIndex = createIndex(0, 0, figItem->parent.get());
+    auto parent = figItem->parent.lock();
+    if (parent) {
+        auto parentIndex = createIndex(0, 0, parent.get());
         auto figIndex = createIndex(
-            static_cast<int>(std::distance(figItem->parent->children.begin(),
-                                         std::find(figItem->parent->children.begin(),
-                                                  figItem->parent->children.end(), figItem))),
+            static_cast<int>(std::distance(parent->children.begin(),
+                                         std::find(parent->children.begin(),
+                                                  parent->children.end(), figItem))),
             0, figItem.get());
         
         emit dataChanged(figIndex, figIndex, {Qt::DisplayRole, Qt::UserRole});
     }
     
     Logger::instance().log(Logger::Info, "EtiServiceTreeModel", 
-                          QString("Updated FIG %1/%2: %3 (%4 bytes, %5)")
+                          QString("Updated FIG %1: %2 (%3, Status: %4)")
                           .arg(figAnalysis.figType)
-                          .arg(figAnalysis.figExtension)
                           .arg(figAnalysis.figName)
-                          .arg(figAnalysis.dataLength)
-                          .arg(figAnalysis.isValid ? "Valid" : "Invalid"));
+                          .arg(figAnalysis.description)
+                          .arg(figAnalysis.complianceStatus == ServiceStatus::Active ? "Valid" : "Invalid"));
+}
+
+void EtiServiceTreeModel::onFigAnalysisReady(const QVariantMap& figData)
+{
+    // Extract FIG analysis information from the variant map
+    QString figType = figData.value("figType", "Unknown").toString();
+    QString figExtension = figData.value("figExtension", "0").toString();
+    QString figName = figData.value("figName", "FIG Data").toString();
+    QString description = figData.value("description", "FIG Analysis Result").toString();
+    bool isValid = figData.value("isValid", true).toBool();
+    QDateTime timestamp = figData.value("timestamp", QDateTime::currentDateTime()).toDateTime();
+    
+    // Create simplified FIG analysis data
+    int figTypeInt = figType.toInt();
+    int figExtensionInt = figExtension.toInt();
+    ServiceStatus complianceStatus = isValid ? ServiceStatus::Active : ServiceStatus::Error;
+    
+    // Find or create FIG node in the tree
+    std::shared_ptr<TreeItem> figItem;
+    std::shared_ptr<TreeItem> ensembleItem = m_ensembleItem;
+    
+    if (!ensembleItem) {
+        // Create a default ensemble if none exists
+        ensembleItem = std::make_shared<TreeItem>(ItemType::Ensemble);
+        ensembleItem->name = QString("Auto-detected Ensemble");
+        ensembleItem->metadata["ensembleId"] = QString("Ensemble_%1").arg(figTypeInt);
+        ensembleItem->metadata["ensembleName"] = QString("Auto-detected Ensemble");
+        ensembleItem->metadata["timestamp"] = timestamp;
+        
+        beginInsertRows(QModelIndex(), m_rootItem->children.size(), m_rootItem->children.size());
+        m_rootItem->children.push_back(ensembleItem);
+        ensembleItem->parent = m_rootItem;
+        endInsertRows();
+        
+        m_ensembleItem = ensembleItem;
+        
+        Logger::instance().log(Logger::Info, "EtiServiceTreeModel",
+                              "Created auto-detected ensemble for FIG analysis");
+    }
+    
+    // Find existing FIG item or create new one
+    auto fig_key = QString("FIG_%1_%2").arg(figTypeInt).arg(figExtensionInt);
+    
+    // Check if FIG item already exists
+    figItem = nullptr;
+    for (const auto& child : ensembleItem->children) {
+        if (child->type == ItemType::FigData && 
+            child->metadata.value("figKey").toString() == fig_key) {
+            figItem = child;
+            break;
+        }
+    }
+    
+    if (!figItem) {
+        // Create new FIG item
+        figItem = std::make_shared<TreeItem>(ItemType::FigData);
+        figItem->name = figName;
+        figItem->description = description;
+        figItem->status = complianceStatus;
+        figItem->lastUpdate = timestamp;
+        figItem->metadata["figKey"] = fig_key;
+        figItem->metadata["figType"] = figTypeInt;
+        figItem->metadata["figExtension"] = figExtensionInt;
+        figItem->metadata["figName"] = figName;
+        figItem->metadata["description"] = description;
+        figItem->metadata["complianceStatus"] = static_cast<int>(complianceStatus);
+        figItem->metadata["timestamp"] = timestamp;
+        figItem->metadata["figData"] = figData;
+        
+        auto parent_index = createIndex(0, 0, ensembleItem.get());
+        beginInsertRows(parent_index, ensembleItem->children.size(), ensembleItem->children.size());
+        ensembleItem->children.push_back(figItem);
+        figItem->parent = ensembleItem;
+        endInsertRows();
+        
+        Logger::instance().log(Logger::Info, "EtiServiceTreeModel",
+                              QString("Created new FIG item: %1 (%2)")
+                              .arg(figName)
+                              .arg(fig_key));
+    } else {
+        // Update existing FIG item
+        figItem->name = figName;
+        figItem->description = description;
+        figItem->status = complianceStatus;
+        figItem->lastUpdate = timestamp;
+        figItem->metadata["figName"] = figName;
+        figItem->metadata["description"] = description;
+        figItem->metadata["complianceStatus"] = static_cast<int>(complianceStatus);
+        figItem->metadata["timestamp"] = timestamp;
+        figItem->metadata["figData"] = figData;
+        
+        // Notify views of data change
+        auto parent = figItem->parent.lock();
+        if (parent) {
+            auto parentIndex = createIndex(0, 0, parent.get());
+            auto figIndex = createIndex(
+                static_cast<int>(std::distance(parent->children.begin(),
+                                             std::find(parent->children.begin(),
+                                                      parent->children.end(), figItem))),
+                0, figItem.get());
+            
+            emit dataChanged(figIndex, figIndex, {Qt::DisplayRole, Qt::UserRole});
+        }
+        
+        Logger::instance().log(Logger::Debug, "EtiServiceTreeModel",
+                              QString("Updated existing FIG item: %1 (%2)")
+                              .arg(figName)
+                              .arg(fig_key));
+    }
+    
+    // Note: Statistics update would be implemented here if needed
+    // updateStatistics(); // Method not implemented yet
+    
+    // Note: Statistics signal would be emitted here if needed  
+    // emit statisticsChanged(getServiceStatistics()); // Method not implemented yet
+    
+    Logger::instance().log(Logger::Info, "EtiServiceTreeModel",
+                          QString("Processed FIG analysis: %1.%2 - %3 (Valid: %4)")
+                          .arg(figTypeInt)
+                          .arg(figExtensionInt)
+                          .arg(figName)
+                          .arg(isValid ? "Yes" : "No"));
 }

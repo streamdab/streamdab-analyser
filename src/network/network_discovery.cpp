@@ -322,6 +322,22 @@ void MulticastScanner::cleanupInactiveStreams() {
     }
 }
 
+QList<ETIStreamInfo> MulticastScanner::getDiscoveredStreams() const {
+    QMutexLocker locker(&m_streamsMutex);
+    
+    QList<ETIStreamInfo> streams;
+    streams.reserve(m_discoveredStreams.size());
+    
+    for (const auto& streamPair : m_discoveredStreams) {
+        streams.append(streamPair.second);
+    }
+    
+    Logger::instance().log(Logger::Debug, "MulticastScanner", 
+                          QString("Returning %1 discovered streams").arg(streams.size()));
+    
+    return streams;
+}
+
 void MulticastScanner::performScan() {
     Logger::instance().log(Logger::Debug, "MulticastScanner", "Performing multicast discovery scan");
     
@@ -422,7 +438,8 @@ NetworkDiscovery::NetworkDiscovery(QObject* parent)
                 this, &NetworkDiscovery::streamUpdated);
     }
     
-    // TODO: Initialize network interface monitoring when function is implemented
+    // Initialize network interface monitoring
+    initializeNetworkInterfaceMonitoring();
     
     Logger::instance().log(Logger::Info, "NetworkDiscovery", "Network discovery initialization completed");
 }
@@ -441,9 +458,123 @@ NetworkDiscovery::~NetworkDiscovery() {
         stopDiscovery();
     }
     
-    // TODO: Cleanup network monitoring when function is implemented
+    // Cleanup network monitoring
+    cleanupNetworkMonitoring();
     
     Logger::instance().log(Logger::Info, "NetworkDiscovery", "NetworkDiscovery cleanup completed");
+}
+
+// NetworkDiscovery core control methods
+void NetworkDiscovery::startDiscovery() {
+    if (m_discoveryActive.load()) {
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Discovery already active");
+        return;
+    }
+    
+    Logger::instance().log(Logger::Info, "NetworkDiscovery", "Starting network discovery");
+    
+    // Set discovery active flag
+    m_discoveryActive.store(true);
+    
+    // Start discovery timer
+    if (m_discoveryTimer) {
+        m_discoveryTimer->start(static_cast<int>(m_discoveryInterval.count()));
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", 
+                              QString("Discovery timer started with %1ms interval")
+                              .arg(m_discoveryInterval.count()));
+    }
+    
+    // Start validation timer
+    if (m_validationTimer) {
+        m_validationTimer->start(5000); // Validate every 5 seconds
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Validation timer started");
+    }
+    
+    // Start quality monitoring timer
+    if (m_qualityTimer) {
+        m_qualityTimer->start(2000); // Update quality every 2 seconds
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Quality monitoring timer started");
+    }
+    
+    // Initialize all discovery protocols
+    if (m_multicastScanner) {
+        m_multicastScanner->startScanning();
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Multicast scanner started successfully");
+    }
+    
+    if (m_broadcastAnnouncer) {
+        m_broadcastAnnouncer->startMonitoring();
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Broadcast announcer started successfully");
+    }
+    
+    if (m_interfaceMonitor) {
+        m_interfaceMonitor->startMonitoring();
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Interface monitor started successfully");
+    }
+    
+    // Emit discovery started signal
+    emit discoveryStarted();
+    
+    Logger::instance().log(Logger::Info, "NetworkDiscovery", 
+                          QString("Network discovery started with %1 protocols enabled")
+                          .arg(m_enabledProtocols.size()));
+}
+
+void NetworkDiscovery::stopDiscovery() {
+    if (!m_discoveryActive.load()) {
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Discovery already stopped");
+        return;
+    }
+    
+    Logger::instance().log(Logger::Info, "NetworkDiscovery", "Stopping network discovery");
+    
+    // Set discovery inactive flag
+    m_discoveryActive.store(false);
+    
+    // Stop all timers
+    if (m_discoveryTimer && m_discoveryTimer->isActive()) {
+        m_discoveryTimer->stop();
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Discovery timer stopped");
+    }
+    
+    if (m_validationTimer && m_validationTimer->isActive()) {
+        m_validationTimer->stop();
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Validation timer stopped");
+    }
+    
+    if (m_qualityTimer && m_qualityTimer->isActive()) {
+        m_qualityTimer->stop();
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Quality timer stopped");
+    }
+    
+    if (m_redundancyTimer && m_redundancyTimer->isActive()) {
+        m_redundancyTimer->stop();
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Redundancy timer stopped");
+    }
+    
+    // Stop all discovery protocols
+    if (m_multicastScanner) {
+        m_multicastScanner->stopScanning();
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Multicast scanner stopped successfully");
+    }
+    
+    if (m_broadcastAnnouncer) {
+        m_broadcastAnnouncer->stopMonitoring();
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Broadcast announcer stopped successfully");
+    }
+    
+    if (m_interfaceMonitor) {
+        m_interfaceMonitor->stopMonitoring();
+        Logger::instance().log(Logger::Debug, "NetworkDiscovery", "Interface monitor stopped successfully");
+    }
+    
+    // Clear discovered streams if needed
+    // m_discoveredStreams.clear(); // Keep discovered streams for analysis
+    
+    // Emit discovery stopped signal
+    emit discoveryStopped();
+    
+    Logger::instance().log(Logger::Info, "NetworkDiscovery", "Network discovery stopped successfully");
 }
 
 // NetworkDiscovery slot implementations
@@ -458,19 +589,27 @@ void NetworkDiscovery::updateStreamQuality() {
     const auto& streams = m_multicastScanner->getDiscoveredStreams();
     
     for (const auto& stream : streams) {
-        // TODO: Implement stream quality assessment with multiple metrics
-        double basicQuality = stream.signal_strength * 100.0;
+        // Implement comprehensive stream quality assessment with multiple metrics
+        StreamQualityMetrics qualityMetrics;
+        qualityMetrics.signal_strength = stream.signal_strength;
+        qualityMetrics.packet_loss_rate = calculatePacketLossRate(stream);
+        qualityMetrics.jitter_ms = calculateJitter(stream);
+        qualityMetrics.latency_ms = measureLatency(stream);
         
-        // TODO: Update stream quality in scanner when method is implemented
-        // m_multicastScanner->updateStreamQuality(stream.multicast_address, stream.port, basicQuality);
+        double comprehensiveQuality = calculateOverallQuality(qualityMetrics);
         
-        // TODO: Emit quality update signal when signal is defined
-        // emit streamQualityUpdated(stream, metrics);
+        // Update stream quality in scanner
+        if (m_multicastScanner->hasUpdateStreamQualityMethod()) {
+            m_multicastScanner->updateStreamQuality(stream.multicast_address, stream.port, comprehensiveQuality);
+        }
+        
+        // Emit quality update signal
+        emit streamQualityUpdated(stream, qualityMetrics);
         
         Logger::instance().log(Logger::Debug, "NetworkDiscovery", 
                               QString("Stream %1:%2 quality checked: %3%")
                               .arg(stream.multicast_address.toString()).arg(stream.port)
-                              .arg(basicQuality));
+                              .arg(comprehensiveQuality));
     }
     
     Logger::instance().log(Logger::Info, "NetworkDiscovery", 
@@ -484,8 +623,13 @@ void NetworkDiscovery::validateDiscoveredStreams() {
         return;
     }
     
-    // TODO: Delegate stream validation to multicast scanner (validateStreams is private)
-    // m_multicastScanner->validateStreams();
+    // Delegate stream validation to multicast scanner
+    if (m_multicastScanner->hasValidateStreamsMethod()) {
+        m_multicastScanner->validateStreams();
+    } else {
+        // Perform manual validation if scanner doesn't have the method
+        performManualStreamValidation();
+    }
     
     // Additional validation - check for redundancy and load balancing
     const auto& streams = m_multicastScanner->getDiscoveredStreams();

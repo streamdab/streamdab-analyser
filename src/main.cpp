@@ -32,6 +32,7 @@
 
 // Application headers
 #include "gui/main_window.h"
+#include "core/headless_eti_processor.h"
 #include "utils/config_manager.h"
 #include "utils/logger.h"
 
@@ -47,7 +48,7 @@ Q_LOGGING_CATEGORY(etiMain, "eti.main")
 /**
  * @brief Parse command line arguments
  */
-void parseCommandLineArguments(const QApplication& app)
+bool parseCommandLineArguments(const QApplication& app, QString& inputFile, QString& outputFile, bool& headlessMode)
 {
     QCommandLineParser parser;
     parser.setApplicationDescription("ETI Stream Analyzer - Professional DAB/DAB+ Analysis Tool");
@@ -62,6 +63,19 @@ void parseCommandLineArguments(const QApplication& app)
                                     "Configuration file path", "file");
     parser.addOption(configOption);
 
+    // Headless mode options
+    QCommandLineOption headlessOption(QStringList() << "headless" << "batch",
+                                     "Run in headless mode without GUI");
+    parser.addOption(headlessOption);
+
+    QCommandLineOption inputOption(QStringList() << "i" << "input",
+                                  "Input ETI file to process", "file");
+    parser.addOption(inputOption);
+
+    QCommandLineOption outputOption(QStringList() << "o" << "output",
+                                   "Output analysis file (YAML/JSON)", "file");
+    parser.addOption(outputOption);
+
     parser.process(app);
 
     if (parser.isSet(debugOption)) {
@@ -73,6 +87,32 @@ void parseCommandLineArguments(const QApplication& app)
         QString configFile = parser.value(configOption);
         qCDebug(etiMain) << "Using config file:" << configFile;
     }
+
+    // Check for headless mode
+    headlessMode = parser.isSet(headlessOption);
+    if (headlessMode) {
+        qCInfo(etiMain) << "Headless mode enabled";
+        
+        if (!parser.isSet(inputOption)) {
+            qCCritical(etiMain) << "Headless mode requires input file (-i/--input)";
+            parser.showHelp(1);
+            return false;
+        }
+        
+        inputFile = parser.value(inputOption);
+        outputFile = parser.value(outputOption);
+        
+        if (outputFile.isEmpty()) {
+            // Default output file based on input file
+            QFileInfo inputInfo(inputFile);
+            outputFile = inputInfo.path() + "/" + inputInfo.baseName() + "_analysis.yaml";
+        }
+        
+        qCInfo(etiMain) << "Input file:" << inputFile;
+        qCInfo(etiMain) << "Output file:" << outputFile;
+    }
+
+    return true;
 }
 
 /**
@@ -171,7 +211,12 @@ int main(int argc, char *argv[])
     platformSpecificInit();
     
     // Parse command line arguments
-    parseCommandLineArguments(app);
+    QString inputFile, outputFile;
+    bool headlessMode = false;
+    
+    if (!parseCommandLineArguments(app, inputFile, outputFile, headlessMode)) {
+        return -1; // Parsing failed or help was shown
+    }
     
     // Initialize application directories
     initializeApplicationDirectories();
@@ -190,26 +235,68 @@ int main(int argc, char *argv[])
         Logger::instance().enableLogging(true);
         Logger::instance().initialize();
         
-        // Test with actual MainWindow and initialization
-        qCInfo(etiMain) << "Creating MainWindow...";
-        MainWindow mainWindow;
-        qCInfo(etiMain) << "MainWindow created, calling initialize()...";
-        
-        if (!mainWindow.initialize()) {
-            qCCritical(etiMain) << "Failed to initialize main window";
-            QMessageBox::critical(nullptr, "Initialization Error",
-                "Failed to initialize the main window. Please check the logs for details.");
-            return -1;
+        // Check if running in headless mode
+        if (headlessMode) {
+            qCInfo(etiMain) << "Running in headless mode";
+            qCInfo(etiMain) << "Input file:" << inputFile;
+            qCInfo(etiMain) << "Output file:" << outputFile;
+            
+            // Create headless processor
+            HeadlessETIProcessor processor;
+            
+            // Connect progress signals for console output
+            QObject::connect(&processor, &HeadlessETIProcessor::status_changed,
+                           [](const QString& status) {
+                               qCInfo(etiMain) << "Status:" << status;
+                           });
+                           
+            QObject::connect(&processor, &HeadlessETIProcessor::progress_changed,
+                           [](double progress) {
+                               qCInfo(etiMain) << "Progress:" << QString::number(progress * 100, 'f', 1) << "%";
+                           });
+            
+            // Process the file
+            qCInfo(etiMain) << "Starting headless ETI processing...";
+            auto result = processor.process_file(inputFile, outputFile);
+            
+            if (result.success) {
+                qCInfo(etiMain) << "Processing completed successfully";
+                qCInfo(etiMain) << "Frames processed:" << result.processedFrames << "/" << result.totalFrames;
+                qCInfo(etiMain) << "Processing time:" << result.processingTimeMs << "ms";
+                qCInfo(etiMain) << "Average FPS:" << QString::number(result.averageFPS, 'f', 2);
+                qCInfo(etiMain) << "Services found:" << result.servicesFound;
+                qCInfo(etiMain) << "ETSI compliant:" << (result.etsiCompliant ? "Yes" : "No");
+                qCInfo(etiMain) << "Results saved to:" << outputFile;
+                return 0;
+            } else {
+                qCCritical(etiMain) << "Processing failed:" << result.errorMessage;
+                return -1;
+            }
+        } else {
+            // GUI mode
+            qCInfo(etiMain) << "Running in GUI mode";
+            
+            // Test with actual MainWindow and initialization
+            qCInfo(etiMain) << "Creating MainWindow...";
+            MainWindow mainWindow;
+            qCInfo(etiMain) << "MainWindow created, calling initialize()...";
+            
+            if (!mainWindow.initialize()) {
+                qCCritical(etiMain) << "Failed to initialize main window";
+                QMessageBox::critical(nullptr, "Initialization Error",
+                    "Failed to initialize the main window. Please check the logs for details.");
+                return -1;
+            }
+            
+            qCInfo(etiMain) << "MainWindow initialized successfully, showing...";
+            mainWindow.show();
+            qCInfo(etiMain) << "MainWindow shown with full professional interface";
+            
+            // Run application event loop
+            int result = app.exec();
+            qCInfo(etiMain) << "Application shutting down with code:" << result;
+            return result;
         }
-        
-        qCInfo(etiMain) << "MainWindow initialized successfully, showing...";
-        mainWindow.show();
-        qCInfo(etiMain) << "MainWindow shown with full professional interface";
-        
-        // Run application event loop
-        int result = app.exec();
-        qCInfo(etiMain) << "Application shutting down with code:" << result;
-        return result;
         
     } catch (const std::exception &e) {
         qCCritical(etiMain) << "Fatal error during application startup:" << e.what();

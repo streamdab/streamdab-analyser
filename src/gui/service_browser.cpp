@@ -792,20 +792,27 @@ void ServiceBrowser::handleExportServices()
             }
             
             // Export services from current data
-            QList<ServiceInfo> services = getAllServices();
+            QList<quint32> serviceIds = getAllServices();
+            QList<ServiceInfo> services;
+            for (quint32 serviceId : serviceIds) {
+                services.append(getServiceInfo(serviceId));
+            }
             for (const ServiceInfo& service : services) {
                 if (isCsvFormat) {
                     // CSV format with proper escaping
                     out << QString("0x%1").arg(service.serviceId, 4, 16, QChar('0')).toUpper() << separator;
-                    out << "\"" << service.serviceName.replace("\"", "\"\"") << "\"" << separator;
-                    out << "\"" << service.ensembleName.replace("\"", "\"\"") << "\"" << separator;
+                    QString escapedServiceName = service.serviceName;
+                    QString escapedEnsembleName = service.ensembleName;
+                    out << "\"" << escapedServiceName.replace("\"", "\"\"") << "\"" << separator;
+                    out << "\"" << escapedEnsembleName.replace("\"", "\"\"") << "\"" << separator;
                     out << getServiceTypeString(service.serviceType) << separator;
                     out << service.bitRate << separator;
                     out << getServiceQualityString(service.quality) << separator;
                     out << service.audioFormat << separator;
                     out << service.language << separator;
                     out << (service.isActive ? "Yes" : "No") << separator;
-                    out << "\"" << service.description.replace("\"", "\"\"") << "\"\n";
+                    QString escapedDescription = service.description;
+                    out << "\"" << escapedDescription.replace("\"", "\"\"") << "\"\n";
                 } else {
                     // Human-readable text format
                     out << "Service: " << service.serviceName << "\n";
@@ -1512,5 +1519,151 @@ QString ServiceBrowser::formatFileSize(qint64 bytes)
         return tr("%1 KB").arg(static_cast<double>(bytes) / KB, 0, 'f', 1);
     } else {
         return tr("%1 bytes").arg(bytes);
+    }
+}
+
+// ========== UI INTEGRATION SPECIALIST: SERVICE DISCOVERY HANDLERS ==========
+
+void ServiceBrowser::addDiscoveredService(const eti::DabService& service)
+{
+    QMutexLocker locker(&m_dataMutex);
+    
+    // Convert DAB service to ServiceBrowser format
+    ServiceInfo serviceInfo;
+    serviceInfo.serviceId = service.serviceId;
+    serviceInfo.serviceName = QString::fromStdString(service.label);
+    serviceInfo.ensembleName = QString::fromStdString(service.ensembleLabel);
+    
+    // Determine service type based on DAB service type
+    switch (service.serviceType) {
+        case 0: // Audio service
+            serviceInfo.serviceType = ServiceType::DAB;
+            if (service.subChannelId != 0) {
+                serviceInfo.serviceType = ServiceType::DABPlus; // Assume DAB+ for subchannel services
+            }
+            break;
+        case 1: // Data service
+            serviceInfo.serviceType = ServiceType::Data;
+            break;
+        default:
+            serviceInfo.serviceType = ServiceType::Unknown;
+            break;
+    }
+    
+    serviceInfo.bitRate = service.bitRate;
+    serviceInfo.quality = ServiceQuality::Good; // Default quality
+    serviceInfo.audioFormat = QString::fromStdString(service.audioFormat);
+    serviceInfo.language = QString::fromStdString(service.language);
+    
+    // Add to internal service list (avoid duplicates)
+    bool serviceExists = false;
+    for (const auto& existing : m_discoveredServices) {
+        if (existing.serviceId == serviceInfo.serviceId) {
+            serviceExists = true;
+            break;
+        }
+    }
+    
+    if (!serviceExists) {
+        m_discoveredServices.append(serviceInfo);
+        
+        // Update UI elements
+        switch (m_viewMode) {
+            case ViewMode::Tree:
+                if (m_treeView) {
+                    // Find or create ensemble item
+                    QTreeWidgetItem* ensembleItem = nullptr;
+                    for (int i = 0; i < m_treeView->topLevelItemCount(); ++i) {
+                        QTreeWidgetItem* item = m_treeView->topLevelItem(i);
+                        if (item && item->text(0) == serviceInfo.ensembleName) {
+                            ensembleItem = item;
+                            break;
+                        }
+                    }
+                    
+                    if (!ensembleItem) {
+                        ensembleItem = new QTreeWidgetItem(m_treeView);
+                        ensembleItem->setText(0, serviceInfo.ensembleName);
+                        ensembleItem->setText(1, "Ensemble");
+                        ensembleItem->setIcon(0, QIcon(":/icons/ensemble.png"));
+                    }
+                    
+                    // Add service to ensemble
+                    addServiceToTree(ensembleItem, serviceInfo);
+                    ensembleItem->setExpanded(true);
+                }
+                break;
+                
+            case ViewMode::Table:
+                addServiceToTable(serviceInfo);
+                break;
+                
+            case ViewMode::List:
+                addServiceToList(serviceInfo);
+                break;
+                
+            case ViewMode::Grid:
+                // Grid view implementation would go here
+                break;
+        }
+        
+        // Update service count
+        updateServiceCount();
+        
+        Logger::instance().log(Logger::Info, "ServiceBrowser", 
+                              QString("Added discovered service: %1 (ID: %2)")
+                              .arg(serviceInfo.serviceName).arg(serviceInfo.serviceId));
+    }
+}
+
+void ServiceBrowser::updateEnsemble(const eti::Ensemble& ensemble)
+{
+    QMutexLocker locker(&m_dataMutex);
+    
+    // Store current ensemble information
+    m_currentEnsemble = QString::fromStdString(ensemble.label);
+    
+    // Update ensemble information display
+    if (m_serviceCountLabel) {
+        m_serviceCountLabel->setText(tr("Ensemble: %1 (%2 services)")
+                                   .arg(m_currentEnsemble)
+                                   .arg(ensemble.services.size()));
+    }
+    
+    // Clear existing services for fresh ensemble data
+    clearServices();
+    
+    // Add all services from the ensemble
+    for (const auto& service : ensemble.services) {
+        addDiscoveredService(service);
+    }
+    
+    Logger::instance().log(Logger::Info, "ServiceBrowser", 
+                          QString("Updated ensemble: %1 with %2 services")
+                          .arg(m_currentEnsemble).arg(ensemble.services.size()));
+}
+
+void ServiceBrowser::updateServiceCount()
+{
+    m_totalServices = m_discoveredServices.size();
+    m_activeServices = 0;
+    m_filteredServices = 0;
+    
+    // Count active and filtered services
+    for (const auto& service : m_discoveredServices) {
+        if (service.quality != ServiceQuality::Unknown) {
+            m_activeServices++;
+        }
+    }
+    
+    // Update display
+    if (m_serviceCountLabel) {
+        if (m_currentEnsemble.isEmpty()) {
+            m_serviceCountLabel->setText(tr("Services: %1 total, %2 active")
+                                       .arg(m_totalServices).arg(m_activeServices));
+        } else {
+            m_serviceCountLabel->setText(tr("%1: %2 services")
+                                       .arg(m_currentEnsemble).arg(m_totalServices));
+        }
     }
 }

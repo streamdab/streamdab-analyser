@@ -200,10 +200,128 @@ QString BroadcastTheme::getMainApplicationStyleSheet()
         "}\n"
         "\n"
         "QLineEdit:focus, QComboBox:focus {\n"
-        "    border: 2px solid %31;\n"
-        "    outline: none;\n"
-        "    background-color: #F8FCFF;\n"
+        "    border-color: %31;\n"
+        "    box-shadow: 0 0 0 2px %32;\n"
         "}\n"
+        "\n"
+        "/* ═══════════════════════════════════════════════════════════════════ */\n"
+        "/* PROFESSIONAL SCROLL BARS - BROADCAST INDUSTRY STANDARD               */\n"
+        "/* ═══════════════════════════════════════════════════════════════════ */\n"
+        "\n"
+        "QScrollBar:vertical {\n"
+        "    background: #F5F5F5;\n"
+        "    width: 16px;\n"
+        "    border: 1px solid #DDDDDD;\n"
+        "    border-radius: 8px;\n"
+        "    margin: 0px;\n"
+        "}\n"
+        "\n"
+        "QScrollBar::handle:vertical {\n"
+        "    background: %33;\n"
+        "    min-height: 20px;\n"
+        "    border-radius: 6px;\n"
+        "    margin: 2px;\n"
+        "}\n"
+        "\n"
+        "QScrollBar::handle:vertical:hover {\n"
+        "    background: %34;\n"
+        "}\n"
+        "\n"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {\n"
+        "    height: 0px;\n"
+        "}\n"
+        "\n"
+        "QScrollBar:horizontal {\n"
+        "    background: #F5F5F5;\n"
+        "    height: 16px;\n"
+        "    border: 1px solid #DDDDDD;\n"
+        "    border-radius: 8px;\n"
+        "    margin: 0px;\n"
+        "}\n"
+        "\n"
+        "QScrollBar::handle:horizontal {\n"
+        "    background: %35;\n"
+        "    min-width: 20px;\n"
+        "    border-radius: 6px;\n"
+        "    margin: 2px;\n"
+        "}\n"
+        "\n"
+        "QScrollBar::handle:horizontal:hover {\n"
+        "    background: %36;\n"
+        "}\n"
+        "\n"
+        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {\n"
+        "    width: 0px;\n"
+        "}\n"
+        "\n"
+        "/* ═══════════════════════════════════════════════════════════════════ */\n"
+        "/* PROFESSIONAL STATUS INDICATORS & LEDS                                */\n"
+        "/* ═══════════════════════════════════════════════════════════════════ */\n"
+        "\n"
+        "QLabel.StatusLED {\n"
+        "    border-radius: 6px;\n"
+        "    width: 12px;\n"
+        "    height: 12px;\n"
+        "    margin: 2px;\n"
+        "}\n"
+        "\n"
+        "QLabel.StatusLED[status=\"ok\"] {\n"
+        "    background-color: %37;\n"
+        "    border: 1px solid %38;\n"
+        "}\n"
+        "\n"
+        "QLabel.StatusLED[status=\"warning\"] {\n"
+        "    background-color: %39;\n"
+        "    border: 1px solid %40;\n"
+        "}\n"
+        "\n"
+        "QLabel.StatusLED[status=\"error\"] {\n"
+        "    background-color: %41;\n"
+        "    border: 1px solid %42;\n"
+        "}\n"
+        "\n")
+        .arg(colorToHex(BACKGROUND_LIGHT))           // %1 - Main background
+        .arg(FONT_FAMILY_UI)                         // %2 - UI font
+        .arg(FONT_SIZE_UI)                           // %3 - UI font size
+        .arg(FONT_FAMILY_HEADER)                     // %4 - Header font
+        .arg(FONT_SIZE_HEADER)                       // %5 - Header font size
+        .arg(colorToHex(ACCENT_BLUE))               // %6 - Header background
+        .arg(colorToHex(ACCENT_BLUE_DARK))          // %7 - Header border
+        .arg(colorToHex(BACKGROUND_MEDIUM))         // %8 - Splitter background
+        .arg(colorToHex(ACCENT_BLUE_LIGHT))         // %9 - Splitter hover
+        .arg(colorToHex(BACKGROUND_LIGHT))          // %10 - Tab background
+        .arg(FONT_FAMILY_UI)                         // %11 - Tab font
+        .arg(FONT_SIZE_UI)                           // %12 - Tab font size
+        .arg(colorToHex(QColor(255, 255, 255)))     // %13 - Selected tab background
+        .arg(colorToHex(ACCENT_BLUE))               // %14 - Selected tab border
+        .arg(colorToHex(ACCENT_BLUE))               // %15 - Selected tab text
+        .arg(colorToHex(ACCENT_BLUE_LIGHT))         // %16 - Tab hover background
+        .arg(colorToHex(ACCENT_BLUE_DARK))          // %17 - Tab hover text
+        .arg(colorToHex(BACKGROUND_LIGHT))          // %18 - Button background
+        .arg(FONT_FAMILY_UI)                         // %19 - Button font
+        .arg(FONT_SIZE_UI)                           // %20 - Button font size
+        .arg(colorToHex(ACCENT_BLUE_LIGHT))         // %21 - Button hover background
+        .arg(colorToHex(ACCENT_BLUE))               // %22 - Button hover border
+        .arg(colorToHex(ACCENT_BLUE_DARK))          // %23 - Button hover text
+        .arg(colorToHex(ACCENT_BLUE_DARK))          // %24 - Button pressed background
+        .arg(colorToHex(ACCENT_BLUE))               // %25 - Button pressed border
+        .arg(colorToHex(ACCENT_BLUE))               // %26 - Button checked background
+        .arg(colorToHex(ACCENT_BLUE_DARK))          // %27 - Button checked border
+        .arg(FONT_FAMILY_UI)                         // %28 - Input font
+        .arg(FONT_SIZE_UI)                           // %29 - Input font size
+        .arg(colorToHex(ACCENT_BLUE_LIGHT))         // %30 - Input selection
+        .arg(colorToHex(ACCENT_BLUE))               // %31 - Input focus border
+        .arg(colorToHex(withAlpha(ACCENT_BLUE, 0.3))) // %32 - Input focus shadow
+        .arg(colorToHex(ACCENT_BLUE))               // %33 - Scrollbar handle
+        .arg(colorToHex(ACCENT_BLUE_DARK))          // %34 - Scrollbar handle hover
+        .arg(colorToHex(ACCENT_BLUE))               // %35 - Horizontal scrollbar handle
+        .arg(colorToHex(ACCENT_BLUE_DARK))          // %36 - Horizontal scrollbar handle hover
+        .arg(colorToHex(STATUS_OK))                 // %37 - Status LED OK
+        .arg(colorToHex(withAlpha(STATUS_OK, 0.8))) // %38 - Status LED OK border
+        .arg(colorToHex(STATUS_WARNING))            // %39 - Status LED Warning
+        .arg(colorToHex(withAlpha(STATUS_WARNING, 0.8))) // %40 - Status LED Warning border
+        .arg(colorToHex(STATUS_ERROR))              // %41 - Status LED Error
+        .arg(colorToHex(withAlpha(STATUS_ERROR, 0.8))); // %42 - Status LED Error border
         "\n"
         "/* ═══════════════════════════════════════════════════════════════════ */\n"
         "/* PROFESSIONAL TEXT EDITORS FOR TECHNICAL DATA                         */\n"
