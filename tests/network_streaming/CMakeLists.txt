@@ -16,13 +16,10 @@ add_executable(test_network_streaming
 # Link with main project libraries and test frameworks
 target_link_libraries(test_network_streaming
     PRIVATE
-    GTest::GTest
-    GTest::Main
-    GMock::GMock
+    gtest gtest_main gmock gmock_main  # Use the fetched GTest targets
     Qt6::Core
     Qt6::Network
     Qt6::Test
-    ${FAAD2_LIBRARIES}
     ${FFTW3_LIBRARIES}
 )
 

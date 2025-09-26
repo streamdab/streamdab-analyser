@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "eti_types.h"
+#include "eti_types.hpp"
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -49,8 +49,9 @@ struct StandardComplianceResult {
     std::chrono::steady_clock::time_point validation_time;
     
     StandardComplianceResult() = default;
-    StandardComplianceResult(const QString& name, const QString& number) 
-        : standard_name(name), standard_number(number) {}
+    // Fixed: Use explicit parameter names to prevent swapping
+    explicit StandardComplianceResult(const QString& standard_name_param, const QString& standard_number_param) 
+        : standard_name(standard_name_param), standard_number(standard_number_param) {}
 };
 
 /**
@@ -67,18 +68,19 @@ struct ComprehensiveComplianceResult {
     bool validation_affects_performance{false};
     
     // Summary statistics
+    static constexpr uint32_t TOTAL_ETSI_STANDARDS = 9; // EN 300 401, EN 302 077, TS 102 563, etc.
     uint32_t total_violations{0};
     uint32_t total_warnings{0};
     uint32_t compliant_standards{0};
-    uint32_t total_standards{9};
+    uint32_t total_standards{TOTAL_ETSI_STANDARDS};
     
     // Government compliance (Thai NBTC requirements)
     bool thai_government_compliant{false};
     QStringList thai_compliance_issues;
     
-    QString getComplianceSummary() const;
-    QStringList getAllViolations() const;
-    bool isProductionReady() const { return ready_for_production; }
+    QString get_compliance_summary() const;
+    QStringList get_all_violations() const;
+    bool is_production_ready() const { return ready_for_production; }
 };
 
 /**
@@ -266,6 +268,9 @@ private:
     void updateStatistics(const ComprehensiveComplianceResult& result);
     bool shouldSkipValidation(const eti::EtiFrame& frame) const;
     void optimizeValidationSequence();
+    
+    // CRC calculation utilities
+    uint16_t calculateCRC16(const uint8_t* data, size_t length);
 
 private:
     bool initialized_{false};

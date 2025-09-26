@@ -365,8 +365,8 @@ std::vector<Fig01SubchannelInfo> FigParser::parseFig01_SubchannelOrganization(
             }
             
             // Validate subchannel information
-            if (parseFig01_Internal(std::vector<uint8_t>(fig_data.begin() + offset - 3, 
-                                                         fig_data.begin() + offset), 
+            if (parseFig01_Internal(std::vector<uint8_t>(fig_data.begin() + static_cast<ptrdiff_t>(offset - 3), 
+                                                         fig_data.begin() + static_cast<ptrdiff_t>(offset)), 
                                    subchannels)) {
                 subchannel.is_valid = validateSubchannelCompliance(subchannel);
                 
@@ -654,19 +654,18 @@ bool FigParser::parseFig00_Internal(const std::vector<uint8_t>& data, Fig00Ensem
     }
     
     // Extract Ensemble Identifier (EId) - bytes 0-1
-    result.ensembleId = (static_cast<uint16_t>(data[0]) << 8) | data[1];
+    result.ensemble_id = (static_cast<uint16_t>(data[0]) << 8) | data[1];
     
     // Extract Change flags and Al flag - byte 2
     uint8_t flags = data[2];
-    result.changeFlags = (flags >> 2) & 0x3F;  // Change flags (bits 7-2)
-    result.alarmFlag = (flags >> 1) & 0x01;    // Al flag (bit 1)
+    result.country_id = (flags >> 4) & 0x0F;  // Country ID (bits 7-4)
+    result.extended_country_code = flags & 0x0F;  // ECC (bits 3-0)
     
-    // Extract CIF Count (lower part) - byte 3
-    result.cifCountLower = data[3];
-    
-    // Calculate full CIF count (FIG 0/0 only provides lower 8 bits)
-    // Upper bits come from FIC frame header - for now use lower bits only
-    result.cifCount = result.cifCountLower;
+    // Extract Al flag and CIF Count from byte 3
+    uint8_t al_cif = data[3];
+    result.alarm_flag = (al_cif >> 7) & 0x01;    // Al flag (bit 7)
+    result.cif_count_high = (al_cif >> 6) & 0x01; // CIF count high bit
+    result.cif_count_low = al_cif & 0x3F;        // CIF count low 6 bits
     
     return true;
 }
@@ -680,30 +679,30 @@ bool FigParser::parseFig01_Internal(const std::vector<uint8_t>& data, std::vecto
         Fig01SubchannelInfo subchannel;
         
         // Extract SubChId - 6 bits (bits 7-2 of byte 0)
-        subchannel.subchannelId = (data[offset] >> 2) & 0x3F;
+        subchannel.subchannel_id = (data[offset] >> 2) & 0x3F;
         
         // Extract Start Address - 10 bits (bits 1-0 of byte 0 + byte 1)
-        subchannel.startAddress = ((data[offset] & 0x03) << 8) | data[offset + 1];
+        subchannel.start_address = ((data[offset] & 0x03) << 8) | data[offset + 1];
         
         // Extract protection and size information from byte 2
         uint8_t protectionByte = data[offset + 2];
         
         if (protectionByte & 0x80) {
             // Long form protection (UEP - Unequal Error Protection)
-            subchannel.protectionType = Fig01SubchannelInfo::UEP;
-            subchannel.tableSwitch = (protectionByte >> 6) & 0x01;
-            subchannel.tableIndex = protectionByte & 0x3F;
-            subchannel.protectionLevel = 0; // Derived from table
-            subchannel.subchannelSize = 0;  // Derived from table
+            subchannel.short_form = false;
+            subchannel.table_switch = (protectionByte >> 6) & 0x01;
+            subchannel.table_index = protectionByte & 0x3F;
+            subchannel.protection_level = 0; // Derived from table
+            subchannel.subchannel_size = 0;  // Derived from table
         } else {
             // Short form protection (EEP - Equal Error Protection)
-            subchannel.protectionType = Fig01SubchannelInfo::EEP;
-            subchannel.protectionLevel = (protectionByte >> 2) & 0x03;
-            subchannel.subchannelSize = ((protectionByte & 0x03) << 8);
+            subchannel.short_form = true;
+            subchannel.protection_level = (protectionByte >> 2) & 0x03;
+            subchannel.subchannel_size = ((protectionByte & 0x03) << 8);
             
             // Need next byte for complete subchannel size (10 bits total)
             if (offset + 3 < data.size()) {
-                subchannel.subchannelSize |= data[offset + 3];
+                subchannel.subchannel_size |= data[offset + 3];
                 offset++; // Extra byte consumed
             } else {
                 break; // Incomplete entry
@@ -726,45 +725,48 @@ bool FigParser::parseFig02_Internal(const std::vector<uint8_t>& data, std::vecto
         Fig02ServiceInfo service;
         
         // Extract Service Identifier (SId) - 16 bits for program services
-        service.serviceId = (static_cast<uint32_t>(data[offset]) << 8) | data[offset + 1];
+        service.service_id = (static_cast<uint32_t>(data[offset]) << 8) | data[offset + 1];
         offset += 2;
         
         // Extract service flags and component count
         uint8_t flags = data[offset++];
-        service.localFlag = (flags >> 7) & 0x01;
-        service.caId = (flags >> 4) & 0x07;
-        uint8_t numComponents = flags & 0x0F;
+        service.local_flag = (flags >> 7) & 0x01;
+        service.extended_country_code = (flags >> 4) & 0x07;
+        service.number_of_components = flags & 0x0F;
+        uint8_t numComponents = service.number_of_components;
         
         // Parse service components
         for (uint8_t i = 0; i < numComponents && offset + 2 <= data.size(); i++) {
-            Fig02ServiceComponent component;
+            Fig02ServiceInfo::ServiceComponent component;
             
             uint8_t componentData = data[offset++];
-            component.tmId = (componentData >> 6) & 0x03;
+            component.transport_mechanism_id = (componentData >> 6) & 0x03;
             
-            if (component.tmId == 0) {
+            if (component.transport_mechanism_id == 0) {
                 // MSC stream audio
-                component.ascTy = (componentData >> 2) & 0x3F;
-                component.subchannelId = data[offset++] & 0x3F;
-                component.ps = 0; // Primary/Secondary flag from subchannel
-                component.caFlag = 0; // CA flag from subchannel
-            } else if (component.tmId == 1) {
+                component.audio_service_type = componentData & 0x3F;
+                component.subchannel_id = data[offset++] & 0x3F;
+                component.primary_flag = false; // Primary/Secondary flag from subchannel
+                component.ca_flag = false; // CA flag from subchannel
+            } else if (component.transport_mechanism_id == 1) {
                 // MSC stream data
-                component.dscTy = (componentData >> 2) & 0x3F;
-                component.subchannelId = data[offset++] & 0x3F;
-                component.ps = 0;
-                component.caFlag = 0;
-            } else if (component.tmId == 2) {
+                component.audio_service_type = componentData & 0x3F;
+                component.subchannel_id = data[offset++] & 0x3F;
+                component.primary_flag = false;
+                component.ca_flag = false;
+            } else if (component.transport_mechanism_id == 2) {
                 // FIDC
-                component.dscTy = (componentData >> 2) & 0x3F;
-                component.fidcId = data[offset++] & 0x3F;
-            } else if (component.tmId == 3) {
+                component.audio_service_type = componentData & 0x3F;
+                component.subchannel_id = data[offset++] & 0x3F;
+            } else if (component.transport_mechanism_id == 3) {
                 // MSC packet mode
-                component.scId = ((componentData & 0x3F) << 6) | (data[offset] >> 2);
-                component.ps = (data[offset] >> 1) & 0x01;
-                component.caFlag = data[offset] & 0x01;
+                component.packet_address = ((componentData & 0x3F) << 6) | (data[offset] >> 2);
+                component.primary_flag = (data[offset] >> 1) & 0x01;
+                component.ca_flag = data[offset] & 0x01;
                 offset++;
             }
+            
+            component.is_valid = true;
             
             service.components.push_back(component);
         }
@@ -776,10 +778,61 @@ bool FigParser::parseFig02_Internal(const std::vector<uint8_t>& data, std::vecto
 }
 
 bool FigParser::parseFig11_Internal(const std::vector<uint8_t>& data, std::vector<ServiceLabel>& result) {
-    // This is a placeholder implementation
-    Q_UNUSED(data);
-    Q_UNUSED(result);
-    return true;
+    // FIG 1/1: Service label parsing according to ETSI EN 300 401
+    if (data.size() < 3) {
+        Logger::instance().log(Logger::Warning, "FigParser", "FIG 1/1 data too short");
+        return false;
+    }
+    
+    size_t offset = 0;
+    
+    while (offset + 3 <= data.size()) {
+        ServiceLabel label;
+        
+        // Extract 16-bit Service ID (SId)
+        label.service_id = (static_cast<uint16_t>(data[offset]) << 8) | data[offset + 1];
+        offset += 2;
+        
+        // Extract Character Field Flag (CFl)
+        uint8_t character_flag = data[offset++];
+        label.character_flag_field = (static_cast<uint16_t>(character_flag) << 8); // Store as 16-bit value
+        
+        // Label length is 16 bytes for service labels
+        constexpr size_t LABEL_LENGTH = 16;
+        if (offset + LABEL_LENGTH > data.size()) {
+            Logger::instance().log(Logger::Warning, "FigParser", 
+                QString("FIG 1/1: Insufficient data for service label, SId=%1").arg(label.service_id));
+            break;
+        }
+        
+        // Extract service label (16 bytes)
+        std::string label_text(reinterpret_cast<const char*>(&data[offset]), LABEL_LENGTH);
+        offset += LABEL_LENGTH;
+        
+        // Remove null padding and validate
+        label_text.erase(std::find(label_text.begin(), label_text.end(), '\0'), label_text.end());
+        
+        // Validate Thai character encoding if enabled
+        if (thai_support_enabled_ && !validateThaiCharacterEncoding(label_text)) {
+            thai_encoding_issues_count_++;
+            Logger::instance().log(Logger::Warning, "FigParser", 
+                QString("FIG 1/1: Thai encoding validation failed for SId=%1").arg(label.service_id));
+        }
+        
+        label.label = label_text;
+        label.is_valid = !label_text.empty();
+        
+        // Update statistics
+        statistics_.service_labels_processed++;
+        
+        result.push_back(label);
+        
+        Logger::instance().log(Logger::Debug, "FigParser", 
+            QString("FIG 1/1: Parsed service label - SId=%1, Label='%2'")
+            .arg(label.service_id).arg(QString::fromStdString(label_text)));
+    }
+    
+    return !result.empty();
 }
 
 bool FigParser::validateEnsembleCompliance(const Fig00EnsembleInfo& ensemble) {
@@ -903,6 +956,7 @@ void FigParser::resetStatistics() {
     statistics_.total_fics_processed = 0;
     statistics_.total_figs_processed = 0;
     statistics_.parsing_errors = 0;
+    statistics_.service_labels_processed = 0;
     statistics_.total_parsing_time = std::chrono::nanoseconds::zero();
     statistics_.average_figs_per_second = 0.0;
     statistics_.average_parsing_latency_ms = 0.0;

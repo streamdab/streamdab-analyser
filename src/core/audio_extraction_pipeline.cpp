@@ -297,14 +297,21 @@ bool AudioExtractionWorker::decode_audio_data(const std::vector<uint8_t>& audio_
             return decode_dabplus_audio(audio_data, output); // Similar to DAB+
             
         default:
-            // Try to auto-detect format
-            if (decode_dabplus_audio(audio_data, output)) {
-                m_service_info.audio_mode = DabAudioMode::DAB_PLUS_AAC;
-                return true;
-            } else if (decode_mpeg2_audio(audio_data, output)) {
+            // Auto-detect format based on data patterns
+            if (audio_data.size() >= 7 && audio_data[0] == 0xFF && (audio_data[1] & 0xF0) == 0xF0) {
+                // Looks like ADTS AAC header - try DAB+
+                if (decode_dabplus_audio(audio_data, output)) {
+                    m_service_info.audio_mode = DabAudioMode::DAB_PLUS_AAC;
+                    return true;
+                }
+            }
+            
+            // Try MPEG-2 audio for traditional DAB
+            if (decode_mpeg2_audio(audio_data, output)) {
                 m_service_info.audio_mode = DabAudioMode::DAB_MPEG1_L2;
                 return true;
             }
+            
             return false;
     }
 }

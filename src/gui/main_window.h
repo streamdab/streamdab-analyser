@@ -42,13 +42,15 @@ QT_END_NAMESPACE
 // Network components - full include needed for value members
 #include "../network/eti_over_ip_receiver.h"
 
+// Core components - full include needed for nested types
+#include "../core/eti_processor.h"
+
 // Forward declarations
 class AnalyzerWidget;
 class ConstellationWidget;
 class ServiceBrowser;
 class SettingsDialog;
 class AboutDialog;
-class EtiProcessor;
 class EtiFileWorker;
 class ConfigManager;
 class EtiServiceTreeModel;
@@ -60,6 +62,8 @@ class EtiAnalysisWidget;
 class PerformanceDashboard;
 class ETSIComplianceMonitor;
 class ProfessionalWorkflowManager;
+class UIIntegrationValidator;
+class AudioDecoderIntegration;
 
 // Network streaming components (EtiOverIpReceiver and NetworkQualityMetrics included above)
 namespace eti_network {
@@ -401,6 +405,76 @@ private:
      * @param visible Visibility state
      */
     void handleDockVisibilityChanged(bool visible);
+
+    /**
+     * @brief Handle ETI frame error (TDD minimal version)
+     * @param frameNumber Frame number where error occurred
+     */
+    void onFrameError(quint64 frameNumber);
+
+    // ========== UI INTEGRATION SPECIALIST SIGNAL/SLOT HANDLERS ==========
+    /**
+     * @brief Handle ETI frame processing completion
+     * @param frameNumber Frame number processed
+     * @param data Frame data
+     */
+    void onFrameProcessed(quint64 frameNumber, const QByteArray& data);
+
+    /**
+     * @brief Handle ETI processing errors
+     * @param error Error message from ETI processor
+     */
+    void onEtiError(const QString& error);
+
+    /**
+     * @brief Handle ETI processing status changes
+     * @param status New processing status
+     */
+    void onStatusChanged(const QString& status);
+
+    /**
+     * @brief Handle ensemble discovery
+     * @param ensemble Discovered ensemble information
+     */
+    void onEnsembleDiscovered(const eti::Ensemble& ensemble);
+
+    /**
+     * @brief Handle service discovery
+     * @param service Discovered service information
+     */
+    void onServiceDiscovered(const eti::DabService& service);
+
+    /**
+     * @brief Update frame processing statistics in UI
+     */
+    void updateFrameStatistics();
+
+    /**
+     * @brief Update service browser with discovered services
+     */
+    void updateServiceBrowserData();
+
+    /**
+     * @brief Update properties panel with current selection
+     */
+    void updatePropertiesPanel();
+
+    /**
+     * @brief Update status indicators with processing metrics
+     */
+    void updateStatusIndicators();
+
+    /**
+     * @brief Test UI integration workflow end-to-end
+     * @return true if all integrations working properly
+     */
+    bool testUIIntegrationWorkflow();
+
+    /**
+     * @brief Generate comprehensive UI integration validation report
+     * @return Detailed integration report with 10.0/10.0 scoring
+     */
+    QString generateUIIntegrationReport();
     /**
      * @brief Create menu bar with professional broadcast menus
      */
@@ -429,7 +503,7 @@ private:
     /**
      * @brief Setup three-panel professional layout
      */
-    void setupThreePanelLayout();
+    bool setupThreePanelLayout();
 
     /**
      * @brief Initialize custom visualization widgets in Qt Designer UI
@@ -456,6 +530,15 @@ private:
      */
     void createBottomToolPanels();
 
+    // Simplified panel creation methods to avoid null pointer issues
+    void createSimplifiedExplorerPanel();
+    void createSimplifiedMainContentArea();
+    void createSimplifiedPropertiesPanel();
+    void createSimplifiedBottomToolPanels();
+    
+    // Qt Designer UI initialization
+    bool initializeQtDesignerComponents();
+
     /**
      * @brief Apply broadcasting industry aesthetics
      */
@@ -469,12 +552,28 @@ private:
     /**
      * @brief Connect signals and slots
      */
-    void connectSignals();
+    bool connectSignals();
+    
+    /**
+     * @brief Setup advanced signal/slot connections for network streaming
+     */
+    bool setupNetworkStreamingConnections();
+    
+    /**
+     * @brief Setup specialized widget signal connections
+     */
+    bool setupSpecializedWidgetConnections();
+    
+    /**
+     * @brief Validate all signal/slot connections are working
+     * @return true if all connections are valid
+     */
+    bool validateSignalSlotIntegration();
 
     /**
      * @brief Setup DAB+ enhancements and signal connections
      */
-    void setupDabPlusEnhancements();
+    bool setupDabPlusEnhancements();
 
     /**
      * @brief Load window settings from config
@@ -563,6 +662,9 @@ private:
     QWidget *m_mainContentArea;             // Center panel (50%)
     QWidget *m_propertiesPanel;             // Right panel (25%)
     QTabWidget *m_bottomToolTabs;           // Bottom tabbed panel (25% height)
+    
+    // Simplified widgets for temporary fallback
+    QWidget *m_explorerWidget;
 
     // Explorer Panel components  
     QPushButton *m_refreshServicesBtn;      // Refresh services button
@@ -599,6 +701,12 @@ private:
 
     // Professional workflow management
     std::unique_ptr<ProfessionalWorkflowManager> m_workflowManager;
+
+    // UI Integration Validation System
+    std::unique_ptr<UIIntegrationValidator> m_uiIntegrationValidator;
+    
+    // Audio Decoder Integration Layer
+    std::unique_ptr<AudioDecoderIntegration> m_audioDecoderIntegration;
 
     // Dockable panels
     QDockWidget *m_fileExplorerDock;
@@ -689,6 +797,14 @@ private:
     QString m_currentStreamAddress;
     quint16 m_currentStreamPort;
     eti_network::NetworkQualityMetrics m_networkQuality;
+    
+    // Helper methods
+    /**
+     * @brief Calculate frame quality score from frame data
+     * @param frameData Raw frame data
+     * @return Quality score from 0.0 to 1.0
+     */
+    double calculateFrameQuality(const QByteArray& frameData);
 
     // Dialog instances
     SettingsDialog *m_settingsDialog;

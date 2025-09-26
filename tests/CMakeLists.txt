@@ -68,6 +68,7 @@ set(GTEST_UNIT_SOURCES
     core/test_eti_processor.cpp
     core/test_dab_decoder.cpp
     core/test_fic_decoder.cpp
+    core/test_headless_eti_processor.cpp  # NEW: TDD test for headless processing
     utils/test_config_manager.cpp
     # utils/test_file_utils.cpp  # Temporarily disabled - missing header
     utils/test_signal_processing.cpp
@@ -104,6 +105,7 @@ set(QT_GUI_TEST_SOURCES
     gui/test_service_browser.cpp
     gui/test_settings_dialog.cpp
     gui/test_about_dialog.cpp
+    gui/test_real_eti_file_loading.cpp  # NEW: Bangkok ETI file validation with AAA pattern
     # NEW PROFESSIONAL GUI TDD FRAMEWORK TESTS
     gui/test_three_panel_professional_layout.cpp
     gui/test_qt_designer_integration.cpp
@@ -214,6 +216,11 @@ target_link_libraries(eti_analyzer_gui_tests
     Qt6::Network
     ${GTEST_LIBS}
 )
+
+# Conditionally link Qt6::UiTools if available
+if(HAVE_QT6_UITOOLS)
+    target_link_libraries(eti_analyzer_gui_tests Qt6::UiTools)
+endif()
 # TDD REQUIREMENT: Link to main project components for GUI testing
 target_include_directories(eti_analyzer_gui_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
@@ -557,6 +564,15 @@ if(ENABLE_TDD_BENCHMARKS)
 else()
     message(STATUS "TDD: Performance testing disabled")
 endif()
+# Add GUI TDD Integration Tests subdirectory
+add_subdirectory(gui)
+
+# Add other specialized test directories (e2e is handled by main CMakeLists.txt)
+add_subdirectory(e2e_gui)
+add_subdirectory(etsi_standards)
+add_subdirectory(network)
+add_subdirectory(network_streaming)
+
 # TDD FRAMEWORK STATUS SUMMARY
 message(STATUS "")
 message(STATUS "=== TDD Framework Configuration Complete ===")
@@ -578,6 +594,7 @@ message(STATUS "  - run_gui_tests_only: GUI tests with Qt Test")
 message(STATUS "  - run_e2e_tests_only: End-to-end workflow tests")
 message(STATUS "  - run_performance_tests: Comprehensive performance validation")
 message(STATUS "  - run_tests_quiet: Minimal output testing")
+message(STATUS "  - test_eti_ui_integration: TDD ETI UI Integration tests with Bangkok data")
 message(STATUS "")
 message(STATUS "100% ETSI COMPLIANCE VALIDATION TARGETS:")
 message(STATUS "  - run_100_percent_compliance_tests: Comprehensive compliance validation")

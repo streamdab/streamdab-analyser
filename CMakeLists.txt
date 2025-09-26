@@ -40,6 +40,18 @@ find_package(Qt6 6.2 REQUIRED COMPONENTS
     Multimedia
 )
 
+# Optional Qt6 UiTools for advanced GUI testing
+find_package(Qt6UiTools QUIET)
+if(Qt6UiTools_FOUND)
+    message(STATUS "Qt6UiTools found - enabling advanced GUI testing features")
+    set(HAVE_QT6_UITOOLS TRUE)
+    add_compile_definitions(HAVE_QT6_UITOOLS=1)
+else()
+    message(STATUS "Qt6UiTools not found - disabling advanced GUI testing features")
+    set(HAVE_QT6_UITOOLS FALSE)
+    add_compile_definitions(HAVE_QT6_UITOOLS=0)
+endif()
+
 # Optional components
 find_package(Qt6StateMachine QUIET)
 if(Qt6StateMachine_FOUND)
@@ -59,6 +71,69 @@ set(CMAKE_AUTOUIC ON)
 
 # Set UI search paths for Qt Designer files
 set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui)
+
+# GTest configuration for TDD framework
+find_package(GTest QUIET)
+if(NOT GTest_FOUND)
+    # Try to find system libgtest-dev package
+    find_path(GTEST_INCLUDE_DIR gtest/gtest.h PATHS /usr/include)
+    find_library(GTEST_LIBRARY gtest PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(GTEST_MAIN_LIBRARY gtest_main PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(GMOCK_LIBRARY gmock PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(GMOCK_MAIN_LIBRARY gmock_main PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+
+    if(GTEST_INCLUDE_DIR AND GTEST_LIBRARY AND GTEST_MAIN_LIBRARY)
+        message(STATUS "Using system GTest libraries for TDD framework")
+        # Create imported targets to match modern CMake patterns
+        add_library(GTest::gtest SHARED IMPORTED)
+        set_target_properties(GTest::gtest PROPERTIES
+            IMPORTED_LOCATION ${GTEST_LIBRARY}
+            INTERFACE_INCLUDE_DIRECTORIES ${GTEST_INCLUDE_DIR}
+        )
+        add_library(GTest::gtest_main SHARED IMPORTED)
+        set_target_properties(GTest::gtest_main PROPERTIES
+            IMPORTED_LOCATION ${GTEST_MAIN_LIBRARY}
+            INTERFACE_INCLUDE_DIRECTORIES ${GTEST_INCLUDE_DIR}
+        )
+        if(GMOCK_LIBRARY)
+            add_library(GTest::gmock SHARED IMPORTED)
+            set_target_properties(GTest::gmock PROPERTIES
+                IMPORTED_LOCATION ${GMOCK_LIBRARY}
+                INTERFACE_INCLUDE_DIRECTORIES ${GTEST_INCLUDE_DIR}
+            )
+        endif()
+        if(GMOCK_MAIN_LIBRARY)
+            add_library(GTest::gmock_main SHARED IMPORTED)
+            set_target_properties(GTest::gmock_main PROPERTIES
+                IMPORTED_LOCATION ${GMOCK_MAIN_LIBRARY}
+                INTERFACE_INCLUDE_DIRECTORIES ${GTEST_INCLUDE_DIR}
+            )
+        endif()
+        set(GTest_FOUND TRUE)
+    else()
+        message(WARNING "GTest not found - install libgtest-dev package for TDD support")
+        set(GTest_FOUND FALSE)
+    endif()
+else()
+    message(STATUS "Found system GTest package for TDD framework")
+endif()
+
+# Create legacy gtest targets for backward compatibility with test files
+if(GTest_FOUND)
+    if(NOT TARGET gtest)
+        add_library(gtest ALIAS GTest::gtest)
+    endif()
+    if(NOT TARGET gtest_main)
+        add_library(gtest_main ALIAS GTest::gtest_main)
+    endif()
+    if(TARGET GTest::gmock AND NOT TARGET gmock)
+        add_library(gmock ALIAS GTest::gmock)
+    endif()
+    if(TARGET GTest::gmock_main AND NOT TARGET gmock_main)
+        add_library(gmock_main ALIAS GTest::gmock_main)
+    endif()
+    message(STATUS "GTest framework configured for TDD compliance")
+endif()
 
 # Platform detection and configuration
 if(WIN32)
@@ -154,25 +229,27 @@ set(CORE_SOURCE_FILES
     src/main.cpp
     src/core/eti_processor.cpp
     src/core/eti_processor.h
+    src/core/headless_eti_processor.cpp
+    src/core/headless_eti_processor.h
     src/core/modern_eti_frame_parser.cpp
     src/core/modern_eti_frame_parser.h
     src/core/enhanced_fig_analyzer.cpp
     src/core/enhanced_fig_analyzer.h
 
     src/core/performance_profiler.cpp
-    src/core/performance_profiler.h
+    src/core/performance_profiler.hpp
     src/core/eti_processing_engine.cpp
     src/core/eti_processing_engine.h
     src/core/eti_file_worker.cpp
     src/core/eti_file_worker.h
     src/core/eti_types.cpp
-    src/core/eti_types.h
+    src/core/eti_types.hpp
     src/core/dab_decoder.cpp
     src/core/dab_decoder.h
     src/core/fic_decoder.cpp
     src/core/fic_decoder.h
     src/core/ensemble_manager.cpp
-    src/core/ensemble_manager.h
+    src/core/ensemble_manager.hpp
     src/core/service_manager.cpp
     src/core/service_manager.h
     src/core/dab_audio_decoder.cpp
@@ -184,9 +261,9 @@ set(CORE_SOURCE_FILES
     src/core/stream_recording_manager.cpp
     src/core/stream_recording_manager.h
     src/core/eti_processing_cache.cpp
-    src/core/eti_processing_cache.h
+    src/core/eti_processing_cache.hpp
     src/core/eti_memory_pool.cpp
-    src/core/eti_memory_pool.h
+    src/core/eti_memory_pool.hpp
     src/core/comprehensive_etsi_validator.cpp
     src/core/comprehensive_etsi_validator.h
     src/core/fig_parser.cpp
@@ -194,7 +271,9 @@ set(CORE_SOURCE_FILES
     src/core/dab_service_discovery_engine.cpp
     src/core/dab_service_discovery_engine.h
     src/core/thai_nbtc_validator.h
-    # src/core/thai_nbtc_validator.cpp  # Missing implementation - commented out for build
+    src/core/thai_nbtc_validator.cpp
+    src/core/audio_decoder.cpp
+    src/core/audio_decoder.hpp
 )
 
 # Phase 8 Advanced Network Streaming Components
@@ -360,7 +439,7 @@ if(ENABLE_CLANG_TIDY)
             ${CLANG_TIDY_EXE}
             --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy
             --header-filter=.*
-            # --warnings-as-errors=*  # Temporarily disabled for field fixes
+            # --warnings-as-errors=bugprone-use-after-move,performance-*
         )
 
         # Apply clang-tidy to the main target
