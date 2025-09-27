@@ -27,7 +27,7 @@
 #include <functional>
 #include <array>
 
-#include "../core/eti_types.h"
+#include "../core/eti_types.hpp"
 #include "eti_over_ip_receiver.h"
 
 namespace eti_network {

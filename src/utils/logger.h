@@ -335,9 +335,12 @@ private:
      */
     ~Logger();
 
+public:
     // Delete copy constructor and assignment operator for singleton
     Logger(const Logger&) = delete;
     Logger& operator=(const Logger&) = delete;
+
+private:
 
     /**
      * @brief Safe fallback logging using qDebug() (never hangs)
@@ -379,13 +382,11 @@ private:
      */
     static bool isQtApplicationReady();
 
-private slots:
     /**
      * @brief Attempt delayed initialization
      */
     void attemptDelayedInitialization();
 
-private:
     // Thread-safe atomic state management
     std::atomic<bool> m_fullyInitialized{false};
     std::atomic<bool> m_loggingEnabled{true};

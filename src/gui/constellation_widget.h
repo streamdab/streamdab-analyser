@@ -46,7 +46,9 @@ public:
         Constellation,  ///< Constellation diagram
         Spectrum,      ///< Spectrum analysis
         EyeDiagram,    ///< Eye diagram
-        Waterfall      ///< Waterfall display
+        Waterfall,     ///< Waterfall display
+        Scatter,       ///< Scatter plot mode
+        Histogram      ///< Histogram display
     };
 
     /**

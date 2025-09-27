@@ -7,7 +7,7 @@
  * @copyright StreamDAB Analyzer Project
  */
 
-#include "eti_processing_cache.h"
+#include "eti_processing_cache.hpp"
 #include <algorithm>
 
 namespace eti::modern {

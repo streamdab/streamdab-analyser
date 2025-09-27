@@ -21,10 +21,10 @@
 #include <QTextEdit>
 #include <QScrollArea>
 #include <memory>
-#include "core/eti_types.h"
+#include "core/eti_types.hpp"
 
 // Forward declarations
-class EtiProcessor;
+class eti_processor;
 class ConstellationWidget;
 class EtiFrameListModel;
 

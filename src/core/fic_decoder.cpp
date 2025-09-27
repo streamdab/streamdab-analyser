@@ -191,40 +191,37 @@ QList<fic_decoder::ComponentInfo> fic_decoder::getServiceComponents(quint32 serv
 }
 
 // Service management methods
-bool fic_decoder::hasService(quint32 serviceId) const
+bool fic_decoder::has_service(quint32 serviceId) const
 {
     return services_.contains(serviceId);
 }
 
-bool fic_decoder::hasEnsembleInfo() const
+bool fic_decoder::has_ensemble_info() const
 {
     return has_ensemble_info_;
 }
 
-QString fic_decoder::getServiceLabel(quint32 serviceId) const
+QString fic_decoder::get_service_label(quint32 serviceId) const
 {
     ServiceInfo service = getServiceInfo(serviceId);
     return service.serviceLabel;
 }
 
-QString fic_decoder::getEnsembleLabel() const
+QString fic_decoder::get_ensemble_label() const
 {
     return ensemble_info_.ensembleLabel;
 }
 
-quint32 fic_decoder::getFigTypeCount(FigType type) const
-{
-    return fig_type_stats_.value(type, 0);
-}
+
 
 // Private slots
-void fic_decoder::handleFicProcessed()
+void fic_decoder::handle_fic_processed()
 {
     // Handle FIC processing completion
     qDebug() << "FIC processing completed";
 }
 
-void fic_decoder::handleFicError(const QString& error)
+void fic_decoder::handle_fic_error(const QString& error)
 {
     qWarning() << "FIC processing error:" << error;
     updateErrorStatistics(true);
@@ -258,9 +255,9 @@ bool fic_decoder::processFig0(const QByteArray& figData)
             }
             return false;
         case 1:
-            return processFig0Type1(figData.mid(2)); // Service info
+            return process_fig0_type1(figData.mid(2)); // Service info
         case 2:
-            return processFig0Type2(figData.mid(2)); // Service components
+            return process_fig0_type2(figData.mid(2)); // Service components
         default:
             qDebug() << "Unsupported FIG 0 extension:" << extension;
             return false;
@@ -280,7 +277,7 @@ bool fic_decoder::processFig1(const QByteArray& figData)
             // Process ensemble label (FIG 1/0)
             if (figData.size() >= 18) {
                 quint16 ensembleId = (figData[2] << 8) | figData[3];
-                QString label = extractLabel(figData, 4, qMin(figData.size() - 4, 16));
+                QString label = extract_label(figData, 4, qMin(figData.size() - 4, 16));
                 ensemble_data_.ensembleId = ensembleId;
                 ensemble_data_.label = label;
                 
@@ -288,7 +285,7 @@ bool fic_decoder::processFig1(const QByteArray& figData)
                 ensemble_info_.ensembleId = ensembleId;
                 ensemble_info_.ensembleLabel = label;
                 ensemble_info_.label = label; // Test-compatible alias
-                ensemble_info_.shortLabel = extractShortLabel(label);
+                ensemble_info_.shortLabel = extract_short_label(label);
                 has_ensemble_info_ = true;
                 
                 emit ensembleInfoUpdated(ensemble_info_);
@@ -296,14 +293,14 @@ bool fic_decoder::processFig1(const QByteArray& figData)
             }
             return false;
         case 1:
-            return processFig1Type1(figData.mid(2)); // Service labels
+            return process_fig1_type1(figData.mid(2)); // Service labels
         default:
             qDebug() << "Unsupported FIG 1 extension:" << extension;
             return false;
     }
 }
 
-bool fic_decoder::processFig0Type1(const QByteArray& data)
+bool fic_decoder::process_fig0_type1(const QByteArray& data)
 {
     // Process basic service information (FIG 0/1)
     if (data.size() < 4) {
@@ -317,7 +314,7 @@ bool fic_decoder::processFig0Type1(const QByteArray& data)
     service.isLocal = (data[2] >> 1) & 0x01;
     service.lastUpdated = QDateTime::currentDateTime();
     
-    addOrUpdateService(service);
+    add_or_update_service(service);
     
     // Also update test-compatible service structure
     Service testService;
@@ -333,7 +330,7 @@ bool fic_decoder::processFig0Type1(const QByteArray& data)
     return true;
 }
 
-bool fic_decoder::processFig0Type2(const QByteArray& data)
+bool fic_decoder::process_fig0_type2(const QByteArray& data)
 {
     // Process service component information (FIG 0/2)
     if (data.size() < 6) {
@@ -350,7 +347,7 @@ bool fic_decoder::processFig0Type2(const QByteArray& data)
         component.isProtected = (data[6] >> 1) & 0x01;
     }
     
-    addOrUpdateComponent(component);
+    add_or_update_component(component);
     
     // Also update test-compatible sub-channel structure
     SubChannel subChannel;
@@ -369,7 +366,7 @@ bool fic_decoder::processFig0Type2(const QByteArray& data)
     return true;
 }
 
-bool fic_decoder::processFig1Type1(const QByteArray& data)
+bool fic_decoder::process_fig1_type1(const QByteArray& data)
 {
     // Process service labels (FIG 1/1)
     if (data.size() < 18) { // 2 bytes service ID + 16 bytes label
@@ -377,11 +374,11 @@ bool fic_decoder::processFig1Type1(const QByteArray& data)
     }
     
     quint32 serviceId = (data[0] << 8) | data[1];
-    QString label = extractLabel(data, 2, 16);
+    QString label = extract_label(data, 2, 16);
     
     if (services_.contains(serviceId)) {
         services_[serviceId].serviceLabel = label;
-        services_[serviceId].shortLabel = extractShortLabel(label);
+        services_[serviceId].shortLabel = extract_short_label(label);
         services_[serviceId].lastUpdated = QDateTime::currentDateTime();
         
         emit serviceLabelUpdated(serviceId, label);
@@ -400,7 +397,7 @@ bool fic_decoder::processFig1Type1(const QByteArray& data)
 }
 
 // Helper methods
-QString fic_decoder::extractLabel(const QByteArray& data, int offset, int length) const
+QString fic_decoder::extract_label(const QByteArray& data, int offset, int length) const
 {
     if (offset + length > data.size()) {
         return QString();
@@ -417,7 +414,7 @@ QString fic_decoder::extractLabel(const QByteArray& data, int offset, int length
     return QString::fromLatin1(labelData).trimmed();
 }
 
-QString fic_decoder::extractShortLabel(const QString& fullLabel) const
+QString fic_decoder::extract_short_label(const QString& fullLabel) const
 {
     // Extract short label based on DAB standard
     // This is a simplified implementation
@@ -447,7 +444,7 @@ quint8 fic_decoder::calculateFigLength(const QByteArray& data) const
 }
 
 // Service management
-void fic_decoder::addOrUpdateService(const ServiceInfo& service)
+void fic_decoder::add_or_update_service(const ServiceInfo& service)
 {
     bool isNew = !services_.contains(service.serviceId);
     services_[service.serviceId] = service;
@@ -459,7 +456,7 @@ void fic_decoder::addOrUpdateService(const ServiceInfo& service)
     emit servicesUpdated(getDiscoveredServices());
 }
 
-void fic_decoder::addOrUpdateComponent(const ComponentInfo& component)
+void fic_decoder::add_or_update_component(const ComponentInfo& component)
 {
     QList<ComponentInfo>& components = service_components_[component.serviceId];
     
@@ -480,7 +477,7 @@ void fic_decoder::addOrUpdateComponent(const ComponentInfo& component)
     emit serviceComponentsUpdated(component.serviceId, components);
 }
 
-void fic_decoder::updateEnsembleInfo(const EnsembleInfo& ensemble)
+void fic_decoder::update_ensemble_info(const EnsembleInfo& ensemble)
 {
     bool wasEmpty = !has_ensemble_info_;
     ensemble_info_ = ensemble;
@@ -541,17 +538,17 @@ void fic_decoder::reset()
     emit statusChanged(status_);
 }
 
-QList<fic_decoder::Service> fic_decoder::getServices() const
+QList<fic_decoder::Service> fic_decoder::get_services() const
 {
     return test_services_.values();
 }
 
-QList<fic_decoder::SubChannel> fic_decoder::getSubChannels() const
+QList<fic_decoder::SubChannel> fic_decoder::get_sub_channels() const
 {
     return sub_channels_.values();
 }
 
-fic_decoder::EnsembleData fic_decoder::getEnsembleData() const
+fic_decoder::EnsembleData fic_decoder::get_ensemble_data() const
 {
     return ensemble_data_;
 }

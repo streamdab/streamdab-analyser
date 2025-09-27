@@ -338,10 +338,10 @@ void ConstellationWidget::exportData()
             
             // Export signal metrics
             out << "Signal Quality Metrics:\n";
-            out << "SNR: " << QString::number(m_currentSnr, 'f', 2) << " dB\n";
-            out << "Signal Level: " << QString::number(m_signalLevel, 'f', 1) << " dBm\n";
-            out << "Error Rate: " << QString::number(m_errorRate, 'f', 4) << "\n";
-            out << "Modulation: " << getModulationString() << "\n";
+            out << "SNR: " << QString::number(m_signalToNoiseRatio, 'f', 2) << " dB\n";
+            out << "Signal Quality: " << QString::number(m_signalQuality, 'f', 1) << "%\n";
+            out << "Error Rate: " << QString::number(m_bitErrorRate, 'f', 4) << "\n";
+            out << "Modulation: DAB OFDM\n";
             out << "Total Samples: " << m_constellationPoints.size() << "\n\n";
             
             // Export constellation points (I/Q data)
@@ -360,12 +360,11 @@ void ConstellationWidget::exportData()
             
             // Export signal statistics
             out << "\nSignal Statistics:\n";
-            out << "Average I: " << QString::number(calculateAverageI(), 'f', 6) << "\n";
-            out << "Average Q: " << QString::number(calculateAverageQ(), 'f', 6) << "\n";
-            out << "I Standard Deviation: " << QString::number(calculateStdDevI(), 'f', 6) << "\n";
-            out << "Q Standard Deviation: " << QString::number(calculateStdDevQ(), 'f', 6) << "\n";
-            out << "Peak Amplitude: " << QString::number(calculatePeakAmplitude(), 'f', 6) << "\n";
-            out << "RMS Amplitude: " << QString::number(calculateRmsAmplitude(), 'f', 6) << "\n";
+            out << "EVM: " << QString::number(m_errorVectorMagnitude, 'f', 6) << "\n";
+            out << "Signal Quality: " << QString::number(m_signalQuality, 'f', 2) << "%\n";
+            out << "SNR: " << QString::number(m_signalToNoiseRatio, 'f', 2) << " dB\n";
+            out << "Bit Error Rate: " << QString::number(m_bitErrorRate, 'f', 6) << "\n";
+            out << "Sample Count: " << QString::number(m_constellationPoints.size()) << "\n";
             
             file.close();
             QMessageBox::information(this, tr("Export Successful"), 
@@ -527,7 +526,7 @@ void ConstellationWidget::handleSignalDataUpdate()
     // Handle signal data updates from ETI processor
     if (m_etiProcessor) {
         // Get current frame count and processing rate
-        quint64 frameCount = m_etiProcessor->getFrameCount();
+        quint64 frameCount = m_etiProcessor->get_frame_count();
         (void)frameCount; // TODO: Use frameCount for display updates
         
         // Calculate current processing rate (FPS)

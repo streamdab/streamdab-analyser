@@ -19,7 +19,7 @@
 #define ETSI_STANDARD_VALIDATORS_H
 
 #include "compliance_engine.h"
-#include "../eti_types.h"
+#include "../eti_types.hpp"
 #include <memory>
 #include <vector>
 #include <map>

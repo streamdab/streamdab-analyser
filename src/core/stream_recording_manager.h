@@ -30,7 +30,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "eti_types.h"
+#include "eti_types.hpp"
 
 namespace eti {
 

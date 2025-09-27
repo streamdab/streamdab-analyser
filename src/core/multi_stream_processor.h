@@ -31,7 +31,7 @@
 #include <string>
 #include <unordered_set>
 
-#include "eti_types.h"
+#include "eti_types.hpp"
 #include "network_stream_receiver.h"
 #include "stream_recording_manager.h"
 #include "audio_extraction_pipeline.h"

@@ -32,7 +32,7 @@
 #include <unordered_map>
 #include <functional>
 
-#include "../core/eti_types.h"
+#include "../core/eti_types.hpp"
 
 namespace eti_network {
 

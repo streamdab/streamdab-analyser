@@ -24,7 +24,7 @@
 #define ETSI_ALERT_SYSTEM_H
 
 #include "compliance_engine.h"
-#include "../eti_types.h"
+#include "../eti_types.hpp"
 #include <memory>
 #include <vector>
 #include <map>

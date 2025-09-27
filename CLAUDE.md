@@ -805,6 +805,120 @@ private:
 - ✅ **`.clang-tidy`:** C++20 + Qt6 validation with zero critical issues
 - ✅ **CMake:** C++20 standard with Qt6 integration, production warnings enabled
 
+## 📝 **QT6 + C++20 CODING STANDARDS**
+
+### **🎯 Professional Development Standards Integration**
+
+The StreamDAB Stream Analyzer follows comprehensive **Qt6 + C++20 Coding Standards** as defined in [Qt6_CPP20_Style_Guide.md](Qt6_CPP20_Style_Guide.md). This ensures professional broadcast industry code quality and maintainability.
+
+#### **📋 Layer-Based Naming Conventions**
+
+**Qt UI Layer (camelCase):**
+```cpp
+// Classes and methods follow Qt conventions
+class MainWindow : public QMainWindow {};
+void setText(const QString& text);
+QString m_currentUser;  // Member variables with m_ prefix
+```
+
+**C++ Core Layer (snake_case):**
+```cpp
+// Business logic follows modern C++20 conventions  
+class UserManager {};
+void process_user_data();
+std::string user_name_;  // Member variables with _ suffix
+```
+
+#### **🏗️ Professional File Structure Standards**
+
+**Directory Organization:**
+```
+src/
+├── ui/           # Qt widgets, UI classes (Qt naming)
+├── core/         # Business logic (C++20 naming)
+├── models/       # Data models (consistent within)
+├── adapters/     # UI-Core bridges
+└── utils/        # Helper functions
+```
+
+**File Naming Conventions:**
+- Header files: `.hpp` (C++) or `.h` (Qt classes)
+- Implementation files: `.cpp`
+- Qt UI files: `.ui`
+- Resource files: `.qrc`
+
+#### **🔧 Modern C++20 Features Integration**
+
+**Concepts and Constraints:**
+```cpp
+template<typename T>
+concept Drawable = requires(T t) {
+    t.draw();
+};
+```
+
+**Ranges and Algorithms:**
+```cpp
+auto active_users = users 
+    | std::views::filter([](const User& u) { return u.is_active(); })
+    | std::views::transform([](const User& u) { return u.name(); });
+```
+
+**Smart Pointers and RAII:**
+```cpp
+auto manager = std::make_unique<UserManager>();
+auto* widget = new QWidget(parent);  // Qt parent-child hierarchy
+```
+
+#### **📊 Code Quality Standards**
+
+**Formatting Rules:**
+- **Indentation:** 4 spaces (no tabs)
+- **Line Length:** 100 characters maximum
+- **Braces:** Allman style for functions, same-line for control flow
+- **Pointer Alignment:** `int* ptr` (left-aligned)
+
+**Documentation Standards:**
+```cpp
+/**
+ * @brief Brief one-line description
+ * 
+ * Detailed description with usage examples
+ * 
+ * @param parameter Description of parameter
+ * @return Description of return value
+ * @throws Exception conditions
+ */
+```
+
+#### **🧪 TDD Integration with Style Guide**
+
+All code implementations follow **Test-Driven Development** with **AAA (Arrange-Act-Assert)** patterns while maintaining style guide compliance:
+
+```cpp
+TEST_F(ComponentTest, SignalSlotConnectionAAA) {
+    // Arrange - Setup components following naming conventions
+    MainWindow window;
+    auto* button = window.findChild<QPushButton*>("actionButton");
+    
+    // Act - Trigger functionality
+    QTest::mouseClick(button, Qt::LeftButton);
+    
+    // Assert - Verify expected behavior
+    ASSERT_TRUE(window.isOperationCompleted());
+}
+```
+
+**Quality Enforcement:**
+- **clang-tidy** configuration matches style guide requirements
+- **CMake** build system enforces C++20 standard
+- **CI/CD** pipeline validates style compliance
+- **Code Reviews** check adherence to Qt6 + C++20 standards
+
+For complete coding standards reference, see [Qt6_CPP20_Style_Guide.md](Qt6_CPP20_Style_Guide.md).
+
+---
+
 ## 📝 **DEVELOPMENT NOTES**
 
 ### **🚨 MANDATORY TDD WORKFLOW CHECKLIST (September 23, 2025):**
@@ -1012,6 +1126,7 @@ cd build && make -j$(nproc)
 ### **📋 Core Project Documentation**
 - **[CLAUDE.md](CLAUDE.md)** - This file: Complete project status and honest assessment
 - **[README.md](README.md)** - Project overview and quick start guide
+- **[Qt6_CPP20_Style_Guide.md](Qt6_CPP20_Style_Guide.md)** - Complete Qt6 + C++20 coding standards and implementation guidelines
 
 ### **🔧 Technical Implementation Documentation**
 

@@ -36,7 +36,7 @@
 #include "compliance_logger.h"
 #include "alert_system.h"
 #include "broadcast_standards.h"
-#include "../eti_types.h"
+#include "../eti_types.hpp"
 #include <memory>
 #include <vector>
 #include <map>

@@ -18,7 +18,7 @@
 #ifndef ETSI_COMPLIANCE_ENGINE_H
 #define ETSI_COMPLIANCE_ENGINE_H
 
-#include "../eti_types.h"
+#include "../eti_types.hpp"
 #include <memory>
 #include <vector>
 #include <map>

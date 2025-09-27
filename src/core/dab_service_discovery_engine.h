@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "eti_types.h"
+#include "eti_types.hpp"
 #include "fig_parser.h"
 #include <QObject>
 #include <QString>

@@ -32,7 +32,7 @@
 
 #include "compliance_engine.h"
 #include "alert_system.h"
-#include "../eti_types.h"
+#include "../eti_types.hpp"
 #include <memory>
 #include <vector>
 #include <map>

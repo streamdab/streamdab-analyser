@@ -3,7 +3,7 @@
  * @brief ETI Frame Memory Pool Implementation (Stub)
  */
 
-#include "eti_memory_pool.h"
+#include "eti_memory_pool.hpp"
 
 namespace eti::modern {
 

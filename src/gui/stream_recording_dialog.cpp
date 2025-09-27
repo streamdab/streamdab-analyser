@@ -260,16 +260,20 @@ void StreamRecordingDialog::handleSessionStatisticsUpdate(const QString& session
     
     // Update recording progress and status using actual member variables
     if (m_recordingProgress) {
-        // Update progress based on session statistics
-        m_recordingProgress->setValue(static_cast<int>(session.duration_seconds % 100));
+        // Calculate duration from start_time to now (or end_time if recording completed)
+        QDateTime currentTime = session.end_time.isValid() ? session.end_time : QDateTime::currentDateTime();
+        qint64 durationSeconds = session.start_time.secsTo(currentTime);
+        m_recordingProgress->setValue(static_cast<int>(durationSeconds % 100));
     }
     
     // Update status label with recording statistics
     if (m_statusLabel) {
+        QDateTime currentTime = session.end_time.isValid() ? session.end_time : QDateTime::currentDateTime();
+        qint64 durationSeconds = session.start_time.secsTo(currentTime);
         QString statusText = QString("Recording: %1s, %2 frames, %3 MB")
-                            .arg(session.duration_seconds)
-                            .arg(session.frame_count)
-                            .arg(session.file_size_bytes / (1024 * 1024));
+                            .arg(durationSeconds)
+                            .arg(session.frames_recorded.load())
+                            .arg(session.bytes_written.load() / (1024 * 1024));
         m_statusLabel->setText(statusText);
     }
 }

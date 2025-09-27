@@ -16,7 +16,7 @@
 #include <QFont>
 #include <QBrush>
 #include <QIcon>
-#include "core/eti_types.h"
+#include "core/eti_types.hpp"
 
 // Forward declarations
 class EtiProcessor;
@@ -138,6 +138,21 @@ public slots:
      * @param ensemble Ensemble information
      */
     void onEnsembleUpdated(const EnsembleInfo& ensemble);
+
+    /**
+     * @brief Handle service discovery from HeadlessETIProcessor
+     * @param serviceId Service ID
+     * @param serviceName Service name/label
+     * @param serviceType Service type string
+     */
+    void onServiceDiscoveredFromProcessor(uint32_t serviceId, const QString& serviceName, const QString& serviceType);
+
+    /**
+     * @brief Handle ensemble discovery from HeadlessETIProcessor
+     * @param ensembleId Ensemble ID
+     * @param ensembleName Ensemble name/label
+     */
+    void onEnsembleDiscoveredFromProcessor(uint16_t ensembleId, const QString& ensembleName);
     
     /**
      * @brief Clear all services from tree

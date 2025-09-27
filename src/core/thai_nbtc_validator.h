@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include "eti_types.h"
+#include "eti_types.hpp"
 #include "dab_service_discovery_engine.h"
 #include <QObject>
 #include <QString>

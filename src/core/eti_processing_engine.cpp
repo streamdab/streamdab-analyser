@@ -180,8 +180,8 @@ bool UnifiedETIProcessingEngine::processFile(const QString& filename) {
             UnifiedProcessingResult result = processFrame(frameData);
             if (!result.success) {
                 Logger::instance().log(Logger::Error, "UnifiedETIProcessingEngine", 
-                                      QString("Failed to process frame %1: %2")
-                                      .arg(i).arg(result.error_message));
+                                      QString("Failed to process frame %1")
+                                      .arg(i));
                 return false;
             }
             

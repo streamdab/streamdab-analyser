@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "eti_types.h"
+#include "eti_types.hpp"
 #include <QObject>
 #include <unordered_map>
 #include <unordered_set>
@@ -57,16 +57,14 @@ struct FIGProcessingStats {
  */
 struct FIGCarouselAnalysis {
     struct FIGOccurrence {
-        uint8_t fig_type;
-        uint8_t extension;
+        uint8_t fig_type{0};
+        uint8_t extension{0};
         std::chrono::steady_clock::time_point last_seen;
-        uint32_t occurrence_count;
-        std::chrono::milliseconds average_interval;
-        std::chrono::milliseconds min_interval;
-        std::chrono::milliseconds max_interval;
-        bool meets_etsi_timing;
-        
-        FIGOccurrence() : fig_type(0), extension(0), occurrence_count(0), meets_etsi_timing(false) {}
+        uint32_t occurrence_count{0};
+        std::chrono::milliseconds average_interval{std::chrono::milliseconds::zero()};
+        std::chrono::milliseconds min_interval{std::chrono::milliseconds::max()};
+        std::chrono::milliseconds max_interval{std::chrono::milliseconds::zero()};
+        bool meets_etsi_timing{false};
     };
     
     std::unordered_map<uint16_t, FIGOccurrence> fig_occurrences; // key: (type << 8) | extension
@@ -99,14 +97,12 @@ struct EnhancedServiceInfo {
     
     // Component analysis
     struct ComponentAnalysis {
-        uint8_t sub_channel_id;
+        uint8_t sub_channel_id{0};
         std::string component_type_name;
         std::optional<std::string> audio_mode; // For audio components
         std::optional<uint32_t> bitrate; // For audio components
         bool is_protected{false};
         uint8_t protection_level{0};
-        
-        ComponentAnalysis() : sub_channel_id(0), is_protected(false), protection_level(0) {}
     };
     std::vector<ComponentAnalysis> component_details;
     
@@ -170,30 +166,30 @@ public:
      * @param fic_data FIC field data
      * @return Vector of processed FIG blocks
      */
-    std::vector<eti::FigBlock> processFICData(const eti::EtiFicField& fic_data);
+    std::vector<eti::FigBlock> process_fic_data(const eti::EtiFicField& fic_data);
 
     /**
      * @brief Analyze single FIG block with enhanced processing
      * @param fig_block FIG block to analyze
      * @return true if processing successful
      */
-    bool analyzeFIGBlock(const eti::FigBlock& fig_block);
+    bool analyze_fig_block(const eti::FigBlock& fig_block);
 
     /**
      * @brief Get current ensemble information
      */
-    std::optional<EnhancedEnsembleInfo> getCurrentEnsemble() const;
+    std::optional<EnhancedEnsembleInfo> get_current_ensemble() const;
 
     /**
      * @brief Get all discovered services
      */
-    std::vector<EnhancedServiceInfo> getDiscoveredServices() const;
+    std::vector<EnhancedServiceInfo> get_discovered_services() const;
 
     /**
      * @brief Get service by ID with enhanced information
      * @param service_id Service identifier
      */
-    std::optional<EnhancedServiceInfo> getServiceById(uint16_t service_id) const;
+    std::optional<EnhancedServiceInfo> get_service_by_id(uint16_t service_id) const;
 
     /**
      * @brief Get FIG carousel analysis results
@@ -322,16 +318,20 @@ private:
     void optimizeDataStructures();
     void cleanupStaleData();
 
-private:
-    // Configuration
-    bool carousel_analysis_enabled_{true};
-    bool thai_support_enabled_{true};
-    bool error_recovery_enabled_{true};
+    // Configuration (removed redundant private: label)
+    bool m_carousel_analysis_enabled{true};
+    bool m_thai_support_enabled{true};
+    bool m_error_recovery_enabled{true};
     
     // Current state
     std::optional<EnhancedEnsembleInfo> current_ensemble_;
     std::unordered_map<uint16_t, EnhancedServiceInfo> discovered_services_;
     std::unordered_map<uint8_t, eti::SubChannelInfo> subchannels_;
+    
+    // Additional state tracking for ETSI compliance
+    std::unordered_map<uint8_t, eti::ServiceComponent> m_serviceComponents;
+    std::unordered_map<uint32_t, eti::DabService> m_dabServices;
+    std::unordered_map<uint32_t, std::vector<std::string>> m_userApplications;
     
     // Carousel analysis data
     FIGCarouselAnalysis carousel_analysis_;

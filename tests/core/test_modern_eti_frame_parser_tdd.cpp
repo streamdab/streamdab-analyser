@@ -12,7 +12,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "core/modern_eti_frame_parser.h"
-#include "eti_types.h"
+#include "eti_types.hpp"
 #include <QByteArray>
 #include <QSignalSpy>
 #include <chrono>

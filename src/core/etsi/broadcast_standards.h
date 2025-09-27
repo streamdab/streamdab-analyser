@@ -24,7 +24,7 @@
 
 #include "alert_system.h"
 #include "compliance_engine.h"
-#include "../eti_types.h"
+#include "../eti_types.hpp"
 #include <memory>
 #include <vector>
 #include <map>

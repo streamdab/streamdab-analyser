@@ -46,7 +46,9 @@
 #include <QPalette>
 #include <QFont>
 #include <QStyle>
+#ifdef HAVE_QT6_UITOOLS
 #include <QUiLoader>
+#endif
 #include <QDir>
 #include <QFile>
 #include <QScreen>
@@ -353,7 +355,9 @@ public:
     bool testProfessionalDialogIntegration(const QString& dialogName);
 
 private:
+#ifdef HAVE_QT6_UITOOLS
     std::unique_ptr<QUiLoader> m_uiLoader;
+#endif
     QStringList m_availableUIFiles;
 
     void scanForUIFiles();

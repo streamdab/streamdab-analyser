@@ -7,7 +7,7 @@
 #include <QDateTime>
 #include <QTimer>
 #include <memory>
-#include "eti_types.h"
+#include "eti_types.hpp"
 
 /**
  * @class ServiceManager

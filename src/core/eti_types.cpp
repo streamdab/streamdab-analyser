@@ -10,7 +10,7 @@
  * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
  */
 
-#include "eti_types.h"
+#include "eti_types.hpp"
 #include <algorithm>
 #include <cstring>
 #include <numeric>
@@ -51,7 +51,7 @@ std::vector<FigBlock> EtiFicField::decode_fig_blocks() const {
         
         // Extract FIG data
         if (offset + fig.length <= FIC_SIZE_BYTES && fig.length > 0) {
-            fig.data.assign(fic_data + offset, fic_data + offset + fig.length);
+            fig.data.assign(fic_data.data() + offset, fic_data.data() + offset + fig.length);
             offset += fig.length;
         } else {
             // Invalid FIG block, stop processing
@@ -78,7 +78,7 @@ bool EtiFicField::validate_fic_crc() const {
     // For now, we'll do basic structure validation
     
     // Check if FIC data is not all zeros (indicating no data)
-    bool has_data = std::any_of(fic_data, fic_data + FIC_SIZE_BYTES, 
+    bool has_data = std::any_of(fic_data.begin(), fic_data.end(), 
                                [](uint8_t byte) { return byte != 0; });
     
     if (!has_data) {
@@ -121,7 +121,7 @@ std::vector<uint8_t> EtiMscField::extract_subchannel_data(const SubChannelInfo& 
     
     // Extract subchannel data
     if (size_bytes > 0) {
-        subchannel_data.assign(msc_data + start_byte, msc_data + start_byte + size_bytes);
+        subchannel_data.assign(msc_data.data() + start_byte, msc_data.data() + start_byte + size_bytes);
     }
     
     return subchannel_data;

@@ -21,7 +21,7 @@
 
 #pragma once
 
-#include "eti_types.h"
+#include "eti_types.hpp"
 #include <QObject>
 #include <QByteArray>
 #include <QString>
@@ -37,8 +37,8 @@
 #include <functional>
 
 // Forward declarations  
-#include "eti_memory_pool.h"
-#include "performance_profiler.h"
+#include "eti_memory_pool.hpp"
+#include "performance_profiler.hpp"
 
 namespace eti::modern {
 
@@ -339,8 +339,8 @@ private:
     
     // Performance components
     std::unique_ptr<eti::modern::ETIFrameMemoryPool> memory_pool_;
-    std::unique_ptr<eti::modern::ETIProcessingCache> cache_;
-    std::unique_ptr<eti::modern::PerformanceProfiler> profiler_;
+    std::unique_ptr<eti::modern::ETIProcessingCache<uint32_t, eti::EtiFrame>> cache_;
+    std::unique_ptr<eti::modern::performance_profiler> profiler_;
     
     // Threading
     QThreadPool* thread_pool_;
