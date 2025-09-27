@@ -10,7 +10,7 @@
 #include <QDateTime>
 #include <memory>
 
-#include "../core/eti_types.h"
+#include "../core/eti_types.hpp"
 
 // Forward declarations for Modern ETI Core Engine
 namespace eti {

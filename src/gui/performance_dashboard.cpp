@@ -556,7 +556,7 @@ void PerformanceDashboard::setupTrendCharts()
             this, &PerformanceDashboard::onTimeRangeChanged);
 }
 
-void PerformanceDashboard::connectEtiProcessor(EtiProcessor* processor)
+void PerformanceDashboard::connectEtiProcessor(eti_processor* processor)
 {
     if (m_etiProcessor) {
         // Disconnect previous processor

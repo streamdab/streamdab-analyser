@@ -31,7 +31,7 @@
 #include <vector>
 #include <deque>
 
-#include "../core/eti_types.h"
+#include "../core/eti_types.hpp"
 #include "../core/stream_recording_manager.h"
 
 namespace eti_network {

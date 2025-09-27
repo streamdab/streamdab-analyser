@@ -60,7 +60,7 @@ void EtiFileWorker::processEtiFile(const QString& fileName)
         return;
     }
     
-    if (!m_etiProcessor || !m_etiProcessor->isInitialized()) {
+    if (!m_etiProcessor || !m_etiProcessor->is_initialized()) {
         emit processingFailed(fileName, "ETI processor not initialized");
         return;
     }
@@ -126,7 +126,7 @@ void EtiFileWorker::doProcessing()
         quint64 finalFrameCount = 0;
         
         try {
-            success = m_etiProcessor->processFile(fileName);
+            success = m_etiProcessor->process_file(fileName);
             
             {
                 QMutexLocker locker(&m_mutex);
@@ -139,7 +139,7 @@ void EtiFileWorker::doProcessing()
             
             // Safely get frame count with error protection
             try {
-                finalFrameCount = m_etiProcessor->getFrameCount();
+                finalFrameCount = m_etiProcessor->get_frame_count();
             } catch (...) {
                 // If frame count retrieval fails, estimate from progress
                 finalFrameCount = m_frameCount;
@@ -182,7 +182,7 @@ void EtiFileWorker::doProcessing()
         } else {
             QString errorMsg = "Processing failed - no frames processed";
             try {
-                errorMsg = m_etiProcessor->getStatus();
+                errorMsg = m_etiProcessor->get_status();
             } catch (...) {
                 // Ignore status retrieval errors
             }

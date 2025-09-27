@@ -7,11 +7,11 @@
 // QStateMachine not available - using enum-based state management
 #include <QKeySequence>
 #include <QElapsedTimer>
-#include "core/eti_types.h"
+#include "core/eti_types.hpp"
 
 // Forward declarations
 class MainWindow;
-class EtiProcessor;
+class eti_processor;
 class ServiceExplorerPanel;
 class PerformanceDashboard;
 class ETSIComplianceMonitor;
@@ -409,7 +409,7 @@ private:
 
     // Main window and component references
     MainWindow* m_mainWindow;
-    EtiProcessor* m_etiProcessor;
+    eti_processor* m_etiProcessor;
     ServiceExplorerPanel* m_serviceExplorerPanel;
     PerformanceDashboard* m_performanceDashboard;
     ETSIComplianceMonitor* m_complianceMonitor;

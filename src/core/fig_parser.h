@@ -27,7 +27,7 @@
 
 #pragma once
 
-#include "eti_types.h"
+#include "eti_types.hpp"
 #include <QObject>
 #include <QString>
 #include <QByteArray>
@@ -70,6 +70,11 @@ struct Fig00EnsembleInfo {
  * Reference: ETSI EN 300 401 Section 8.1.1.2.2
  */
 struct Fig01SubchannelInfo {
+    enum ProtectionType {
+        UEP = 0,  // Unequal Error Protection
+        EEP = 1   // Equal Error Protection
+    };
+    
     uint8_t subchannel_id;          // SubChId (6-bit)
     uint16_t start_address;         // Start Address (10-bit in CUs)
     bool short_form;                // Form flag (1=short, 0=long)
@@ -119,10 +124,20 @@ struct Fig02ServiceInfo {
         bool primary_flag;              // P/S flag
         bool ca_flag;                   // CA flag
         bool is_valid;
+
+        // Default constructor to initialize all members
+        ServiceComponent() 
+            : transport_mechanism_id(0), audio_service_type(0), subchannel_id(0),
+              packet_address(0), primary_flag(false), ca_flag(false), is_valid(false) {}
     };
     
     std::vector<ServiceComponent> components;
     bool is_valid;
+    
+    // Default constructor to initialize all members
+    Fig02ServiceInfo() 
+        : service_id(0), country_id(0), extended_country_code(0), 
+          local_flag(false), caid_flag(false), number_of_components(0), is_valid(false) {}
     
     bool validate_service_id() const {
         return service_id != 0;
@@ -284,6 +299,7 @@ public:
         uint64_t total_fics_processed;
         uint64_t total_figs_processed;
         uint64_t parsing_errors;
+        uint64_t service_labels_processed;
         std::chrono::nanoseconds total_parsing_time;
         double average_figs_per_second;
         double average_parsing_latency_ms;
@@ -419,5 +435,8 @@ private:
 std::unique_ptr<FigParser> createOptimizedFigParser(
     bool enable_thai_support = true,
     bool strict_compliance = false);
+
+// Type alias for backwards compatibility
+using Fig02ServiceComponent = Fig02ServiceInfo::ServiceComponent;
 
 } // namespace eti::fig

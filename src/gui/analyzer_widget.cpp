@@ -679,7 +679,7 @@ void AnalyzerWidget::exportData()
             
             // Export ensemble information if available
             if (m_etiProcessor) {
-                auto ensemble = m_etiProcessor->getCurrentEnsemble();
+                auto ensemble = m_etiProcessor->get_current_ensemble();
                 out << "Ensemble Information:\n";
                 out << "Ensemble ID: 0x" << QString::number(ensemble.ensemble_id, 16).toUpper() << "\n";
                 out << "Country ID: 0x" << QString::number(ensemble.country_id, 16).toUpper() << "\n";
@@ -791,7 +791,7 @@ void AnalyzerWidget::handleEtiData()
         
         try {
             // Get current ensemble data from processor
-            auto ensemble = m_etiProcessor->getCurrentEnsemble();
+            auto ensemble = m_etiProcessor->get_current_ensemble();
             
             // Update frame count and processing statistics
             ++m_processedFrames;

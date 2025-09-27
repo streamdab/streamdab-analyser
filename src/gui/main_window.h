@@ -387,6 +387,52 @@ protected:
      */
     void moveEvent(QMoveEvent *event) override;
 
+public slots:
+    // ========== TDD/AAA TESTABLE PUBLIC SLOTS ==========
+    /**
+     * @brief Handle ETI frame processing completion (TDD testable)
+     * @param frameNumber Frame number processed
+     * @param data Frame data
+     */
+    void onFrameProcessed(quint64 frameNumber, const QByteArray& data);
+
+    /**
+     * @brief Handle ETI processing status changes (TDD testable)
+     * @param status New processing status
+     */
+    void onStatusChanged(const QString& status);
+
+    /**
+     * @brief Handle ensemble discovery (TDD testable)
+     * @param ensemble Discovered ensemble information
+     */
+    void onEnsembleDiscovered(const eti::Ensemble& ensemble);
+
+    /**
+     * @brief Handle service discovery (TDD testable)
+     * @param service Discovered service information
+     */
+    void onServiceDiscovered(const eti::DabService& service);
+
+    // ========== TDD/AAA GREEN PHASE MINIMAL METHODS ==========
+    /**
+     * @brief Create context menu for widget (TDD testable)
+     * @param widget Target widget for context menu
+     */
+    void createContextMenu(QWidget* widget);
+
+    /**
+     * @brief Show error indicator in UI (TDD testable)
+     * @param errorMessage Error message to display
+     */
+    void showErrorIndicator(const QString& errorMessage);
+
+    /**
+     * @brief Enable/disable real-time mode (TDD testable)
+     * @param enabled True to enable real-time mode
+     */
+    void enableRealTimeMode(bool enabled);
+
 private:
     // Private slots
     /**
@@ -414,35 +460,10 @@ private:
 
     // ========== UI INTEGRATION SPECIALIST SIGNAL/SLOT HANDLERS ==========
     /**
-     * @brief Handle ETI frame processing completion
-     * @param frameNumber Frame number processed
-     * @param data Frame data
-     */
-    void onFrameProcessed(quint64 frameNumber, const QByteArray& data);
-
-    /**
      * @brief Handle ETI processing errors
      * @param error Error message from ETI processor
      */
     void onEtiError(const QString& error);
-
-    /**
-     * @brief Handle ETI processing status changes
-     * @param status New processing status
-     */
-    void onStatusChanged(const QString& status);
-
-    /**
-     * @brief Handle ensemble discovery
-     * @param ensemble Discovered ensemble information
-     */
-    void onEnsembleDiscovered(const eti::Ensemble& ensemble);
-
-    /**
-     * @brief Handle service discovery
-     * @param service Discovered service information
-     */
-    void onServiceDiscovered(const eti::DabService& service);
 
     /**
      * @brief Update frame processing statistics in UI

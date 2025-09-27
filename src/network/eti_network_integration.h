@@ -30,7 +30,7 @@
 #include "streaming_processor.h"
 #include "circular_buffer_manager.h"
 #include "../core/eti_processor.h"
-#include "../core/eti_types.h"
+#include "../core/eti_types.hpp"
 
 namespace eti_network {
 

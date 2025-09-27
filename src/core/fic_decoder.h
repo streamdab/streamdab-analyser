@@ -7,12 +7,12 @@
 #include <QMap>
 #include <QString>
 #include <QDateTime>
-#include "eti_types.h"
+#include "eti_types.hpp"
 
 // Forward declarations for ETI types
 
 /**
- * @class FicDecoder
+ * @class fic_decoder
  * @brief Professional FIC (Fast Information Channel) decoder following ETSI EN 300 401
  * 
  * Decodes FIC data from ETI frames to extract service information, ensemble data,
@@ -26,7 +26,7 @@
  * - Service label decoding (including extended character sets)
  * - Programme Type (PTy) classification
  */
-class FicDecoder : public QObject
+class fic_decoder : public QObject
 {
     Q_OBJECT
 
@@ -145,53 +145,66 @@ public:
         EnsembleData() : ensembleId(0), cifCount(0) {}
     };
 
-    explicit FicDecoder(QObject *parent = nullptr);
-    virtual ~FicDecoder();
+    explicit fic_decoder(QObject *parent = nullptr);
+    virtual ~fic_decoder();
 
     // Core decoding operations
     bool initialize();
     void shutdown();
-    bool isInitialized() const { return m_initialized; }
+    bool is_initialized() const { return initialized_; }
 
     // FIC processing
+    bool process_fic_data(const QByteArray& ficData);
+    bool process_eti_frame(const eti::EtiFrameData& frame);
+    bool process_fig_block(const eti::FigBlock& figBlock);
+    
+    // CamelCase versions for existing implementation compatibility
     bool processFicData(const QByteArray& ficData);
     bool processEtiFrame(const eti::EtiFrameData& frame);
     bool processFigBlock(const eti::FigBlock& figBlock);
 
     // Information retrieval
+    QList<ServiceInfo> get_discovered_services() const;
+    ServiceInfo get_service_info(quint32 serviceId) const;
+    
+    // CamelCase versions for existing implementation compatibility
     QList<ServiceInfo> getDiscoveredServices() const;
     ServiceInfo getServiceInfo(quint32 serviceId) const;
+    EnsembleInfo get_ensemble_info() const;
+    QList<ComponentInfo> get_service_components(quint32 serviceId) const;
+    
+    // CamelCase versions for existing implementation compatibility
     EnsembleInfo getEnsembleInfo() const;
     QList<ComponentInfo> getServiceComponents(quint32 serviceId) const;
 
     // Service management
-    bool hasService(quint32 serviceId) const;
-    bool hasEnsembleInfo() const;
-    QString getServiceLabel(quint32 serviceId) const;
-    QString getEnsembleLabel() const;
+    bool has_service(quint32 serviceId) const;
+    bool has_ensemble_info() const;
+    QString get_service_label(quint32 serviceId) const;
+    QString get_ensemble_label() const;
 
     // Status and statistics
-    DecoderStatus getStatus() const { return m_status; }
-    quint32 getProcessedFicCount() const { return m_ficCount; }
-    double getErrorRate() const { return m_errorRate; }
-    quint32 getFigTypeCount(FigType type) const;
+    DecoderStatus get_status() const { return status_; }
+    quint32 get_processed_fic_count() const { return fic_count_; }
+    double get_error_rate() const { return error_rate_; }
+    quint32 get_fig_type_count(FigType type) const;
     
     // Test-compatible interface methods
-    quint32 getFibCount() const { return m_ficCount; }
-    quint32 getErrorCount() const { return m_errorCount; }
-    int getSyncLevel() const { return m_syncLevel; }
+    quint32 get_fib_count() const { return fic_count_; }
+    quint32 get_error_count() const { return error_count_; }
+    int get_sync_level() const { return sync_level_; }
     void reset();
-    QList<Service> getServices() const;
-    QList<SubChannel> getSubChannels() const;
-    EnsembleData getEnsembleData() const;
-    Service getServiceById(quint32 serviceId) const;
-    SubChannel getSubChannelById(quint8 subChannelId) const;
-    bool isServiceAvailable(quint32 serviceId) const;
-    bool isSubChannelConfigured(quint8 subChannelId) const;
+    QList<Service> get_services() const;
+    QList<SubChannel> get_sub_channels() const;
+    EnsembleData get_ensemble_data() const;
+    Service get_service_by_id(quint32 serviceId) const;
+    SubChannel get_sub_channel_by_id(quint8 subChannelId) const;
+    bool is_service_available(quint32 serviceId) const;
+    bool is_sub_channel_configured(quint8 subChannelId) const;
 
     // Configuration
-    void setErrorThreshold(double threshold) { m_errorThreshold = threshold; }
-    double getErrorThreshold() const { return m_errorThreshold; }
+    void set_error_threshold(double threshold) { error_threshold_ = threshold; }
+    double get_error_threshold() const { return error_threshold_; }
 
 signals:
     /**
@@ -240,59 +253,71 @@ signals:
     void subchannelInfoUpdated(quint8 subChannelId);
 
 private slots:
-    void handleFicProcessed();
-    void handleFicError(const QString& error);
+    void handle_fic_processed();
+    void handle_fic_error(const QString& error);
 
 private:
     // FIG processing methods
+    bool process_fig0(const QByteArray& figData);
+    bool process_fig1(const QByteArray& figData);
+    bool process_fig0_type1(const QByteArray& data); // Service info
+    bool process_fig0_type2(const QByteArray& data); // Service components
+    bool process_fig1_type1(const QByteArray& data); // Service labels
+    
+    // CamelCase versions for existing implementation compatibility
     bool processFig0(const QByteArray& figData);
     bool processFig1(const QByteArray& figData);
-    bool processFig0Type1(const QByteArray& data); // Service info
-    bool processFig0Type2(const QByteArray& data); // Service components
-    bool processFig1Type1(const QByteArray& data); // Service labels
 
     // Data extraction helpers
-    QString extractLabel(const QByteArray& data, int offset, int length) const;
-    QString extractShortLabel(const QString& fullLabel) const;
+    QString extract_label(const QByteArray& data, int offset, int length) const;
+    QString extract_short_label(const QString& fullLabel) const;
+    bool validate_fig_header(const QByteArray& data) const;
+    quint8 calculate_fig_length(const QByteArray& data) const;
+    
+    // CamelCase versions for existing implementation compatibility
     bool validateFigHeader(const QByteArray& data) const;
     quint8 calculateFigLength(const QByteArray& data) const;
 
     // Service management
-    void addOrUpdateService(const ServiceInfo& service);
-    void addOrUpdateComponent(const ComponentInfo& component);
-    void updateEnsembleInfo(const EnsembleInfo& ensemble);
+    void add_or_update_service(const ServiceInfo& service);
+    void add_or_update_component(const ComponentInfo& component);
+    void update_ensemble_info(const EnsembleInfo& ensemble);
 
     // Error handling and statistics
+    void update_error_statistics(bool hasError);
+    void reset_decoder();
+    
+    // CamelCase versions for existing implementation compatibility
     void updateErrorStatistics(bool hasError);
     void resetDecoder();
 
     // Member variables
-    bool m_initialized;
-    DecoderStatus m_status;
-    quint32 m_ficCount;
-    double m_errorRate;
-    double m_errorThreshold;
-    quint32 m_errorCount;
-    int m_syncLevel;
+    bool initialized_;
+    DecoderStatus status_;
+    quint32 fic_count_;
+    double error_rate_;
+    double error_threshold_;
+    quint32 error_count_;
+    int sync_level_;
 
     // Information storage
-    QMap<quint32, ServiceInfo> m_services;
-    QMap<quint32, QList<ComponentInfo>> m_serviceComponents;
-    EnsembleInfo m_ensembleInfo;
-    bool m_hasEnsembleInfo;
+    QMap<quint32, ServiceInfo> services_;
+    QMap<quint32, QList<ComponentInfo>> service_components_;
+    EnsembleInfo ensemble_info_;
+    bool has_ensemble_info_;
     
     // Test-compatible data structures
-    QMap<quint32, Service> m_testServices;
-    QMap<quint8, SubChannel> m_subChannels;
-    EnsembleData m_ensembleData;
+    QMap<quint32, Service> test_services_;
+    QMap<quint8, SubChannel> sub_channels_;
+    EnsembleData ensemble_data_;
 
     // Statistics and monitoring
-    QHash<FigType, quint32> m_figTypeStats;
-    QDateTime m_lastProcessTime;
+    QHash<FigType, quint32> fig_type_stats_;
+    QDateTime last_process_time_;
 
     // Processing state
-    QByteArray m_ficBuffer;
-    bool m_processingActive;
+    QByteArray fic_buffer_;
+    bool processing_active_;
 
     // Constants
     static constexpr double DEFAULT_ERROR_THRESHOLD = 0.1; // 10%

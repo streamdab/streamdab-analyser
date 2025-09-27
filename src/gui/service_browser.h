@@ -27,7 +27,7 @@
 #include <memory>
 
 // Forward declarations
-class EtiProcessor;
+class eti_processor;
 class EnsembleManager;
 class ServiceManager;
 
@@ -222,6 +222,18 @@ public slots:
      * @brief Clear all service data
      */
     void clearServices();
+
+    /**
+     * @brief Add a newly discovered DAB service
+     * @param service Discovered service information
+     */
+    void addDiscoveredService(const eti::DabService& service);
+
+    /**
+     * @brief Update ensemble information
+     * @param ensemble Discovered ensemble information
+     */
+    void updateEnsemble(const eti::Ensemble& ensemble);
 
     /**
      * @brief Refresh service information
@@ -538,6 +550,10 @@ private:
     // DAB+ file handling
     QStringList m_dabPlusExtensions;
     QLabel *m_metadataPreview;
+
+    // UI Integration Specialist: Service discovery integration
+    QList<ServiceInfo> m_discoveredServices;  // List of discovered services
+    QString m_currentEnsemble;                // Current ensemble name
 
     // Constants
     static constexpr int UPDATE_INTERVAL_MS = 1000;  // 1 second updates

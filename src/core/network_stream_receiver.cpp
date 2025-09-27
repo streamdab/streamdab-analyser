@@ -202,6 +202,72 @@ void NetworkStreamWorker::handle_datagram_ready() {
     }
 }
 
+void NetworkStreamWorker::process_pending_datagrams() {
+    // Process all pending datagrams in the socket buffer
+    while (m_socket && m_socket->hasPendingDatagrams() && m_receiving.load()) {
+        QNetworkDatagram datagram = m_socket->receiveDatagram();
+        
+        if (datagram.isValid()) {
+            const auto timestamp = std::chrono::steady_clock::now();
+            const QByteArray& data = datagram.data();
+            
+            m_statistics.bytes_received += data.size();
+            
+            // Validate ETI packet format
+            if (validate_eti_packet(data)) {
+                // Create network packet
+                NetworkPacket packet;
+                packet.data.reserve(data.size());
+                packet.data.insert(packet.data.end(), data.begin(), data.end());
+                packet.timestamp = timestamp;
+                packet.sequence_number = m_sequence_number.fetch_add(1);
+                packet.source_address = datagram.senderAddress().toString();
+                packet.source_port = datagram.senderPort();
+                packet.is_valid = true;
+                
+                // Add to buffer with thread safety
+                {
+                    QMutexLocker locker(&m_queue_mutex);
+                    
+                    // Check buffer capacity
+                    if (m_packet_queue.size() >= static_cast<int>(m_config.buffer_size)) {
+                        // Buffer overflow - remove oldest frame
+                        m_packet_queue.dequeue();
+                        m_statistics.buffer_overflows++;
+                    }
+                    
+                    m_packet_queue.enqueue(packet);
+                    m_queue_condition.wakeOne();
+                }
+                
+                // Update statistics
+                m_statistics.frames_received++;
+                m_last_frame_time = timestamp;
+                
+                // Emit signal for new packet
+                emit packet_received(packet);
+                
+                // Update frame rate tracking
+                update_frame_rate();
+                
+            } else {
+                // Invalid packet
+                m_statistics.frames_dropped++;
+                qWarning() << "Invalid ETI packet received from" 
+                          << datagram.senderAddress().toString()
+                          << ":" << datagram.senderPort();
+            }
+        } else {
+            // Invalid datagram
+            m_statistics.network_errors++;
+            qWarning() << "Invalid datagram received";
+        }
+    }
+    
+    // Check for quality issues
+    check_quality_thresholds();
+}
+
 void NetworkStreamWorker::handle_socket_error(QAbstractSocket::SocketError error) {
     m_statistics.network_errors++;
     
@@ -246,7 +312,7 @@ bool NetworkStreamWorker::validate_eti_packet(const QByteArray& data) const {
     
     // Validate ETI sync pattern
     const uint8_t* packet_data = reinterpret_cast<const uint8_t*>(data.constData());
-    return std::memcmp(packet_data, ETI_SYNC_PATTERN, 4) == 0;
+    return std::memcmp(packet_data, ETI_SYNC_PATTERN.data(), 4) == 0;
 }
 
 void NetworkStreamWorker::update_frame_rate() {
@@ -255,7 +321,7 @@ void NetworkStreamWorker::update_frame_rate() {
         now - m_last_frame_time).count();
     
     if (duration > 0) {
-        const double instantaneous_rate = 1000000.0 / duration; // frames per second
+        const double instantaneous_rate = 1000000.0 / static_cast<double>(duration); // frames per second
         
         // Update frame rate history
         m_frame_rate_history.push_back(instantaneous_rate);
@@ -266,7 +332,7 @@ void NetworkStreamWorker::update_frame_rate() {
         // Calculate average frame rate
         const double average_rate = std::accumulate(
             m_frame_rate_history.begin(), m_frame_rate_history.end(), 0.0) / 
-            m_frame_rate_history.size();
+            static_cast<double>(m_frame_rate_history.size());
         
         m_statistics.current_frame_rate = instantaneous_rate;
         m_statistics.average_frame_rate = average_rate;
@@ -290,7 +356,7 @@ void NetworkStreamWorker::update_statistics() {
     // Calculate frame loss rate
     const size_t total_expected = m_statistics.frames_received + m_statistics.frames_dropped;
     if (total_expected > 0) {
-        m_statistics.frame_loss_rate = static_cast<double>(m_statistics.frames_dropped) / total_expected;
+        m_statistics.frame_loss_rate = static_cast<double>(m_statistics.frames_dropped) / static_cast<double>(total_expected);
     }
     
     m_statistics.last_update = std::chrono::steady_clock::now();
@@ -502,22 +568,22 @@ bool NetworkStreamReceiver::is_quality_acceptable() const {
 
 void NetworkStreamReceiver::set_frame_callback(FrameCallback callback) {
     QMutexLocker locker(&m_mutex);
-    m_frame_callback = callback;
+    m_frame_callback = std::move(callback);
 }
 
 void NetworkStreamReceiver::set_packet_callback(PacketCallback callback) {
     QMutexLocker locker(&m_mutex);
-    m_packet_callback = callback;
+    m_packet_callback = std::move(callback);
 }
 
 void NetworkStreamReceiver::set_error_callback(ErrorCallback callback) {
     QMutexLocker locker(&m_mutex);
-    m_error_callback = callback;
+    m_error_callback = std::move(callback);
 }
 
 void NetworkStreamReceiver::set_statistics_callback(StatisticsCallback callback) {
     QMutexLocker locker(&m_mutex);
-    m_statistics_callback = callback;
+    m_statistics_callback = std::move(callback);
 }
 
 void NetworkStreamReceiver::initialize_worker_thread() {
@@ -693,7 +759,7 @@ void NetworkStreamReceiver::attempt_reconnection() {
         start_reception();
     } else {
         // Schedule next attempt
-        m_reconnection_timer->start(m_config.reconnect_delay.count());
+        m_reconnection_timer->start(static_cast<int>(m_config.reconnect_delay.count()));
     }
 }
 

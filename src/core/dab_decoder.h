@@ -5,12 +5,12 @@
 #include <QList>
 #include <QHash>
 #include <memory>
-#include "eti_types.h"
+#include "eti_types.hpp"
 
 // Forward declaration for ETI types
 
 /**
- * @class DabDecoder
+ * @class dab_decoder
  * @brief Professional DAB/DAB+ decoder following ETSI EN 300 401 standard
  * 
  * Decodes Digital Audio Broadcasting signals from ETI frames according to
@@ -24,7 +24,7 @@
  * - Real-time decoding with <50ms latency
  * - Professional broadcast quality validation
  */
-class DabDecoder : public QObject
+class dab_decoder : public QObject
 {
     Q_OBJECT
 
@@ -65,38 +65,55 @@ public:
                            bitrate(0), isProtected(false) {}
     };
 
-    explicit DabDecoder(QObject *parent = nullptr);
-    virtual ~DabDecoder();
+    explicit dab_decoder(QObject *parent = nullptr);
+    virtual ~dab_decoder();
 
     // Core decoding operations
     bool initialize();
     void shutdown();
-    bool isInitialized() const { return m_initialized; }
+    bool is_initialized() const { return initialized_; }
 
     // Frame processing
+    bool process_eti_frame(const eti::EtiFrameData& frame);
+    bool process_sub_channel(quint8 subChannelId, const QByteArray& data);
+    
+    // CamelCase versions for existing implementation compatibility
     bool processEtiFrame(const eti::EtiFrameData& frame);
     bool processSubChannel(quint8 subChannelId, const QByteArray& data);
 
     // Service management
+    QList<ServiceComponent> get_available_services() const;
+    ServiceComponent get_service_info(quint16 serviceId) const;
+    bool select_service(quint16 serviceId);
+    
+    // CamelCase versions for existing implementation compatibility
     QList<ServiceComponent> getAvailableServices() const;
     ServiceComponent getServiceInfo(quint16 serviceId) const;
     bool selectService(quint16 serviceId);
-    quint16 getCurrentServiceId() const { return m_currentServiceId; }
+    quint16 get_current_service_id() const { return current_service_id_; }
 
     // Audio output
+    QByteArray get_decoded_audio();
+    bool has_decoded_audio() const;
+    void clear_audio_buffer();
+    
+    // CamelCase versions for existing implementation compatibility
     QByteArray getDecodedAudio();
     bool hasDecodedAudio() const;
     void clearAudioBuffer();
 
     // Status and statistics
-    DecoderStatus getStatus() const { return m_status; }
-    quint32 getProcessedFrameCount() const { return m_frameCount; }
-    double getErrorRate() const { return m_errorRate; }
+    DecoderStatus get_status() const { return status_; }
+    quint32 get_processed_frame_count() const { return frame_count_; }
+    double get_error_rate() const { return error_rate_; }
+    quint32 get_bitrate() const;
+    
+    // CamelCase versions for existing implementation compatibility  
     quint32 getBitrate() const;
 
     // Configuration
-    void setMaxBufferSize(quint32 maxSize) { m_maxBufferSize = maxSize; }
-    quint32 getMaxBufferSize() const { return m_maxBufferSize; }
+    void set_max_buffer_size(quint32 maxSize) { max_buffer_size_ = maxSize; }
+    quint32 get_max_buffer_size() const { return max_buffer_size_; }
 
 signals:
     /**
@@ -125,51 +142,70 @@ signals:
     void serviceSelected(quint16 serviceId, const ServiceComponent& info);
 
 private slots:
-    void handleFrameProcessed();
-    void handleDecodingError(const QString& error);
+    void handle_frame_processed();
+    void handle_decoding_error(const QString& error);
 
 private:
     // Internal processing methods
+    bool parse_service_information(const eti::EtiFrameData& frame);
+    
+    // CamelCase versions for existing implementation compatibility
     bool parseServiceInformation(const eti::EtiFrameData& frame);
-    bool decodeAudioData(const QByteArray& data, AudioCodec codec);
+    bool decode_audio_data(const QByteArray& data, AudioCodec codec);
+    bool synchronize_to_stream(const eti::EtiFrameData& frame);
+    void update_error_statistics(bool hasError);
+    void reset_decoder();
+    
+    // CamelCase versions for existing implementation compatibility
     bool synchronizeToStream(const eti::EtiFrameData& frame);
     void updateErrorStatistics(bool hasError);
-    void resetDecoder();
 
     // DAB/DAB+ specific decoding
+    bool decode_dab_mp2(const QByteArray& data);
+    bool decode_dab_plus(const QByteArray& data);
+    
+    // CamelCase versions for existing implementation compatibility
     bool decodeDabMp2(const QByteArray& data);
     bool decodeDabPlus(const QByteArray& data);
     
     // ETI frame parsing helpers
+    QByteArray extract_subchannel_data(const eti::EtiFrameData& frame, quint8 subChannelId);
+    
+    // CamelCase versions for existing implementation compatibility
     QByteArray extractSubchannelData(const eti::EtiFrameData& frame, quint8 subChannelId);
 
     // Service component management
+    void add_service_component(const ServiceComponent& component);
+    void remove_service_component(quint16 serviceId);
+    void update_service_component(const ServiceComponent& component);
+    
+    // CamelCase versions for existing implementation compatibility
     void addServiceComponent(const ServiceComponent& component);
     void removeServiceComponent(quint16 serviceId);
     void updateServiceComponent(const ServiceComponent& component);
 
     // Member variables
-    bool m_initialized;
-    DecoderStatus m_status;
-    quint16 m_currentServiceId;
-    quint32 m_frameCount;
-    double m_errorRate;
-    quint32 m_errorCount;
-    quint32 m_maxBufferSize;
+    bool initialized_;
+    DecoderStatus status_;
+    quint16 current_service_id_;
+    quint32 frame_count_;
+    double error_rate_;
+    quint32 error_count_;
+    quint32 max_buffer_size_;
 
     // Service management
-    QHash<quint16, ServiceComponent> m_services;
-    QList<ServiceComponent> m_discoveredServices;
+    QHash<quint16, ServiceComponent> services_;
+    QList<ServiceComponent> discovered_services_;
 
     // Audio processing
-    QByteArray m_audioBuffer;
-    quint32 m_currentSampleRate;
-    QByteArray m_tempBuffer;
+    QByteArray audio_buffer_;
+    quint32 current_sample_rate_;
+    QByteArray temp_buffer_;
 
     // Synchronization and buffering
-    bool m_synchronized;
-    quint8 m_syncPattern[4];
-    qint64 m_lastFrameTime;
+    bool synchronized_;
+    quint8 sync_pattern_[4];
+    qint64 last_frame_time_;
 
     // Statistics
     struct Statistics {
@@ -178,7 +214,7 @@ private:
         quint32 syncLoss;
         qint64 processingTime;
         double averageLatency;
-    } m_stats;
+    } stats_;
 
     // Constants
     static constexpr quint32 DEFAULT_BUFFER_SIZE = 8192;

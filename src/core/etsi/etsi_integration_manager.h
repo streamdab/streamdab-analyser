@@ -41,7 +41,7 @@
 #include "compliance_reporter.h"
 #include "broadcast_standards.h"
 #include "realtime_monitor.h"
-#include "../eti_types.h"
+#include "../eti_types.hpp"
 #include <memory>
 #include <vector>
 #include <map>

@@ -20,7 +20,7 @@
 #include <deque>
 
 // Forward declarations
-class EtiProcessor;
+class eti_processor;
 
 /**
  * @struct PerformanceStats
@@ -90,7 +90,7 @@ public:
      * @brief Connect to ETI processor for performance data
      * @param processor ETI processor instance
      */
-    void connectEtiProcessor(EtiProcessor* processor);
+    void connectEtiProcessor(eti_processor* processor);
     
     /**
      * @brief Start real-time monitoring
@@ -319,7 +319,7 @@ private:
     QComboBox* m_timeRangeCombo;
     
     // Data and state
-    EtiProcessor* m_etiProcessor;
+    eti_processor* m_etiProcessor;
     QTimer* m_updateTimer;
     bool m_monitoringActive;
     

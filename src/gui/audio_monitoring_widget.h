@@ -22,7 +22,7 @@
 #include <memory>
 
 // Forward declarations
-class EtiProcessor;
+class eti_processor;
 class ServiceBrowser;
 
 /**

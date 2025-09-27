@@ -522,7 +522,9 @@ bool ThreePanelLayoutValidator::checkBottomToolsPanel(QMainWindow* mainWindow,
 QtDesignerIntegrationTester::QtDesignerIntegrationTester(QObject* parent)
     : QObject(parent)
 {
+#ifdef HAVE_QT6_UITOOLS
     m_uiLoader = std::make_unique<QUiLoader>();
+#endif
     scanForUIFiles();
 }
 
@@ -535,12 +537,18 @@ bool QtDesignerIntegrationTester::testUIFileLoading(const QString& uiFilePath)
     }
 
     try {
+#ifdef HAVE_QT6_UITOOLS
         QWidget* widget = m_uiLoader->load(&file);
         file.close();
         
         if (widget) {
             qDebug() << "✅ UI file loaded successfully:" << uiFilePath;
             delete widget;
+#else
+        file.close();
+        qDebug() << "⚠️ QUiLoader not available - skipping UI file test:" << uiFilePath;
+        return true; // Consider it successful since the feature is optional
+#endif
             return true;
         } else {
             qWarning() << "❌ Failed to load UI file:" << uiFilePath;

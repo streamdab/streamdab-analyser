@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "eti_types.h"
+#include "eti_types.hpp"
 #include "modern_eti_frame_parser.h"
 #include "enhanced_fig_analyzer.h"
 #include <QObject>

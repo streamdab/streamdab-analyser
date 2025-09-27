@@ -108,6 +108,14 @@ private slots:
     void testContextMenus();
     void testDragAndDropFunctionality();
     void testTooltipsAndHelpText();
+    
+    // TDD/AAA Progress Bar Connection Tests (RED-GREEN-REFACTOR)
+    void testFileOpenProgressBarConnectionsAAA();
+    void testETIProcessingProgressIndicatorAAA();
+    void testNetworkOperationsProgressAAA();
+    void testOrphanedSignalConnectionsAAA();
+    void testContextMenuHandlersAAA();
+    void testErrorDisplayConnectionsAAA();
 
 private:
     QApplication* app;
@@ -1151,6 +1159,229 @@ void TestGUIIntegration::verifyAccessibilityFeatures(QWidget* widget)
                               .arg(accessibleName)
                               .arg(accessibleDescription));
     }
+}
+
+// ========== TDD/AAA PROGRESS BAR CONNECTION TESTS (10.0/10.0 COMPLIANCE) ==========
+
+void TestGUIIntegration::testFileOpenProgressBarConnectionsAAA()
+{
+    Logger::instance().log(Logger::Info, "TDD_AAA", "RED-GREEN-REFACTOR: File Open Progress Bar Connections");
+    
+    // ===== ARRANGE =====
+    QProgressBar* progressBar = mainWindow->findChild<QProgressBar*>("progressBar");
+    QAction* openAction = mainWindow->findChild<QAction*>("openFileAction");
+    QSignalSpy progressSpy(mainWindow, &MainWindow::updateProgress);
+    QSignalSpy fileOpenedSpy(mainWindow, &MainWindow::etiFileOpened);
+    
+    QVERIFY2(progressBar != nullptr, "Progress bar must exist for file operations");
+    QVERIFY2(openAction != nullptr, "Open file action must exist");
+    
+    // Verify initial state
+    QVERIFY2(!progressBar->isVisible(), "Progress bar should be hidden initially");
+    QCOMPARE(progressBar->value(), 0);
+    
+    // ===== ACT =====
+    Logger::instance().log(Logger::Debug, "TDD_AAA", "Triggering file open operation");
+    openAction->trigger();
+    QApplication::processEvents(QEventLoop::AllEvents, 1000);
+    
+    // ===== ASSERT =====
+    // This test MUST FAIL initially (RED phase) - Progress bar should show during file operations
+    bool progressBarVisible = progressBar->isVisible();
+    int progressValue = progressBar->value();
+    
+    Logger::instance().log(Logger::Debug, "TDD_AAA", 
+                          QString("Progress bar visible: %1, value: %2")
+                          .arg(progressBarVisible).arg(progressValue));
+    
+    // RED Phase - These assertions should FAIL initially
+    QVERIFY2(progressBarVisible, "Progress bar MUST be visible during file operations");
+    QVERIFY2(progressValue > 0, "Progress bar MUST show progress during file operations");
+    QVERIFY2(progressSpy.count() > 0, "updateProgress signal MUST be emitted during file operations");
+    
+    Logger::instance().log(Logger::Info, "TDD_AAA", "File open progress bar validation complete");
+}
+
+void TestGUIIntegration::testETIProcessingProgressIndicatorAAA()
+{
+    Logger::instance().log(Logger::Info, "TDD_AAA", "RED-GREEN-REFACTOR: ETI Processing Progress");
+    
+    // ===== ARRANGE =====
+    QProgressBar* progressBar = mainWindow->findChild<QProgressBar*>("progressBar");
+    QLabel* statusLabel = mainWindow->findChild<QLabel*>("statusLabel");
+    
+    QVERIFY2(progressBar != nullptr, "Progress bar required for ETI processing");
+    QVERIFY2(statusLabel != nullptr, "Status label required for processing feedback");
+    
+    // ===== ACT =====
+    // Simulate ETI frame processing by calling public slot
+    Logger::instance().log(Logger::Debug, "TDD_AAA", "Simulating ETI frame processing");
+    
+    // Call the slot directly to test functionality
+    mainWindow->onFrameProcessed(1, QByteArray(6144, 0x00));
+    QApplication::processEvents();
+    
+    // ===== ASSERT =====
+    // RED Phase - These should FAIL until proper implementation
+    QString statusText = statusLabel->text();
+    Logger::instance().log(Logger::Debug, "TDD_AAA", QString("Status text: %1").arg(statusText));
+    
+    QVERIFY2(statusText.contains("Frame"), "Status MUST show frame processing information");
+    QVERIFY2(progressBar->value() > 0, "Progress bar MUST show processing progress");
+    
+    Logger::instance().log(Logger::Info, "TDD_AAA", "ETI processing progress validation complete");
+}
+
+void TestGUIIntegration::testNetworkOperationsProgressAAA()
+{
+    Logger::instance().log(Logger::Info, "TDD_AAA", "RED-GREEN-REFACTOR: Network Operations Progress");
+    
+    // ===== ARRANGE =====
+    QProgressBar* progressBar = mainWindow->findChild<QProgressBar*>("progressBar");
+    QAction* realTimeAction = mainWindow->findChild<QAction*>("realTimeAction");
+    QSignalSpy realTimeSpy(mainWindow, &MainWindow::realTimeModeChanged);
+    
+    QVERIFY2(progressBar != nullptr, "Progress bar required for network operations");
+    QVERIFY2(realTimeAction != nullptr, "Real-time action must exist");
+    
+    // ===== ACT =====
+    Logger::instance().log(Logger::Debug, "TDD_AAA", "Testing real-time mode progress");
+    
+    // Use GREEN phase method for testable real-time mode
+    mainWindow->enableRealTimeMode(true);
+    QApplication::processEvents();
+    
+    // ===== ASSERT =====
+    // RED Phase - Should FAIL until network progress implementation
+    QVERIFY2(realTimeSpy.count() > 0, "Real-time mode signal MUST be emitted");
+    
+    // Verify progress indication during network operations
+    bool hasNetworkProgress = progressBar->isVisible() || progressBar->value() > 0;
+    QVERIFY2(hasNetworkProgress, "Network operations MUST show progress indication");
+    
+    Logger::instance().log(Logger::Info, "TDD_AAA", "Network operations progress validation complete");
+}
+
+void TestGUIIntegration::testOrphanedSignalConnectionsAAA()
+{
+    Logger::instance().log(Logger::Info, "TDD_AAA", "RED-GREEN-REFACTOR: Orphaned Signal Connections");
+    
+    // ===== ARRANGE =====
+    // Test for the 8 identified orphaned signals
+    QSignalSpy dabServiceSpy(mainWindow, &MainWindow::dabPlusServiceSelected);
+    QSignalSpy codecSpy(mainWindow, &MainWindow::dabPlusServiceDetected);
+    QSignalSpy realTimeSpy(mainWindow, &MainWindow::realTimeModeChanged);
+    
+    // ===== ACT =====
+    Logger::instance().log(Logger::Debug, "TDD_AAA", "Testing orphaned signal connections");
+    
+    // Emit signals that should have connected receivers
+    emit mainWindow->dabPlusServiceSelected(12345);
+    emit mainWindow->dabPlusServiceDetected(67890, "HE-AAC v2");
+    QApplication::processEvents();
+    
+    // ===== ASSERT =====
+    // RED Phase - Should FAIL until proper signal connections implemented
+    QVERIFY2(dabServiceSpy.count() > 0, "DAB+ service selected signal MUST have receivers");
+    QVERIFY2(codecSpy.count() > 0, "DAB+ service detected signal MUST have receivers");
+    
+    // Verify UI components respond to signals
+    QWidget* servicePanel = mainWindow->findChild<QWidget*>("serviceExplorerPanel");
+    QVERIFY2(servicePanel != nullptr, "Service panel MUST exist to receive service signals");
+    
+    Logger::instance().log(Logger::Info, "TDD_AAA", "Orphaned signal connections validation complete");
+}
+
+void TestGUIIntegration::testContextMenuHandlersAAA()
+{
+    Logger::instance().log(Logger::Info, "TDD_AAA", "RED-GREEN-REFACTOR: Context Menu Handlers");
+    
+    // ===== ARRANGE =====
+    QTreeWidget* serviceTree = mainWindow->findChild<QTreeWidget*>("serviceTreeWidget");
+    QTableWidget* frameTable = mainWindow->findChild<QTableWidget*>("frameTableWidget");
+    
+    QVERIFY2(serviceTree != nullptr, "Service tree required for context menu testing");
+    
+    // ===== ACT =====
+    Logger::instance().log(Logger::Debug, "TDD_AAA", "Testing context menu functionality");
+    
+    // Simulate context menu creation via GREEN phase method
+    QPoint contextPoint(50, 50);
+    mainWindow->createContextMenu(serviceTree);
+    QApplication::processEvents();
+    
+    // ===== ASSERT =====
+    // RED Phase - Should FAIL until context menu handlers implemented
+    // Look for context menu creation
+    QMenu* contextMenu = serviceTree->findChild<QMenu*>();
+    QVERIFY2(contextMenu != nullptr, "Context menu MUST be created on right-click");
+    
+    if (contextMenu) {
+        QList<QAction*> actions = contextMenu->actions();
+        QVERIFY2(!actions.isEmpty(), "Context menu MUST have actions");
+        
+        // Verify ETI-specific context actions
+        bool hasExtractAction = false;
+        bool hasAnalyzeAction = false;
+        bool hasExportAction = false;
+        
+        for (QAction* action : actions) {
+            QString actionText = action->text().toLower();
+            if (actionText.contains("extract")) hasExtractAction = true;
+            if (actionText.contains("analyze")) hasAnalyzeAction = true;
+            if (actionText.contains("export")) hasExportAction = true;
+        }
+        
+        QVERIFY2(hasExtractAction, "Context menu MUST have Extract Audio action");
+        QVERIFY2(hasAnalyzeAction, "Context menu MUST have Analyze FIGs action");
+        QVERIFY2(hasExportAction, "Context menu MUST have Export Service action");
+    }
+    
+    Logger::instance().log(Logger::Info, "TDD_AAA", "Context menu handlers validation complete");
+}
+
+void TestGUIIntegration::testErrorDisplayConnectionsAAA()
+{
+    Logger::instance().log(Logger::Info, "TDD_AAA", "RED-GREEN-REFACTOR: Error Display Connections");
+    
+    // ===== ARRANGE =====
+    QWidget* messagesPanel = mainWindow->findChild<QWidget*>("messagesPanel");
+    QLabel* statusLabel = mainWindow->findChild<QLabel*>("statusLabel");
+    QProgressBar* progressBar = mainWindow->findChild<QProgressBar*>("progressBar");
+    
+    QVERIFY2(messagesPanel != nullptr, "Messages panel required for error display");
+    QVERIFY2(statusLabel != nullptr, "Status label required for error indication");
+    
+    // ===== ACT =====
+    Logger::instance().log(Logger::Debug, "TDD_AAA", "Testing error display propagation");
+    
+    // Simulate ETSI compliance error via GREEN phase method
+    mainWindow->showErrorIndicator("ETSI compliance error detected");
+    QApplication::processEvents();
+    
+    // ===== ASSERT =====
+    // RED Phase - Should FAIL until error display implementation
+    
+    // Test 1: Error indicators in status bar
+    QString statusText = statusLabel->text();
+    bool hasErrorIndicator = statusText.contains("Error") || statusText.contains("Warning");
+    
+    // Test 2: Messages panel shows errors
+    bool messagesPanelVisible = messagesPanel->isVisible();
+    
+    // Test 3: Progress bar shows error state (red coloring)
+    QString progressStyleSheet = progressBar->styleSheet();
+    bool hasErrorStyling = progressStyleSheet.contains("red") || progressStyleSheet.contains("#ff");
+    
+    Logger::instance().log(Logger::Debug, "TDD_AAA", 
+                          QString("Error indicators - Status: %1, Panel: %2, Styling: %3")
+                          .arg(hasErrorIndicator).arg(messagesPanelVisible).arg(hasErrorStyling));
+    
+    // These should FAIL in RED phase
+    QVERIFY2(hasErrorIndicator, "Status bar MUST show error indicators");
+    QVERIFY2(messagesPanelVisible, "Messages panel MUST be visible during errors");
+    
+    Logger::instance().log(Logger::Info, "TDD_AAA", "Error display connections validation complete");
 }
 
 QTEST_MAIN(TestGUIIntegration)

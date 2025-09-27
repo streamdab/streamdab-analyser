@@ -29,7 +29,7 @@
 #include <vector>
 #include <string>
 
-#include "eti_types.h"
+#include "eti_types.hpp"
 
 namespace eti {
 
