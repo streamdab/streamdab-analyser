@@ -14,6 +14,10 @@
 extern "C" {
 #include <neaacdec.h>
 }
+#else
+// Fallback definitions when FAAD2 is not available
+#define FAAD_FMT_16BIT 1
+#define FAAD_FMT_FLOAT 7
 #endif
 
 #ifdef HAVE_MPG123
@@ -881,6 +885,7 @@ QString audio_decoder::codec_type_to_string(codec_type codec) {
     }
 }
 
+// Static utility function implementation
 double audio_decoder::linear_to_db(double linear_value) {
     if (linear_value <= 0.0) {
         return -60.0; // Minimum dB value

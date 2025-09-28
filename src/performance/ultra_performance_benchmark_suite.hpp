@@ -277,8 +277,8 @@ private:
     struct system_monitor {
         std::atomic<bool> monitoring{false};
         std::atomic<double> cpu_usage{0.0};
-        std::atomic<size_t> memory_usage{0.0};
-        std::atomic<size_t> network_throughput{0.0};
+        std::atomic<size_t> memory_usage{0};
+        std::atomic<size_t> network_throughput{0};
         std::thread monitor_thread;
     } system_monitor_;
     

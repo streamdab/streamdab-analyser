@@ -6,9 +6,9 @@
 #include <QMap>
 #include <memory>
 #include <chrono>
+#include "audio_monitoring_widget.h"
 
 // Forward declarations
-class AudioMonitoringWidget;
 namespace eti { namespace audio { class audio_decoder; } }
 class DabAudioDecoder;
 namespace eti { class AudioExtractionPipeline; }
@@ -121,13 +121,13 @@ public:
      * @brief Check if real-time processing is active
      * @return true if processing is active
      */
-    bool isRealTimeProcessingActive() const { return d_ptr->is_processing; }
+    bool isRealTimeProcessingActive() const;
 
     /**
      * @brief Get current service ID being processed
      * @return Service ID (0 if none)
      */
-    uint32_t getCurrentServiceId() const { return d_ptr->current_service_id; }
+    uint32_t getCurrentServiceId() const;
 
     /**
      * @brief Get audio processing rate in frames per second
@@ -152,19 +152,19 @@ public:
      * @brief Get total frames processed since initialization
      * @return Total frame count
      */
-    uint64_t getTotalFramesProcessed() const { return d_ptr->total_frames_processed; }
+    uint64_t getTotalFramesProcessed() const;
 
     /**
      * @brief Get total bytes processed since initialization
      * @return Total byte count
      */
-    uint64_t getTotalBytesProcessed() const { return d_ptr->total_bytes_processed; }
+    uint64_t getTotalBytesProcessed() const;
 
     /**
      * @brief Check if integration is initialized
      * @return true if initialized
      */
-    bool isInitialized() const { return d_ptr->is_initialized; }
+    bool isInitialized() const;
 
 public slots:
     /**
