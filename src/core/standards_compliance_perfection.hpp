@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "comprehensive_etsi_validator.h"
+#include "comprehensive_etsi_validator.hpp"
 #include "etsi/broadcast_standards.h"
 #include "../utils/logger.h"
 
