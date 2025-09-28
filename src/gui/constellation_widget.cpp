@@ -8,8 +8,8 @@
  */
 
 #include "constellation_widget.h"
-#include "core/eti_processor.h"
-#include "core/dab_decoder.h"
+#include "core/eti_processor.hpp"
+#include "core/dab_decoder.hpp"
 #include "utils/logger.h"
 
 #include <QPainter>

@@ -8,9 +8,9 @@
  */
 
 #include "service_browser.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include "core/ensemble_manager.h"
-#include "core/service_manager.h"
+#include "core/service_manager.hpp"
 #include "utils/logger.h"
 
 #include <QApplication>

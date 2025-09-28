@@ -32,9 +32,9 @@
 #include <numeric>
 #include <fstream>
 
-#include "core/eti_processing_engine.h"
-#include "core/modern_eti_frame_parser.h"
-#include "core/enhanced_fig_analyzer.h"
+#include "core/eti_processing_engine.hpp"
+#include "core/modern_eti_frame_parser.hpp"
+#include "core/enhanced_fig_analyzer.hpp"
 // REMOVED: No external dependencies - using internal implementations only
 #include "utils/logger.h"
 

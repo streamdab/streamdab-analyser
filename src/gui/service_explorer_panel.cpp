@@ -1,5 +1,5 @@
 #include "service_explorer_panel.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include "utils/logger.h"
 #include <QApplication>
 #include <QHeaderView>

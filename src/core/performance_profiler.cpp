@@ -426,7 +426,7 @@ double performance_profiler::get_cpu_usage_percent() const
 }
 
 // Performance analysis methods
-performance_profiler::PerformanceReport performance_profiler::generate_performance_report() const
+PerformanceReport performance_profiler::generate_performance_report() const
 {
     std::lock_guard<std::mutex> lock(metrics_mutex_);
     
@@ -519,9 +519,6 @@ bool performance_profiler::meets_performance_targets() const
 }
 
 // Static constants for performance targets
-constexpr double performance_profiler::TARGET_MEMORY_LIMIT_MB;
-constexpr double performance_profiler::TARGET_CPU_LIMIT_PERCENT;
-constexpr double performance_profiler::TARGET_ERROR_RATE;
-constexpr double performance_profiler::TARGET_LATENCY_LIMIT_MS;
+// Constants are defined in header file, no need to redeclare
 
 } // namespace eti::modern

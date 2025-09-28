@@ -6,7 +6,7 @@
  * multiple format support, and professional broadcast workflow integration.
  */
 
-#include "stream_recording_manager.h"
+#include "stream_recording_manager.hpp"
 #include "../utils/logger.h"
 #include <QJsonObject>
 #include <QJsonDocument>
@@ -973,26 +973,27 @@ void StreamRecordingManager::enable_realtime_compression(bool enabled) {
                               .arg(session_id).arg(enabled ? "enabled" : "disabled"));
     }
     
-    // TODO: Initialize compression worker thread if enabling compression
-    // Note: m_compressionWorker member variable needs to be declared in header
-    /*
-    if (enabled && !m_compressionWorker) {
+    // Initialize compression worker thread if enabling compression
+    if (enabled && !m_compression_worker_active.load()) {
         // Start background compression thread for completed segments
-        m_compressionWorker = std::make_unique<QThread>();
-        m_compressionWorker->start();
+        m_compression_worker_active.store(true);
+        
+        // Create compression worker thread
+        std::thread compression_thread([this]() {
+            this->compression_worker_loop();
+        });
+        compression_thread.detach();
         
         Logger::instance().log(Logger::Info, "StreamRecordingManager", 
                               "Started background compression worker thread");
-    } else if (!enabled && m_compressionWorker) {
+    } else if (!enabled && m_compression_worker_active.load()) {
         // Stop compression worker thread
-        m_compressionWorker->quit();
-        m_compressionWorker->wait(5000);  // Wait up to 5 seconds
-        m_compressionWorker.reset();
+        m_compression_worker_active.store(false);
+        m_compression_queue_condition.notify_all();
         
         Logger::instance().log(Logger::Info, "StreamRecordingManager", 
-                              "Stopped background compression worker thread");
+                              "Stopping background compression worker thread");
     }
-    */
     
     // Update default configuration
     m_default_config.enable_compression = enabled;
@@ -1058,6 +1059,86 @@ void StreamRecordingManager::set_compression_level(int level) {
     
     Logger::instance().log(Logger::Info, "StreamRecordingManager", 
                           QString("Compression level %1 set: %2").arg(level).arg(efficiency_info));
+}
+
+void StreamRecordingManager::compression_worker_loop() {
+    Logger::instance().log(Logger::Info, "StreamRecordingManager", 
+                          "Compression worker thread started");
+    
+    while (m_compression_worker_active.load()) {
+        std::unique_lock<std::mutex> lock(m_compression_queue_mutex);
+        
+        // Wait for files to compress or shutdown signal
+        m_compression_queue_condition.wait(lock, [this]() {
+            return !m_compression_queue.empty() || !m_compression_worker_active.load();
+        });
+        
+        // Process all queued files
+        while (!m_compression_queue.empty() && m_compression_worker_active.load()) {
+            QString file_path = m_compression_queue.front();
+            m_compression_queue.pop();
+            lock.unlock();
+            
+            // Compress the file
+            try {
+                compress_file(file_path);
+                Logger::instance().log(Logger::Debug, "StreamRecordingManager", 
+                                      QString("Successfully compressed: %1").arg(file_path));
+            } catch (const std::exception& e) {
+                Logger::instance().log(Logger::Error, "StreamRecordingManager", 
+                                      QString("Failed to compress %1: %2").arg(file_path).arg(e.what()));
+            }
+            
+            lock.lock();
+        }
+    }
+    
+    Logger::instance().log(Logger::Info, "StreamRecordingManager", 
+                          "Compression worker thread stopped");
+}
+
+void StreamRecordingManager::enqueue_for_compression(const QString& file_path) {
+    if (!m_compression_worker_active.load()) {
+        return;
+    }
+    
+    std::lock_guard<std::mutex> lock(m_compression_queue_mutex);
+    m_compression_queue.push(file_path);
+    m_compression_queue_condition.notify_one();
+    
+    Logger::instance().log(Logger::Debug, "StreamRecordingManager", 
+                          QString("Enqueued for compression: %1").arg(file_path));
+}
+
+void StreamRecordingManager::compress_file(const QString& file_path) {
+    // Implementation for file compression using zlib/gzip
+    QFile input_file(file_path);
+    if (!input_file.open(QIODevice::ReadOnly)) {
+        throw std::runtime_error(QString("Cannot open file for compression: %1").arg(file_path).toStdString());
+    }
+    
+    QString compressed_path = file_path + ".gz";
+    QFile output_file(compressed_path);
+    if (!output_file.open(QIODevice::WriteOnly)) {
+        throw std::runtime_error(QString("Cannot create compressed file: %1").arg(compressed_path).toStdString());
+    }
+    
+    // Simple compression using Qt's built-in compression
+    QByteArray data = input_file.readAll();
+    QByteArray compressed = qCompress(data, m_compression_level.load());
+    
+    output_file.write(compressed);
+    output_file.close();
+    input_file.close();
+    
+    // Remove original file if compression successful
+    if (QFile::remove(file_path)) {
+        Logger::instance().log(Logger::Debug, "StreamRecordingManager", 
+                              QString("Removed original file after compression: %1").arg(file_path));
+    } else {
+        Logger::instance().log(Logger::Warning, "StreamRecordingManager", 
+                              QString("Failed to remove original file: %1").arg(file_path));
+    }
 }
 
 } // namespace eti

@@ -62,7 +62,7 @@ struct RTPHeader {
 /**
  * @brief Redundancy mode for professional broadcast reliability
  */
-enum class RedundancyMode {
+enum class RedundancyMode : std::uint8_t {
     NONE,               // No redundancy
     DUAL_STREAM,        // Dual stream redundancy (main + backup)
     FEC_REDUNDANCY,     // Forward Error Correction

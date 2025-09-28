@@ -9,9 +9,9 @@
 #include <QElapsedTimer>
 #include "core/eti_types.hpp"
 
-// Forward declarations
+// Forward declarations - GUI Layer uses camelCase (Qt convention)
 class MainWindow;
-class eti_processor;
+class EtiProcessor;  // Qt camelCase for GUI layer
 class ServiceExplorerPanel;
 class PerformanceDashboard;
 class ETSIComplianceMonitor;
@@ -409,7 +409,7 @@ private:
 
     // Main window and component references
     MainWindow* m_mainWindow;
-    eti_processor* m_etiProcessor;
+    EtiProcessor* m_etiProcessor;
     ServiceExplorerPanel* m_serviceExplorerPanel;
     PerformanceDashboard* m_performanceDashboard;
     ETSIComplianceMonitor* m_complianceMonitor;

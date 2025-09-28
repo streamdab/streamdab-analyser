@@ -12,10 +12,10 @@
  */
 
 #include "../tdd_framework.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include "core/eti_types.hpp"
-#include "core/modern_eti_frame_parser.h"
-#include "core/enhanced_fig_analyzer.h"
+#include "core/modern_eti_frame_parser.hpp"
+#include "core/enhanced_fig_analyzer.hpp"
 #include <QtTest/QtTest>
 #include <QSignalSpy>
 #include <QTemporaryFile>

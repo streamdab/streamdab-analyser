@@ -12,7 +12,7 @@
 
 #include "../tdd_framework.h"
 #include "gui/main_window.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include <QtTest/QtTest>
 #include <QApplication>
 #include <QFileDialog>

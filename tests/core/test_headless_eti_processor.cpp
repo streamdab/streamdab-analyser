@@ -14,7 +14,7 @@
 #include <QSignalSpy>
 #include <QEventLoop>
 #include <QTimer>
-#include "core/headless_eti_processor.h"
+#include "core/headless_eti_processor.hpp"
 
 /**
  * @class HeadlessETIProcessorTest

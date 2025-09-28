@@ -1,5 +1,5 @@
 #include "audio_monitoring_widget.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include "service_browser.h"
 #include <QApplication>
 #include <QStyle>

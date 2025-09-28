@@ -1,4 +1,4 @@
-#include "dab_decoder.h"
+#include "dab_decoder.hpp"
 #include "../utils/logger.h"
 #include <QDebug>
 #include <QDateTime>

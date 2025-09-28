@@ -21,7 +21,7 @@
 #include "gui/main_window.h"
 #include "gui/service_explorer_panel.h"
 #include "gui/eti_analysis_widget.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include <QtTest/QtTest>
 #include <QApplication>
 #include <QFileDialog>

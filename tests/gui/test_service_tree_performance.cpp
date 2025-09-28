@@ -34,7 +34,7 @@
 // GUI components
 #include "gui/service_explorer_panel.h"
 #include "gui/eti_service_tree_model.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include "core/eti_types.h"
 
 // Test utilities

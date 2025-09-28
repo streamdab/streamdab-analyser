@@ -1,4 +1,4 @@
-#include "fic_decoder.h"
+#include "fic_decoder.hpp"
 #include <QDebug>
 #include <QTimer>
 #include <QDateTime>

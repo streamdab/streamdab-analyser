@@ -29,7 +29,7 @@
 #include "eti_over_ip_receiver.h"
 #include "streaming_processor.h"
 #include "circular_buffer_manager.h"
-#include "../core/eti_processor.h"
+#include "../core/eti_processor.hpp"
 #include "../core/eti_types.hpp"
 
 namespace eti_network {

@@ -1,0 +1,398 @@
+/**
+ * @file modern_eti_frame_parser.h
+ * @brief Modern C++20 ETI Frame Parser - Phase 2 Migration Core Component
+ * 
+ * This is the foundation of the integrated ETI processing engine, replacing
+ * the ETISnoop wrapper approach with a modern, optimized, and Qt-integrated
+ * C++20 implementation. Designed for >30% speed improvement and >40% memory reduction.
+ * 
+ * Key Features:
+ * - Zero-copy processing where possible
+ * - SIMD optimization support
+ * - Qt threading integration
+ * - Modern C++20 concepts and constexpr evaluation
+ * - Memory-efficient pooling system
+ * - Real-time processing optimizations
+ * 
+ * @author Standards Compliance Agent (Phase 2 Migration Lead)
+ * @date 2025
+ * @copyright ETI Stream Analyzer Project
+ */
+
+#pragma once
+
+#include "eti_types.hpp"
+#include <QObject>
+#include <QByteArray>
+#include <QString>
+#include <QThreadPool>
+#include <memory>
+#include <span>
+
+#include <concepts>
+#include <vector>
+#include <atomic>
+#include <chrono>
+#include <optional>
+#include <functional>
+
+// Forward declarations  
+#include "eti_memory_pool.hpp"
+#include "performance_profiler.hpp"
+
+namespace eti::modern {
+
+/**
+ * @brief Concepts for ETI processing type safety (C++20)
+ */
+template<typename T>
+concept ETIFrameData = requires(T t) {
+    { t.data() } -> std::convertible_to<const uint8_t*>;
+    { t.size() } -> std::convertible_to<size_t>;
+    requires t.size() == ETI_FRAME_SIZE;
+};
+
+template<typename T>
+concept ETIProcessor = requires(T t, const eti::EtiFrame& frame) {
+    { t.process(frame) } -> std::convertible_to<bool>;
+    { t.validate(frame) } -> std::convertible_to<eti::ValidationResult>;
+};
+
+/**
+ * @brief Modern ETI Frame parsing result with move semantics
+ */
+struct ETIParseResult {
+    bool success{false};
+    eti::EtiFrame frame;
+    eti::ValidationResult validation;
+    std::chrono::nanoseconds parse_time{0};
+    uint32_t frame_number{0};
+    
+    // Performance metrics
+    struct {
+        uint64_t cycles_used{0};
+        uint32_t cache_hits{0};
+        uint32_t cache_misses{0};
+        double cpu_efficiency{0.0};
+    } performance;
+    
+    ETIParseResult() = default;
+    ETIParseResult(const ETIParseResult&) = delete;
+    ETIParseResult(ETIParseResult&&) = default;
+    ETIParseResult& operator=(const ETIParseResult&) = delete;
+    ETIParseResult& operator=(ETIParseResult&&) = default;
+};
+
+/**
+ * @brief Frame processing configuration for performance tuning
+ */
+struct ProcessingConfig {
+    enum class OptimizationLevel : std::uint8_t {
+        MINIMAL,     // Basic parsing only
+        STANDARD,    // Full parsing with validation
+        AGGRESSIVE,  // All optimizations enabled
+        REALTIME     // Real-time optimized with reduced validation
+    };
+    
+    OptimizationLevel optimization_level{OptimizationLevel::STANDARD};
+    bool enable_simd{true};
+    bool enable_caching{true};
+    bool enable_threading{true};
+    bool enable_zero_copy{true};
+    bool enable_memory_pooling{true};
+    uint32_t thread_count{0}; // 0 = auto-detect
+    uint32_t cache_size_mb{64};
+    
+    // Real-time processing parameters
+    std::chrono::microseconds max_frame_time{20000}; // 20ms max per frame
+    double target_fps{1000.0}; // Target >1000fps for 30% improvement
+    uint32_t memory_limit_mb{40}; // 40% reduction from 100MB target
+};
+
+/**
+ * @brief Advanced FIG processing result
+ */
+struct FIGAnalysisResult {
+    std::vector<eti::FigBlock> fig_blocks;
+    eti::Ensemble ensemble_info;
+    std::vector<eti::DabService> discovered_services;
+    std::vector<eti::SubChannelInfo> subchannels;
+    
+    struct ComplianceMetrics {
+        double etsi_en_300_799_score{100.0};
+        double etsi_en_300_401_score{100.0};
+        std::vector<std::string> compliance_issues;
+        std::vector<std::string> performance_warnings;
+    } compliance;
+    
+    bool has_ensemble_info() const { return ensemble_info.validate_ensemble_id(); }
+    bool has_services() const { return !discovered_services.empty(); }
+    bool has_subchannels() const { return !subchannels.empty(); }
+};
+
+/**
+ * @brief Modern C++20 ETI Frame Parser with Qt Integration
+ * 
+ * This class provides high-performance, memory-efficient ETI frame parsing
+ * with modern C++20 features and Qt signal/slot integration. Designed to
+ * replace the ETISnoop wrapper with superior performance and functionality.
+ */
+class ModernETIFrameParser : public QObject {
+    Q_OBJECT
+
+public:
+    explicit ModernETIFrameParser(QObject* parent = nullptr);
+    ~ModernETIFrameParser();
+
+    /**
+     * @brief Initialize the parser with configuration
+     * @param config Processing configuration
+     * @return true if initialization successful
+     */
+    bool initialize(const ProcessingConfig& config = {});
+
+    /**
+     * @brief Check if parser is ready for processing
+     */
+    bool isInitialized() const noexcept { return initialized_.load(); }
+
+    /**
+     * @brief Parse single ETI frame with optimal performance
+     * @param frame_data Raw ETI frame data (must be exactly 6144 bytes)
+     * @return Parse result with frame data and metrics
+     */
+    [[nodiscard]] ETIParseResult parseFrame(std::span<const uint8_t, ETI_FRAME_SIZE> frame_data);
+
+    /**
+     * @brief Parse ETI frame from QByteArray (Qt compatibility)
+     * @param frame_data Qt byte array containing ETI frame
+     * @return Parse result
+     */
+    [[nodiscard]] ETIParseResult parseFrame(const QByteArray& frame_data);
+
+    /**
+     * @brief Batch process multiple frames with threading
+     * @param frames Vector of frame data spans
+     * @return Vector of parse results
+     */
+    [[nodiscard]] std::vector<ETIParseResult> parseFramesBatch(
+        const std::vector<std::span<const uint8_t, ETI_FRAME_SIZE>>& frames);
+
+    /**
+     * @brief Parse and analyze FIG data from frame
+     * @param frame Parsed ETI frame
+     * @return Comprehensive FIG analysis result
+     */
+    [[nodiscard]] FIGAnalysisResult analyzeFIGData(const eti::EtiFrame& frame);
+
+    /**
+     * @brief Validate frame structure and compliance
+     * @param frame ETI frame to validate
+     * @return Detailed validation result
+     */
+    [[nodiscard]] eti::ValidationResult validateFrame(const eti::EtiFrame& frame) const;
+
+    /**
+     * @brief Get current performance statistics
+     */
+    struct PerformanceStats {
+        uint64_t frames_processed{0};
+        double average_fps{0.0};
+        double average_frame_time_us{0.0};
+        uint64_t total_processing_time_ns{0};
+        double memory_usage_mb{0.0};
+        double cpu_efficiency{0.0};
+        uint32_t cache_hit_rate_percent{0};
+        
+        // Performance vs targets
+        double speed_improvement_percent{0.0}; // vs ETISnoop wrapper
+        double memory_reduction_percent{0.0};  // vs baseline
+        bool meets_performance_targets{false};
+    };
+    
+    [[nodiscard]] PerformanceStats getPerformanceStats() const;
+
+    /**
+     * @brief Calculate speed improvement percentage vs baseline
+     * @return Speed improvement percentage
+     */
+    [[nodiscard]] double calculateSpeedImprovement() const;
+
+    /**
+     * @brief Calculate memory reduction percentage vs baseline
+     * @return Memory reduction percentage
+     */
+    [[nodiscard]] double calculateMemoryReduction() const;
+
+    /**
+     * @brief Reset performance counters
+     */
+    void resetStats();
+
+    /**
+     * @brief Update processing configuration at runtime
+     * @param config New configuration
+     */
+    void updateConfiguration(const ProcessingConfig& config);
+
+    /**
+     * @brief Enable/disable specific optimizations
+     */
+    void enableSIMD(bool enable);
+    void enableCaching(bool enable);
+    void enableThreading(bool enable);
+    void enableMemoryPooling(bool enable);
+
+    /**
+     * @brief Memory management
+     */
+    void clearCaches();
+    void optimizeMemoryUsage();
+    [[nodiscard]] size_t getMemoryFootprint() const;
+
+signals:
+    /**
+     * @brief Emitted when frame is successfully parsed
+     * @param frame_number Frame sequence number
+     * @param frame Parsed ETI frame
+     * @param parse_time Processing time in nanoseconds
+     */
+    void frameProcessed(uint32_t frame_number, const eti::EtiFrame& frame, 
+                       std::chrono::nanoseconds parse_time);
+
+    /**
+     * @brief Emitted when FIG analysis is complete
+     * @param frame_number Frame sequence number
+     * @param analysis FIG analysis result
+     */
+    void figAnalysisComplete(uint32_t frame_number, const FIGAnalysisResult& analysis);
+
+    /**
+     * @brief Emitted when ensemble information is discovered/updated
+     * @param ensemble Ensemble information
+     */
+    void ensembleDiscovered(const eti::Ensemble& ensemble);
+
+    /**
+     * @brief Emitted when service is discovered
+     * @param service DAB service information
+     */
+    void serviceDiscovered(const eti::DabService& service);
+
+    /**
+     * @brief Emitted when compliance issue is detected
+     * @param standard ETSI standard reference
+     * @param issue Issue description
+     * @param severity Issue severity level
+     */
+    void complianceIssue(const QString& standard, const QString& issue, 
+                        const QString& severity);
+
+    /**
+     * @brief Emitted when performance targets are achieved/missed
+     * @param target_met Whether performance target was met
+     * @param current_fps Current processing rate
+     * @param target_fps Target processing rate
+     */
+    void performanceTarget(bool target_met, double current_fps, double target_fps);
+
+private slots:
+    void onThreadPoolFinished();
+    void updatePerformanceMetrics();
+
+private:
+    // Core processing methods
+    [[nodiscard]] bool validateFrameHeader(std::span<const uint8_t, ETI_FRAME_SIZE> data) const noexcept;
+    [[nodiscard]] eti::EtiFrame parseFrameStructure(std::span<const uint8_t, ETI_FRAME_SIZE> data);
+    [[nodiscard]] std::vector<eti::FigBlock> extractFIGBlocks(const eti::EtiFicField& fic);
+    
+    // FIG processing methods
+    void processFIG00_EnsembleInfo(const eti::FigBlock& fig, FIGAnalysisResult& result);
+    void processFIG01_SubchannelOrg(const eti::FigBlock& fig, FIGAnalysisResult& result);
+    void processFIG02_ServiceOrg(const eti::FigBlock& fig, FIGAnalysisResult& result);
+    void processFIG03_ServiceComponent(const eti::FigBlock& fig, FIGAnalysisResult& result);
+    void processFIG10_EnsembleLabel(const eti::FigBlock& fig, FIGAnalysisResult& result);
+    void processFIG11_ServiceLabel(const eti::FigBlock& fig, FIGAnalysisResult& result);
+
+    // Optimization implementations
+    [[nodiscard]] bool validateFrameHeaderSIMD(std::span<const uint8_t, ETI_FRAME_SIZE> data) const noexcept;
+    [[nodiscard]] ETIParseResult parseFrameOptimized(std::span<const uint8_t, ETI_FRAME_SIZE> data);
+    
+    // Performance tracking
+    void updateFrameStats(std::chrono::nanoseconds parse_time);
+    void checkPerformanceTargets();
+    
+    // Compliance calculation methods
+    double calculateETSI799Compliance(const eti::EtiFrame& frame);
+    double calculateETSI401Compliance(const FIGAnalysisResult& result);
+    
+    // Performance calculation methods
+    double calculateCPUEfficiency(std::chrono::nanoseconds parse_time) const;
+    
+    // Validation helper methods
+    void validateFICStructure(const eti::EtiFrame& frame, eti::ValidationResult& result) const;
+    void validateMSCStructure(const eti::EtiFrame& frame, eti::ValidationResult& result) const;
+
+    // Member variables
+    std::atomic<bool> initialized_{false};
+    ProcessingConfig config_;
+    
+    // Performance components
+    std::unique_ptr<eti::modern::ETIFrameMemoryPool> memory_pool_;
+    std::unique_ptr<eti::modern::ETIProcessingCache<uint32_t, eti::EtiFrame>> cache_;
+    std::unique_ptr<eti::modern::performance_profiler> profiler_;
+    
+    // Threading
+    QThreadPool* thread_pool_;
+    
+    // Statistics (atomic for thread safety)
+    std::atomic<uint64_t> frames_processed_{0};
+    std::atomic<uint64_t> total_processing_time_ns_{0};
+    std::atomic<uint32_t> frame_sequence_{0};
+    
+    // Performance tracking
+    mutable std::chrono::high_resolution_clock::time_point last_stats_update_;
+    std::vector<std::chrono::nanoseconds> recent_frame_times_;
+    
+    // Cache for ensemble/service information
+    std::optional<eti::Ensemble> current_ensemble_;
+    std::vector<eti::DabService> discovered_services_;
+    std::vector<eti::SubChannelInfo> current_subchannels_;
+    
+    // Compliance tracking
+    struct {
+        std::atomic<uint32_t> etsi_799_violations{0};
+        std::atomic<uint32_t> etsi_401_violations{0};
+        std::atomic<double> overall_compliance_score{100.0};
+    } compliance_stats_;
+};
+
+/**
+ * @brief Factory function for creating optimized parser instances
+ */
+[[nodiscard]] std::unique_ptr<ModernETIFrameParser> createOptimizedETIParser(
+    const ProcessingConfig& config = {});
+
+/**
+ * @brief Utility functions for performance benchmarking
+ */
+namespace benchmark {
+    /**
+     * @brief Compare parser performance against ETISnoop wrapper
+     * @param parser Modern parser instance
+     * @param test_frames Vector of test frame data
+     * @return Performance comparison metrics
+     */
+    struct ComparisonResult {
+        double speed_improvement_percent;
+        double memory_reduction_percent;
+        bool meets_targets;
+        std::vector<std::string> performance_notes;
+    };
+    
+    [[nodiscard]] ComparisonResult compareWithETISnoop(
+        ModernETIFrameParser& parser,
+        const std::vector<std::span<const uint8_t, ETI_FRAME_SIZE>>& test_frames);
+}
+
+} // namespace eti::modern

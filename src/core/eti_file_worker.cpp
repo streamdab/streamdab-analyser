@@ -1,5 +1,5 @@
-#include "eti_file_worker.h"
-#include "eti_processor.h"
+#include "eti_file_worker.hpp"
+#include "eti_processor.hpp"
 #include "utils/logger.h"
 
 #include <QFileInfo>

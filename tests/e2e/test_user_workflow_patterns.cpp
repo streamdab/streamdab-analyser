@@ -28,7 +28,7 @@
 #include "gui/eti_service_tree_model.h"
 #include "gui/eti_frame_list_model.h"
 #include "gui/fig_analysis_widget.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include "core/etsi/compliance_engine.h"
 #include "fixtures/test_data_generators.h"
 #include "mocks/mock_eti_processor.h"

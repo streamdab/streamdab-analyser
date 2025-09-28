@@ -40,7 +40,7 @@
 #include <QStorageInfo>
 #include <memory>
 
-#include "core/stream_recording_manager.h"
+#include "core/stream_recording_manager.hpp"
 
 /**
  * @class StreamRecordingDialog

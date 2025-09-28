@@ -16,7 +16,7 @@
  * @copyright StreamDAB Analyzer Project
  */
 
-#include "fig_parser.h"
+#include "fig_parser.hpp"
 #include "../utils/logger.h"
 #include <algorithm>
 #include <bitset>

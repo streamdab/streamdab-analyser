@@ -41,8 +41,8 @@
 #include "gui/broadcast_theme.h"
 
 // Core Modern ETI components
-#include "core/eti_processor.h"
-#include "core/modern_eti_frame_parser.h"
+#include "core/eti_processor.hpp"
+#include "core/modern_eti_frame_parser.hpp"
 #include "core/eti_types.h"
 
 // Test utilities

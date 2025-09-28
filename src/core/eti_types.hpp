@@ -316,6 +316,7 @@ struct ServiceComponent {
     uint8_t asc_ty : 6 {0};        // Audio Service Component Type
     bool primary{false};               // Primary/Secondary component
     bool ca_flag{false};              // Conditional Access flag
+    uint8_t protection_level{0};   // Error protection level (0-31)
     std::string label;          // Component label
     
     // Default constructor with proper initialization

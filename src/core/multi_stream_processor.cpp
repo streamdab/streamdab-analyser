@@ -6,7 +6,7 @@
  * load balancing, failover, and professional broadcast workflow integration.
  */
 
-#include "multi_stream_processor.h"
+#include "multi_stream_processor.hpp"
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QJsonArray>

@@ -57,4 +57,44 @@ set_tests_properties(ETI_UI_Integration_TDD_Test PROPERTIES
     LABELS "GUI;TDD;Integration;Bangkok_ETI"
 )
 
+# === UI-Backend Integration Test ===
+add_executable(test_ui_backend_integration
+    test_ui_backend_integration.cpp
+)
+
+target_link_libraries(test_ui_backend_integration
+    Qt6::Test
+    Qt6::Widgets
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Network
+    streamdab_core
+    streamdab_gui
+    streamdab_utils
+    streamdab_network
+)
+
+# Set test properties for UI-Backend integration testing
+set_target_properties(test_ui_backend_integration PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests"
+)
+
+# Add test to CTest framework
+add_test(
+    NAME UI_Backend_Integration_Test
+    COMMAND test_ui_backend_integration
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# Set test environment for comprehensive integration
+set_tests_properties(UI_Backend_Integration_Test PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"  # Headless GUI testing
+    TIMEOUT 120  # 120 seconds timeout for integration tests
+)
+
+# TDD Phase Labels for comprehensive testing
+set_tests_properties(UI_Backend_Integration_Test PROPERTIES
+    LABELS "GUI;Integration;TDD;Network;Performance;ETSI"
+)
+
 message(STATUS "GUI TDD Tests configured - ETI UI Integration Test Suite ready")

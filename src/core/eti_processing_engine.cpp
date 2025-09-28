@@ -3,7 +3,7 @@
  * @brief Unified ETI Processing Engine Implementation
  */
 
-#include "eti_processing_engine.h"
+#include "eti_processing_engine.hpp"
 #include "utils/logger.h"
 #include <QTimer>
 #include <algorithm>

@@ -22,7 +22,7 @@
 #include <memory>
 
 // Forward declarations
-class eti_processor;
+class EtiProcessor;  // Qt camelCase for GUI layer
 class ServiceBrowser;
 
 /**

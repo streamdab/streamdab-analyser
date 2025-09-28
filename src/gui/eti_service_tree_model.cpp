@@ -7,8 +7,8 @@
  */
 
 #include "eti_service_tree_model.h"
-#include "core/modern_eti_frame_parser.h"
-#include "core/enhanced_fig_analyzer.h"
+#include "core/modern_eti_frame_parser.hpp"
+#include "core/enhanced_fig_analyzer.hpp"
 #include "utils/logger.h"
 
 #include <QIcon>

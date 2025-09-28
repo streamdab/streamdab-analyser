@@ -25,8 +25,8 @@
 
 #include "gui/main_window.h"
 #include "gui/service_explorer_panel.h"
-#include "core/headless_eti_processor.h"
-#include "core/eti_processor.h"
+#include "core/headless_eti_processor.hpp"
+#include "core/eti_processor.hpp"
 #include "core/eti_types.hpp"
 
 class TestEtiUIIntegration : public QObject

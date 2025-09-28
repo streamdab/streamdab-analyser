@@ -6,9 +6,9 @@
 #include <memory>
 
 // USE INTERNAL IMPLEMENTATIONS ONLY - NO ETISNOOP
-#include "core/eti_processor.h"
-#include "core/modern_eti_frame_parser.h"
-#include "core/eti_processing_engine.h"
+#include "core/eti_processor.hpp"
+#include "core/modern_eti_frame_parser.hpp"
+#include "core/eti_processing_engine.hpp"
 #include "utils/logger.h"
 
 /**

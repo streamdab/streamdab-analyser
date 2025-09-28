@@ -16,7 +16,7 @@
  * @copyright Professional Broadcast Solutions - StreamDAB Analyzer
  */
 
-#include "standards_compliance_perfection.h"
+#include "standards_compliance_perfection.hpp"
 #include "../utils/logger.h"
 
 #include <QJsonArray>

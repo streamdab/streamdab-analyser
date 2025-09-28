@@ -21,6 +21,12 @@
 
 namespace eti::modern {
 
+// Performance monitoring constants
+constexpr double TARGET_MEMORY_LIMIT_MB = 100.0;
+constexpr double TARGET_CPU_LIMIT_PERCENT = 80.0;
+constexpr double TARGET_ERROR_RATE = 0.05;          // 5% maximum error rate
+constexpr double TARGET_LATENCY_LIMIT_MS = 17.0;    // 17ms maximum latency
+
 /**
  * @brief Performance metrics data structure
  */
@@ -31,6 +37,28 @@ struct performance_metrics {
     std::chrono::nanoseconds avg_time{0};
     uint64_t call_count{0};
     uint64_t error_count{0};
+};
+
+/**
+ * @brief Performance report structure
+ */
+struct PerformanceReport {
+    std::chrono::high_resolution_clock::time_point timestamp;
+    size_t total_operations{0};
+    size_t memory_usage_bytes{0};
+    double memory_usage_mb{0.0};
+    double cpu_usage_percent{0.0};
+    double overall_fps{0.0};
+    double error_rate_percent{0.0};
+    double peak_throughput_fps{0.0};
+    std::string peak_throughput_operation;
+    std::chrono::nanoseconds worst_latency{0};
+    std::string worst_latency_operation;
+    uint64_t total_calls{0};
+    uint64_t total_errors{0};
+    double overall_error_rate{0.0};
+    double performance_score{0.0};
+    std::unordered_map<std::string, performance_metrics> operation_metrics;
 };
 
 /**
@@ -124,6 +152,19 @@ public:
      */
     double get_cpu_efficiency() const;
 
+    /**
+     * @brief Generate comprehensive performance report
+     * @return Complete performance report
+     */
+    PerformanceReport generate_performance_report() const;
+
+    /**
+     * @brief Calculate overall performance score
+     * @param report Performance report to analyze
+     * @return Performance score (0-10)
+     */
+    double calculate_performance_score(const PerformanceReport& report) const;
+
 private:
     struct timer_entry {
         std::string operation_name;
@@ -139,8 +180,41 @@ private:
     std::atomic<bool> enabled_{true};
     std::chrono::high_resolution_clock::time_point start_time_;
 
+    // Performance monitoring parameters
+    double target_fps_{0.0};
+    size_t memory_limit_bytes_{0};
+
     void update_metrics(const std::string& operation_name, 
                        std::chrono::nanoseconds duration);
+
+    /**
+     * @brief Check performance thresholds and emit warnings
+     */
+    void check_performance_thresholds(const std::string& operation_name,
+                                     const performance_metrics& metrics);
+
+    /**
+     * @brief Log performance summary to console
+     */
+    void log_performance_summary() const;
+
+    /**
+     * @brief Get current memory usage in bytes
+     * @return Memory usage in bytes
+     */
+    size_t get_memory_usage_bytes() const;
+
+    /**
+     * @brief Get current CPU usage percentage
+     * @return CPU usage percentage (0-100)
+     */
+    double get_cpu_usage_percent() const;
+
+    /**
+     * @brief Check if performance targets are met
+     * @return true if all performance targets are met
+     */
+    bool meets_performance_targets() const;
 };
 
 /**

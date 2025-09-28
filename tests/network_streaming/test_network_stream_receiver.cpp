@@ -15,7 +15,7 @@
 #include <chrono>
 #include <thread>
 
-#include "core/network_stream_receiver.h"
+#include "core/network_stream_receiver.hpp"
 #include "tests/fixtures/etsi_test_data/etsi_reference_data.h"
 #include "tests/mocks/mock_network_stream_processor.h"
 

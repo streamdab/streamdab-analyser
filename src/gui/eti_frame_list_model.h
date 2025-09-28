@@ -11,7 +11,7 @@
 #include <QList>
 #include <QHash>
 #include <memory>
-#include "core/modern_eti_frame_parser.h"
+#include "core/modern_eti_frame_parser.hpp"
 
 // Forward declarations for Modern ETI Core Engine
 namespace eti {
