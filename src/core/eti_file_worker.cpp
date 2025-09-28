@@ -17,13 +17,13 @@ EtiFileWorker::EtiFileWorker(EtiProcessor* processor, QObject *parent)
     // Connect ETI processor signals for progress updates
     if (m_etiProcessor) {
         connect(m_etiProcessor, &EtiProcessor::frameProcessed,
-                this, [this](quint64 frameNumber, const QByteArray& /*data*/) {
+                this, [this](const eti::ProcessedFrame& frame) {
                     QMutexLocker locker(&m_mutex);
-                    m_frameCount = frameNumber;
+                    m_frameCount = frame.frame_number;
                     
                     // Calculate progress (rough estimate based on file size processing)
                     // This will be more accurate when we know total frames
-                    m_progress = qMin(99, static_cast<int>((frameNumber * 100) / qMax(1ULL, frameNumber + 1000)));
+                    m_progress = qMin(99, static_cast<int>((frame.frame_number * 100) / qMax(1ULL, frame.frame_number + 1000)));
                     
                     emit processingProgress(m_progress, m_frameCount);
                 });
