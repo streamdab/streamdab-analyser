@@ -21,7 +21,7 @@
 #include "../core/audio_decoder.hpp"
 #include "../core/stream_recording_manager.h"
 #include "../core/network_stream_receiver.h"
-#include "../core/comprehensive_etsi_validator.h"
+#include "../core/comprehensive_etsi_validator.hpp"
 
 #include <QApplication>
 #include <QTimer>
