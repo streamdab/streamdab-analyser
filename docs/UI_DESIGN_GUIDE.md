@@ -1,14 +1,36 @@
 # UI Design Guide for StreamDAB Stream Analyzer
 
-**Document Version:** 2.0  
-**Date:** September 21, 2025  
-**Author:** UI/UX Design Team  
-**Target:** Modern ETI Core Engine Implementation  
-**Compliance:** 100% ETSI Standards with Professional Broadcast UI
+**Document Version:** 3.0  
+**Date:** September 28, 2025  
+**Author:** UI/UX Design Team (Updated based on User Testing)  
+**Target:** DAB-XPlorer Professional Interface Implementation  
+**Compliance:** 14 ETSI Standards with DAB-XPlorer Reference Architecture
+
+## 🔍 **PHASE 1.2 USER TESTING RESULTS**
+
+### **Critical UI Requirements Identified**
+Based on user testing of Phase 1.2 Qt GUI application, the following enhancements are required:
+
+1. **❌ Missing Frame Selection**: No way to select individual frames for detailed analysis
+2. **❌ Basic Layout**: UI far from professional DAB-XPlorer standards
+3. **❌ Limited Navigation**: No ensemble tree drill-down capabilities
+4. **❌ Missing FIC Analysis**: No comprehensive FIC-XPlorer interface
+5. **❌ No Frame List**: Missing FIC-XTractor frame navigation
+
+### **DAB-XPlorer Reference Requirements**
+**Source**: ref/man-dabxp_start-en.pdf - DAB-XPlorer Application Manual
+
+**Required UI Components**:
+- **Figure 1**: Summary of components architecture 
+- **Figure 10**: Main window with Player and Ensemble panels
+- **Figure 14**: FIC-XPlorer interface requirements
+- **Figure 15**: FIC-XTractor window with three views
 
 ## Table of Contents
 
 1. [Executive Summary](#executive-summary)
+2. [DAB-XPlorer Architecture Requirements](#dab-xplorer-architecture-requirements)
+3. [Phase 1.3 UI Enhancement Plan](#phase-13-ui-enhancement-plan)
 2. [Modern ETI Core Engine UI Integration](#modern-eti-core-engine-ui-integration)
 3. [Professional Broadcast Interface Design](#professional-broadcast-interface-design)
 4. [Component Architecture](#component-architecture)
@@ -64,54 +86,120 @@ Modern ETI Core Engine → Qt Signals → UI Model Updates → View Refresh
 
 ## Professional Broadcast Interface Design
 
-### **Main Window Layout - Broadcast Industry Standard**
+### **Main Window Layout - DAB-XPlorer Reference Architecture**
+
+The StreamDAB Analyzer implements the professional DAB-XPlorer interface pattern, providing comprehensive ensemble exploration, frame-by-frame navigation, and FIC analysis capabilities as referenced in the DAB-XPlorer Application manual (Figures 1, 10, 14, 15).
 
 ```
-┌────────────────────────────────────────────────────────────────────────────────┐
-│ File  Edit  View  Stream  Tools  Help                    [●] StreamDAB Analyzer │
-├────────────────────────────────────────────────────────────────────────────────┤
-│ 📁 Open │▶️ Stream │⏹️ Stop │🔴 Record │⚙️ Settings │📊 Report │🌐 Network      │
-├──────────────────┬─────────────────────────────────────┬─────────────────────────┤
-│   ETI Services   │            Frame Analysis           │    Properties Panel    │
-│                  │                                     │                         │
-│ 📁 Ensemble      │ Frame #1247 [6144 bytes] ✅        │ 🔍 Current Selection    │
-│ ├─🎵 BBC Radio 1 │ ┌─────────────────────────────────┐ │ Service: BBC Radio 1   │
-│ ├─🎵 BBC Radio 2 │ │ LIDATA: Mode I, FC=1247        │ │ Type: DAB+ Audio       │
-│ ├─📻 BBC Radio 3 │ │ FIC: 32 bytes, CRC ✅          │ │ Bitrate: 128 kbps      │
-│ └─📺 BBC Data    │ │ MSC: 5760 bytes                │ │ Protection: Level 3    │
-│                  │ │ FIG 0/0: Ensemble Info ✅      │ │ Quality: ████████░░    │
-│ 🔍 Filter: All   │ │ FIG 0/1: Subchannel Org ✅    │ │ Error Rate: 0.001%     │
-│ ☑️ Audio Services│ │ FIG 0/2: Service Org ✅        │ │                         │
-│ ☑️ Data Services │ │ Audio: HE-AAC v2 Stereo       │ │ 📈 Signal Quality       │
-│ ☑️ Show Errors   │ └─────────────────────────────────┘ │ Constellation: ████     │
-├──────────────────┼─────────────────────────────────────┼─────────────────────────┤
-│   Performance    │              Compliance             │    Network Streaming    │
-│ 🚀 7,482 FPS     │ ETSI Compliance: 100% ✅           │ Status: ⚫ Offline      │
-│ 💾 4.1 MB Memory │ EN 300 401: ✅  EN 302 077: ✅     │ Streams: 0 active       │
-│ ⚡ <1ms Latency  │ TS 102 563: ✅  TS 101 756: ✅     │ Recording: ⏹️ Stopped   │
-│ 📊 Real-time     │ All 9 Standards: Compliant ✅      │ 🌐 Discover Streams     │
-└──────────────────┴─────────────────────────────────────┴─────────────────────────┤
-│ 🟢 Ready | Processing: test_stream.eti | Frame 1247/5000 | ETSI: 100% | Thai: ✅ │
-└────────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ File  Edit  View  Stream  Tools  Help                     [●] StreamDAB Analyzer │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ 📁 Open │▶️ Stream │⏹️ Stop │🔴 Record │⚙️ Settings │📊 Export │🔧 FIC-XPlorer   │
+├───────────────────┬─────────────────────────────────────┬─────────────────────────┤
+│   Ensemble Tree   │           Frame Navigator           │   Service Details       │
+│   (Left Panel)    │          (Center Panel)            │   (Right Panel)         │
+│                   │                                     │                         │
+│ □ Ensemble 0x1A2B │ ┌─ Frame List [Selectable] ───────┐ │ ┌─ Current Service ───┐ │
+│ ├─□ BBC Radio 1   │ │ #001 [  24ms] ◄─ Selected      │ │ │ SID: 0x1001        │ │
+│ ├─□ BBC Radio 2   │ │ #002 [  48ms]                  │ │ │ Type: DAB+ Audio    │ │
+│ ├─□ BBC Radio 3   │ │ #003 [  72ms]                  │ │ │ Bitrate: 128 kbps   │ │
+│ └─□ Data Service  │ │ #004 [  96ms]                  │ │ │ Protection: 3-A     │ │
+│                   │ │ #005 [ 120ms]                  │ │ │ SubCh: 5            │ │
+│ ┌─ Frame Details ─┐│ └─────────────────────────────────┘ │ └─────────────────────┘ │
+│ │ Selected: #001  ││                                     │                         │
+│ │ Time: 24ms      ││ Frame Content Display:              │ ┌─ Signal Quality ───┐ │
+│ │ Size: 6144 B    ││ ┌─ Hex/MSC Data ──────────────────┐ │ │ Signal: -45 dBm    │ │
+│ │ Format: ETI-LI  ││ │ FF F8 C5 49 1A 2B 3C 4D 5E...  │ │ │ SNR: 25.4 dB       │ │
+│ │ SYNC: ✅       ││ │ 6F 70 81 92 A3 B4 C5 D6 E7...  │ │ │ Frequency Error:   │ │
+│ │ CRC: ✅        ││ │ F8 09 1A 2B 3C 4D 5E 6F 70...  │ │ │ +127 Hz            │ │
+│ └─────────────────┘│ │ 81 92 A3 B4 C5 D6 E7 F8 09...  │ │ │ Quality: ████████  │ │
+├───────────────────┼─┼ └─────────────────────────────────┘ │ └─────────────────────┘ │
+│                   │ └─────────────────────────────────────┴─────────────────────────┤
+│                    FIC Analysis Hub (FIC-XPlorer/FIC-XTractor Pattern)             │
+│ ┌─ FIC-XPlorer ──┐ ┌─ FIC-XTractor ─────────────────┐ ┌─ System Messages ────┐   │
+│ │ FIG Analysis   │ │ Extracted Information           │ │ Warnings & Errors     │   │
+│ │ □ FIG 0/0      │ │ ┌─ Service Labels ─────────────┐ │ │ ⚠️  Frame 47: CRC   │   │
+│ │ □ FIG 0/1      │ │ │ BBC Radio 1: Music & More   │ │ │ 🔴 Frame 52: SYNC   │   │
+│ │ □ FIG 0/2      │ │ │ BBC Radio 2: Pop & Chart    │ │ │ ✅ ETSI Compliance  │   │
+│ │ □ FIG 1/0      │ │ │ BBC Radio 3: Classical      │ │ │ ✅ Frame Processing │   │
+│ │ □ FIG 1/1      │ │ └─────────────────────────────┘ │ │ 📊 Rate: 900+ FPS   │   │
+│ │ □ FIG 1/4      │ │ ┌─ Programme Information ─────┐ │ │ 💾 Memory: <100MB   │   │
+│ │ □ Other FIGs   │ │ │ PTy: Pop Music (10)         │ │ │ 🌐 Network: Offline │   │
+│ └────────────────┘ │ │ Time: 14:16:37 UTC          │ │ └───────────────────────┘   │
+│                    │ │ Date: 20/06/2022            │ │                             │
+│                    │ └─────────────────────────────┘ │                             │
+│                    └─────────────────────────────────┘                             │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ 🟢 Ready | File: bkk_20062022_141637.eti | Frame 001/1766 | Format: ETI-LI | ✅ │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### **Professional Color Scheme - Broadcast Industry**
+### **DAB-XPlorer Professional Color Scheme**
 
 ```cpp
-namespace ui::theme::broadcast {
-    // Microsoft Blue Professional Theme
-    constexpr QColor BACKGROUND_DARK = QColor(0x2D, 0x2D, 0x30);     // #2D2D30
-    constexpr QColor ACCENT_BLUE = QColor(0x00, 0x78, 0xD4);         // #0078D4
-    constexpr QColor SUCCESS_GREEN = QColor(0x10, 0x7C, 0x10);       // #107C10
-    constexpr QColor WARNING_ORANGE = QColor(0xFF, 0x8C, 0x00);      // #FF8C00
-    constexpr QColor ERROR_RED = QColor(0xD1, 0x3F, 0x31);           // #D13F31
+namespace ui::theme::dab_xplorer {
+    // DAB-XPlorer Light Professional Theme (Standard Industry Colors)
+    constexpr QColor BACKGROUND_LIGHT = QColor(0xF5, 0xF5, 0xF5);    // #F5F5F5 - Light Gray
+    constexpr QColor PANEL_BACKGROUND = QColor(0xFF, 0xFF, 0xFF);    // #FFFFFF - White
+    constexpr QColor BORDER_COLOR = QColor(0xCC, 0xCC, 0xCC);        // #CCCCCC - Medium Gray
+    constexpr QColor ACCENT_BLUE = QColor(0x00, 0x66, 0xCC);         // #0066CC - DAB Blue
+    constexpr QColor SUCCESS_GREEN = QColor(0x00, 0x99, 0x00);       // #009900 - Success Green
+    constexpr QColor WARNING_AMBER = QColor(0xFF, 0x99, 0x00);       // #FF9900 - Warning Amber
+    constexpr QColor ERROR_RED = QColor(0xCC, 0x00, 0x00);           // #CC0000 - Error Red
     
-    // Service Type Colors
-    constexpr QColor SERVICE_AUDIO = QColor(0x00, 0x8F, 0x00);       // Green
-    constexpr QColor SERVICE_DATA = QColor(0xFF, 0x8C, 0x00);        // Orange
-    constexpr QColor SERVICE_ENSEMBLE = QColor(0x00, 0x78, 0xD4);    // Blue
+    // DAB Service Type Colors (Industry Standard)
+    constexpr QColor SERVICE_AUDIO = QColor(0x00, 0x99, 0x00);       // Green - Audio Services
+    constexpr QColor SERVICE_DATA = QColor(0xFF, 0x66, 0x00);        // Orange - Data Services
+    constexpr QColor SERVICE_ENSEMBLE = QColor(0x00, 0x66, 0xCC);    // Blue - Ensemble Level
+    constexpr QColor SELECTED_ITEM = QColor(0xE6, 0xF2, 0xFF);       // Light Blue - Selection
+    
+    // Text Colors (High Contrast)
+    constexpr QColor TEXT_PRIMARY = QColor(0x00, 0x00, 0x00);        // Black - Primary Text
+    constexpr QColor TEXT_SECONDARY = QColor(0x66, 0x66, 0x66);      // Dark Gray - Secondary
 }
 ```
+
+### **DAB-XPlorer Panel Architecture**
+
+#### **Left Panel: Ensemble Tree Explorer (25% Width)**
+- **Checkbox Selection Model:** Multi-select services for simultaneous analysis
+- **Hierarchical Structure:** 
+  - Ensemble Level (SID display with expand/collapse)
+  - Service Level (Individual DAB/DAB+ services)  
+  - Component Level (Audio/data subchannel details)
+- **Individual Frame Analysis:**
+  - Selected frame details (number, timestamp, size, format)
+  - Frame status indicators (SYNC, CRC validation)
+  - Navigation controls (previous/next frame)
+
+#### **Center Panel: Frame Navigator & Content Viewer (50% Width)**
+- **Frame List Section:** Scrollable frame sequence with 24ms precision
+- **Frame Content Display:** 
+  - Hex Viewer Mode: Raw 6144-byte frame data
+  - MSC Data Mode: Main Service Channel decoded content
+  - FIC Data Mode: Fast Information Channel analysis
+- **Visual Indicators:** Highlight service data, sync patterns, errors
+
+#### **Right Panel: Service Details & Signal Quality (25% Width)**  
+- **Service Parameters:**
+  - SID, service type, label, bitrate display
+  - Protection level, subchannel configuration
+  - Audio format specification (DAB vs DAB+)
+- **Signal Quality Metrics:**
+  - Real-time signal strength, SNR, frequency offset
+  - Quality meters and numerical displays
+  - Error statistics and quality trends
+
+#### **Bottom Panel: FIC Analysis Hub (25-30% Height)**
+- **FIC-XPlorer Tab:** FIG type analysis and filtering
+  - Checkbox selection for FIG types (0/0, 0/1, 0/2, 1/0, 1/1, 1/4)
+  - Real-time FIG processing enable/disable
+- **FIC-XTractor Tab:** Extracted service information
+  - Service labels and programme information
+  - Time/date display, programme type codes
+- **System Messages Tab:** Error reporting and ETSI compliance
+  - Warning/error categorization with severity indicators
+  - Real-time ETSI EN 300 799 compliance validation
 
 ## Component Architecture
 
