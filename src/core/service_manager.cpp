@@ -1,4 +1,4 @@
-#include "service_manager.h"
+#include "service_manager.hpp"
 #include "utils/logger.h"
 
 #include <QDebug>

@@ -89,6 +89,9 @@ set(GTEST_UNIT_SOURCES
     unit/test_crc_error_recovery.cpp
     unit/test_realworld_eti_compatibility.cpp
     unit/test_performance_impact_validation.cpp
+
+    # STYLE COMPLIANCE TEST SUITE - TDD IMPLEMENTATION
+    style_compliance_test.cpp
 )
 
 # Test fixtures and test data - only working files
@@ -423,6 +426,17 @@ add_custom_target(run_compliance_validation_suite
     COMMAND echo "✅ 100% ETSI COMPLIANCE VALIDATION COMPLETE"
     DEPENDS eti_analyzer_unit_tests
     COMMENT "Comprehensive 100% ETSI compliance validation with detailed reporting"
+)
+
+# TDD STYLE COMPLIANCE TARGET - Achieving 10.0/10.0 Perfect Score
+add_custom_target(run_style_compliance_tests
+    COMMAND echo "🎨 STYLE COMPLIANCE TEST SUITE - TDD METHODOLOGY"
+    COMMAND echo "=================================================="
+    COMMAND echo "Testing layer-based naming conventions..."
+    COMMAND eti_analyzer_unit_tests --gtest_filter="*StyleCompliance*" --gtest_output=xml:style_compliance_results.xml
+    COMMAND echo "✅ STYLE COMPLIANCE VALIDATION COMPLETE"
+    DEPENDS eti_analyzer_unit_tests
+    COMMENT "TDD Style Compliance Testing - Achieving 10.0/10.0 Perfect Score"
 )
 # TDD FRAMEWORK: Memory leak testing (Linux/macOS with Valgrind)
 if(UNIX AND NOT APPLE)

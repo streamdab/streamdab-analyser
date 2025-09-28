@@ -10,7 +10,7 @@
 #include <chrono>
 
 // Conditional includes for audio libraries
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
 extern "C" {
 #include <neaacdec.h>
 }
@@ -36,7 +36,7 @@ public:
     mutable QMutex status_mutex;
     
     // Codec handles
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
     NeAACDecHandle faad_handle = nullptr;
     NeAACDecConfigurationPtr faad_config = nullptr;
     NeAACDecFrameInfo faad_frame_info;
@@ -109,7 +109,7 @@ audio_decoder::AudioDecoderPrivate::~AudioDecoderPrivate() {
 }
 
 void audio_decoder::AudioDecoderPrivate::reset_codec_handles() {
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
     if (faad_handle) {
         NeAACDecClose(faad_handle);
         faad_handle = nullptr;
@@ -260,7 +260,7 @@ bool audio_decoder::initialize_mpeg_decoder() {
 }
 
 bool audio_decoder::initialize_aac_decoder() {
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
     // Create FAAD2 handle
     d_ptr->faad_handle = NeAACDecOpen();
     if (!d_ptr->faad_handle) {
@@ -446,7 +446,7 @@ bool audio_decoder::decode_mpeg_frame(const QByteArray& data, QByteArray& output
 }
 
 bool audio_decoder::decode_aac_frame(const QByteArray& data, QByteArray& output) {
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
     if (!d_ptr->faad_handle) {
         return false;
     }
@@ -525,7 +525,7 @@ bool audio_decoder::convert_to_output_format(const void* input_samples, size_t i
     }
 #endif
     
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
     if (input_format == FAAD_FMT_16BIT) {
         sample_count = input_size / sizeof(int16_t);
     } else if (input_format == FAAD_FMT_FLOAT) {
@@ -824,13 +824,13 @@ QString audio_decoder::get_codec_info() const {
         case codec_type::aac_lc:
             return "AAC-LC (FAAD2)";
         case codec_type::aac_plus:
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
             return QString("HE-AAC v1 (FAAD2 %1)").arg(FAAD2_VERSION);
 #else
             return "HE-AAC v1 (not available)";
 #endif
         case codec_type::aac_plus_v2:
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
             return QString("HE-AAC v2 (FAAD2 %1)").arg(FAAD2_VERSION);
 #else
             return "HE-AAC v2 (not available)";

@@ -18,7 +18,7 @@
 #include <chrono>
 #include <thread>
 
-#include "core/stream_recording_manager.h"
+#include "core/stream_recording_manager.hpp"
 #include "tests/fixtures/etsi_test_data/etsi_reference_data.h"
 
 using namespace eti;

@@ -10,7 +10,7 @@
 #include <QSignalSpy>
 #include <QTest>
 
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include "utils/logger.h"
 
 using ::testing::_;

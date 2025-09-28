@@ -21,7 +21,7 @@
 #include <array>
 #include <chrono>
 
-#include "core/modern_eti_frame_parser.h"
+#include "core/modern_eti_frame_parser.hpp"
 #include "core/eti_types.h"
 
 using namespace eti;

@@ -20,7 +20,7 @@
 #include <deque>
 
 // Forward declarations
-class eti_processor;
+class EtiProcessor;  // Qt camelCase for GUI layer
 
 /**
  * @struct PerformanceStats
@@ -90,7 +90,7 @@ public:
      * @brief Connect to ETI processor for performance data
      * @param processor ETI processor instance
      */
-    void connectEtiProcessor(eti_processor* processor);
+    void connectEtiProcessor(EtiProcessor* processor);
     
     /**
      * @brief Start real-time monitoring
@@ -319,7 +319,7 @@ private:
     QComboBox* m_timeRangeCombo;
     
     // Data and state
-    eti_processor* m_etiProcessor;
+    EtiProcessor* m_etiProcessor;
     QTimer* m_updateTimer;
     bool m_monitoringActive;
     

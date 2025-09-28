@@ -45,12 +45,12 @@
 #include "gui/broadcast_theme.h"
 
 // Core and Network components
-#include "core/eti_processor.h"
-#include "core/modern_eti_frame_parser.h"
-#include "core/network_stream_receiver.h"
-#include "core/multi_stream_processor.h"
-#include "core/stream_recording_manager.h"
-#include "core/stream_quality_monitor.h"
+#include "core/eti_processor.hpp"
+#include "core/modern_eti_frame_parser.hpp"
+#include "core/network_stream_receiver.hpp"
+#include "core/multi_stream_processor.hpp"
+#include "core/stream_recording_manager.hpp"
+#include "core/stream_quality_monitor.hpp"
 
 // Test utilities
 #include "fixtures/test_data_generators.h"

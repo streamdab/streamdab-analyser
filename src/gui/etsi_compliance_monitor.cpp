@@ -1,5 +1,5 @@
 #include "etsi_compliance_monitor.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include "utils/logger.h"
 #include <QApplication>
 #include <QStyle>

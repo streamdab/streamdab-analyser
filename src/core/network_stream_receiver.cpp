@@ -6,7 +6,7 @@
  * professional broadcast-grade reliability and real-time processing.
  */
 
-#include "network_stream_receiver.h"
+#include "network_stream_receiver.hpp"
 #include <QNetworkDatagram>
 #include <QHostAddress>
 #include <QNetworkProxy>

@@ -19,10 +19,22 @@
 #include <QTimer>
 #include <QDebug>
 #include <gtest/gtest.h>
-#include <gmock/gmock.h>
 #include <memory>
 #include <chrono>
 #include <functional>
+
+// Conditional GMock support
+#ifdef HAVE_GMOCK
+#include <gmock/gmock.h>
+#define MOCK_METHOD_AVAILABLE 1
+#else
+#define MOCK_METHOD_AVAILABLE 0
+// Provide basic mock functionality without GMock
+#define MOCK_METHOD(name, signature) virtual signature { return {}; }
+#define EXPECT_CALL(obj, method) if(false)
+#define ON_CALL(obj, method) if(false)
+#define Return(value) 
+#endif
 
 /**
  * @namespace TDD

@@ -1,6 +1,6 @@
 #include "eti_analysis_widget.h"
 #include "constellation_widget.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include "utils/logger.h"
 #include <QApplication>
 #include <QHeaderView>

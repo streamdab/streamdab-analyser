@@ -42,8 +42,8 @@
 #include "alert_configuration_dialog.h"
 #include "stream_recording_dialog.h"
 #include "core/etsi/alert_system.h"
-#include "core/stream_recording_manager.h"
-#include "core/audio_extraction_pipeline.h"
+#include "core/stream_recording_manager.hpp"
+#include "core/audio_extraction_pipeline.hpp"
 
 /**
  * @class GUIIntegrationTestWindow

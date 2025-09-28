@@ -7,8 +7,8 @@
  */
 
 #include "eti_frame_list_model.h"
-#include "core/modern_eti_frame_parser.h"
-#include "core/comprehensive_etsi_validator.h"
+#include "core/modern_eti_frame_parser.hpp"
+#include "core/comprehensive_etsi_validator.hpp"
 #include "utils/logger.h"
 
 #include <QColor>

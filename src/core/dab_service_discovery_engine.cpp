@@ -16,7 +16,7 @@
  * @copyright StreamDAB Analyzer Project
  */
 
-#include "dab_service_discovery_engine.h"
+#include "dab_service_discovery_engine.hpp"
 #include "../utils/logger.h"
 #include <algorithm>
 #include <iomanip>

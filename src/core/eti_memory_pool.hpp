@@ -36,7 +36,7 @@ namespace eti::modern {
  */
 template<typename T>
 concept allocatable_type = requires {
-    sizeof(T) > 0;
+    !std::is_void_v<T>;
     std::is_destructible_v<T>;
     std::is_default_constructible_v<T>;
 };
@@ -246,7 +246,7 @@ public:
         const size_t used_blocks = current_usage_.load();
         const size_t total_blocks = memory_blocks_.size();
         const double usage_percentage = total_blocks > 0 
-            ? (static_cast<double>(used_blocks) / total_blocks) * 100.0
+            ? (static_cast<double>(used_blocks) / static_cast<double>(total_blocks)) * 100.0
             : 0.0;
             
         return {used_blocks, total_blocks, usage_percentage};
@@ -284,7 +284,7 @@ public:
         const size_t total = total_allocations_.load();
         const size_t current = current_usage_.load();
         const double hit_rate = total > 0 
-            ? (static_cast<double>(total - current) / total) * 100.0
+            ? (static_cast<double>(total - current) / static_cast<double>(total)) * 100.0
             : 100.0;
             
         return {total, current, hit_rate};

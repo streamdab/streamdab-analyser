@@ -1,547 +1,342 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.21)
+project(StreamDAB_Analyzer VERSION 1.1.0 LANGUAGES CXX)
 
-# Project configuration
-project(ETIStreamAnalyzer
-    VERSION 1.0.0
-    DESCRIPTION "Professional StreamDAB Stream Analyzer for DAB/DAB+ Broadcasting"
-    LANGUAGES CXX
-)
+# ========================================
+# StreamDAB Analyzer - Professional Build Configuration
+# ========================================
+message(STATUS "========================================")
+message(STATUS "StreamDAB Analyzer - Professional Build Configuration")
+message(STATUS "========================================")
+message(STATUS "Version: ${PROJECT_VERSION}")
 
-# C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# Export compile commands for clang-tidy integration
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Build type default
+# Professional build type configuration
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 endif()
 
-# Enable testing from project start (TDD requirement)
-enable_testing()
+message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
 
-message(STATUS "=== StreamDAB Stream Analyzer Build Configuration ===")
-message(STATUS "Project: ${PROJECT_NAME} v${PROJECT_VERSION}")
-message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Platform: ${CMAKE_SYSTEM_NAME}")
-
-# Common dependencies (cross-platform)
-find_package(PkgConfig REQUIRED)
-
-# Qt6 framework (cross-platform)
-find_package(Qt6 6.2 REQUIRED COMPONENTS
+# Qt6 components - Complete Professional Suite
+find_package(Qt6 REQUIRED COMPONENTS
     Core
     Widgets
-    Gui
+    Concurrent
     Network
+    Gui
+    PrintSupport
     Test
-    Multimedia
+)
+qt6_standard_project_setup()
+
+# Configure Qt Designer UI file search paths
+set(CMAKE_AUTOUIC_SEARCH_PATHS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
 )
 
-# Optional Qt6 UiTools for advanced GUI testing
-find_package(Qt6UiTools QUIET)
-if(Qt6UiTools_FOUND)
-    message(STATUS "Qt6UiTools found - enabling advanced GUI testing features")
-    set(HAVE_QT6_UITOOLS TRUE)
-    add_compile_definitions(HAVE_QT6_UITOOLS=1)
-else()
-    message(STATUS "Qt6UiTools not found - disabling advanced GUI testing features")
-    set(HAVE_QT6_UITOOLS FALSE)
-    add_compile_definitions(HAVE_QT6_UITOOLS=0)
-endif()
+message(STATUS "Qt6 Version: ${Qt6_VERSION}")
 
-# Optional components
-find_package(Qt6StateMachine QUIET)
-if(Qt6StateMachine_FOUND)
-    message(STATUS "Qt6StateMachine found - enabling advanced state machine features")
-    set(HAVE_QT6_STATEMACHINE TRUE)
-    add_compile_definitions(HAVE_QT6_STATEMACHINE=1)
-else()
-    message(STATUS "Qt6StateMachine not found - disabling state machine features")
-    set(HAVE_QT6_STATEMACHINE FALSE)
-    add_compile_definitions(HAVE_QT6_STATEMACHINE=0)
-endif()
-
-# Enable Qt automation
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
-
-# Set UI search paths for Qt Designer files
-set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui)
-
-# GTest configuration for TDD framework
-find_package(GTest QUIET)
-if(NOT GTest_FOUND)
-    # Try to find system libgtest-dev package
-    find_path(GTEST_INCLUDE_DIR gtest/gtest.h PATHS /usr/include)
-    find_library(GTEST_LIBRARY gtest PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
-    find_library(GTEST_MAIN_LIBRARY gtest_main PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
-    find_library(GMOCK_LIBRARY gmock PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
-    find_library(GMOCK_MAIN_LIBRARY gmock_main PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
-
-    if(GTEST_INCLUDE_DIR AND GTEST_LIBRARY AND GTEST_MAIN_LIBRARY)
-        message(STATUS "Using system GTest libraries for TDD framework")
-        # Create imported targets to match modern CMake patterns
-        add_library(GTest::gtest SHARED IMPORTED)
-        set_target_properties(GTest::gtest PROPERTIES
-            IMPORTED_LOCATION ${GTEST_LIBRARY}
-            INTERFACE_INCLUDE_DIRECTORIES ${GTEST_INCLUDE_DIR}
-        )
-        add_library(GTest::gtest_main SHARED IMPORTED)
-        set_target_properties(GTest::gtest_main PROPERTIES
-            IMPORTED_LOCATION ${GTEST_MAIN_LIBRARY}
-            INTERFACE_INCLUDE_DIRECTORIES ${GTEST_INCLUDE_DIR}
-        )
-        if(GMOCK_LIBRARY)
-            add_library(GTest::gmock SHARED IMPORTED)
-            set_target_properties(GTest::gmock PROPERTIES
-                IMPORTED_LOCATION ${GMOCK_LIBRARY}
-                INTERFACE_INCLUDE_DIRECTORIES ${GTEST_INCLUDE_DIR}
-            )
-        endif()
-        if(GMOCK_MAIN_LIBRARY)
-            add_library(GTest::gmock_main SHARED IMPORTED)
-            set_target_properties(GTest::gmock_main PROPERTIES
-                IMPORTED_LOCATION ${GMOCK_MAIN_LIBRARY}
-                INTERFACE_INCLUDE_DIRECTORIES ${GTEST_INCLUDE_DIR}
-            )
-        endif()
-        set(GTest_FOUND TRUE)
-    else()
-        message(WARNING "GTest not found - install libgtest-dev package for TDD support")
-        set(GTest_FOUND FALSE)
-    endif()
-else()
-    message(STATUS "Found system GTest package for TDD framework")
-endif()
-
-# Create legacy gtest targets for backward compatibility with test files
-if(GTest_FOUND)
-    if(NOT TARGET gtest)
-        add_library(gtest ALIAS GTest::gtest)
-    endif()
-    if(NOT TARGET gtest_main)
-        add_library(gtest_main ALIAS GTest::gtest_main)
-    endif()
-    if(TARGET GTest::gmock AND NOT TARGET gmock)
-        add_library(gmock ALIAS GTest::gmock)
-    endif()
-    if(TARGET GTest::gmock_main AND NOT TARGET gmock_main)
-        add_library(gmock_main ALIAS GTest::gmock_main)
-    endif()
-    message(STATUS "GTest framework configured for TDD compliance")
-endif()
-
-# Platform detection and configuration
+# Platform detection
 if(WIN32)
-    include(cmake/WindowsConfig.cmake)
-    set(PLATFORM_NAME "Windows")
+    message(STATUS "Platform: Windows")
 elseif(APPLE)
-    include(cmake/MacOSConfig.cmake)
-    set(PLATFORM_NAME "macOS")
-elseif(UNIX)
-    include(cmake/LinuxConfig.cmake)
-    set(PLATFORM_NAME "Linux")
+    message(STATUS "Platform: macOS")
 else()
-    message(FATAL_ERROR "Unsupported platform: ${CMAKE_SYSTEM_NAME}")
+    message(STATUS "Platform: Linux")
 endif()
 
-message(STATUS "Platform configuration: ${PLATFORM_NAME}")
-# Enhanced audio decoder detection for DAB+ support
-option(USE_FDK_AAC "Use fdk-aac instead of FAAD2 for better DAB+ support" ON)
+# Professional dependency management
+find_package(PkgConfig REQUIRED)
+find_package(Threads REQUIRED)
 
-if(USE_FDK_AAC)
-    # Prefer fdk-aac for professional DAB+ decoding
-    pkg_check_modules(FDK_AAC fdk-aac)
-    if(FDK_AAC_FOUND)
-        set(AUDIO_DECODER_LIBS ${FDK_AAC_LIBRARIES})
-        set(AUDIO_DECODER_INCLUDE_DIRS ${FDK_AAC_INCLUDE_DIRS})
-        set(AUDIO_DECODER_CFLAGS ${FDK_AAC_CFLAGS_OTHER})
-        set(AUDIO_DECODER_DEFINITIONS "USE_FDK_AAC")
-        message(STATUS "Using fdk-aac ${FDK_AAC_VERSION} for DAB+ audio decoding (professional grade)")
-    else()
-        message(WARNING "fdk-aac not found, falling back to FAAD2")
-        set(USE_FDK_AAC OFF)
-    endif()
-endif()
-
-if(NOT USE_FDK_AAC)
-    # Use FAAD2 with version requirement for DAB+ support
-    pkg_check_modules(FAAD2 faad2>=2.9.2)
-    if(FAAD2_FOUND)
-        set(AUDIO_DECODER_LIBS ${FAAD2_LIBRARIES})
-        set(AUDIO_DECODER_INCLUDE_DIRS ${FAAD2_INCLUDE_DIRS})
-        set(AUDIO_DECODER_CFLAGS ${FAAD2_CFLAGS_OTHER})
-        set(AUDIO_DECODER_DEFINITIONS "USE_FAAD2")
-        message(STATUS "Using FAAD2 ${FAAD2_VERSION} for DAB+ audio decoding")
-    else()
-        # Check for any FAAD2 version and warn if too old
-        pkg_check_modules(FAAD2_ANY faad2)
-        if(FAAD2_ANY_FOUND)
-            message(WARNING "FAAD2 ${FAAD2_ANY_VERSION} found but version 2.9.2+ required for DAB+ support")
-            message(WARNING "Consider installing fdk-aac or updating FAAD2")
-            # Still use it but warn user
-            set(AUDIO_DECODER_LIBS ${FAAD2_ANY_LIBRARIES})
-            set(AUDIO_DECODER_INCLUDE_DIRS ${FAAD2_ANY_INCLUDE_DIRS})
-            set(AUDIO_DECODER_CFLAGS ${FAAD2_ANY_CFLAGS_OTHER})
-            set(AUDIO_DECODER_DEFINITIONS "USE_FAAD2")
-        else()
-            message(FATAL_ERROR "No suitable DAB+ audio decoder found. Install fdk-aac or FAAD2 2.9.2+")
-        endif()
-    endif()
-endif()
-
+# Required libraries for ETI processing
+pkg_check_modules(FAAD2 REQUIRED faad2)
 pkg_check_modules(FFTW3 REQUIRED fftw3)
 
-# Optional YAML configuration support
+# Optional libraries
 find_package(yaml-cpp QUIET)
 if(yaml-cpp_FOUND)
-    message(STATUS "YAML-CPP found: Configuration features enabled")
-    set(HAVE_YAML_CPP ON)
+    message(STATUS "yaml-cpp: Found")
 else()
-    message(STATUS "YAML-CPP not found: Configuration features disabled (optional)")
-    set(HAVE_YAML_CPP OFF)
+    message(STATUS "yaml-cpp: Not found (optional)")
 endif()
 
-# Optional nlohmann/json for Modern ETI Core integration
-find_package(nlohmann_json QUIET)
-if(nlohmann_json_FOUND)
-    message(STATUS "nlohmann/json found: Enhanced Modern ETI Core integration enabled")
-    set(HAVE_NLOHMANN_JSON ON)
-else()
-    message(STATUS "nlohmann/json not found: Modern ETI Core features disabled (optional)")
-    set(HAVE_NLOHMANN_JSON OFF)
-endif()
+# ========================================
+# CORE APPLICATION SOURCES
+# ========================================
 
-# Modern ETI Core Engine - No external submodules needed
-message(STATUS "Using integrated Modern ETI Core Engine...")
-
-# Include directories
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-
-# Core ETI processing source files with Modern ETI Core Engine
-set(CORE_SOURCE_FILES
-    src/main.cpp
+# Core ETI processing engine
+set(CORE_SOURCES
     src/core/eti_processor.cpp
-    src/core/eti_processor.h
-    src/core/headless_eti_processor.cpp
-    src/core/headless_eti_processor.h
-    src/core/modern_eti_frame_parser.cpp
-    src/core/modern_eti_frame_parser.h
-    src/core/enhanced_fig_analyzer.cpp
-    src/core/enhanced_fig_analyzer.h
-
-    src/core/performance_profiler.cpp
-    src/core/performance_profiler.hpp
-    src/core/eti_processing_engine.cpp
-    src/core/eti_processing_engine.h
     src/core/eti_file_worker.cpp
-    src/core/eti_file_worker.h
+    src/core/eti_processing_engine.cpp
     src/core/eti_types.cpp
-    src/core/eti_types.hpp
+    src/core/modern_eti_frame_parser.cpp
+    src/core/headless_eti_processor.cpp
+    src/core/optimized_eti_processor.cpp
+    src/core/ultra_performance_eti_processor.cpp
+
+    # DAB processing
     src/core/dab_decoder.cpp
-    src/core/dab_decoder.h
-    src/core/fic_decoder.cpp
-    src/core/fic_decoder.h
-    src/core/ensemble_manager.cpp
-    src/core/ensemble_manager.hpp
-    src/core/service_manager.cpp
-    src/core/service_manager.h
-    src/core/dab_audio_decoder.cpp
-    src/core/dab_audio_decoder.h
-    src/core/etsi/alert_system.cpp
-    src/core/etsi/alert_system.h
-    src/core/network_stream_receiver.cpp
-    src/core/network_stream_receiver.h
-    src/core/stream_recording_manager.cpp
-    src/core/stream_recording_manager.h
-    src/core/eti_processing_cache.cpp
-    src/core/eti_processing_cache.hpp
-    src/core/eti_memory_pool.cpp
-    src/core/eti_memory_pool.hpp
-    src/core/comprehensive_etsi_validator.cpp
-    src/core/comprehensive_etsi_validator.h
-    src/core/fig_parser.cpp
-    src/core/fig_parser.h
     src/core/dab_service_discovery_engine.cpp
-    src/core/dab_service_discovery_engine.h
-    src/core/thai_nbtc_validator.h
-    src/core/thai_nbtc_validator.cpp
+    src/core/dab_audio_decoder.cpp
     src/core/audio_decoder.cpp
-    src/core/audio_decoder.hpp
+    src/core/audio_extraction_pipeline.cpp
+
+    # FIC and FIG processing
+    src/core/fic_decoder.cpp
+    src/core/fig_parser.cpp
+    src/core/enhanced_fig_analyzer.cpp
+
+    # Service management
+    src/core/service_manager.cpp
+    src/core/ensemble_manager.cpp
+
+    # Network streaming
+    src/core/network_stream_receiver.cpp
+    src/core/multi_stream_processor.cpp
+    src/core/stream_recording_manager.cpp
+
+    # ETSI compliance
+    src/core/comprehensive_etsi_validator.cpp
+    src/core/thai_nbtc_validator.cpp
+    src/core/standards_compliance_perfection.cpp
+
+    # Performance and monitoring
+    src/core/performance_profiler.cpp
+    src/core/eti_memory_pool.cpp
+    src/core/eti_processing_cache.cpp
+    src/core/ai_signal_intelligence_framework.cpp
 )
 
-# Phase 8 Advanced Network Streaming Components
-set(NETWORK_SOURCE_FILES
-    src/network/eti_over_ip_receiver.h
+# ETSI Standards compliance subsystem
+set(ETSI_SOURCES
+    src/core/etsi/compliance_engine.cpp
+    src/core/etsi/compliance_logger.cpp
+    src/core/etsi/standard_validators.cpp
+    src/core/etsi/alert_system.cpp
+    src/core/etsi/realtime_monitor.cpp
+)
+
+# GUI Application components
+set(GUI_SOURCES
+    src/gui/main_window.cpp
+    src/gui/analyzer_widget.cpp
+    src/gui/constellation_widget.cpp
+    src/gui/service_browser.cpp
+    src/gui/service_explorer_panel.cpp
+    src/gui/settings_dialog.cpp
+    src/gui/about_dialog.cpp
+    src/gui/alert_configuration_dialog.cpp
+    src/gui/stream_recording_dialog.cpp
+
+    # Data models
+    src/gui/eti_service_tree_model.cpp
+    src/gui/eti_frame_list_model.cpp
+
+    # Analysis widgets
+    src/gui/eti_analysis_widget.cpp
+    src/gui/fig_analysis_widget.cpp
+    src/gui/audio_monitoring_widget.cpp
+    src/gui/performance_dashboard.cpp
+
+    # Professional workflow
+    src/gui/professional_workflow_manager.cpp
+    src/gui/etsi_compliance_monitor.cpp
+    src/gui/integration_validator.cpp
+
+    # UI framework
+    src/gui/progress_manager.cpp
+    src/gui/status_manager.cpp
+    src/gui/error_indicator_system.cpp
+    src/gui/context_menu_factory.cpp
+    src/gui/real_time_controller.cpp
+    src/gui/signal_router.cpp
+
+    # Themes and rendering
+    src/gui/broadcast_theme.cpp
+    src/gui/enhanced_broadcast_theme.cpp
+    src/gui/real_time_chart_widget.cpp
+    src/gui/professional_export_manager.cpp
+
+    # Integration components
+    src/gui/main_window_alert_integration.cpp
+    src/gui/audio_decoder_integration.cpp
+    src/gui/test_gui_integration.cpp
+)
+
+# Network processing components
+set(NETWORK_SOURCES
     src/network/eti_over_ip_receiver.cpp
-    src/network/streaming_processor.h
-    src/network/streaming_processor.cpp
-    src/network/network_discovery.h
-    src/network/network_discovery.cpp
-    src/network/stream_playback.h
-    src/network/stream_playback.cpp
-    src/network/eti_network_integration.h
     src/network/eti_network_integration.cpp
-    src/network/circular_buffer_manager.h
+    src/network/network_discovery.cpp
+    src/network/streaming_processor.cpp
+    src/network/stream_playback.cpp
     src/network/circular_buffer_manager.cpp
 )
 
-# GUI source files
-set(GUI_SOURCE_FILES
-    src/gui/main_window.cpp
-    src/gui/main_window.h
-    src/gui/analyzer_widget.cpp
-    src/gui/analyzer_widget.h
-    src/gui/service_browser.cpp
-    src/gui/service_browser.h
-    src/gui/constellation_widget.cpp
-    src/gui/constellation_widget.h
-    src/gui/settings_dialog.cpp
-    src/gui/settings_dialog.h
-    src/gui/about_dialog.cpp
-    src/gui/about_dialog.h
-    src/gui/alert_configuration_dialog.cpp
-    src/gui/alert_configuration_dialog.h
-    src/gui/stream_recording_dialog.cpp
-    src/gui/stream_recording_dialog.h
-    src/gui/eti_service_tree_model.cpp
-    src/gui/eti_service_tree_model.h
-    src/gui/eti_frame_list_model.cpp
-    src/gui/eti_frame_list_model.h
-    src/gui/fig_analysis_widget.cpp
-    src/gui/fig_analysis_widget.h
-    src/gui/audio_monitoring_widget.cpp
-    src/gui/audio_monitoring_widget.h
-    src/gui/service_explorer_panel.cpp
-    src/gui/service_explorer_panel.h
-    src/gui/performance_dashboard.cpp
-    src/gui/performance_dashboard.h
-    src/gui/etsi_compliance_monitor.cpp
-    src/gui/etsi_compliance_monitor.h
-    src/gui/eti_analysis_widget.cpp
-    src/gui/eti_analysis_widget.h
-    src/gui/professional_workflow_manager.cpp
-    src/gui/professional_workflow_manager.h
-)
-
-# Utility source files
-set(UTILS_SOURCE_FILES
+# Utility components
+set(UTILS_SOURCES
     src/utils/logger.cpp
-    src/utils/logger.h
     src/utils/config_manager.cpp
-    src/utils/config_manager.h
+    src/utils/file_utils.cpp
+    src/utils/signal_processing.cpp
+    src/utils/report_generator.cpp
 )
 
-# Combine all source files for full Phase 8 Advanced Features build
-set(SOURCE_FILES
-    ${CORE_SOURCE_FILES}
-    ${NETWORK_SOURCE_FILES}
-    ${GUI_SOURCE_FILES}
-    ${UTILS_SOURCE_FILES}
+# Performance benchmarking
+set(PERFORMANCE_SOURCES
+    src/performance/ultra_performance_benchmark_suite.cpp
 )
 
-# UI files removed - using manual widget creation
+# ========================================
+# MAIN APPLICATION EXECUTABLE
+# ========================================
 
-# Resource files
-set(RESOURCE_FILES
-    resources/application.qrc
+add_executable(StreamDAB_Analyzer
+    src/main.cpp
+    ${CORE_SOURCES}
+    ${ETSI_SOURCES}
+    ${GUI_SOURCES}
+    ${NETWORK_SOURCES}
+    ${UTILS_SOURCES}
+    ${PERFORMANCE_SOURCES}
 )
 
-# Debug: Print remaining source files
-message(STATUS "Remaining SOURCE_FILES after filtering:")
-foreach(file ${SOURCE_FILES})
-    message(STATUS "  ${file}")
-endforeach()
-
-# Create main executable
-add_executable(${PROJECT_NAME}
-    ${SOURCE_FILES}
-    ${RESOURCE_FILES}
-)
-
-# Common libraries (cross-platform)
-set(COMMON_LIBS
-    Qt6::Core
-    Qt6::Widgets
-    Qt6::Gui
-    Qt6::Network
-    Qt6::Multimedia
-    ${AUDIO_DECODER_LIBS}
-    ${pkgcfg_lib_FFTW3_fftw3}
-
-)
-
-# Add optional YAML support
-if(yaml-cpp_FOUND)
-    list(APPEND COMMON_LIBS yaml-cpp::yaml-cpp)
-endif()
-
-# Add optional nlohmann/json support
-if(nlohmann_json_FOUND)
-    list(APPEND COMMON_LIBS nlohmann_json::nlohmann_json)
-endif()
-
-# Link common libraries
-target_link_libraries(${PROJECT_NAME} ${COMMON_LIBS})
-
-# Add platform-specific libraries
-if(WIN32)
-    add_windows_libraries(${PROJECT_NAME})
-elseif(APPLE)
-    add_macos_libraries(${PROJECT_NAME})
-elseif(UNIX)
-    add_linux_libraries(${PROJECT_NAME})
-endif()
-
-# Include directories for dependencies
-target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_CURRENT_BINARY_DIR}  # For generated UI headers (ui_*.h)
-    ${AUDIO_DECODER_INCLUDE_DIRS}
+# Include directories
+target_include_directories(StreamDAB_Analyzer PRIVATE
+    src
+    src/core
+    src/gui
+    src/network
+    src/utils
+    src/performance
+    ${FAAD2_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
 )
 
-# Compile definitions
-target_compile_definitions(${PROJECT_NAME} PRIVATE
-    QT_NO_DEPRECATED_WARNINGS
-    ${AUDIO_DECODER_DEFINITIONS}
-    ${AUDIO_DECODER_CFLAGS}
+# Link Qt6 libraries - Professional suite
+target_link_libraries(StreamDAB_Analyzer
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Concurrent
+    Qt6::Network
+    Qt6::Gui
+    Qt6::PrintSupport
+    Threads::Threads
+    ${FAAD2_LIBRARIES}
+    ${FFTW3_LIBRARIES}
+)
+
+# Link optional libraries
+if(yaml-cpp_FOUND)
+    target_link_libraries(StreamDAB_Analyzer yaml-cpp::yaml-cpp)
+endif()
+
+# Professional build settings
+target_compile_definitions(StreamDAB_Analyzer PRIVATE
+    QT_DEPRECATED_WARNINGS
+    QT_DISABLE_DEPRECATED_BEFORE=0x060400
+    STREAMDAB_VERSION="${PROJECT_VERSION}"
+    ${FAAD2_CFLAGS_OTHER}
     ${FFTW3_CFLAGS_OTHER}
 )
 
-if(HAVE_YAML_CPP)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_YAML_CPP)
-endif()
-
-if(HAVE_NLOHMANN_JSON)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_NLOHMANN_JSON)
-endif()
-
-# Static analysis with clang-tidy integration
-option(ENABLE_CLANG_TIDY "Enable clang-tidy static analysis" ON)
-
-if(ENABLE_CLANG_TIDY)
-    find_program(CLANG_TIDY_EXE
-        NAMES clang-tidy
-        DOC "Path to clang-tidy executable"
-    )
-
-    if(CLANG_TIDY_EXE)
-        message(STATUS "clang-tidy found: ${CLANG_TIDY_EXE}")
-
-        # Set clang-tidy command with configuration
-        set(CLANG_TIDY_COMMAND
-            ${CLANG_TIDY_EXE}
-            --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy
-            --header-filter=.*
-            # --warnings-as-errors=bugprone-use-after-move,performance-*
-        )
-
-        # Apply clang-tidy to the main target
-        set_target_properties(${PROJECT_NAME} PROPERTIES
-            CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}"
-        )
-
-        message(STATUS "clang-tidy integration enabled for ${PROJECT_NAME}")
-    else()
-        message(WARNING "clang-tidy not found. Static analysis disabled.")
-        set(ENABLE_CLANG_TIDY OFF)
-    endif()
+# Compiler-specific settings
+if(MSVC)
+    target_compile_options(StreamDAB_Analyzer PRIVATE /W4)
+    target_compile_definitions(StreamDAB_Analyzer PRIVATE _CRT_SECURE_NO_WARNINGS)
 else()
-    message(STATUS "clang-tidy static analysis disabled")
+    target_compile_options(StreamDAB_Analyzer PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-# Custom target for running clang-tidy on all source files
-if(ENABLE_CLANG_TIDY AND CLANG_TIDY_EXE)
-    add_custom_target(clang-tidy-analysis
-        COMMAND ${CMAKE_COMMAND} -E echo "Running clang-tidy analysis on all source files..."
-        COMMAND ${CLANG_TIDY_EXE}
-            --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy
-            --header-filter=.*
-            --format-style=file
-            ${SOURCE_FILES}
-            -- -I${CMAKE_CURRENT_SOURCE_DIR}/src
-               -I${CMAKE_CURRENT_BINARY_DIR}
-               ${Qt6_INCLUDE_DIRS}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Running clang-tidy static analysis"
-    )
+# ========================================
+# TDD FRAMEWORK INTEGRATION
+# ========================================
 
-    add_custom_target(clang-tidy-fix
-        COMMAND ${CMAKE_COMMAND} -E echo "Running clang-tidy with auto-fix on all source files..."
-        COMMAND ${CLANG_TIDY_EXE}
-            --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy
-            --header-filter=.*
-            --format-style=file
-            --fix
-            --fix-errors
-            ${SOURCE_FILES}
-            -- -I${CMAKE_CURRENT_SOURCE_DIR}/src
-               -I${CMAKE_CURRENT_BINARY_DIR}
-               ${Qt6_INCLUDE_DIRS}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Running clang-tidy with automatic fixes"
-    )
+# Enable testing framework
+enable_testing()
+option(ENABLE_TESTING "Enable comprehensive TDD testing framework" ON)
+option(ENABLE_COVERAGE "Enable TDD code coverage reporting" ON)
+option(ENABLE_TDD_BENCHMARKS "Enable TDD performance benchmark tests" ON)
+
+if(ENABLE_TESTING)
+    message(STATUS "TDD Framework: ENABLED")
+    add_subdirectory(tests)
+else()
+    message(STATUS "TDD Framework: DISABLED")
 endif()
 
-# Testing configuration
-add_subdirectory(tests)
+# ========================================
+# PROFESSIONAL INSTALLATION
+# ========================================
 
-# E2E Testing configuration
-add_subdirectory(tests/e2e)
+include(GNUInstallDirs)
 
-# Installation configuration
-install(TARGETS ${PROJECT_NAME}
-    RUNTIME DESTINATION bin
-    COMPONENT Runtime
+# Install the executable
+install(TARGETS StreamDAB_Analyzer
+    BUNDLE DESTINATION .
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-
-# Install desktop integration files (Linux)
-if(UNIX AND NOT APPLE)
-    install(FILES resources/linux/eti-stream-analyzer.desktop
-        DESTINATION share/applications
-        COMPONENT Runtime
-    )
-
-    install(FILES resources/linux/eti-stream-analyzer.xml
-        DESTINATION share/mime/packages
-        COMPONENT Runtime
-    )
-
-    install(FILES resources/icons/eti-stream-analyzer.svg
-        DESTINATION share/icons/hicolor/scalable/apps
-        COMPONENT Runtime
-    )
-endif()
 
 # Install documentation
-install(FILES README.md
-    DESTINATION share/doc/${PROJECT_NAME}
-    COMPONENT Documentation
-)
+if(EXISTS "${CMAKE_SOURCE_DIR}/README.md")
+    install(FILES README.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
+endif()
 
-# Professional cross-platform packaging configuration
-include(cmake/packaging.cmake)
+# Install additional documentation files
+file(GLOB DOC_FILES "docs/*.md")
+if(DOC_FILES)
+    install(FILES ${DOC_FILES} DESTINATION ${CMAKE_INSTALL_DOCDIR})
+endif()
 
-message(STATUS "=== Phase 8 Advanced Features Configuration Complete ===")
-message(STATUS "Target platform: ${PLATFORM_NAME}")
-message(STATUS "Qt version: ${Qt6_VERSION}")
-message(STATUS "YAML support: ${HAVE_YAML_CPP}")
-message(STATUS "Audio decoder: ${AUDIO_DECODER_DEFINITIONS}")
-message(STATUS "Modern ETI Core integration: Enabled")
-message(STATUS "Network streaming: Phase 8 Advanced Features")
-message(STATUS "- ETI-over-IP receiver with RTP/UDP multicast")
-message(STATUS "- Real-time streaming processor (<50ms latency)")
-message(STATUS "- Network discovery and interface monitoring")
-message(STATUS "- Professional stream recording with segmentation")
-message(STATUS "- Stream playback engine with professional controls")
-message(STATUS "- Broadcast hardware interface integration")
-message(STATUS "- Performance validation and ETSI compliance")
-message(STATUS "Testing: Enabled with E2E validation")
-message(STATUS "Production ready: >7,482 FPS processing capability")
-message(STATUS "=======================================================")
+# ========================================
+# PROFESSIONAL PACKAGING
+# ========================================
+
+# Basic package information
+set(CPACK_PACKAGE_NAME "StreamDAB-Analyzer")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Professional ETI Stream Analyzer for Broadcast Industry")
+set(CPACK_PACKAGE_DESCRIPTION "Advanced ETSI-compliant ETI stream analysis tool for professional broadcast monitoring and DAB+ service discovery with real-time processing capabilities.")
+set(CPACK_PACKAGE_VENDOR "StreamDAB Technologies")
+set(CPACK_PACKAGE_CONTACT "support@streamdab.com")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://streamdab.com")
+set(CPACK_PACKAGE_MAINTAINER "StreamDAB Technologies <support@streamdab.com>")
+
+# Platform-specific packaging
+if(WIN32)
+    set(CPACK_GENERATOR "WIX;NSIS")
+    set(CPACK_WIX_UPGRADE_GUID "12345678-1234-1234-1234-123456789012")
+    set(CPACK_WIX_PRODUCT_GUID "87654321-4321-4321-4321-210987654321")
+    set(CPACK_WIX_PROGRAM_MENU_FOLDER "StreamDAB Analyzer")
+elseif(APPLE)
+    set(CPACK_GENERATOR "Bundle;DragNDrop")
+    set(CPACK_BUNDLE_NAME "StreamDAB Analyzer")
+    set(CPACK_BUNDLE_PLIST "MacOSX/Info.plist")
+else()
+    set(CPACK_GENERATOR "DEB;RPM;TGZ")
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6core6, libqt6widgets6, libqt6network6, libfaad2, libfftw3-3")
+    set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase, faad2-libs, fftw")
+endif()
+
+# Available generators
+get_property(CPACK_AVAILABLE_GENERATORS GLOBAL PROPERTY CPACK_GENERATORS)
+message(STATUS "Available Generators: ${CPACK_AVAILABLE_GENERATORS}")
+
+include(CPack)
+
+# ========================================
+# BUILD STATUS SUMMARY
+# ========================================
+
+message(STATUS "Qt6 Version: ${Qt6_VERSION}")
+message(STATUS "Install Prefix: ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "Available Generators: ${CPACK_AVAILABLE_GENERATORS}")
+message(STATUS "========================================")

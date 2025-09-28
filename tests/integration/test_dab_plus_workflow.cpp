@@ -20,7 +20,7 @@
 #include "gui/audio_monitoring_widget.h"
 #include "gui/fig_analysis_widget.h"
 #include "gui/main_window.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 
 class DabPlusWorkflowTest : public ::testing::Test {
 protected:

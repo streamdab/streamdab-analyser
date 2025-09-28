@@ -20,7 +20,7 @@
 #include <QFont>
 
 // Forward declarations
-class eti_processor;
+class EtiProcessor;  // Qt camelCase for GUI layer
 
 /**
  * @struct ETSIViolation
@@ -120,7 +120,7 @@ public:
      * @brief Connect to ETI processor for compliance data
      * @param processor ETI processor instance
      */
-    void connectEtiProcessor(eti_processor* processor);
+    void connectEtiProcessor(EtiProcessor* processor);
     
     /**
      * @brief Start real-time compliance monitoring
@@ -369,7 +369,7 @@ private:
     QTextEdit* m_violationDetails;
     
     // Data and state
-    eti_processor* m_etiProcessor;
+    EtiProcessor* m_etiProcessor;
     QTimer* m_updateTimer;
     bool m_monitoringActive;
     

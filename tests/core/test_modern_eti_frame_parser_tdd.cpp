@@ -11,7 +11,7 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "core/modern_eti_frame_parser.h"
+#include "core/modern_eti_frame_parser.hpp"
 #include "eti_types.hpp"
 #include <QByteArray>
 #include <QSignalSpy>

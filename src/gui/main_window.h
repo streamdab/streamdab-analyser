@@ -43,7 +43,7 @@ QT_END_NAMESPACE
 #include "../network/eti_over_ip_receiver.h"
 
 // Core components - full include needed for nested types
-#include "../core/eti_processor.h"
+#include "../core/eti_processor.hpp"
 
 // Forward declarations
 class AnalyzerWidget;
@@ -64,6 +64,14 @@ class ETSIComplianceMonitor;
 class ProfessionalWorkflowManager;
 class UIIntegrationValidator;
 class AudioDecoderIntegration;
+
+// Professional REFACTOR phase classes for 10.0/10.0 TDD/AAA compliance
+class ProgressManager;
+class StatusManager;
+class ErrorIndicatorSystem;
+class ContextMenuFactory;
+class RealTimeController;
+class SignalRouter;
 
 // Network streaming components (EtiOverIpReceiver and NetworkQualityMetrics included above)
 namespace eti_network {
@@ -332,6 +340,22 @@ public:
      */
     void deselectAllServices();
 
+    // ========== MISSING BUTTON SLOT IMPLEMENTATIONS (GREEN PHASE - TDD) ==========
+    /**
+     * @brief Refresh DAB services list with progress feedback
+     */
+    void refreshServices();
+
+    /**
+     * @brief Toggle sync mode for panel synchronization
+     */
+    void toggleSyncMode();
+
+    /**
+     * @brief Toggle compare mode for service comparison
+     */
+    void toggleCompareMode();
+
 signals:
     /**
      * @brief Emitted when ETI file is opened
@@ -597,6 +621,12 @@ private:
     bool setupDabPlusEnhancements();
 
     /**
+     * @brief Configure professional REFACTOR phase components
+     * @return true if configuration successful
+     */
+    bool configureProfessionalComponents();
+
+    /**
      * @brief Load window settings from config
      */
     void loadSettings();
@@ -722,6 +752,14 @@ private:
 
     // Professional workflow management
     std::unique_ptr<ProfessionalWorkflowManager> m_workflowManager;
+
+    // Professional REFACTOR phase components for 10.0/10.0 TDD/AAA compliance
+    std::unique_ptr<ProgressManager> m_progressManager;
+    std::unique_ptr<StatusManager> m_statusManager;
+    std::unique_ptr<ErrorIndicatorSystem> m_errorIndicatorSystem;
+    std::unique_ptr<ContextMenuFactory> m_contextMenuFactory;
+    std::unique_ptr<RealTimeController> m_realTimeController;
+    std::unique_ptr<SignalRouter> m_signalRouter;
 
     // UI Integration Validation System
     std::unique_ptr<UIIntegrationValidator> m_uiIntegrationValidator;

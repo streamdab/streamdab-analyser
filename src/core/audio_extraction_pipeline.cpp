@@ -6,7 +6,7 @@
  * with real-time processing, quality monitoring, and format conversion.
  */
 
-#include "audio_extraction_pipeline.h"
+#include "audio_extraction_pipeline.hpp"
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QAudioFormat>
@@ -17,7 +17,7 @@
 #include <cmath>
 
 // FAAD2 includes (conditional compilation)
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
 extern "C" {
 #include <faad.h>
 }
@@ -237,7 +237,7 @@ void AudioExtractionWorker::process_audio_queue() {
 }
 
 void AudioExtractionWorker::initialize_decoder() {
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
     // Initialize FAAD2 decoder for DAB+ AAC
     m_faad_decoder = NeAACDecOpen();
     if (!m_faad_decoder) {
@@ -267,7 +267,7 @@ void AudioExtractionWorker::initialize_decoder() {
 }
 
 void AudioExtractionWorker::cleanup_decoder() {
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
     if (m_faad_decoder) {
         NeAACDecClose(static_cast<NeAACDecHandle>(m_faad_decoder));
         m_faad_decoder = nullptr;
@@ -317,7 +317,7 @@ bool AudioExtractionWorker::decode_audio_data(const std::vector<uint8_t>& audio_
 }
 
 bool AudioExtractionWorker::decode_dabplus_audio(const std::vector<uint8_t>& aac_data, AudioData& output) {
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
     if (!m_faad_decoder || aac_data.empty()) {
         return false;
     }

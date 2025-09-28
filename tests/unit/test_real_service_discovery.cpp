@@ -26,7 +26,7 @@
 #include <vector>
 #include <map>
 
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include "core/eti_types.h"
 #include "utils/logger.h"
 

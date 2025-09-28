@@ -6,11 +6,11 @@
  * Next Phase: REFACTOR - Improve code quality while keeping tests green
  */
 
-#include "headless_eti_processor.h"
-#include "eti_processor.h"
-#include "modern_eti_frame_parser.h" 
-#include "enhanced_fig_analyzer.h"
-#include "comprehensive_etsi_validator.h"
+#include "headless_eti_processor.hpp"
+#include "eti_processor.hpp"
+#include "modern_eti_frame_parser.hpp" 
+#include "enhanced_fig_analyzer.hpp"
+#include "comprehensive_etsi_validator.hpp"
 #include "utils/logger.h"
 
 #include <QFile>

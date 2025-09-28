@@ -31,7 +31,7 @@
 #include "gui/eti_service_tree_model.h"
 #include "gui/eti_frame_list_model.h"
 #include "gui/fig_analysis_widget.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include "core/etsi/compliance_engine.h"
 #include "core/etsi/alert_system.h"
 #include "core/etsi/standard_validators.h"

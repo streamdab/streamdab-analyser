@@ -24,7 +24,7 @@
 #include "core/eti_types.hpp"
 
 // Forward declarations
-class eti_processor;
+class EtiProcessor;  // Qt camelCase for GUI layer
 class ConstellationWidget;
 class EtiFrameListModel;
 

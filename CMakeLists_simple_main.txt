@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.16)
+project(StreamDAB_Simple_Main VERSION 1.0.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Concurrent Network)
+qt6_standard_project_setup()
+
+add_executable(StreamDAB_Simple_Main
+    main_simple_main_window.cpp
+    src/utils/logger.cpp
+)
+
+target_include_directories(StreamDAB_Simple_Main PRIVATE src)
+target_link_libraries(StreamDAB_Simple_Main Qt6::Core Qt6::Widgets Qt6::Concurrent Qt6::Network)

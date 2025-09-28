@@ -41,7 +41,7 @@
 #include "gui/eti_analysis_widget.h"
 #include "gui/eti_frame_list_model.h"
 #include "gui/fig_analysis_widget.h"
-#include "core/eti_processor.h"
+#include "core/eti_processor.hpp"
 #include "core/eti_types.h"
 #include "utils/logger.h"
 

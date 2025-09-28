@@ -41,7 +41,7 @@ public:
     /**
      * @brief Modern log severity levels
      */
-    enum class LogLevel {
+    enum class LogLevel : std::uint8_t {
         Debug = 0,     // Detailed debugging information
         Info = 1,      // Informational messages
         Warning = 2,   // Warning conditions
@@ -53,7 +53,7 @@ public:
     /**
      * @brief Legacy enum for GUI compatibility
      */
-    enum LegacyLogLevel {
+    enum LegacyLogLevel : std::uint8_t {
         Debug = 0,
         Info = 1,
         Warning = 2,

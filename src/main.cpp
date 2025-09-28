@@ -32,7 +32,7 @@
 
 // Application headers
 #include "gui/main_window.h"
-#include "core/headless_eti_processor.h"
+#include "core/headless_eti_processor.hpp"
 #include "utils/config_manager.h"
 #include "utils/logger.h"
 

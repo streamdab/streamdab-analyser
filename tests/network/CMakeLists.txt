@@ -85,10 +85,7 @@ target_link_libraries(test_eti_over_ip_receiver_tdd
         Qt6::Test
 
         # Google Test framework
-        GTest::gtest
-        GTest::gtest_main
-        GTest::gmock
-        GTest::gmock_main
+        ${GTEST_LIBS}
 
         # Platform-specific networking
         $<$<PLATFORM_ID:Windows>:ws2_32>
@@ -128,10 +125,7 @@ target_link_libraries(test_streaming_processor_tdd
         Qt6::Core
         Qt6::Network
         Qt6::Test
-        GTest::gtest
-        GTest::gtest_main
-        GTest::gmock
-        GTest::gmock_main
+        ${GTEST_LIBS}
         $<$<PLATFORM_ID:Linux>:pthread>
 )
 
@@ -159,10 +153,7 @@ target_link_libraries(test_broadcast_equipment_integration_tdd
         Qt6::Core
         Qt6::Network
         Qt6::Test
-        GTest::gtest
-        GTest::gtest_main
-        GTest::gmock
-        GTest::gmock_main
+        ${GTEST_LIBS}
 )
 
 target_compile_definitions(test_broadcast_equipment_integration_tdd
@@ -192,10 +183,7 @@ target_link_libraries(test_performance_validation_framework_tdd
         Qt6::Core
         Qt6::Network
         Qt6::Test
-        GTest::gtest
-        GTest::gtest_main
-        GTest::gmock
-        GTest::gmock_main
+        ${GTEST_LIBS}
 )
 
 target_compile_definitions(test_performance_validation_framework_tdd
@@ -223,10 +211,7 @@ target_link_libraries(test_professional_workflow_integration_tdd
         Qt6::Core
         Qt6::Network
         Qt6::Test
-        GTest::gtest
-        GTest::gtest_main
-        GTest::gmock
-        GTest::gmock_main
+        ${GTEST_LIBS}
 )
 
 target_compile_definitions(test_professional_workflow_integration_tdd
@@ -554,7 +539,7 @@ message(STATUS "  - Thread Safety Testing: ${ENABLE_THREAD_SAFETY_TESTING}")
 message(STATUS "Network Component TDD Test Suite configured successfully!")
 
 # Validation checks
-if(NOT TARGET GTest::gtest)
+if(NOT GTEST_LIBS)
     message(WARNING "Google Test not found - network TDD tests may not build correctly")
 endif()
 

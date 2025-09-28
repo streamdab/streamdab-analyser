@@ -9,7 +9,7 @@
  * @date 2025
  */
 
-#include "modern_eti_frame_parser.h"
+#include "modern_eti_frame_parser.hpp"
 #include "eti_types.hpp"
 #include "utils/logger.h"
 #include <algorithm>
