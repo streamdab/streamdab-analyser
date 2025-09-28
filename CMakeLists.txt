@@ -264,6 +264,16 @@ target_compile_definitions(StreamDAB_Analyzer PRIVATE
     QT_DEPRECATED_WARNINGS
     QT_DISABLE_DEPRECATED_BEFORE=0x060400
     STREAMDAB_VERSION="${PROJECT_VERSION}"
+)
+
+# Add pkg-config include directories and compile options properly
+target_include_directories(StreamDAB_Analyzer PRIVATE
+    ${FAAD2_INCLUDE_DIRS}
+    ${FFTW3_INCLUDE_DIRS}
+    ${ZMQ_INCLUDE_DIRS}
+)
+
+target_compile_options(StreamDAB_Analyzer PRIVATE
     ${FAAD2_CFLAGS_OTHER}
     ${FFTW3_CFLAGS_OTHER}
     ${ZMQ_CFLAGS_OTHER}
