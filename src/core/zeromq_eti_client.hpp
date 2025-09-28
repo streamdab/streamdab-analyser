@@ -28,10 +28,10 @@
 #include "eti_types.hpp"
 #include "modern_eti_frame_parser.hpp"
 
-// Forward declare ZeroMQ types to avoid header dependency
-typedef struct _zmq_ctx_t zmq_ctx_t;
-typedef struct _zmq_msg_t zmq_msg_t;
-typedef void zmq_socket_t;
+// Simple forward declarations for ZeroMQ types
+typedef void* zmq_ctx_t;
+typedef void* zmq_socket_t;
+struct zmq_msg_t;
 
 namespace eti::network {
 
@@ -327,11 +327,11 @@ private:
         void run() override;
         void stop();
         
-        void setSocket(zmq_socket_t* socket) { socket_ = socket; }
+        void setSocket(zmq_socket_t socket) { socket_ = socket; }
         
     private:
         ZeroMQETIClient* client_;
-        zmq_socket_t* socket_{nullptr};
+        zmq_socket_t socket_{nullptr};
         std::atomic<bool> stop_flag_{false};
     };
     
@@ -361,8 +361,8 @@ private:
     std::atomic<bool> receiving_{false};
     
     // ZeroMQ context and socket
-    zmq_ctx_t* zmq_context_{nullptr};
-    zmq_socket_t* zmq_socket_{nullptr};
+    zmq_ctx_t zmq_context_{nullptr};
+    zmq_socket_t zmq_socket_{nullptr};
     
     // Configuration and status
     mutable QMutex config_mutex_;

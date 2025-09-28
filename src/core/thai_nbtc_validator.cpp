@@ -480,7 +480,7 @@ bool ThaiNbtcValidator::validateFrequencyCompliance(double frequency_mhz, ThaiNb
     
     if (!frequency_found) {
         result.frequency_plan_compliant = false;
-        result.violations.push_back(QString("Frequency %1 MHz not found in NBTC approved DAB frequency plan")
+        result.compliance_violations.push_back(QString("Frequency %1 MHz not found in NBTC approved DAB frequency plan")
                                    .arg(frequency_mhz, 0, 'f', 3).toStdString());
         statistics_.frequency_violations++;
         
@@ -491,7 +491,7 @@ bool ThaiNbtcValidator::validateFrequencyCompliance(double frequency_mhz, ThaiNb
     
     if (!matched_channel.nbtc_approved) {
         result.frequency_plan_compliant = false;
-        result.violations.push_back(QString("Frequency %1 MHz (%2) not approved by NBTC")
+        result.compliance_violations.push_back(QString("Frequency %1 MHz (%2) not approved by NBTC")
                                    .arg(frequency_mhz, 0, 'f', 3)
                                    .arg(QString::fromStdString(matched_channel.channel_name)).toStdString());
         statistics_.frequency_violations++;
@@ -502,7 +502,7 @@ bool ThaiNbtcValidator::validateFrequencyCompliance(double frequency_mhz, ThaiNb
     }
     
     result.frequency_plan_compliant = true;
-    result.approved_channel = matched_channel;
+    result.frequency_info = matched_channel;
     
     Logger::instance().log(Logger::Info, "ThaiNbtcValidator", 
                           QString("Frequency compliance validated: %1 MHz (%2) - %3")
@@ -577,7 +577,7 @@ bool ThaiNbtcValidator::validateCharacterEncodingCompliance(const std::string& t
     // Validate against NBTC requirements
     if (!encoding_valid) {
         result.character_encoding_compliant = false;
-        result.violations.push_back(QString("Invalid UTF-8 encoding detected (%1 invalid sequences)")
+        result.compliance_violations.push_back(QString("Invalid UTF-8 encoding detected (%1 invalid sequences)")
                                    .arg(invalid_sequences).toStdString());
         statistics_.encoding_violations++;
         
@@ -596,7 +596,7 @@ bool ThaiNbtcValidator::validateCharacterEncodingCompliance(const std::string& t
     }
     
     result.character_encoding_compliant = true;
-    result.has_thai_content = has_thai_chars;
+    result.language_support.supports_thai_characters = has_thai_chars;
     
     Logger::instance().log(Logger::Info, "ThaiNbtcValidator", 
                           QString("Character encoding validated: UTF-8 compliant, Thai content: %1")
@@ -628,7 +628,7 @@ bool ThaiNbtcValidator::validateContentGuidelinesCompliance(const eti::discovery
     for (const auto& keyword : prohibited_keywords) {
         if (service_label.find(keyword) != std::string::npos) {
             service_type_compliant = false;
-            result.violations.push_back(QString("Service label contains prohibited content: %1")
+            result.compliance_violations.push_back(QString("Service label contains prohibited content: %1")
                                        .arg(QString::fromStdString(keyword)).toStdString());
             statistics_.content_violations++;
             
@@ -655,7 +655,7 @@ bool ThaiNbtcValidator::validateContentGuidelinesCompliance(const eti::discovery
         // Emergency services have special requirements
         if (!service.emergency_alert_capable) {
             service_type_compliant = false;
-            result.violations.push_back("Emergency service must support emergency alert system");
+            result.compliance_violations.push_back("Emergency service must support emergency alert system");
             statistics_.content_violations++;
             
             Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
@@ -673,7 +673,7 @@ bool ThaiNbtcValidator::validateContentGuidelinesCompliance(const eti::discovery
         
         if (!rating_valid) {
             service_type_compliant = false;
-            result.violations.push_back(QString("Invalid content rating: %1")
+            result.compliance_violations.push_back(QString("Invalid content rating: %1")
                                        .arg(QString::fromStdString(service.content_rating)).toStdString());
             statistics_.content_violations++;
             
@@ -706,20 +706,20 @@ bool ThaiNbtcValidator::validateEmergencySystemCompliance(const eti::discovery::
         // Emergency services must meet NBTC emergency broadcast requirements
         
         // Check for emergency alert identifier (ECC - Emergency Country Code)
-        if (service.country_code != 0x0F) { // Thailand's ECC should be 0x0F
+        if (service.country_id != 0x0F) { // Thailand's ECC should be 0x0F
             emergency_compliant = false;
-            result.violations.push_back(QString("Emergency service has incorrect country code: 0x%1 (expected 0x0F for Thailand)")
-                                       .arg(service.country_code, 2, 16, QChar('0')).toStdString());
+            result.compliance_violations.push_back(QString("Emergency service has incorrect country code: 0x%1 (expected 0x0F for Thailand)")
+                                       .arg(service.country_id, 2, 16, QChar('0')).toStdString());
             
             Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
                                   QString("NBTC Violation: Incorrect emergency country code 0x%1")
-                                  .arg(service.country_code, 2, 16, QChar('0')));
+                                  .arg(service.country_id, 2, 16, QChar('0')));
         }
         
         // Check for minimum signal strength requirements for emergency broadcasts
         if (service.signal_strength < 0.8) { // 80% minimum signal strength
             emergency_compliant = false;
-            result.violations.push_back(QString("Emergency service signal strength below required threshold: %1 (minimum 0.8)")
+            result.compliance_violations.push_back(QString("Emergency service signal strength below required threshold: %1 (minimum 0.8)")
                                        .arg(service.signal_strength).toStdString());
             
             Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
@@ -730,7 +730,7 @@ bool ThaiNbtcValidator::validateEmergencySystemCompliance(const eti::discovery::
         // Check for 24/7 availability requirement
         if (!service.continuous_operation) {
             emergency_compliant = false;
-            result.violations.push_back("Emergency services must operate continuously (24/7)");
+            result.compliance_violations.push_back("Emergency services must operate continuously (24/7)");
             
             Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
                                   "NBTC Violation: Emergency service not configured for continuous operation");
@@ -740,7 +740,7 @@ bool ThaiNbtcValidator::validateEmergencySystemCompliance(const eti::discovery::
         if (!service.service_label.empty()) {
             // Emergency services should have Thai language capability
             validateCharacterEncodingCompliance(service.service_label, result);
-            if (!result.has_thai_content && !service.service_label.find("Emergency") != std::string::npos) {
+            if (!result.language_support.supports_thai_characters && service.service_label.find("Emergency") == std::string::npos) {
                 Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
                                       "Emergency service label should include Thai language support");
             }
@@ -772,7 +772,7 @@ bool ThaiNbtcValidator::validateLicenseRequirements(const eti::discovery::Enhanc
         // Commercial services require valid NBTC broadcasting license
         if (service.license_number.empty()) {
             license_compliant = false;
-            result.violations.push_back("Commercial service missing required NBTC license number");
+            result.compliance_violations.push_back("Commercial service missing required NBTC license number");
             
             Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
                                   "NBTC Violation: Commercial service without license number");
@@ -782,7 +782,7 @@ bool ThaiNbtcValidator::validateLicenseRequirements(const eti::discovery::Enhanc
             if (license.length() < 10 || !std::all_of(license.begin(), license.end(), 
                                                      [](char c) { return std::isalnum(c) || c == '-'; })) {
                 license_compliant = false;
-                result.violations.push_back(QString("Invalid NBTC license number format: %1")
+                result.compliance_violations.push_back(QString("Invalid NBTC license number format: %1")
                                            .arg(QString::fromStdString(license)).toStdString());
                 
                 Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
@@ -794,7 +794,7 @@ bool ThaiNbtcValidator::validateLicenseRequirements(const eti::discovery::Enhanc
         // Check for required financial guarantees (simplified)
         if (service.financial_guarantee_amount < 1000000) { // 1M Baht minimum
             license_compliant = false;
-            result.violations.push_back(QString("Commercial service financial guarantee below minimum: %1 Baht (minimum 1,000,000)")
+            result.compliance_violations.push_back(QString("Commercial service financial guarantee below minimum: %1 Baht (minimum 1,000,000)")
                                        .arg(service.financial_guarantee_amount).toStdString());
             
             Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
@@ -806,7 +806,7 @@ bool ThaiNbtcValidator::validateLicenseRequirements(const eti::discovery::Enhanc
         // Public services have different licensing requirements
         if (service.government_authorization.empty()) {
             license_compliant = false;
-            result.violations.push_back("Public service missing government authorization");
+            result.compliance_violations.push_back("Public service missing government authorization");
             
             Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
                                   "NBTC Violation: Public service without government authorization");
@@ -816,7 +816,7 @@ bool ThaiNbtcValidator::validateLicenseRequirements(const eti::discovery::Enhanc
         // Community services require community license
         if (service.community_license_valid == false) {
             license_compliant = false;
-            result.violations.push_back("Community service license not valid or expired");
+            result.compliance_violations.push_back("Community service license not valid or expired");
             
             Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
                                   "NBTC Violation: Invalid community service license");
@@ -825,7 +825,7 @@ bool ThaiNbtcValidator::validateLicenseRequirements(const eti::discovery::Enhanc
         // Community services have power limitations
         if (service.transmit_power_watts > 100) { // 100W limit for community services
             license_compliant = false;
-            result.violations.push_back(QString("Community service transmit power exceeds limit: %1W (maximum 100W)")
+            result.compliance_violations.push_back(QString("Community service transmit power exceeds limit: %1W (maximum 100W)")
                                        .arg(service.transmit_power_watts).toStdString());
             
             Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
@@ -837,7 +837,7 @@ bool ThaiNbtcValidator::validateLicenseRequirements(const eti::discovery::Enhanc
     // Check for mandatory insurance coverage
     if (service.insurance_coverage_amount < 500000) { // 500K Baht minimum
         license_compliant = false;
-        result.violations.push_back(QString("Service insurance coverage below minimum: %1 Baht (minimum 500,000)")
+        result.compliance_violations.push_back(QString("Service insurance coverage below minimum: %1 Baht (minimum 500,000)")
                                    .arg(service.insurance_coverage_amount).toStdString());
         
         Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
@@ -866,7 +866,7 @@ bool ThaiNbtcValidator::validateServiceLabelingCompliance(const eti::discovery::
     // Check service label requirements
     if (service.service_label.empty()) {
         labeling_compliant = false;
-        result.violations.push_back("Service must have a valid label");
+        result.compliance_violations.push_back("Service must have a valid label");
         
         Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
                               "NBTC Violation: Service without label");
@@ -876,7 +876,7 @@ bool ThaiNbtcValidator::validateServiceLabelingCompliance(const eti::discovery::
     // Validate label length (ETSI specifies 16 characters maximum for DAB)
     if (service.service_label.length() > 16) {
         labeling_compliant = false;
-        result.violations.push_back(QString("Service label exceeds maximum length: %1 characters (maximum 16)")
+        result.compliance_violations.push_back(QString("Service label exceeds maximum length: %1 characters (maximum 16)")
                                    .arg(service.service_label.length()).toStdString());
         
         Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
@@ -909,7 +909,7 @@ bool ThaiNbtcValidator::validateServiceLabelingCompliance(const eti::discovery::
             if (label_lower.find(term) != std::string::npos) {
                 if (!service.royal_authorization) {
                     labeling_compliant = false;
-                    result.violations.push_back(QString("Service label contains royal/monarchy terms without proper authorization: %1")
+                    result.compliance_violations.push_back(QString("Service label contains royal/monarchy terms without proper authorization: %1")
                                                .arg(QString::fromStdString(term)).toStdString());
                     
                     Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 
@@ -926,7 +926,7 @@ bool ThaiNbtcValidator::validateServiceLabelingCompliance(const eti::discovery::
         
         if (service.service_description.length() > 128) {
             labeling_compliant = false;
-            result.violations.push_back(QString("Service description exceeds maximum length: %1 characters (maximum 128)")
+            result.compliance_violations.push_back(QString("Service description exceeds maximum length: %1 characters (maximum 128)")
                                        .arg(service.service_description.length()).toStdString());
             
             Logger::instance().log(Logger::Warning, "ThaiNbtcValidator", 

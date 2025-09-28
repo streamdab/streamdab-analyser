@@ -126,21 +126,7 @@ bool EtiProcessor::initialize()
     }
 }
 
-bool EtiProcessor::process_eti_frame(const QByteArray& frameData)
-{
-    // Minimal TDD RED phase implementation
-    error_stats_.totalFrames++;
-    
-    // Basic validation - will be expanded incrementally through TDD
-    if (!validate_frame(frameData)) {
-        error_stats_.crcErrors++;
-        report_frame_error(frame_count_);
-        return false;
-    }
-    
-    frame_count_++;
-    return true;
-}
+// Removed old process_eti_frame implementation - using Phase 1.1 version instead
 
 bool EtiProcessor::validate_sync_pattern(const eti::EtiFrame& frame)
 {
@@ -437,6 +423,124 @@ void EtiProcessor::process_fig_type2(const eti::FigBlock& figBlock)
         Logger::instance().log(Logger::Error, "EtiProcessor", 
                               QString("FIG 2/%1 processing error: %2").arg(extension).arg(e.what()));
     }
+}
+
+bool EtiProcessor::process_eti_frame(const QByteArray& frameData)
+{
+    // Phase 1.1: Real ETI Frame Processing Implementation
+    if (frameData.size() != 6144) {
+        qWarning() << "Invalid ETI frame size:" << frameData.size() << "bytes (expected 6144)";
+        status_ = QString("ERROR: Invalid frame size %1 bytes").arg(frameData.size());
+        emit statusChanged(status_);
+        return false;
+    }
+
+    // Extract and validate SYNC pattern (first 4 bytes)
+    const uint8_t* data = reinterpret_cast<const uint8_t*>(frameData.constData());
+    const uint32_t sync_pattern = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+    const uint32_t expected_sync = 0x49931E03; // ETSI EN 300 799 sync pattern
+    
+    if (sync_pattern != expected_sync) {
+        qWarning() << "Invalid SYNC pattern:" << QString::number(sync_pattern, 16)
+                   << "expected:" << QString::number(expected_sync, 16);
+        status_ = QString("ERROR: Invalid SYNC pattern 0x%1").arg(sync_pattern, 8, 16, QChar('0'));
+        emit statusChanged(status_);
+        emit errorOccurred(status_);
+        return false;
+    }
+
+    // Extract LIDATA field (bytes 4-11, 8 bytes total)
+    uint32_t lidata_part1 = (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
+    uint32_t lidata_part2 = (data[8] << 24) | (data[9] << 16) | (data[10] << 8) | data[11];
+    
+    // Extract FIC field (bytes 12-43, 32 bytes)
+    QByteArray fic_data = frameData.mid(12, 32);
+    
+    // Extract MSC field (bytes 44 to 6139, total 6096 bytes)
+    QByteArray msc_data = frameData.mid(44, 6096);
+    
+    // Extract CRC field (last 4 bytes: 6140-6143)
+    uint32_t crc = (data[6140] << 24) | (data[6141] << 16) | (data[6142] << 8) | data[6143];
+    
+    // Update frame count and status
+    frame_count_++;
+    status_ = QString("Frame %1: SYNC=0x%2, LIDATA=0x%3_%4, FIC=%5B, MSC=%6B, CRC=0x%7")
+              .arg(frame_count_)
+              .arg(sync_pattern, 8, 16, QChar('0'))
+              .arg(lidata_part1, 8, 16, QChar('0'))
+              .arg(lidata_part2, 8, 16, QChar('0'))
+              .arg(fic_data.size())
+              .arg(msc_data.size())
+              .arg(crc, 8, 16, QChar('0'));
+    
+    emit statusChanged(status_);
+    
+    // Create processed frame structure
+    eti::ProcessedFrame processed_frame;
+    processed_frame.frame_number = frame_count_;
+    processed_frame.sync_pattern = sync_pattern;
+    processed_frame.lidata = lidata_part1; // Store first part of LIDATA
+    processed_frame.fic_data = fic_data;
+    processed_frame.msc_data = msc_data;
+    processed_frame.crc = crc;
+    processed_frame.timestamp = QDateTime::currentDateTime();
+    processed_frame.is_valid = true;
+    
+    // Emit frame processed signal with actual data
+    emit frameProcessed(processed_frame);
+    
+    // Process FIC data for service discovery (Phase 1.1 basic implementation)
+    if (!fic_data.isEmpty()) {
+        process_fic_data(fic_data);
+    }
+    
+    return true;
+}
+
+bool EtiProcessor::process_fic_data(const QByteArray& fic_data)
+{
+    // Phase 1.1: Basic FIC Processing
+    // FIC structure: 32 bytes containing FIGs (Fast Information Groups)
+    
+    if (fic_data.size() != 32) {
+        qWarning() << "Invalid FIC size:" << fic_data.size() << "bytes (expected 32)";
+        return false;
+    }
+    
+    const uint8_t* fic = reinterpret_cast<const uint8_t*>(fic_data.constData());
+    int offset = 0;
+    
+    while (offset < 32) {
+        // Check for end marker (0xFF)
+        if (fic[offset] == 0xFF) {
+            break;
+        }
+        
+        // Extract FIG header
+        uint8_t fig_header = fic[offset];
+        uint8_t fig_type = (fig_header >> 3) & 0x1F;
+        uint8_t fig_length = fig_header & 0x07;
+        
+        if (offset + fig_length + 1 > 32) {
+            qWarning() << "FIG extends beyond FIC boundary";
+            break;
+        }
+        
+        // Extract FIG data
+        QByteArray fig_data = fic_data.mid(offset + 1, fig_length);
+        
+        // Emit FIG discovered signal
+        eti::FIGInfo fig_info;
+        fig_info.type = fig_type;
+        fig_info.length = fig_length;
+        fig_info.data = fig_data;
+        
+        emit figDiscovered(fig_info);
+        
+        offset += fig_length + 1;
+    }
+    
+    return true;
 }
 
 bool EtiProcessor::process_file(const QString& filename)
@@ -990,9 +1094,24 @@ void EtiProcessor::on_modern_frame_processed(uint32_t frameNumber, const eti::Et
     // Update frame count and emit standard signal
     frame_count_ = frameNumber;
     
-    // Convert frame to QByteArray for compatibility with existing signals
-    QByteArray frameData(reinterpret_cast<const char*>(frame.data()), eti::ETI_FRAME_SIZE);
-    emit frameProcessed(frameNumber, frameData);
+    // Phase 1.1: Create ProcessedFrame structure and emit new signal
+    eti::ProcessedFrame processedFrame;
+    processedFrame.frame_number = frameNumber;
+    processedFrame.timestamp = QDateTime::currentDateTime();
+    processedFrame.is_valid = true;
+    
+    // Extract frame data components
+    const uint8_t* frameDataPtr = frame.data();
+    processedFrame.sync_pattern = (frameDataPtr[0] << 24) | (frameDataPtr[1] << 16) | 
+                                  (frameDataPtr[2] << 8) | frameDataPtr[3];
+    processedFrame.lidata = (frameDataPtr[4] << 24) | (frameDataPtr[5] << 16) | 
+                           (frameDataPtr[6] << 8) | frameDataPtr[7];
+    processedFrame.fic_data = QByteArray(reinterpret_cast<const char*>(frameDataPtr + 8), 32);
+    processedFrame.msc_data = QByteArray(reinterpret_cast<const char*>(frameDataPtr + 40), 6096);
+    processedFrame.crc = (frameDataPtr[6140] << 24) | (frameDataPtr[6141] << 16) | 
+                         (frameDataPtr[6142] << 8) | frameDataPtr[6143];
+    
+    emit frameProcessed(processedFrame);
     
     // Update performance statistics
     auto stats = frame_parser_->getPerformanceStats();

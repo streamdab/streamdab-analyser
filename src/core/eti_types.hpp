@@ -48,6 +48,32 @@ constexpr size_t FIC_SIZE_BITS = 256;                      // bits
 constexpr size_t FIC_SIZE_BYTES = 32;                      // bytes
 constexpr size_t MAX_SUBCHANNEL_COUNT = 64;                // Maximum sub-channels
 constexpr size_t MAX_CAPACITY_UNITS = 864;                 // Maximum CUs per frame
+
+// Phase 1.1: Core ETI Processing Data Structures
+/**
+ * @brief Processed ETI Frame Information
+ */
+struct ProcessedFrame {
+    quint64 frame_number;           // Sequential frame number
+    uint32_t sync_pattern;          // SYNC field (4 bytes)
+    uint32_t lidata;               // LIDATA field (4 bytes) 
+    QByteArray fic_data;           // FIC field (32 bytes)
+    QByteArray msc_data;           // MSC field (variable size)
+    uint32_t crc;                  // CRC field (4 bytes)
+    QDateTime timestamp;           // Processing timestamp
+    bool is_valid;                 // Frame validation status
+};
+
+/**
+ * @brief FIG Information Structure
+ */
+struct FIGInfo {
+    uint8_t type;                  // FIG type (0-31)
+    uint8_t length;                // FIG data length
+    QByteArray data;               // FIG data payload
+    bool continuation;             // Continuation flag
+    bool other_ensemble;           // Other ensemble flag
+};
 constexpr size_t CAPACITY_UNIT_SIZE = 8;                   // bytes per CU
 
 // FIG Constants

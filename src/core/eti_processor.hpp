@@ -99,6 +99,13 @@ public:
     eti::ETSIComplianceResult get_compliance_status() const;
 
     /**
+     * @brief Process FIC data for service discovery
+     * @param fic_data 32-byte FIC field from ETI frame
+     * @return true if FIC processing successful
+     */
+    bool process_fic_data(const QByteArray& fic_data);
+
+    /**
      * @brief Get discovered services
      * @return Vector of discovered DAB services
      */
@@ -341,12 +348,7 @@ private:
     bool is_service_active(uint16_t serviceId) const;
 
 signals:
-    /**
-     * @brief Emitted when frame is processed
-     * @param frameNumber Frame number
-     * @param data Frame data
-     */
-    void frameProcessed(quint64 frameNumber, const QByteArray& data);
+    // Removed old frameProcessed signal - using Phase 1.1 version instead
 
     /**
      * @brief Emitted when error occurs
@@ -385,6 +387,18 @@ signals:
      * @param frameNumber Frame number where error occurred
      */
     void frameError(quint64 frameNumber);
+
+    /**
+     * @brief Phase 1.1: Signal emitted when ETI frame is processed
+     * @param frame Processed frame information
+     */
+    void frameProcessed(const eti::ProcessedFrame& frame);
+
+    /**
+     * @brief Phase 1.1: Signal emitted when FIG is discovered
+     * @param fig FIG information
+     */
+    void figDiscovered(const eti::FIGInfo& fig);
 
 private slots:
     // Modern ETI Core Engine signal handlers
