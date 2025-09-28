@@ -69,6 +69,7 @@ set(GTEST_UNIT_SOURCES
     core/test_dab_decoder.cpp
     core/test_fic_decoder.cpp
     core/test_headless_eti_processor.cpp  # NEW: TDD test for headless processing
+    core/test_phase2_streaming_components.cpp  # Phase 2: ETSI Compliance & Streaming Engine
     utils/test_config_manager.cpp
     # utils/test_file_utils.cpp  # Temporarily disabled - missing header
     utils/test_signal_processing.cpp

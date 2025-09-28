@@ -116,6 +116,10 @@ set(CORE_SOURCES
     src/core/stream_recording_manager.cpp
     src/core/zeromq_eti_client.cpp
 
+    # Phase 2: Streaming Engine and Resilience
+    src/core/streaming_engine.cpp
+    src/core/stream_resilience.cpp
+
     # ETSI compliance
     src/core/comprehensive_etsi_validator.cpp
     src/core/thai_nbtc_validator.cpp

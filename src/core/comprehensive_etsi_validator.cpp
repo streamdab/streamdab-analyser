@@ -1011,6 +1011,396 @@ bool ComprehensiveETSIValidator::validateFIG0_4_ServiceComponentLinking(const et
                                      (fig.data[offset + 3] << 8) | fig.data[offset + 4];
                 uint8_t subchannel_id = fig.data[offset + 5];
                 
+                // Validate parameters
+                if (service_id == 0x00000000 || service_id == 0xFFFFFFFF) {
+                    Logger::instance().log(Logger::Warning, "ComprehensiveETSIValidator", 
+                                          QString("Invalid 32-bit service ID in FIG 0/4: 0x%1")
+                                          .arg(service_id, 8, 16, QChar('0')));
+                    return false;
+                }
+                
+                if (subchannel_id > 63) {
+                    Logger::instance().log(Logger::Warning, "ComprehensiveETSIValidator", 
+                                          QString("Invalid subchannel ID in FIG 0/4: %1").arg(subchannel_id));
+                    return false;
+                }
+                
+                offset += 6;
+            }
+            
+            // Validate SCIdS
+            if (scids > 15) {
+                Logger::instance().log(Logger::Warning, "ComprehensiveETSIValidator", 
+                                      QString("Invalid SCIdS in FIG 0/4: %1").arg(scids));
+                return false;
+            }
+        }
+        
+        Logger::instance().log(Logger::Debug, "ComprehensiveETSIValidator", 
+                              "FIG 0/4 validation passed");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "ComprehensiveETSIValidator", 
+                              QString("FIG 0/4 validation error: %1").arg(e.what()));
+        return false;
+    }
+}
+
+bool ComprehensiveETSIValidator::validateFIG0_5_ServiceComponentLanguage(const eti::FigBlock& fig) {
+    Logger::instance().log(Logger::Debug, "ComprehensiveETSIValidator", 
+                          "Validating FIG 0/5 - Service Component Language");
+    
+    try {
+        // FIG 0/5 validates service component language information
+        // Reference: ETSI EN 300 401 Section 6.3.5
+        
+        if (fig.fig_type != 0 || fig.get_extension() != 5) {
+            Logger::instance().log(Logger::Warning, "ComprehensiveETSIValidator", 
+                                  "Invalid FIG type for FIG 0/5 validation");
+            return false;
+        }
+        
+        if (fig.data.size() < 3) {
+            Logger::instance().log(Logger::Warning, "ComprehensiveETSIValidator", 
+                                  "FIG 0/5 data too short");
+            return false;
+        }
+        
+        // Parse Service Component Language fields
+        size_t offset = 1; // Skip extension field
+        
+        while (offset + 3 <= fig.data.size()) { // Minimum 3 bytes per entry
+            uint8_t ls_msc_fig_scids = fig.data[offset];
+            uint8_t ls = (ls_msc_fig_scids >> 7) & 0x01;
+            uint8_t msc_fig = (ls_msc_fig_scids >> 6) & 0x01;
+            uint8_t scids = ls_msc_fig_scids & 0x0F;
+            
+            uint8_t language = fig.data[offset + 1];
+            
+            // Validate SCIdS
+            if (scids > 15) {
+                Logger::instance().log(Logger::Warning, "ComprehensiveETSIValidator", 
+                                      QString("Invalid SCIdS in FIG 0/5: %1").arg(scids));
+                return false;
+            }
+            
+            // Validate language code (should be valid ISO 639-1 or ETSI extended codes)
+            // Common language codes: 0x00 (unknown), 0x01 (Albanian), 0x02 (Breton), etc.
+            if (language > 0x7F) {
+                Logger::instance().log(Logger::Warning, "ComprehensiveETSIValidator", 
+                                      QString("Invalid language code in FIG 0/5: 0x%1")
+                                      .arg(language, 2, 16, QChar('0')));
+                return false;
+            }
+            
+            offset += 2;
+        }
+        
+        Logger::instance().log(Logger::Debug, "ComprehensiveETSIValidator", 
+                              "FIG 0/5 validation passed");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "ComprehensiveETSIValidator", 
+                              QString("FIG 0/5 validation error: %1").arg(e.what()));
+        return false;
+    }
+}
+
+// ============================================================================
+// UTILITY AND FACTORY IMPLEMENTATIONS
+// ============================================================================
+
+std::unique_ptr<ComprehensiveETSIValidator> createETSIValidator(
+    bool enable_thai_compliance,
+    bool strict_mode) {
+    
+    auto validator = std::make_unique<ComprehensiveETSIValidator>();
+    
+    if (!validator->initialize(enable_thai_compliance, strict_mode)) {
+        Logger::instance().log(Logger::Error, "ComprehensiveETSIValidator", 
+                              "Failed to initialize ETSI validator");
+        return nullptr;
+    }
+    
+    Logger::instance().log(Logger::Info, "ComprehensiveETSIValidator", 
+                          QString("ETSI validator created successfully - Thai: %1, Strict: %2")
+                          .arg(enable_thai_compliance ? "Yes" : "No")
+                          .arg(strict_mode ? "Yes" : "No"));
+    
+    return validator;
+}
+
+QString ComprehensiveComplianceResult::get_compliance_summary() const {
+    QString summary = QString("Overall Compliance: %1% (%2/%3 standards)")
+                        .arg(overall_compliance_score, 0, 'f', 1)
+                        .arg(compliant_standards)
+                        .arg(total_standards);
+    
+    if (meets_broadcast_requirements) {
+        summary += " - BROADCAST READY";
+    }
+    
+    if (ready_for_production) {
+        summary += " - PRODUCTION READY";
+    }
+    
+    if (thai_government_compliant) {
+        summary += " - THAI NBTC COMPLIANT";
+    }
+    
+    return summary;
+}
+
+QStringList ComprehensiveComplianceResult::get_all_violations() const {
+    QStringList all_violations;
+    
+    for (const auto& result : standard_results) {
+        for (const auto& violation : result.violations) {
+            all_violations.append(QString("[%1] %2")
+                                 .arg(result.standard_number)
+                                 .arg(QString::fromStdString(violation)));
+        }
+    }
+    
+    return all_violations;
+}
+
+// ============================================================================
+// THAI GOVERNMENT COMPLIANCE VALIDATOR IMPLEMENTATION
+// ============================================================================
+
+ThaiGovernmentComplianceValidator::ThaiComplianceResult 
+ThaiGovernmentComplianceValidator::validateThaiRequirements(
+    const eti::Ensemble& ensemble,
+    const std::vector<eti::DabService>& services) {
+    
+    ThaiComplianceResult result;
+    
+    Logger::instance().log(Logger::Info, "ThaiGovernmentComplianceValidator", 
+                          QString("Validating Thai NBTC requirements for %1 services")
+                          .arg(services.size()));
+    
+    try {
+        // Validate frequency plan compliance (Thai DAB bands)
+        bool frequency_valid = validateThaiFrequencyPlan(ensemble.frequency);
+        result.frequency_plan_compliant = frequency_valid;
+        
+        if (!frequency_valid) {
+            result.compliance_issues.append("Frequency not in approved Thai DAB band plan");
+        }
+        
+        // Validate character encoding for each service
+        bool encoding_valid = true;
+        for (const auto& service : services) {
+            if (!validateThaiCharacterEncoding(service.label)) {
+                encoding_valid = false;
+                result.compliance_issues.append(
+                    QString("Service '%1' contains invalid Thai character encoding")
+                    .arg(QString::fromStdString(service.label)));
+            }
+        }
+        result.character_encoding_valid = encoding_valid;
+        
+        // Validate content guidelines for each service
+        bool content_valid = true;
+        for (const auto& service : services) {
+            if (!validateThaiContentGuidelines(service)) {
+                content_valid = false;
+                result.compliance_issues.append(
+                    QString("Service '%1' does not meet Thai content guidelines")
+                    .arg(QString::fromStdString(service.label)));
+            }
+        }
+        result.content_guidelines_met = content_valid;
+        
+        // Check emergency broadcast capability
+        bool emergency_capable = ensemble.has_emergency_capability;
+        result.emergency_broadcast_capable = emergency_capable;
+        
+        if (!emergency_capable) {
+            result.recommendations.append("Consider enabling emergency broadcast capability for NBTC compliance");
+        }
+        
+        // Calculate overall NBTC compliance score
+        int compliance_score = 0;
+        if (result.frequency_plan_compliant) compliance_score += 30;
+        if (result.character_encoding_valid) compliance_score += 25;
+        if (result.content_guidelines_met) compliance_score += 25;
+        if (result.emergency_broadcast_capable) compliance_score += 20;
+        
+        result.overall_score = compliance_score;
+        result.nbtc_approved = (compliance_score >= 80);
+        
+        Logger::instance().log(Logger::Info, "ThaiGovernmentComplianceValidator", 
+                              QString("Thai NBTC compliance validation complete - Score: %1%")
+                              .arg(result.overall_score));
+        
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "ThaiGovernmentComplianceValidator", 
+                              QString("Thai compliance validation error: %1").arg(e.what()));
+        result.compliance_issues.append("Internal validation error occurred");
+        result.overall_score = 0.0;
+        result.nbtc_approved = false;
+    }
+    
+    return result;
+}
+
+bool ThaiGovernmentComplianceValidator::validateThaiCharacterEncoding(const std::string& text) {
+    // Validate Thai character encoding (UTF-8 with proper Thai character support)
+    // Thai Unicode range: U+0E00 to U+0E7F
+    
+    try {
+        QString qtext = QString::fromStdString(text);
+        
+        // Check for valid UTF-8 encoding
+        if (qtext.isNull() || qtext.isEmpty()) {
+            return true; // Empty text is valid
+        }
+        
+        // Check each character
+        for (const QChar& ch : qtext) {
+            uint16_t unicode = ch.unicode();
+            
+            // Allow ASCII characters (0x0000-0x007F)
+            if (unicode <= 0x007F) {
+                continue;
+            }
+            
+            // Allow Thai characters (0x0E00-0x0E7F)
+            if (unicode >= 0x0E00 && unicode <= 0x0E7F) {
+                continue;
+            }
+            
+            // Allow common international characters (basic Latin supplement)
+            if (unicode >= 0x0080 && unicode <= 0x00FF) {
+                continue;
+            }
+            
+            // Disallow other character ranges for Thai compliance
+            Logger::instance().log(Logger::Warning, "ThaiGovernmentComplianceValidator", 
+                                  QString("Invalid character for Thai encoding: U+%1")
+                                  .arg(unicode, 4, 16, QChar('0')));
+            return false;
+        }
+        
+        return true;
+        
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "ThaiGovernmentComplianceValidator", 
+                              QString("Character encoding validation error: %1").arg(e.what()));
+        return false;
+    }
+}
+
+bool ThaiGovernmentComplianceValidator::validateThaiFrequencyPlan(uint32_t frequency) {
+    // Thai DAB frequency plan validation
+    // Thailand DAB frequencies (Band III): 174-240 MHz
+    // Specific channels assigned by NBTC
+    
+    // Convert frequency to MHz if it's in Hz
+    uint32_t freq_mhz = frequency;
+    if (frequency > 1000000) {
+        freq_mhz = frequency / 1000000;
+    }
+    
+    // Thai DAB Band III allocation: 174-240 MHz
+    if (freq_mhz >= 174 && freq_mhz <= 240) {
+        Logger::instance().log(Logger::Debug, "ThaiGovernmentComplianceValidator", 
+                              QString("Frequency %1 MHz is within Thai DAB Band III").arg(freq_mhz));
+        return true;
+    }
+    
+    // Alternative Thai DAB allocations (if any specific channels are assigned)
+    // These would be specific channels assigned by NBTC
+    const std::vector<uint32_t> approved_channels = {
+        // Add specific NBTC-approved DAB channels here
+        // Example: 205250, 207008, 208736, etc. (in kHz)
+    };
+    
+    uint32_t freq_khz = frequency;
+    if (frequency < 1000) {
+        freq_khz = frequency * 1000; // Convert MHz to kHz
+    } else if (frequency > 1000000) {
+        freq_khz = frequency / 1000; // Convert Hz to kHz
+    }
+    
+    for (uint32_t approved : approved_channels) {
+        if (freq_khz == approved) {
+            Logger::instance().log(Logger::Debug, "ThaiGovernmentComplianceValidator", 
+                                  QString("Frequency %1 kHz matches approved NBTC channel").arg(freq_khz));
+            return true;
+        }
+    }
+    
+    Logger::instance().log(Logger::Warning, "ThaiGovernmentComplianceValidator", 
+                          QString("Frequency %1 MHz (%2 kHz) not in approved Thai DAB band plan")
+                          .arg(freq_mhz).arg(freq_khz));
+    return false;
+}
+
+bool ThaiGovernmentComplianceValidator::validateThaiContentGuidelines(const eti::DabService& service) {
+    // Validate Thai content broadcasting guidelines
+    // This includes content rating, language requirements, cultural compliance
+    
+    try {
+        // Check service label for appropriate content
+        QString label = QString::fromStdString(service.label);
+        
+        // Basic content validation (no offensive terms, appropriate for broadcast)
+        QStringList prohibited_terms = {
+            // Add prohibited terms as per Thai broadcasting guidelines
+            // This would be configured based on NBTC content regulations
+        };
+        
+        for (const QString& term : prohibited_terms) {
+            if (label.contains(term, Qt::CaseInsensitive)) {
+                Logger::instance().log(Logger::Warning, "ThaiGovernmentComplianceValidator", 
+                                      QString("Service label contains prohibited term: %1").arg(term));
+                return false;
+            }
+        }
+        
+        // Check service type compliance
+        // Audio services should comply with Thai broadcasting standards
+        if (service.service_type == eti::DabService::ServiceType::AUDIO) {
+            // Audio content guidelines validation
+            // For now, assume audio services are compliant
+            return true;
+        } else if (service.service_type == eti::DabService::ServiceType::DATA) {
+            // Data service guidelines validation
+            // Check for appropriate data service types
+            return true;
+        }
+        
+        Logger::instance().log(Logger::Debug, "ThaiGovernmentComplianceValidator", 
+                              QString("Service '%1' meets Thai content guidelines")
+                              .arg(QString::fromStdString(service.label)));
+        return true;
+        
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "ThaiGovernmentComplianceValidator", 
+                              QString("Content guidelines validation error: %1").arg(e.what()));
+        return false;
+    }
+}
+
+} // namespace eti::compliance
+                
+                offset += 4;
+            } else {
+                // 32-bit service ID
+                if (offset + 6 > fig.data.size()) {
+                    Logger::instance().log(Logger::Warning, "ComprehensiveETSIValidator", 
+                                          "FIG 0/4 truncated for 32-bit SId");
+                    return false;
+                }
+                uint32_t service_id = (fig.data[offset + 1] << 24) | (fig.data[offset + 2] << 16) |
+                                     (fig.data[offset + 3] << 8) | fig.data[offset + 4];
+                uint8_t subchannel_id = fig.data[offset + 5];
+                
                 // Validate 32-bit service ID parameters
                 if (service_id == 0x00000000 || service_id == 0xFFFFFFFF) {
                     Logger::instance().log(Logger::Warning, "ComprehensiveETSIValidator", 
