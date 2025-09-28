@@ -897,7 +897,10 @@ double audio_decoder::linear_to_db(double linear_value) {
 namespace AudioUtils {
 
 double linear_to_db(double linear) {
-    return audio_decoder::linear_to_db(linear);
+    if (linear <= 0.0) {
+        return -60.0; // Minimum dB value
+    }
+    return 20.0 * std::log10(linear);
 }
 
 double db_to_linear(double db) {

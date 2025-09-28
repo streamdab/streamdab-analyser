@@ -786,8 +786,8 @@ void AudioExtractionPipeline::initialize_service_worker(uint16_t service_id) {
             this, &AudioExtractionPipeline::handle_worker_quality_metrics);
     
     // Store worker and thread using move semantics
-    m_workers.insert(service_id, std::move(worker));
-    m_worker_threads.insert(service_id, std::move(worker_thread));
+    m_workers[service_id] = std::move(worker);
+    m_worker_threads[service_id] = std::move(worker_thread);
     
     // Start worker thread and extraction
     auto it = m_worker_threads.find(service_id);
