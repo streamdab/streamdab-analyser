@@ -88,11 +88,11 @@ set(CORE_SOURCES
     src/core/eti_types.cpp
     src/core/modern_eti_frame_parser.cpp
     src/core/headless_eti_processor.cpp
-    src/core/optimized_eti_processor.cpp
-    src/core/ultra_performance_eti_processor.cpp
-    src/core/eti_ni_processor.cpp
-    src/core/reed_solomon_codec.cpp
-    src/core/modern_eti_controller.cpp
+    # src/core/optimized_eti_processor.cpp  # Temporarily disabled for minimal build
+    # src/core/ultra_performance_eti_processor.cpp  # Temporarily disabled for minimal build
+    # src/core/eti_ni_processor.cpp  # Temporarily disabled for minimal build
+    # src/core/reed_solomon_codec.cpp  # Temporarily disabled for minimal build
+    # src/core/modern_eti_controller.cpp  # Temporarily disabled for minimal build
 
     # DAB processing
     src/core/dab_decoder.cpp
@@ -264,6 +264,7 @@ target_compile_definitions(StreamDAB_Analyzer PRIVATE
     QT_DEPRECATED_WARNINGS
     QT_DISABLE_DEPRECATED_BEFORE=0x060400
     STREAMDAB_VERSION="${PROJECT_VERSION}"
+    USE_FAAD2=1
 )
 
 # Add pkg-config include directories and compile options properly

@@ -734,11 +734,10 @@ void AudioExtractionPipeline::process_frame(const EtiFrame& frame) {
     
     // Send frame to all active workers
     QMutexLocker locker(&m_services_mutex);
-    // Use key-based iteration to avoid unique_ptr copy issues
-    for (auto it = m_workers.keyBegin(); it != m_workers.keyEnd(); ++it) {
-        auto worker = m_workers.value(*it);
-        if (worker) {
-            QMetaObject::invokeMethod(worker.get(), "process_frame", 
+    // Use iterator-based access to avoid unique_ptr copy issues
+    for (auto it = m_workers.begin(); it != m_workers.end(); ++it) {
+        if (it.value()) {
+            QMetaObject::invokeMethod(it.value().get(), "process_frame", 
                                      Qt::QueuedConnection, Q_ARG(eti::EtiFrame, frame));
         }
     }

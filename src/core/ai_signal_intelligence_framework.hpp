@@ -50,6 +50,7 @@
 #include <random>
 #include <algorithm>
 #include <numeric>
+#include <complex>
 
 /**
  * @namespace ai::intelligence
@@ -416,7 +417,8 @@ public:
         std::chrono::minutes adaptation_window{60};
     };
     
-    explicit AnomalyDetectionEngine(const DetectionConfig& config = DetectionConfig{});
+    explicit AnomalyDetectionEngine(const DetectionConfig& config);
+    explicit AnomalyDetectionEngine(); // Default constructor
     ~AnomalyDetectionEngine() = default;
     
     // Training and adaptation
@@ -504,7 +506,8 @@ public:
         };
     };
     
-    explicit QualityForecastingEngine(const ForecastConfig& config = ForecastConfig{});
+    explicit QualityForecastingEngine(const ForecastConfig& config);
+    explicit QualityForecastingEngine(); // Default constructor
     ~QualityForecastingEngine() = default;
     
     // Data ingestion
@@ -632,9 +635,10 @@ public:
     };
     
     explicit AISignalIntelligenceFramework(
-        const FrameworkConfig& config = FrameworkConfig{},
+        const FrameworkConfig& config,
         QObject* parent = nullptr
     );
+    explicit AISignalIntelligenceFramework(QObject* parent = nullptr); // Default constructor
     ~AISignalIntelligenceFramework() override;
     
     // Framework initialization and management

@@ -11,13 +11,18 @@
 #include <vector>
 
 // Forward declarations for audio libraries
+#ifdef USE_FAAD2
+extern "C" {
+#include <neaacdec.h>
+}
+#else
+// Fallback declarations when FAAD2 is not available
 struct NeAACDecStruct;
 typedef NeAACDecStruct* NeAACDecHandle;
-
 struct NeAACDecConfiguration;
 typedef NeAACDecConfiguration* NeAACDecConfigurationPtr;
-
 struct NeAACDecFrameInfo;
+#endif
 
 struct mpg123_handle_struct;
 typedef mpg123_handle_struct mpg123_handle;

@@ -265,7 +265,8 @@ public:
         Config() = default;
     };
     
-    explicit BroadcastStandardsFramework(const Config& config = Config{});
+    explicit BroadcastStandardsFramework(const Config& config);
+    explicit BroadcastStandardsFramework(); // Default constructor
     ~BroadcastStandardsFramework();
     
     // Disable copy/move for thread safety

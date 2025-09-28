@@ -50,15 +50,15 @@ class alignas(CACHE_LINE_SIZE) lock_free_ring_buffer {
 private:
     static_assert((Size & (Size - 1)) == 0, "Size must be power of 2");
     
-    struct alignas(CACHE_LINE_SIZE) {
+    struct alignas(CACHE_LINE_SIZE) head_data {
         std::atomic<size_t> head{0};
         char padding1[CACHE_LINE_SIZE - sizeof(std::atomic<size_t>)];
-    };
+    } head_data_;
     
-    struct alignas(CACHE_LINE_SIZE) {
+    struct alignas(CACHE_LINE_SIZE) tail_data {
         std::atomic<size_t> tail{0};
         char padding2[CACHE_LINE_SIZE - sizeof(std::atomic<size_t>)];
-    };
+    } tail_data_;
     
     alignas(CACHE_LINE_SIZE) std::array<T, Size> buffer_;
     std::atomic<size_t> head_{0};
@@ -182,7 +182,7 @@ public:
 class alignas(CACHE_LINE_SIZE) zero_copy_memory_manager {
 private:
     struct alignas(CACHE_LINE_SIZE) memory_block {
-        alignas(ETI_FRAME_SIZE_ALIGNED) uint8_t data[ETI_FRAME_SIZE_ALIGNED];
+        alignas(AVX512_REGISTER_SIZE) uint8_t data[ETI_FRAME_SIZE_ALIGNED];
         std::atomic<bool> in_use{false};
         std::chrono::high_resolution_clock::time_point allocation_time;
         uint64_t allocation_id{0};
