@@ -30,6 +30,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Gui
     PrintSupport
     Test
+    Multimedia
 )
 qt6_standard_project_setup()
 
@@ -58,6 +59,15 @@ find_package(Threads REQUIRED)
 pkg_check_modules(FAAD2 REQUIRED faad2)
 pkg_check_modules(FFTW3 REQUIRED fftw3)
 
+# ZeroMQ for ODR-DabMux connectivity
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ZMQ REQUIRED libzmq)
+if(ZMQ_FOUND)
+    message(STATUS "ZeroMQ: Found version ${ZMQ_VERSION}")
+else()
+    message(FATAL_ERROR "ZeroMQ: Required library not found")
+endif()
+
 # Optional libraries
 find_package(yaml-cpp QUIET)
 if(yaml-cpp_FOUND)
@@ -80,6 +90,9 @@ set(CORE_SOURCES
     src/core/headless_eti_processor.cpp
     src/core/optimized_eti_processor.cpp
     src/core/ultra_performance_eti_processor.cpp
+    src/core/eti_ni_processor.cpp
+    src/core/reed_solomon_codec.cpp
+    src/core/modern_eti_controller.cpp
 
     # DAB processing
     src/core/dab_decoder.cpp
@@ -101,6 +114,7 @@ set(CORE_SOURCES
     src/core/network_stream_receiver.cpp
     src/core/multi_stream_processor.cpp
     src/core/stream_recording_manager.cpp
+    src/core/zeromq_eti_client.cpp
 
     # ETSI compliance
     src/core/comprehensive_etsi_validator.cpp
@@ -218,6 +232,7 @@ target_include_directories(StreamDAB_Analyzer PRIVATE
     src/performance
     ${FAAD2_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
+    ${ZMQ_INCLUDE_DIRS}
 )
 
 # Link Qt6 libraries - Professional suite
@@ -228,9 +243,11 @@ target_link_libraries(StreamDAB_Analyzer
     Qt6::Network
     Qt6::Gui
     Qt6::PrintSupport
+    Qt6::Multimedia
     Threads::Threads
     ${FAAD2_LIBRARIES}
     ${FFTW3_LIBRARIES}
+    ${ZMQ_LIBRARIES}
 )
 
 # Link optional libraries
@@ -245,6 +262,7 @@ target_compile_definitions(StreamDAB_Analyzer PRIVATE
     STREAMDAB_VERSION="${PROJECT_VERSION}"
     ${FAAD2_CFLAGS_OTHER}
     ${FFTW3_CFLAGS_OTHER}
+    ${ZMQ_CFLAGS_OTHER}
 )
 
 # Compiler-specific settings
