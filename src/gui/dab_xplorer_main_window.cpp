@@ -29,6 +29,7 @@ namespace DABXplorerTheme {
 DABXplorerMainWindow::DABXplorerMainWindow(QWidget *parent)
     : QMainWindow(parent)
     , m_etiProcessor(std::make_unique<EnhancedETIProcessorQt>())
+    , m_figAnalyzer(std::make_unique<AdvancedFIGAnalyzer>())
     , m_mainSplitter(nullptr)
     , m_horizontalSplitter(nullptr)
     , m_verticalSplitter(nullptr)
@@ -410,6 +411,22 @@ void DABXplorerMainWindow::setupSignalConnections()
             this, &DABXplorerMainWindow::onFrameProcessedQt);
     connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingError,
             this, &DABXplorerMainWindow::onProcessingError);
+    
+    // Advanced FIG Analyzer connections (Phase 1.4)
+    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceDiscovered,
+            this, &DABXplorerMainWindow::onServiceDiscoveredFIG);
+    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::ensembleUpdated,
+            this, &DABXplorerMainWindow::onEnsembleUpdatedFIG);
+    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceLabelUpdated,
+            this, &DABXplorerMainWindow::onServiceLabelUpdated);
+    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::figProcessed,
+            this, &DABXplorerMainWindow::onFIGProcessed);
+    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::figError,
+            this, &DABXplorerMainWindow::onFIGError);
+    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::programmeTypeUpdated,
+            this, &DABXplorerMainWindow::onProgrammeTypeUpdated);
+    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::timeInfoUpdated,
+            this, &DABXplorerMainWindow::onTimeInfoUpdated);
 
     // UI element connections
     connect(m_ensembleTree, &QTreeWidget::itemChanged,
@@ -584,6 +601,11 @@ void DABXplorerMainWindow::onFrameProcessedQt(const ProcessedFrame& frame)
 
     // Update processing rate display
     m_processingFPS = 900.0; // Placeholder value
+    
+    // Extract FIC data for advanced analysis (Phase 1.4)
+    if (!frame.fic_data.isEmpty()) {
+        m_figAnalyzer->analyzeFICData(frame.fic_data);
+    }
 }
 
 void DABXplorerMainWindow::onProcessingProgress(int percentage, int currentFrame, int totalFrames)
@@ -693,6 +715,137 @@ void DABXplorerMainWindow::onProcessingError(const QString& error)
 
     // Show in status bar temporarily
     m_statusBar->showMessage(QString("🔴 Error: %1").arg(error), 5000);
+}
+
+// Advanced FIG Analyzer slot implementations (Phase 1.4)
+void DABXplorerMainWindow::onServiceDiscoveredFIG(const ServiceInfo& service)
+{
+    // Add service to ensemble tree with enhanced information
+    QTreeWidgetItem* serviceItem = new QTreeWidgetItem();
+    serviceItem->setText(0, service.label.isEmpty() ? QString("Service 0x%1").arg(service.serviceId, 4, 16, QChar('0')) : service.label);
+    serviceItem->setText(1, service.type);
+    serviceItem->setText(2, QString("0x%1").arg(service.serviceId, 4, 16, QChar('0')));
+    serviceItem->setCheckState(0, Qt::Checked);
+    
+    // Set service type icon and color
+    serviceItem->setForeground(1, QBrush(getServiceTypeColor(service.type)));
+    
+    // Find or create ensemble item
+    QTreeWidgetItem* ensembleItem = nullptr;
+    for (int i = 0; i < m_ensembleTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* item = m_ensembleTree->topLevelItem(i);
+        if (item->text(2) == QString("0x%1").arg(service.ensembleId, 4, 16, QChar('0'))) {
+            ensembleItem = item;
+            break;
+        }
+    }
+    
+    if (!ensembleItem) {
+        ensembleItem = new QTreeWidgetItem();
+        ensembleItem->setText(0, QString("Ensemble 0x%1").arg(service.ensembleId, 4, 16, QChar('0')));
+        ensembleItem->setText(1, "Ensemble");
+        ensembleItem->setText(2, QString("0x%1").arg(service.ensembleId, 4, 16, QChar('0')));
+        ensembleItem->setCheckState(0, Qt::Checked);
+        ensembleItem->setForeground(1, QBrush(DABXplorerTheme::SERVICE_ENSEMBLE));
+        m_ensembleTree->addTopLevelItem(ensembleItem);
+        ensembleItem->setExpanded(true);
+    }
+    
+    ensembleItem->addChild(serviceItem);
+    
+    // Update internal service list
+    m_services.append(service);
+}
+
+void DABXplorerMainWindow::onEnsembleUpdatedFIG(const EnsembleInfo& ensemble)
+{
+    m_currentEnsemble = ensemble;
+    
+    // Update ensemble label in tree if available
+    for (int i = 0; i < m_ensembleTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* item = m_ensembleTree->topLevelItem(i);
+        if (item->text(2) == QString("0x%1").arg(ensemble.ensembleId, 4, 16, QChar('0'))) {
+            if (!ensemble.ensembleLabel.isEmpty()) {
+                item->setText(0, ensemble.ensembleLabel);
+            }
+            break;
+        }
+    }
+    
+    // Update status bar with ensemble information
+    QString status = QString("🟢 Ensemble: %1 | Services: %2 | Country: %3")
+        .arg(ensemble.ensembleLabel.isEmpty() ? QString("0x%1").arg(ensemble.ensembleId, 4, 16, QChar('0')) : ensemble.ensembleLabel)
+        .arg(ensemble.serviceCount)
+        .arg(ensemble.countryCode);
+    m_statusBar->showMessage(status);
+}
+
+void DABXplorerMainWindow::onServiceLabelUpdated(uint32_t serviceId, const QString& label)
+{
+    // Update service label in ensemble tree
+    for (int i = 0; i < m_ensembleTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* ensembleItem = m_ensembleTree->topLevelItem(i);
+        for (int j = 0; j < ensembleItem->childCount(); ++j) {
+            QTreeWidgetItem* serviceItem = ensembleItem->child(j);
+            QString sidText = serviceItem->text(2);
+            uint32_t sid = sidText.mid(2).toUInt(nullptr, 16);
+            if (sid == serviceId) {
+                serviceItem->setText(0, label);
+                break;
+            }
+        }
+    }
+    
+    // Update FIC-XTractor service labels display
+    QStringList labels = m_figAnalyzer->getServiceLabels();
+    m_serviceLabelsText->setPlainText(labels.join("\n"));
+}
+
+void DABXplorerMainWindow::onFIGProcessed(const FIGData& figData)
+{
+    // Update FIC analysis display based on FIG type
+    QString figInfo = QString("[FIG %1/%2] %3")
+        .arg(figData.figType)
+        .arg(figData.figExtension)
+        .arg(figData.description);
+    
+    // Add to system messages with timestamp
+    QString timestamp = QTime::currentTime().toString();
+    QString message = QString("[%1] ✅ %2").arg(timestamp, figInfo);
+    m_systemMessages->append(message);
+}
+
+void DABXplorerMainWindow::onFIGError(uint8_t figType, uint8_t extension, const QString& error)
+{
+    // Add error to system messages
+    QString timestamp = QTime::currentTime().toString();
+    QString errorMsg = QString("[%1] 🔴 FIG %2/%3 Error: %4")
+        .arg(timestamp)
+        .arg(figType)
+        .arg(extension)
+        .arg(error);
+    
+    m_systemMessages->append(errorMsg);
+    
+    // Show in status bar temporarily
+    m_statusBar->showMessage(QString("🔴 FIG Error: %1").arg(error), 5000);
+}
+
+void DABXplorerMainWindow::onProgrammeTypeUpdated(uint32_t serviceId, uint8_t ptyCode)
+{
+    Q_UNUSED(serviceId)
+    Q_UNUSED(ptyCode)
+    
+    // Update FIC-XTractor programme information display
+    QStringList programmeInfo = m_figAnalyzer->getProgrammeInfo();
+    m_programmeInfoText->setPlainText(programmeInfo.join("\n"));
+}
+
+void DABXplorerMainWindow::onTimeInfoUpdated(const QDateTime& currentTime)
+{
+    // Update time display in FIC-XTractor
+    m_timeDisplayLabel->setText(QString("Time: %1").arg(currentTime.toString("hh:mm:ss UTC")));
+    m_dateDisplayLabel->setText(QString("Date: %1").arg(currentTime.toString("dd/MM/yyyy")));
 }
 
 void DABXplorerMainWindow::onFrameSelectionChanged()
@@ -949,7 +1102,16 @@ void DABXplorerMainWindow::closeCurrentFile()
 void DABXplorerMainWindow::onFIGTypeToggled(bool enabled)
 {
     Q_UNUSED(enabled)
+    
     // Update FIG processing based on checkbox states
+    m_figAnalyzer->enableFIGType(0, 0, m_figType00CheckBox->isChecked());
+    m_figAnalyzer->enableFIGType(0, 1, m_figType01CheckBox->isChecked());
+    m_figAnalyzer->enableFIGType(0, 2, m_figType02CheckBox->isChecked());
+    m_figAnalyzer->enableFIGType(1, 0, m_figType10CheckBox->isChecked());
+    m_figAnalyzer->enableFIGType(1, 1, m_figType11CheckBox->isChecked());
+    m_figAnalyzer->enableFIGType(1, 4, m_figType14CheckBox->isChecked());
+    
+    // Update FIC analysis display
     updateFICAnalysis();
 }
 

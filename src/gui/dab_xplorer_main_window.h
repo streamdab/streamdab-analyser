@@ -19,9 +19,10 @@
 #include <QtCore/QTimer>
 #include <memory>
 
-// Include ETI types and processor
+// Include ETI types and processors
 #include "../core/eti_types.h"
 #include "../core/enhanced_eti_processor_qt.h"
+#include "../core/advanced_fig_analyzer.h"
 
 /**
  * @brief DAB Analyzer Professional Main Window
@@ -56,6 +57,15 @@ public slots:
     void onProcessingError(const QString& error);
     void onProcessingProgress(int percentage, int currentFrame, int totalFrames);
     void onProcessingComplete(int totalFrames, int processingTimeMs);
+
+    // Advanced FIG Analyzer slots (Phase 1.4)
+    void onServiceDiscoveredFIG(const ServiceInfo& service);
+    void onEnsembleUpdatedFIG(const EnsembleInfo& ensemble);
+    void onServiceLabelUpdated(uint32_t serviceId, const QString& label);
+    void onFIGProcessed(const FIGData& figData);
+    void onFIGError(uint8_t figType, uint8_t extension, const QString& error);
+    void onProgrammeTypeUpdated(uint32_t serviceId, uint8_t ptyCode);
+    void onTimeInfoUpdated(const QDateTime& currentTime);
 
     // Legacy slots for compatibility with ETI types
     void onFrameProcessed(const ETIFrame& frame);
@@ -122,6 +132,7 @@ private:
 private:
     // Core components
     std::unique_ptr<EnhancedETIProcessorQt> m_etiProcessor;
+    std::unique_ptr<AdvancedFIGAnalyzer> m_figAnalyzer;
 
     // Main layout components
     QSplitter* m_mainSplitter;
