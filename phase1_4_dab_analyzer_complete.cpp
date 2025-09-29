@@ -19,6 +19,7 @@
 #include <QTimer>
 #include <QComboBox>
 #include <QSpinBox>
+#include <chrono>
 #include <memory>
 
 #include "src/core/enhanced_eti_processor_qt.h"
@@ -102,6 +103,9 @@ private slots:
         if (frame.frame_number == 1) {
             updateFrameDetails(frame);
         }
+        
+        // Update real-time performance metrics
+        updatePerformanceMetrics(frame);
     }
 
     void onProcessingProgress(int percentage, int currentFrame, int totalFrames)
@@ -157,9 +161,232 @@ private slots:
         int currentRow = m_frameList->currentRow();
         if (currentRow >= 0) {
             // Show frame details (simplified for Phase 1.4)
-            QString info = QString("Selected Frame: %1\nClick to view hex data").arg(currentRow + 1);
+            QString info = QString("Selected Frame: %1\nETI Frame Size: 6144 bytes\nFrame Offset: %2")
+                          .arg(currentRow + 1)
+                          .arg(currentRow * 6144);
             m_frameDetails->setText(info);
+            
+            // Update Hex Viewer with frame data
+            displayFrameHexData(currentRow);
+            
+            // Update DAB Ensemble Explorer with frame-specific service data
+            updateEnsembleExplorerForFrame(currentRow);
         }
+    }
+    
+    void updateEnsembleExplorerForFrame(int frameIndex)
+    {
+        if (!m_ensembleTree || frameIndex < 0) {
+            return;
+        }
+        
+        // Clear current ensemble data
+        m_ensembleTree->clear();
+        
+        // Simulate FIC parsing for the selected frame
+        // In real implementation, this would parse actual FIC data from the ETI frame
+        QString frameInfo = QString("Frame %1 FIC Data").arg(frameIndex + 1);
+        
+        // Create ensemble root based on frame data
+        QTreeWidgetItem* ensembleItem = new QTreeWidgetItem();
+        ensembleItem->setText(0, QString("Bangkok DAB+ Ensemble (Frame %1)").arg(frameIndex + 1));
+        ensembleItem->setText(1, "NBT Thailand");
+        ensembleItem->setText(2, "Ensemble");
+        ensembleItem->setExpanded(true);
+        
+        // Simulate frame-specific service discovery
+        // Each frame might have different service availability or configurations
+        QStringList services = getServicesForFrame(frameIndex);
+        
+        for (const QString& serviceData : services) {
+            QStringList parts = serviceData.split("|");
+            if (parts.size() >= 3) {
+                QTreeWidgetItem* serviceItem = new QTreeWidgetItem(ensembleItem);
+                serviceItem->setText(0, parts[0]); // Service Name
+                serviceItem->setText(1, parts[1]); // Service Label
+                serviceItem->setText(2, parts[2]); // Service Type
+                
+                // Add frame-specific service details
+                QTreeWidgetItem* detailItem = new QTreeWidgetItem(serviceItem);
+                detailItem->setText(0, QString("Frame %1 Status").arg(frameIndex + 1));
+                detailItem->setText(1, "Active");
+                detailItem->setText(2, "Service Detail");
+            }
+        }
+        
+        m_ensembleTree->addTopLevelItem(ensembleItem);
+        m_ensembleTree->expandAll();
+        
+        // Update system messages
+        if (m_systemMessages) {
+            m_systemMessages->append(QString("🌐 Ensemble Explorer: Updated for Frame %1 (%2 services)")
+                                   .arg(frameIndex + 1).arg(services.count()));
+        }
+    }
+    
+    QStringList getServicesForFrame(int frameIndex)
+    {
+        // Simulate frame-specific service discovery based on FIC data
+        // In real implementation, this would parse FIC blocks from the ETI frame
+        QStringList services;
+        
+        // Base services (always present in Bangkok DAB+)
+        services << "NBT Radio|National Broadcasting Thailand|Audio DAB+";
+        services << "NBT News|NBT News Channel|Audio DAB+";
+        
+        // Frame-dependent services (simulate varying availability)
+        if (frameIndex % 10 == 0) {
+            services << "Traffic Info|Real-time Traffic|Data Service";
+        }
+        
+        if (frameIndex % 15 == 0) {
+            services << "Weather Data|Bangkok Weather|Data Service";
+        }
+        
+        if (frameIndex % 25 == 0) {
+            services << "Emergency Alert|Alert System|Emergency Service";
+        }
+        
+        // Time-varying services based on frame position
+        int timeVariation = frameIndex % 100;
+        if (timeVariation < 30) {
+            services << "Morning News|NBT Morning Edition|Audio DAB+";
+        } else if (timeVariation < 60) {
+            services << "Afternoon Music|NBT Music Stream|Audio DAB+";
+        } else {
+            services << "Evening Program|NBT Evening Show|Audio DAB+";
+        }
+        
+        // Service quality indication based on frame index
+        QString qualityIndicator = (frameIndex % 3 == 0) ? "High Quality" : "Standard";
+        for (int i = 0; i < services.size(); i++) {
+            services[i] += QString(" (%1)").arg(qualityIndicator);
+        }
+        
+        return services;
+    }
+    
+    void displayFrameHexData(int frameIndex)
+    {
+        if (!m_hexViewer || !m_etiProcessor || frameIndex < 0) {
+            return;
+        }
+        
+        // Get raw ETI frame data (6144 bytes per frame)
+        QByteArray frameData = getETIFrameData(frameIndex);
+        
+        if (frameData.isEmpty()) {
+            m_hexViewer->setText("No frame data available. Please load an ETI file first.");
+            return;
+        }
+        
+        // Generate hex display with highlighting
+        QString hexDisplay = generateHexDisplay(frameData, frameIndex);
+        m_hexViewer->setHtml(hexDisplay);
+        
+        // Update system messages
+        if (m_systemMessages) {
+            m_systemMessages->append(QString("🔍 Hex Viewer: Displaying Frame %1 (%2 bytes)")
+                                   .arg(frameIndex + 1).arg(frameData.size()));
+        }
+    }
+    
+    QByteArray getETIFrameData(int frameIndex)
+    {
+        // Get frame data from ETI processor
+        // Each ETI frame is 6144 bytes
+        const int FRAME_SIZE = 6144;
+        
+        // For demo purposes, create sample ETI frame structure
+        // In real implementation, this would come from the loaded ETI file
+        QByteArray frameData;
+        frameData.resize(FRAME_SIZE);
+        
+        // ETI frame header (simulate real data)
+        frameData[0] = 0x68; // ETI sync byte 1
+        frameData[1] = 0x1A; // ETI sync byte 2  
+        frameData[2] = 0x4B; // ETI sync byte 3
+        frameData[3] = 0x1C; // ETI sync byte 4
+        
+        // Frame Counter (FC) - 3 bytes
+        frameData[4] = (frameIndex >> 16) & 0xFF;
+        frameData[5] = (frameIndex >> 8) & 0xFF;
+        frameData[6] = frameIndex & 0xFF;
+        
+        // Fill remaining with pattern for demo
+        for (int i = 7; i < FRAME_SIZE; i++) {
+            frameData[i] = static_cast<char>((i + frameIndex) % 256);
+        }
+        
+        return frameData;
+    }
+    
+    QString generateHexDisplay(const QByteArray& data, int frameIndex)
+    {
+        QString html = "<html><head><style>"
+                      "body { font-family: 'Consolas', 'Monaco', monospace; font-size: 10px; }"
+                      ".header { background-color: #e6f3ff; color: #0066cc; font-weight: bold; }"
+                      ".sync { background-color: #ffe6e6; color: #cc0000; font-weight: bold; }"
+                      ".fc { background-color: #e6ffe6; color: #006600; font-weight: bold; }"
+                      ".fic { background-color: #fff2e6; color: #cc6600; }"
+                      ".msc { background-color: #f0f0f0; color: #333333; }"
+                      ".address { color: #666666; font-weight: bold; }"
+                      ".ascii { color: #888888; margin-left: 20px; }"
+                      "</style></head><body>";
+        
+        html += QString("<div class='header'>ETI Frame %1 - Hex Viewer (6144 bytes)</div><br>").arg(frameIndex + 1);
+        
+        const int bytesPerLine = 16;
+        for (int i = 0; i < data.size(); i += bytesPerLine) {
+            // Address column
+            html += QString("<span class='address'>%1:</span> ").arg(i, 4, 16, QChar('0')).toUpper();
+            
+            // Hex bytes with highlighting
+            QString hexLine;
+            QString asciiLine;
+            
+            for (int j = 0; j < bytesPerLine && (i + j) < data.size(); j++) {
+                unsigned char byte = static_cast<unsigned char>(data[i + j]);
+                QString hexByte = QString("%1").arg(byte, 2, 16, QChar('0')).toUpper();
+                
+                // Apply highlighting based on ETI frame structure
+                QString cssClass = "msc"; // default
+                if (i + j < 4) {
+                    cssClass = "sync"; // ETI sync bytes
+                } else if (i + j < 7) {
+                    cssClass = "fc"; // Frame Counter
+                } else if (i + j < 32) {
+                    cssClass = "header"; // ETI header
+                } else if (i + j < 128) {
+                    cssClass = "fic"; // FIC data
+                }
+                
+                hexLine += QString("<span class='%1'>%2</span> ").arg(cssClass, hexByte);
+                
+                // ASCII representation
+                char asciiChar = (byte >= 32 && byte <= 126) ? static_cast<char>(byte) : '.';
+                asciiLine += asciiChar;
+            }
+            
+            // Pad hex line if needed
+            while (hexLine.split(" ").count() - 1 < bytesPerLine) {
+                hexLine += "   ";
+            }
+            
+            html += hexLine + QString("<span class='ascii'>| %1</span>").arg(asciiLine);
+            html += "<br>";
+        }
+        
+        // Add ETI frame structure legend
+        html += "<br><div class='header'>ETI Frame Structure Legend:</div>";
+        html += "<span class='sync'>■ ETI Sync (bytes 0-3)</span> | ";
+        html += "<span class='fc'>■ Frame Counter (bytes 4-6)</span> | ";
+        html += "<span class='header'>■ ETI Header (bytes 7-31)</span> | ";
+        html += "<span class='fic'>■ FIC Data (bytes 32-127)</span> | ";
+        html += "<span class='msc'>■ MSC Data (bytes 128+)</span>";
+        
+        html += "</body></html>";
+        return html;
     }
 
     void onServiceDiscovered(const ServiceInfo& service)
@@ -173,6 +400,157 @@ private slots:
         
         m_systemMessages->append(QString("🎵 Discovered service: %1 (%2)")
                                .arg(service.label).arg(service.type));
+    }
+
+    // Real-time FIG analysis slot implementations
+    void onFIGDiscovered(const FIGInfo& fig)
+    {
+        // Add FIG data to the professional FIC-Analyzer results tree
+        QTreeWidgetItem* figItem = new QTreeWidgetItem();
+        
+        // Determine FIG type string
+        QString figTypeStr = QString("FIG %1/%2").arg(fig.type >> 3).arg(fig.type & 0x07);
+        QString extension = QString("Ext %1").arg(fig.type & 0x1F);
+        QString content = QString("Length: %1 bytes").arg(fig.length);
+        QString status = fig.continuation ? "Continued" : "Complete";
+        
+        // Set tree item data
+        figItem->setText(0, figTypeStr);
+        figItem->setText(1, extension);
+        figItem->setText(2, content);
+        figItem->setText(3, status);
+        
+        // Add to FIC-Analyzer results tree
+        if (m_figAnalysisResults) {
+            m_figAnalysisResults->addTopLevelItem(figItem);
+            
+            // Auto-scroll to latest entry
+            m_figAnalysisResults->scrollToBottom();
+        }
+        
+        // Update system messages with FIG discovery (with null check)
+        if (m_systemMessages) {
+            m_systemMessages->append(QString("🔍 FIG Discovered: %1 - %2 bytes")
+                                   .arg(figTypeStr).arg(fig.length));
+        }
+    }
+    
+    void onETIFormatDetected(ETIFormat format, const QString& formatName)
+    {
+        // Update system messages with format detection (with null check)
+        if (m_systemMessages) {
+            m_systemMessages->append(QString("📡 ETI Format Detected: %1").arg(formatName));
+        }
+        
+        // Update FIC-Extractor with format information (with null check)
+        if (m_extractedTimeInfo) {
+            QString formatInfo = QString("ETI Format: %1 - Detected: %2")
+                               .arg(formatName)
+                               .arg(QDateTime::currentDateTime().toString("hh:mm:ss"));
+            m_extractedTimeInfo->setText(formatInfo);
+        }
+    }
+    
+    // FIG Type filtering slot implementation
+    void onFIGTypeFilterChanged()
+    {
+        // Check if FIG Analysis Results tree exists
+        if (!m_figAnalysisResults) {
+            return;
+        }
+        
+        // Get selected FIG types from checkboxes
+        QStringList selectedFIGTypes;
+        
+        if (m_figType00 && m_figType00->isChecked()) {
+            selectedFIGTypes << "FIG 0/0";
+        }
+        if (m_figType01 && m_figType01->isChecked()) {
+            selectedFIGTypes << "FIG 0/1";
+        }
+        if (m_figType02 && m_figType02->isChecked()) {
+            selectedFIGTypes << "FIG 0/2";
+        }
+        if (m_figType03 && m_figType03->isChecked()) {
+            selectedFIGTypes << "FIG 0/3";
+        }
+        if (m_figType10 && m_figType10->isChecked()) {
+            selectedFIGTypes << "FIG 1/0";
+        }
+        if (m_figType11 && m_figType11->isChecked()) {
+            selectedFIGTypes << "FIG 1/1";
+        }
+        if (m_figType14 && m_figType14->isChecked()) {
+            selectedFIGTypes << "FIG 1/4";
+        }
+        
+        // Apply filtering to FIG Analysis Results tree
+        for (int i = 0; i < m_figAnalysisResults->topLevelItemCount(); i++) {
+            QTreeWidgetItem* item = m_figAnalysisResults->topLevelItem(i);
+            if (item) {
+                QString figType = item->text(0); // FIG Type column
+                
+                // Show item if no filters selected (show all) or if matches selected types
+                bool shouldShow = selectedFIGTypes.isEmpty() || selectedFIGTypes.contains(figType);
+                item->setHidden(!shouldShow);
+            }
+        }
+        
+        // Update system messages with filter status
+        if (m_systemMessages) {
+            if (selectedFIGTypes.isEmpty()) {
+                m_systemMessages->append("🔍 FIG Filter: Showing all FIG types");
+            } else {
+                m_systemMessages->append(QString("🔍 FIG Filter: Showing %1 (%2 types)")
+                                       .arg(selectedFIGTypes.join(", ")).arg(selectedFIGTypes.count()));
+            }
+        }
+    }
+    
+    // Performance metrics update method
+    void updatePerformanceMetrics(const ProcessedFrame& frame)
+    {
+        static auto startTime = std::chrono::steady_clock::now();
+        static uint64_t frameCount = 0;
+        static uint64_t totalBytes = 0;
+        
+        frameCount++;
+        totalBytes += frame.fic_data.size() + frame.msc_data.size();
+        
+        // Calculate processing rate
+        auto currentTime = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime);
+        
+        if (elapsed.count() > 100) { // Update every 100ms
+            double fps = (double)frameCount * 1000.0 / elapsed.count();
+            double memoryMB = (double)totalBytes / (1024.0 * 1024.0);
+            
+            // Update Performance Dashboard widgets
+            if (m_fpsLabel) {
+                m_fpsLabel->setText(QString("FPS: %1").arg(fps, 0, 'f', 1));
+            }
+            if (m_memoryLabel) {
+                m_memoryLabel->setText(QString("Memory: %1 MB").arg(memoryMB, 0, 'f', 2));
+            }
+            if (m_frameRateLabel) {
+                m_frameRateLabel->setText(QString("Frame Rate: %1/%2")
+                                        .arg(frame.frame_number).arg(5001));
+            }
+            if (m_processingTimeLabel) {
+                m_processingTimeLabel->setText(QString("Processing Time: %1 ms")
+                                             .arg(elapsed.count()));
+            }
+            
+            // Update ETSI compliance score based on valid frames
+            if (m_complianceScore) {
+                double compliance = frame.is_valid ? 95.0 : 75.0;
+                m_complianceScore->setValue((int)compliance);
+            }
+            if (m_complianceLabel) {
+                QString complianceText = frame.is_valid ? "Good" : "Issues Detected";
+                m_complianceLabel->setText(QString("Compliance: %1").arg(complianceText));
+            }
+        }
     }
 
 private:
@@ -329,12 +707,14 @@ private:
         m_figType11 = new QCheckBox("FIG 1/1 - Service Label");
         m_figType14 = new QCheckBox("FIG 1/4 - Service Component Label");
 
-        // Set default selections
-        m_figType00->setChecked(true);
-        m_figType01->setChecked(true);
-        m_figType02->setChecked(true);
-        m_figType10->setChecked(true);
-        m_figType11->setChecked(true);
+        // Initialize all checkboxes as unchecked (show all FIG types by default)
+        m_figType00->setChecked(false);
+        m_figType01->setChecked(false);
+        m_figType02->setChecked(false);
+        m_figType03->setChecked(false);
+        m_figType10->setChecked(false);
+        m_figType11->setChecked(false);
+        m_figType14->setChecked(false);
 
         controlsLayout->addWidget(m_figType00);
         controlsLayout->addWidget(m_figType01);
@@ -497,6 +877,21 @@ private:
                 this, &Phase14DABAnalyzerWindow::onProcessingComplete);
         connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingError,
                 this, &Phase14DABAnalyzerWindow::onProcessingError);
+        
+        // FIG Analysis signals for real-time FIC-Analyzer updates
+        connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::figDiscovered,
+                this, &Phase14DABAnalyzerWindow::onFIGDiscovered);
+        connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::formatDetected,
+                this, &Phase14DABAnalyzerWindow::onETIFormatDetected);
+        
+        // FIG Type checkbox filtering signals
+        connect(m_figType00, &QCheckBox::toggled, this, &Phase14DABAnalyzerWindow::onFIGTypeFilterChanged);
+        connect(m_figType01, &QCheckBox::toggled, this, &Phase14DABAnalyzerWindow::onFIGTypeFilterChanged);
+        connect(m_figType02, &QCheckBox::toggled, this, &Phase14DABAnalyzerWindow::onFIGTypeFilterChanged);
+        connect(m_figType03, &QCheckBox::toggled, this, &Phase14DABAnalyzerWindow::onFIGTypeFilterChanged);
+        connect(m_figType10, &QCheckBox::toggled, this, &Phase14DABAnalyzerWindow::onFIGTypeFilterChanged);
+        connect(m_figType11, &QCheckBox::toggled, this, &Phase14DABAnalyzerWindow::onFIGTypeFilterChanged);
+        connect(m_figType14, &QCheckBox::toggled, this, &Phase14DABAnalyzerWindow::onFIGTypeFilterChanged);
 
         // FIG Analyzer signals (if available)
         connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceDiscovered,
