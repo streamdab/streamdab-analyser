@@ -117,98 +117,146 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named StreamDAB_Enhanced
+# Target rules for targets named DABAnalyzer_Enhanced_FilteringBuild
 
 # Build rule for target.
-StreamDAB_Enhanced: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 StreamDAB_Enhanced
-.PHONY : StreamDAB_Enhanced
+DABAnalyzer_Enhanced_FilteringBuild: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 DABAnalyzer_Enhanced_FilteringBuild
+.PHONY : DABAnalyzer_Enhanced_FilteringBuild
 
 # fast build rule for target.
-StreamDAB_Enhanced/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/StreamDAB_Enhanced.dir/build.make CMakeFiles/StreamDAB_Enhanced.dir/build
-.PHONY : StreamDAB_Enhanced/fast
+DABAnalyzer_Enhanced_FilteringBuild/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build
+.PHONY : DABAnalyzer_Enhanced_FilteringBuild/fast
 
 #=============================================================================
-# Target rules for targets named StreamDAB_Enhanced_autogen_timestamp_deps
+# Target rules for targets named DABAnalyzer_Enhanced_FilteringBuild_autogen_timestamp_deps
 
 # Build rule for target.
-StreamDAB_Enhanced_autogen_timestamp_deps: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 StreamDAB_Enhanced_autogen_timestamp_deps
-.PHONY : StreamDAB_Enhanced_autogen_timestamp_deps
+DABAnalyzer_Enhanced_FilteringBuild_autogen_timestamp_deps: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 DABAnalyzer_Enhanced_FilteringBuild_autogen_timestamp_deps
+.PHONY : DABAnalyzer_Enhanced_FilteringBuild_autogen_timestamp_deps
 
 # fast build rule for target.
-StreamDAB_Enhanced_autogen_timestamp_deps/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/StreamDAB_Enhanced_autogen_timestamp_deps.dir/build.make CMakeFiles/StreamDAB_Enhanced_autogen_timestamp_deps.dir/build
-.PHONY : StreamDAB_Enhanced_autogen_timestamp_deps/fast
+DABAnalyzer_Enhanced_FilteringBuild_autogen_timestamp_deps/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild_autogen_timestamp_deps.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild_autogen_timestamp_deps.dir/build
+.PHONY : DABAnalyzer_Enhanced_FilteringBuild_autogen_timestamp_deps/fast
 
 #=============================================================================
-# Target rules for targets named StreamDAB_Enhanced_autogen
+# Target rules for targets named DABAnalyzer_Enhanced_FilteringBuild_autogen
 
 # Build rule for target.
-StreamDAB_Enhanced_autogen: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 StreamDAB_Enhanced_autogen
-.PHONY : StreamDAB_Enhanced_autogen
+DABAnalyzer_Enhanced_FilteringBuild_autogen: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 DABAnalyzer_Enhanced_FilteringBuild_autogen
+.PHONY : DABAnalyzer_Enhanced_FilteringBuild_autogen
 
 # fast build rule for target.
-StreamDAB_Enhanced_autogen/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/StreamDAB_Enhanced_autogen.dir/build.make CMakeFiles/StreamDAB_Enhanced_autogen.dir/build
-.PHONY : StreamDAB_Enhanced_autogen/fast
+DABAnalyzer_Enhanced_FilteringBuild_autogen/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild_autogen.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild_autogen.dir/build
+.PHONY : DABAnalyzer_Enhanced_FilteringBuild_autogen/fast
 
-StreamDAB_Enhanced_autogen/mocs_compilation.o: StreamDAB_Enhanced_autogen/mocs_compilation.cpp.o
-.PHONY : StreamDAB_Enhanced_autogen/mocs_compilation.o
-
-# target to build an object file
-StreamDAB_Enhanced_autogen/mocs_compilation.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/StreamDAB_Enhanced.dir/build.make CMakeFiles/StreamDAB_Enhanced.dir/StreamDAB_Enhanced_autogen/mocs_compilation.cpp.o
-.PHONY : StreamDAB_Enhanced_autogen/mocs_compilation.cpp.o
-
-StreamDAB_Enhanced_autogen/mocs_compilation.i: StreamDAB_Enhanced_autogen/mocs_compilation.cpp.i
-.PHONY : StreamDAB_Enhanced_autogen/mocs_compilation.i
-
-# target to preprocess a source file
-StreamDAB_Enhanced_autogen/mocs_compilation.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/StreamDAB_Enhanced.dir/build.make CMakeFiles/StreamDAB_Enhanced.dir/StreamDAB_Enhanced_autogen/mocs_compilation.cpp.i
-.PHONY : StreamDAB_Enhanced_autogen/mocs_compilation.cpp.i
-
-StreamDAB_Enhanced_autogen/mocs_compilation.s: StreamDAB_Enhanced_autogen/mocs_compilation.cpp.s
-.PHONY : StreamDAB_Enhanced_autogen/mocs_compilation.s
-
-# target to generate assembly for a file
-StreamDAB_Enhanced_autogen/mocs_compilation.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/StreamDAB_Enhanced.dir/build.make CMakeFiles/StreamDAB_Enhanced.dir/StreamDAB_Enhanced_autogen/mocs_compilation.cpp.s
-.PHONY : StreamDAB_Enhanced_autogen/mocs_compilation.cpp.s
-
-main_network_enhanced.o: main_network_enhanced.cpp.o
-.PHONY : main_network_enhanced.o
+DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.o: DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.cpp.o
+.PHONY : DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.o
 
 # target to build an object file
-main_network_enhanced.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/StreamDAB_Enhanced.dir/build.make CMakeFiles/StreamDAB_Enhanced.dir/main_network_enhanced.cpp.o
-.PHONY : main_network_enhanced.cpp.o
+DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.cpp.o
+.PHONY : DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.cpp.o
 
-main_network_enhanced.i: main_network_enhanced.cpp.i
-.PHONY : main_network_enhanced.i
+DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.i: DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.cpp.i
+.PHONY : DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.i
 
 # target to preprocess a source file
-main_network_enhanced.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/StreamDAB_Enhanced.dir/build.make CMakeFiles/StreamDAB_Enhanced.dir/main_network_enhanced.cpp.i
-.PHONY : main_network_enhanced.cpp.i
+DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.cpp.i
+.PHONY : DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.cpp.i
 
-main_network_enhanced.s: main_network_enhanced.cpp.s
-.PHONY : main_network_enhanced.s
+DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.s: DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.cpp.s
+.PHONY : DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.s
 
 # target to generate assembly for a file
-main_network_enhanced.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/StreamDAB_Enhanced.dir/build.make CMakeFiles/StreamDAB_Enhanced.dir/main_network_enhanced.cpp.s
-.PHONY : main_network_enhanced.cpp.s
+DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.cpp.s
+.PHONY : DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.cpp.s
+
+phase1_4_dab_analyzer_complete.o: phase1_4_dab_analyzer_complete.cpp.o
+.PHONY : phase1_4_dab_analyzer_complete.o
+
+# target to build an object file
+phase1_4_dab_analyzer_complete.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/phase1_4_dab_analyzer_complete.cpp.o
+.PHONY : phase1_4_dab_analyzer_complete.cpp.o
+
+phase1_4_dab_analyzer_complete.i: phase1_4_dab_analyzer_complete.cpp.i
+.PHONY : phase1_4_dab_analyzer_complete.i
+
+# target to preprocess a source file
+phase1_4_dab_analyzer_complete.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/phase1_4_dab_analyzer_complete.cpp.i
+.PHONY : phase1_4_dab_analyzer_complete.cpp.i
+
+phase1_4_dab_analyzer_complete.s: phase1_4_dab_analyzer_complete.cpp.s
+.PHONY : phase1_4_dab_analyzer_complete.s
+
+# target to generate assembly for a file
+phase1_4_dab_analyzer_complete.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/phase1_4_dab_analyzer_complete.cpp.s
+.PHONY : phase1_4_dab_analyzer_complete.cpp.s
+
+src/core/advanced_fig_analyzer.o: src/core/advanced_fig_analyzer.cpp.o
+.PHONY : src/core/advanced_fig_analyzer.o
+
+# target to build an object file
+src/core/advanced_fig_analyzer.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/core/advanced_fig_analyzer.cpp.o
+.PHONY : src/core/advanced_fig_analyzer.cpp.o
+
+src/core/advanced_fig_analyzer.i: src/core/advanced_fig_analyzer.cpp.i
+.PHONY : src/core/advanced_fig_analyzer.i
+
+# target to preprocess a source file
+src/core/advanced_fig_analyzer.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/core/advanced_fig_analyzer.cpp.i
+.PHONY : src/core/advanced_fig_analyzer.cpp.i
+
+src/core/advanced_fig_analyzer.s: src/core/advanced_fig_analyzer.cpp.s
+.PHONY : src/core/advanced_fig_analyzer.s
+
+# target to generate assembly for a file
+src/core/advanced_fig_analyzer.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/core/advanced_fig_analyzer.cpp.s
+.PHONY : src/core/advanced_fig_analyzer.cpp.s
+
+src/core/enhanced_eti_processor_qt.o: src/core/enhanced_eti_processor_qt.cpp.o
+.PHONY : src/core/enhanced_eti_processor_qt.o
+
+# target to build an object file
+src/core/enhanced_eti_processor_qt.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/core/enhanced_eti_processor_qt.cpp.o
+.PHONY : src/core/enhanced_eti_processor_qt.cpp.o
+
+src/core/enhanced_eti_processor_qt.i: src/core/enhanced_eti_processor_qt.cpp.i
+.PHONY : src/core/enhanced_eti_processor_qt.i
+
+# target to preprocess a source file
+src/core/enhanced_eti_processor_qt.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/core/enhanced_eti_processor_qt.cpp.i
+.PHONY : src/core/enhanced_eti_processor_qt.cpp.i
+
+src/core/enhanced_eti_processor_qt.s: src/core/enhanced_eti_processor_qt.cpp.s
+.PHONY : src/core/enhanced_eti_processor_qt.s
+
+# target to generate assembly for a file
+src/core/enhanced_eti_processor_qt.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/core/enhanced_eti_processor_qt.cpp.s
+.PHONY : src/core/enhanced_eti_processor_qt.cpp.s
 
 src/utils/logger.o: src/utils/logger.cpp.o
 .PHONY : src/utils/logger.o
 
 # target to build an object file
 src/utils/logger.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/StreamDAB_Enhanced.dir/build.make CMakeFiles/StreamDAB_Enhanced.dir/src/utils/logger.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/utils/logger.cpp.o
 .PHONY : src/utils/logger.cpp.o
 
 src/utils/logger.i: src/utils/logger.cpp.i
@@ -216,7 +264,7 @@ src/utils/logger.i: src/utils/logger.cpp.i
 
 # target to preprocess a source file
 src/utils/logger.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/StreamDAB_Enhanced.dir/build.make CMakeFiles/StreamDAB_Enhanced.dir/src/utils/logger.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/utils/logger.cpp.i
 .PHONY : src/utils/logger.cpp.i
 
 src/utils/logger.s: src/utils/logger.cpp.s
@@ -224,7 +272,7 @@ src/utils/logger.s: src/utils/logger.cpp.s
 
 # target to generate assembly for a file
 src/utils/logger.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/StreamDAB_Enhanced.dir/build.make CMakeFiles/StreamDAB_Enhanced.dir/src/utils/logger.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/utils/logger.cpp.s
 .PHONY : src/utils/logger.cpp.s
 
 # Help Target
@@ -235,15 +283,21 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... StreamDAB_Enhanced_autogen"
-	@echo "... StreamDAB_Enhanced_autogen_timestamp_deps"
-	@echo "... StreamDAB_Enhanced"
-	@echo "... StreamDAB_Enhanced_autogen/mocs_compilation.o"
-	@echo "... StreamDAB_Enhanced_autogen/mocs_compilation.i"
-	@echo "... StreamDAB_Enhanced_autogen/mocs_compilation.s"
-	@echo "... main_network_enhanced.o"
-	@echo "... main_network_enhanced.i"
-	@echo "... main_network_enhanced.s"
+	@echo "... DABAnalyzer_Enhanced_FilteringBuild_autogen"
+	@echo "... DABAnalyzer_Enhanced_FilteringBuild_autogen_timestamp_deps"
+	@echo "... DABAnalyzer_Enhanced_FilteringBuild"
+	@echo "... DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.o"
+	@echo "... DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.i"
+	@echo "... DABAnalyzer_Enhanced_FilteringBuild_autogen/mocs_compilation.s"
+	@echo "... phase1_4_dab_analyzer_complete.o"
+	@echo "... phase1_4_dab_analyzer_complete.i"
+	@echo "... phase1_4_dab_analyzer_complete.s"
+	@echo "... src/core/advanced_fig_analyzer.o"
+	@echo "... src/core/advanced_fig_analyzer.i"
+	@echo "... src/core/advanced_fig_analyzer.s"
+	@echo "... src/core/enhanced_eti_processor_qt.o"
+	@echo "... src/core/enhanced_eti_processor_qt.i"
+	@echo "... src/core/enhanced_eti_processor_qt.s"
 	@echo "... src/utils/logger.o"
 	@echo "... src/utils/logger.i"
 	@echo "... src/utils/logger.s"
