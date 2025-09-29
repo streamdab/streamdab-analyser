@@ -17,7 +17,7 @@ AdvancedFIGAnalyzer::AdvancedFIGAnalyzer(QObject *parent)
 
 void AdvancedFIGAnalyzer::initializeDefaultFIGTypes()
 {
-    // Enable essential FIG types by default for DAB-XPlorer compatibility
+    // Enable essential FIG types by default for DAB Analyzer compatibility
     m_enabledFIGTypes["0.0"] = true;   // Ensemble organization
     m_enabledFIGTypes["0.1"] = true;   // Subchannel organization  
     m_enabledFIGTypes["0.2"] = true;   // Service organization

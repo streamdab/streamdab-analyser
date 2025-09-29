@@ -51,7 +51,7 @@
 #include "gui/fig_analysis_widget.h"
 #include "gui/settings_dialog.h"
 #include "gui/about_dialog.h"
-#include "gui/broadcast_theme.h"
+
 #include "utils/logger.h"
 
 class TestGUIIntegration : public QObject

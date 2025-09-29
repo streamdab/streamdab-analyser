@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
@@ -15,97 +15,8 @@
   </property>
   <property name="windowIcon">
    <iconset>
-    <normaloff>:/icons/application.png</normaloff>:/icons/application.png</iconset>
-  </property>
-  <property name="styleSheet">
-   <string notr="true">/* Professional Broadcast Industry Theme */
-QMainWindow {
-    background-color: #2D2D30;
-    color: #FFFFFF;
-}
-
-QMenuBar {
-    background-color: #3C3C3C;
-    color: #FFFFFF;
-    border-bottom: 1px solid #007ACC;
-    padding: 4px;
-}
-
-QMenuBar::item {
-    background-color: transparent;
-    padding: 8px 12px;
-    margin: 2px;
-    border-radius: 4px;
-}
-
-QMenuBar::item:selected {
-    background-color: #0078D4;
-}
-
-QToolBar {
-    background-color: #3C3C3C;
-    border: 1px solid #5A5A5A;
-    spacing: 2px;
-    padding: 4px;
-}
-
-QStatusBar {
-    background-color: #007ACC;
-    color: #FFFFFF;
-    border-top: 1px solid #005A9E;
-    padding: 4px;
-}
-
-QSplitter::handle {
-    background-color: #5A5A5A;
-    width: 4px;
-    height: 4px;
-}
-
-QSplitter::handle:hover {
-    background-color: #007ACC;
-}
-
-QTabWidget::pane {
-    border: 1px solid #5A5A5A;
-    background-color: #2D2D30;
-}
-
-QTabWidget::tab-bar {
-    alignment: left;
-}
-
-QTabBar::tab {
-    background-color: #3C3C3C;
-    color: #FFFFFF;
-    padding: 8px 16px;
-    margin-right: 2px;
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
-}
-
-QTabBar::tab:selected {
-    background-color: #007ACC;
-}
-
-QTabBar::tab:hover {
-    background-color: #4A4A4A;
-}
-
-/* Panel specific styling */
-QWidget[objectName="explorerPanel"] {
-    background-color: #252526;
-    border-right: 1px solid #3C3C3C;
-}
-
-QWidget[objectName="mainContentArea"] {
-    background-color: #1E1E1E;
-}
-
-QWidget[objectName="propertiesPanel"] {
-    background-color: #252526;
-    border-left: 1px solid #3C3C3C;
-}</string>
+    <normaloff
+                >:/icons/application.png</normaloff>:/icons/application.png</iconset>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="centralLayout">
@@ -174,16 +85,8 @@ QWidget[objectName="propertiesPanel"] {
              <bold>true</bold>
             </font>
            </property>
-           <property name="styleSheet">
-            <string notr="true">QLabel {
-    color: #FFFFFF;
-    background-color: #007ACC;
-    padding: 6px;
-    border-radius: 4px;
-}</string>
-           </property>
            <property name="text">
-            <string>ETI Services Explorer</string>
+            <string>ETI Services Analyzer</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignCenter</set>
@@ -196,24 +99,6 @@ QWidget[objectName="propertiesPanel"] {
             <widget class="QPushButton" name="refreshServicesBtn">
              <property name="text">
               <string>Refresh Services</string>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">QPushButton {
-    background-color: #0078D4;
-    color: #FFFFFF;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 4px;
-    font-family: 'Segoe UI';
-}
-
-QPushButton:hover {
-    background-color: #106EBE;
-}
-
-QPushButton:pressed {
-    background-color: #005A9E;
-}</string>
              </property>
             </widget>
            </item>
@@ -234,40 +119,8 @@ QPushButton:pressed {
          </item>
          <item>
           <widget class="QTreeWidget" name="serviceTreeWidget">
-           <property name="styleSheet">
-            <string notr="true">QTreeWidget {
-    background-color: #1E1E1E;
-    color: #FFFFFF;
-    border: 1px solid #3C3C3C;
-    selection-background-color: #0078D4;
-    font-family: 'Segoe UI';
-    font-size: 9pt;
-}
-
-QTreeWidget::item {
-    padding: 4px;
-    border-bottom: 1px solid #2D2D30;
-}
-
-QTreeWidget::item:selected {
-    background-color: #0078D4;
-}
-
-QTreeWidget::item:hover {
-    background-color: #3C3C3C;
-}
-
-QTreeWidget::branch:has-children:!has-siblings:closed,
-QTreeWidget::branch:closed:has-children:has-siblings {
-    border-image: none;
-    image: url(:/icons/branch_closed.png);
-}
-
-QTreeWidget::branch:open:has-children:!has-siblings,
-QTreeWidget::branch:open:has-children:has-siblings {
-    border-image: none;
-    image: url(:/icons/branch_open.png);
-}</string>
+           <property name="alternatingRowColors">
+            <bool>true</bool>
            </property>
            <column>
             <property name="text">
@@ -320,14 +173,6 @@ QTreeWidget::branch:open:has-children:has-siblings {
              <bold>true</bold>
             </font>
            </property>
-           <property name="styleSheet">
-            <string notr="true">QLabel {
-    color: #FFFFFF;
-    background-color: #007ACC;
-    padding: 6px;
-    border-radius: 4px;
-}</string>
-           </property>
            <property name="text">
             <string>ETI Frame Analysis</string>
            </property>
@@ -342,34 +187,6 @@ QTreeWidget::branch:open:has-children:has-siblings {
             <enum>Qt::Vertical</enum>
            </property>
            <widget class="QTableWidget" name="frameListTable">
-            <property name="styleSheet">
-             <string notr="true">QTableWidget {
-    background-color: #1E1E1E;
-    color: #FFFFFF;
-    border: 1px solid #3C3C3C;
-    selection-background-color: #0078D4;
-    font-family: Consolas;
-    font-size: 9pt;
-    gridline-color: #3C3C3C;
-}
-
-QTableWidget::item {
-    padding: 4px;
-}
-
-QTableWidget::item:selected {
-    background-color: #0078D4;
-}
-
-QHeaderView::section {
-    background-color: #3C3C3C;
-    color: #FFFFFF;
-    padding: 6px;
-    border: 1px solid #5A5A5A;
-    font-family: 'Segoe UI';
-    font-weight: bold;
-}</string>
-            </property>
             <property name="alternatingRowColors">
              <bool>true</bool>
             </property>
@@ -422,16 +239,6 @@ QHeaderView::section {
                <property name="alignment">
                 <set>Qt::AlignCenter</set>
                </property>
-               <property name="styleSheet">
-                <string notr="true">QLabel {
-    background-color: #2D2D30;
-    color: #888888;
-    border: 2px dashed #3C3C3C;
-    border-radius: 4px;
-    font-family: 'Segoe UI';
-    font-size: 10pt;
-}</string>
-               </property>
               </widget>
              </item>
             </layout>
@@ -478,14 +285,6 @@ QHeaderView::section {
              <bold>true</bold>
             </font>
            </property>
-           <property name="styleSheet">
-            <string notr="true">QLabel {
-    color: #FFFFFF;
-    background-color: #007ACC;
-    padding: 6px;
-    border-radius: 4px;
-}</string>
-           </property>
            <property name="text">
             <string>Properties &amp; Parameters</string>
            </property>
@@ -507,29 +306,6 @@ QHeaderView::section {
              <property name="checked">
               <bool>true</bool>
              </property>
-             <property name="styleSheet">
-              <string notr="true">QPushButton {
-    background-color: #0078D4;
-    color: #FFFFFF;
-    border: none;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-family: 'Segoe UI';
-    font-size: 8pt;
-}
-
-QPushButton:hover {
-    background-color: #106EBE;
-}
-
-QPushButton:checked {
-    background-color: #005A9E;
-}
-
-QPushButton:!checked {
-    background-color: #3C3C3C;
-}</string>
-             </property>
             </widget>
            </item>
            <item>
@@ -539,25 +315,6 @@ QPushButton:!checked {
              </property>
              <property name="checkable">
               <bool>true</bool>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">QPushButton {
-    background-color: #3C3C3C;
-    color: #FFFFFF;
-    border: none;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-family: 'Segoe UI';
-    font-size: 8pt;
-}
-
-QPushButton:hover {
-    background-color: #4A4A4A;
-}
-
-QPushButton:checked {
-    background-color: #0078D4;
-}</string>
              </property>
             </widget>
            </item>
@@ -581,31 +338,6 @@ QPushButton:checked {
            <property name="currentIndex">
             <number>0</number>
            </property>
-           <property name="styleSheet">
-            <string notr="true">QTabWidget::pane {
-    border: 1px solid #3C3C3C;
-    background-color: #1E1E1E;
-}
-
-QTabBar::tab {
-    background-color: #3C3C3C;
-    color: #FFFFFF;
-    padding: 6px 12px;
-    margin-right: 2px;
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
-    font-family: 'Segoe UI';
-    font-size: 8pt;
-}
-
-QTabBar::tab:selected {
-    background-color: #007ACC;
-}
-
-QTabBar::tab:hover {
-    background-color: #4A4A4A;
-}</string>
-           </property>
            <widget class="QWidget" name="parametersTab">
             <attribute name="title">
              <string>Parameters</string>
@@ -613,34 +345,12 @@ QTabBar::tab:hover {
             <layout class="QVBoxLayout" name="parametersTabLayout">
              <item>
               <widget class="QTextEdit" name="parametersText">
-               <property name="styleSheet">
-                <string notr="true">QTextEdit {
-    background-color: #1E1E1E;
-    color: #FFFFFF;
-    border: 1px solid #3C3C3C;
-    font-family: Consolas;
-    font-size: 8pt;
-}
-
-QScrollBar:vertical {
-    background-color: #3C3C3C;
-    width: 12px;
-}
-
-QScrollBar::handle:vertical {
-    background-color: #5A5A5A;
-    border-radius: 6px;
-}
-
-QScrollBar::handle:vertical:hover {
-    background-color: #007ACC;
-}</string>
-               </property>
                <property name="readOnly">
                 <bool>true</bool>
                </property>
                <property name="placeholderText">
-                <string>Service parameters will be displayed here when a service is selected...</string>
+                <string
+                                                                >Service parameters will be displayed here when a service is selected...</string>
                </property>
               </widget>
              </item>
@@ -653,29 +363,6 @@ QScrollBar::handle:vertical:hover {
             <layout class="QVBoxLayout" name="yamlTabLayout">
              <item>
               <widget class="QTextEdit" name="yamlOutputText">
-               <property name="styleSheet">
-                <string notr="true">QTextEdit {
-    background-color: #1E1E1E;
-    color: #FFFFFF;
-    border: 1px solid #3C3C3C;
-    font-family: Consolas;
-    font-size: 8pt;
-}
-
-QScrollBar:vertical {
-    background-color: #3C3C3C;
-    width: 12px;
-}
-
-QScrollBar::handle:vertical {
-    background-color: #5A5A5A;
-    border-radius: 6px;
-}
-
-QScrollBar::handle:vertical:hover {
-    background-color: #007ACC;
-}</string>
-               </property>
                <property name="readOnly">
                 <bool>true</bool>
                </property>
@@ -707,31 +394,6 @@ QScrollBar::handle:vertical:hover {
        <property name="currentIndex">
         <number>0</number>
        </property>
-       <property name="styleSheet">
-        <string notr="true">QTabWidget::pane {
-    border: 1px solid #3C3C3C;
-    background-color: #1E1E1E;
-}
-
-QTabBar::tab {
-    background-color: #3C3C3C;
-    color: #FFFFFF;
-    padding: 8px 16px;
-    margin-right: 2px;
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
-    font-family: 'Segoe UI';
-    font-size: 9pt;
-}
-
-QTabBar::tab:selected {
-    background-color: #007ACC;
-}
-
-QTabBar::tab:hover {
-    background-color: #4A4A4A;
-}</string>
-       </property>
        <widget class="QWidget" name="hexViewerTab">
         <attribute name="title">
          <string>Hex Viewer</string>
@@ -739,34 +401,12 @@ QTabBar::tab:hover {
         <layout class="QVBoxLayout" name="hexViewerTabLayout">
          <item>
           <widget class="QTextEdit" name="hexViewer">
-           <property name="styleSheet">
-            <string notr="true">QTextEdit {
-    background-color: #1E1E1E;
-    color: #00FF00;
-    border: 1px solid #3C3C3C;
-    font-family: Consolas;
-    font-size: 9pt;
-}
-
-QScrollBar:vertical {
-    background-color: #3C3C3C;
-    width: 12px;
-}
-
-QScrollBar::handle:vertical {
-    background-color: #5A5A5A;
-    border-radius: 6px;
-}
-
-QScrollBar::handle:vertical:hover {
-    background-color: #007ACC;
-}</string>
-           </property>
            <property name="readOnly">
             <bool>true</bool>
            </property>
            <property name="placeholderText">
-            <string>Hexadecimal view of ETI frame data will be displayed here...</string>
+            <string
+                                                >Hexadecimal view of ETI frame data will be displayed here...</string>
            </property>
           </widget>
          </item>
@@ -779,34 +419,12 @@ QScrollBar::handle:vertical:hover {
         <layout class="QVBoxLayout" name="messagesTabLayout">
          <item>
           <widget class="QTextEdit" name="messagesLog">
-           <property name="styleSheet">
-            <string notr="true">QTextEdit {
-    background-color: #1E1E1E;
-    color: #FFFFFF;
-    border: 1px solid #3C3C3C;
-    font-family: Consolas;
-    font-size: 8pt;
-}
-
-QScrollBar:vertical {
-    background-color: #3C3C3C;
-    width: 12px;
-}
-
-QScrollBar::handle:vertical {
-    background-color: #5A5A5A;
-    border-radius: 6px;
-}
-
-QScrollBar::handle:vertical:hover {
-    background-color: #007ACC;
-}</string>
-           </property>
            <property name="readOnly">
             <bool>true</bool>
            </property>
            <property name="placeholderText">
-            <string>ETSI compliance messages and alerts will be displayed here...</string>
+            <string
+                                                >ETSI compliance messages and alerts will be displayed here...</string>
            </property>
           </widget>
          </item>
@@ -826,16 +444,6 @@ QScrollBar::handle:vertical:hover {
            <property name="alignment">
             <set>Qt::AlignCenter</set>
            </property>
-           <property name="styleSheet">
-            <string notr="true">QLabel {
-    background-color: #2D2D30;
-    color: #888888;
-    border: 2px dashed #3C3C3C;
-    border-radius: 4px;
-    font-family: 'Segoe UI';
-    font-size: 10pt;
-}</string>
-           </property>
           </widget>
          </item>
         </layout>
@@ -853,16 +461,6 @@ QScrollBar::handle:vertical:hover {
            </property>
            <property name="alignment">
             <set>Qt::AlignCenter</set>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">QLabel {
-    background-color: #2D2D30;
-    color: #888888;
-    border: 2px dashed #3C3C3C;
-    border-radius: 4px;
-    font-family: 'Segoe UI';
-    font-size: 10pt;
-}</string>
            </property>
           </widget>
          </item>
@@ -886,44 +484,44 @@ QScrollBar::handle:vertical:hover {
     <property name="title">
      <string>&amp;File</string>
     </property>
-    <addaction name="openFileAction"/>
-    <addaction name="closeFileAction"/>
-    <addaction name="separator"/>
-    <addaction name="exitAction"/>
+    <addaction name="openFileAction" />
+    <addaction name="closeFileAction" />
+    <addaction name="separator" />
+    <addaction name="exitAction" />
    </widget>
    <widget class="QMenu" name="analysisMenu">
     <property name="title">
      <string>&amp;Analysis</string>
     </property>
-    <addaction name="startAnalysisAction"/>
-    <addaction name="stopAnalysisAction"/>
+    <addaction name="startAnalysisAction" />
+    <addaction name="stopAnalysisAction" />
    </widget>
    <widget class="QMenu" name="viewMenu">
     <property name="title">
      <string>&amp;View</string>
     </property>
-    <addaction name="fullScreenAction"/>
-    <addaction name="resetLayoutAction"/>
+    <addaction name="fullScreenAction" />
+    <addaction name="resetLayoutAction" />
    </widget>
    <widget class="QMenu" name="toolsMenu">
     <property name="title">
      <string>&amp;Tools</string>
     </property>
-    <addaction name="settingsAction"/>
+    <addaction name="settingsAction" />
    </widget>
    <widget class="QMenu" name="helpMenu">
     <property name="title">
      <string>&amp;Help</string>
     </property>
-    <addaction name="aboutAction"/>
+    <addaction name="aboutAction" />
    </widget>
-   <addaction name="fileMenu"/>
-   <addaction name="analysisMenu"/>
-   <addaction name="viewMenu"/>
-   <addaction name="toolsMenu"/>
-   <addaction name="helpMenu"/>
+   <addaction name="fileMenu" />
+   <addaction name="analysisMenu" />
+   <addaction name="viewMenu" />
+   <addaction name="toolsMenu" />
+   <addaction name="helpMenu" />
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QStatusBar" name="statusbar" />
   <widget class="QToolBar" name="mainToolBar">
    <property name="windowTitle">
     <string>toolBar</string>
@@ -934,11 +532,11 @@ QScrollBar::handle:vertical:hover {
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
-   <addaction name="openFileAction"/>
-   <addaction name="closeFileAction"/>
-   <addaction name="separator"/>
-   <addaction name="startAnalysisAction"/>
-   <addaction name="stopAnalysisAction"/>
+   <addaction name="openFileAction" />
+   <addaction name="closeFileAction" />
+   <addaction name="separator" />
+   <addaction name="startAnalysisAction" />
+   <addaction name="stopAnalysisAction" />
   </widget>
   <action name="openFileAction">
    <property name="text">
@@ -977,7 +575,7 @@ QScrollBar::handle:vertical:hover {
     <string>St&amp;op Analysis</string>
    </property>
    <property name="shortcut">
-    <string>F6</string>
+    <string>Ctrl+F6</string>
    </property>
   </action>
   <action name="settingsAction">
@@ -1000,9 +598,6 @@ QScrollBar::handle:vertical:hover {
    <property name="text">
     <string>&amp;Full Screen</string>
    </property>
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
    <property name="shortcut">
     <string>F11</string>
    </property>
@@ -1011,8 +606,11 @@ QScrollBar::handle:vertical:hover {
    <property name="text">
     <string>&amp;Reset Layout</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+R</string>
+   </property>
   </action>
  </widget>
- <resources/>
- <connections/>
+ <resources />
+ <connections />
 </ui>

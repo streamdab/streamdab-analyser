@@ -79,6 +79,7 @@ private:
     ETIFormat detectETIFormat(uint32_t syncPattern) const;
     bool processEtiFrame(const QByteArray& frameData);
     void processFicData(const QByteArray& ficData);
+    void processAllFramesImmediate();  // Phase 1.4: Fast batch processing
     void resetStatistics();
     
     // ETSI EN 300 799 sync patterns

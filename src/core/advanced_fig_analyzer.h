@@ -14,7 +14,7 @@
  * @brief Advanced FIG (Fast Information Group) Analyzer
  * 
  * Phase 1.4 implementation providing comprehensive FIG analysis
- * for DAB-XPlorer FIC-XPlorer and FIC-XTractor functionality.
+ * for DAB Analyzer FIC-Analyzer and FIC-Extractor functionality.
  * 
  * Supports complete ETSI EN 300 799 FIG processing:
  * - FIG 0/0: Ensemble Organization
