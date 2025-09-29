@@ -251,6 +251,30 @@ src/core/enhanced_eti_processor_qt.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/core/enhanced_eti_processor_qt.cpp.s
 .PHONY : src/core/enhanced_eti_processor_qt.cpp.s
 
+src/core/etsi_compliance_engine.o: src/core/etsi_compliance_engine.cpp.o
+.PHONY : src/core/etsi_compliance_engine.o
+
+# target to build an object file
+src/core/etsi_compliance_engine.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/core/etsi_compliance_engine.cpp.o
+.PHONY : src/core/etsi_compliance_engine.cpp.o
+
+src/core/etsi_compliance_engine.i: src/core/etsi_compliance_engine.cpp.i
+.PHONY : src/core/etsi_compliance_engine.i
+
+# target to preprocess a source file
+src/core/etsi_compliance_engine.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/core/etsi_compliance_engine.cpp.i
+.PHONY : src/core/etsi_compliance_engine.cpp.i
+
+src/core/etsi_compliance_engine.s: src/core/etsi_compliance_engine.cpp.s
+.PHONY : src/core/etsi_compliance_engine.s
+
+# target to generate assembly for a file
+src/core/etsi_compliance_engine.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/build.make CMakeFiles/DABAnalyzer_Enhanced_FilteringBuild.dir/src/core/etsi_compliance_engine.cpp.s
+.PHONY : src/core/etsi_compliance_engine.cpp.s
+
 src/utils/logger.o: src/utils/logger.cpp.o
 .PHONY : src/utils/logger.o
 
@@ -298,6 +322,9 @@ help:
 	@echo "... src/core/enhanced_eti_processor_qt.o"
 	@echo "... src/core/enhanced_eti_processor_qt.i"
 	@echo "... src/core/enhanced_eti_processor_qt.s"
+	@echo "... src/core/etsi_compliance_engine.o"
+	@echo "... src/core/etsi_compliance_engine.i"
+	@echo "... src/core/etsi_compliance_engine.s"
 	@echo "... src/utils/logger.o"
 	@echo "... src/utils/logger.i"
 	@echo "... src/utils/logger.s"
