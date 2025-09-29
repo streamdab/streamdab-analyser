@@ -42,7 +42,7 @@
 
 // GUI components
 #include "gui/main_window.h"
-#include "gui/broadcast_theme.h"
+
 
 // Core and Network components
 #include "core/eti_processor.hpp"

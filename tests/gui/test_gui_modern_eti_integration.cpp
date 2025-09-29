@@ -39,7 +39,7 @@
 #include "gui/eti_analysis_widget.h"
 #include "gui/eti_service_tree_model.h"
 #include "gui/eti_frame_list_model.h"
-#include "gui/broadcast_theme.h"
+
 
 // Core Modern ETI components
 #include "core/eti_processor.hpp"

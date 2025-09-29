@@ -51,9 +51,38 @@ bool EnhancedETIProcessorQt::processETIFile(const QString& filePath)
     
     // Start processing
     emit processingStarted(current_file_name_, total_frames_);
-    processing_timer_->start();
+    
+    // PHASE 1.4 FIX: Process all frames immediately for file analysis
+    processAllFramesImmediate();
     
     return true;
+}
+
+void EnhancedETIProcessorQt::processAllFramesImmediate()
+{
+    // Process all frames immediately for file analysis (Phase 1.4)
+    for (int i = 0; i < total_frames_; ++i) {
+        current_frame_index_ = i;
+        
+        // Extract frame data
+        int frameOffset = i * 6144;
+        QByteArray frameData = file_data_.mid(frameOffset, 6144);
+        
+        // Process frame
+        if (processEtiFrame(frameData)) {
+            // Calculate progress and emit every 100 frames to avoid UI flooding
+            if (i % 100 == 0 || i == total_frames_ - 1) {
+                int percentage = (i * 100) / total_frames_;
+                emit processingProgress(percentage, i + 1, total_frames_);
+            }
+        }
+    }
+    
+    // Processing complete
+    auto endTime = QDateTime::currentDateTime();
+    int processingTimeMs = processing_start_time_.msecsTo(endTime);
+    
+    emit processingComplete(total_frames_, processingTimeMs);
 }
 
 void EnhancedETIProcessorQt::processNextFrame()
@@ -82,14 +111,14 @@ void EnhancedETIProcessorQt::processNextFrame()
     
     current_frame_index_++;
     
-    // Limit demonstration to 10 frames for Phase 1.2
-    if (current_frame_index_ >= 10) {
+    // Check if all frames processed (Phase 1.4 - process all frames)
+    if (current_frame_index_ >= total_frames_) {
         processing_timer_->stop();
         
         auto endTime = QDateTime::currentDateTime();
         int processingTimeMs = processing_start_time_.msecsTo(endTime);
         
-        emit processingComplete(qMin(10, total_frames_), processingTimeMs);
+        emit processingComplete(total_frames_, processingTimeMs);
     }
 }
 

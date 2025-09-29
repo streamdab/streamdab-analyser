@@ -1,4 +1,4 @@
-#include "dab_xplorer_main_window.h"
+#include "dab_analyzer_main_window.h"
 #include "../core/enhanced_eti_processor_qt.h"
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QFileDialog>
@@ -6,11 +6,12 @@
 #include <QtWidgets/QHeaderView>
 #include <QtCore/QStandardPaths>
 #include <QtCore/QDir>
+#include <QtCore/QTime>
 #include <QtGui/QFont>
 #include <QtGui/QFontMetrics>
 
 // DAB Analyzer Professional Theme Colors
-namespace DABXplorerTheme {
+namespace DABAnalyzerTheme {
     const QColor BACKGROUND_LIGHT(0xF5, 0xF5, 0xF5);    // #F5F5F5
     const QColor PANEL_BACKGROUND(0xFF, 0xFF, 0xFF);    // #FFFFFF
     const QColor BORDER_COLOR(0xCC, 0xCC, 0xCC);        // #CCCCCC
@@ -26,7 +27,7 @@ namespace DABXplorerTheme {
     const QColor TEXT_SECONDARY(0x66, 0x66, 0x66);      // Dark Gray
 }
 
-DABXplorerMainWindow::DABXplorerMainWindow(QWidget *parent)
+DABAnalyzerMainWindow::DABAnalyzerMainWindow(QWidget *parent)
     : QMainWindow(parent)
     , m_etiProcessor(std::make_unique<EnhancedETIProcessorQt>())
     , m_figAnalyzer(std::make_unique<AdvancedFIGAnalyzer>())
@@ -49,14 +50,14 @@ DABXplorerMainWindow::DABXplorerMainWindow(QWidget *parent)
     setupToolBar();
     setupStatusBar();
     setupSignalConnections();
-    applyDABXplorerTheme();
+    applyDABAnalyzerTheme();
 
     // Initialize update timers
     m_statusUpdateTimer = new QTimer(this);
     m_qualityUpdateTimer = new QTimer(this);
 
-    connect(m_statusUpdateTimer, &QTimer::timeout, this, &DABXplorerMainWindow::updateStatusBar);
-    connect(m_qualityUpdateTimer, &QTimer::timeout, this, &DABXplorerMainWindow::updateSignalQuality);
+    connect(m_statusUpdateTimer, &QTimer::timeout, this, &DABAnalyzerMainWindow::updateStatusBar);
+    connect(m_qualityUpdateTimer, &QTimer::timeout, this, &DABAnalyzerMainWindow::updateSignalQuality);
 
     m_statusUpdateTimer->start(1000);  // Update every second
     m_qualityUpdateTimer->start(500);  // Update twice per second
@@ -65,9 +66,9 @@ DABXplorerMainWindow::DABXplorerMainWindow(QWidget *parent)
     // Note: EnhancedETIProcessorQt doesn't have setRealTimeMode method
 }
 
-DABXplorerMainWindow::~DABXplorerMainWindow() = default;
+DABAnalyzerMainWindow::~DABXplorerMainWindow() = default;
 
-void DABXplorerMainWindow::setupUI()
+void DABAnalyzerMainWindow::setupUI()
 {
     // Create main central widget with splitter layout
     m_mainSplitter = new QSplitter(Qt::Vertical, this);
@@ -102,7 +103,7 @@ void DABXplorerMainWindow::setupUI()
     m_mainSplitter->setStretchFactor(1, 0);  // Fixed bottom height
 }
 
-QWidget* DABXplorerMainWindow::createEnsembleTreePanel()
+QWidget* DABAnalyzerMainWindow::createEnsembleTreePanel()
 {
     QWidget* panel = new QWidget();
     QVBoxLayout* layout = new QVBoxLayout(panel);
@@ -149,7 +150,7 @@ QWidget* DABXplorerMainWindow::createEnsembleTreePanel()
     return panel;
 }
 
-QWidget* DABXplorerMainWindow::createFrameNavigatorPanel()
+QWidget* DABAnalyzerMainWindow::createFrameNavigatorPanel()
 {
     QWidget* panel = new QWidget();
     QVBoxLayout* layout = new QVBoxLayout(panel);
@@ -196,7 +197,7 @@ QWidget* DABXplorerMainWindow::createFrameNavigatorPanel()
     return panel;
 }
 
-QWidget* DABXplorerMainWindow::createServiceDetailsPanel()
+QWidget* DABAnalyzerMainWindow::createServiceDetailsPanel()
 {
     QWidget* panel = new QWidget();
     QVBoxLayout* layout = new QVBoxLayout(panel);
@@ -246,7 +247,7 @@ QWidget* DABXplorerMainWindow::createServiceDetailsPanel()
     return panel;
 }
 
-QWidget* DABXplorerMainWindow::createFICAnalysisPanel()
+QWidget* DABAnalyzerMainWindow::createFICAnalysisPanel()
 {
     QWidget* panel = new QWidget();
     QVBoxLayout* layout = new QVBoxLayout(panel);
@@ -256,9 +257,9 @@ QWidget* DABXplorerMainWindow::createFICAnalysisPanel()
     // FIC Analysis Hub with tabs
     m_ficTabs = new QTabWidget();
 
-    // FIC-XPlorer tab
-    m_ficXplorerTab = new QWidget();
-    QVBoxLayout* xplorerLayout = new QVBoxLayout(m_ficXplorerTab);
+    // FIC-Analyzer tab
+    m_ficAnalyzerTab = new QWidget();
+    QVBoxLayout* xplorerLayout = new QVBoxLayout(m_ficAnalyzerTab);
 
     QLabel* figLabel = new QLabel("FIG Analysis");
     figLabel->setFont(QFont("Arial", 11, QFont::Bold));
@@ -286,11 +287,11 @@ QWidget* DABXplorerMainWindow::createFICAnalysisPanel()
     xplorerLayout->addWidget(m_figType14CheckBox);
     xplorerLayout->addStretch();
 
-    m_ficTabs->addTab(m_ficXplorerTab, "FIC-XPlorer");
+    m_ficTabs->addTab(m_ficAnalyzerTab, "FIC-Analyzer");
 
-    // FIC-XTractor tab
-    m_ficXtractorTab = new QWidget();
-    QVBoxLayout* xtractorLayout = new QVBoxLayout(m_ficXtractorTab);
+    // FIC-Extractor tab
+    m_ficExtractorTab = new QWidget();
+    QVBoxLayout* xtractorLayout = new QVBoxLayout(m_ficExtractorTab);
 
     QLabel* extractedLabel = new QLabel("Extracted Information");
     extractedLabel->setFont(QFont("Arial", 11, QFont::Bold));
@@ -318,7 +319,7 @@ QWidget* DABXplorerMainWindow::createFICAnalysisPanel()
     programmeLayout->addWidget(m_dateDisplayLabel);
     xtractorLayout->addWidget(programmeGroup);
 
-    m_ficTabs->addTab(m_ficXtractorTab, "FIC-XTractor");
+    m_ficTabs->addTab(m_ficExtractorTab, "FIC-Extractor");
 
     // System Messages tab
     m_systemMessagesTab = new QWidget();
@@ -348,175 +349,126 @@ QWidget* DABXplorerMainWindow::createFICAnalysisPanel()
     return panel;
 }
 
-void DABXplorerMainWindow::setupMenuBar()
+void DABAnalyzerMainWindow::setupMenuBar()
 {
     m_menuBar = menuBar();
 
     // File menu
     QMenu* fileMenu = m_menuBar->addMenu("&File");
-    fileMenu->addAction("&Open ETI File...", this, &DABXplorerMainWindow::openFile, QKeySequence::Open);
+    fileMenu->addAction("&Open ETI File...", this, &DABAnalyzerMainWindow::openFile, QKeySequence::Open);
     fileMenu->addSeparator();
-    fileMenu->addAction("&Export Analysis...", this, &DABXplorerMainWindow::exportAnalysis, QKeySequence("Ctrl+E"));
+    fileMenu->addAction("&Export Analysis...", this, &DABAnalyzerMainWindow::exportAnalysis, QKeySequence("Ctrl+E"));
     fileMenu->addSeparator();
     fileMenu->addAction("E&xit", this, &QWidget::close, QKeySequence::Quit);
 
     // View menu
     QMenu* viewMenu = m_menuBar->addMenu("&View");
-    viewMenu->addAction("Toggle &Frame Navigator", this, &DABXplorerMainWindow::toggleFrameNavigator);
-    viewMenu->addAction("Toggle &Service Details", this, &DABXplorerMainWindow::toggleServiceDetails);
-    viewMenu->addAction("Toggle &FIC Analysis", this, &DABXplorerMainWindow::toggleFICAnalysis);
+    viewMenu->addAction("Toggle &Frame Navigator", this, &DABAnalyzerMainWindow::toggleFrameNavigator);
+    viewMenu->addAction("Toggle &Service Details", this, &DABAnalyzerMainWindow::toggleServiceDetails);
+    viewMenu->addAction("Toggle &FIC Analysis", this, &DABAnalyzerMainWindow::toggleFICAnalysis);
 
     // Stream menu
     QMenu* streamMenu = m_menuBar->addMenu("&Stream");
-    streamMenu->addAction("&Connect ETI Stream...", this, &DABXplorerMainWindow::connectETIStream);
-    streamMenu->addAction("&Record Stream...", this, &DABXplorerMainWindow::recordStream);
+    streamMenu->addAction("&Connect ETI Stream...", this, &DABAnalyzerMainWindow::connectETIStream);
+    streamMenu->addAction("&Record Stream...", this, &DABAnalyzerMainWindow::recordStream);
     streamMenu->addSeparator();
-    streamMenu->addAction("&Pause Processing", this, &DABXplorerMainWindow::pauseProcessing);
+    streamMenu->addAction("&Pause Processing", this, &DABAnalyzerMainWindow::pauseProcessing);
 
     // Tools menu
     QMenu* toolsMenu = m_menuBar->addMenu("&Tools");
-    toolsMenu->addAction("&Settings...", this, &DABXplorerMainWindow::showSettings);
-    toolsMenu->addAction("🔧 &FIC-XPlorer", [this]() { m_ficTabs->setCurrentIndex(0); });
+    toolsMenu->addAction("&Settings...", this, &DABAnalyzerMainWindow::showSettings);
+    toolsMenu->addAction("🔧 &FIC-Analyzer", [this]() { m_ficTabs->setCurrentIndex(0); });
 
     // Help menu
     QMenu* helpMenu = m_menuBar->addMenu("&Help");
-    helpMenu->addAction("&About StreamDAB Analyzer...", this, &DABXplorerMainWindow::showAbout);
+    helpMenu->addAction("&About StreamDAB Analyzer...", this, &DABAnalyzerMainWindow::showAbout);
 }
 
-void DABXplorerMainWindow::setupToolBar()
+void DABAnalyzerMainWindow::setupToolBar()
 {
     m_toolBar = addToolBar("Main Toolbar");
     m_toolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
 
-    m_toolBar->addAction("📁 Open", this, &DABXplorerMainWindow::openFile);
-    m_toolBar->addAction("▶️ Stream", this, &DABXplorerMainWindow::connectETIStream);
-    m_toolBar->addAction("⏹️ Stop", this, &DABXplorerMainWindow::stopRealTimeMode);
-    m_toolBar->addAction("🔴 Record", this, &DABXplorerMainWindow::recordStream);
+    m_toolBar->addAction("📁 Open", this, &DABAnalyzerMainWindow::openFile);
+    m_toolBar->addAction("▶️ Stream", this, &DABAnalyzerMainWindow::connectETIStream);
+    m_toolBar->addAction("⏹️ Stop", this, &DABAnalyzerMainWindow::stopRealTimeMode);
+    m_toolBar->addAction("🔴 Record", this, &DABAnalyzerMainWindow::recordStream);
     m_toolBar->addSeparator();
-    m_toolBar->addAction("⚙️ Settings", this, &DABXplorerMainWindow::showSettings);
-    m_toolBar->addAction("📊 Export", this, &DABXplorerMainWindow::exportAnalysis);
-    m_toolBar->addAction("🔧 FIC-XPlorer", [this]() { m_ficTabs->setCurrentIndex(0); });
+    m_toolBar->addAction("⚙️ Settings", this, &DABAnalyzerMainWindow::showSettings);
+    m_toolBar->addAction("📊 Export", this, &DABAnalyzerMainWindow::exportAnalysis);
+    m_toolBar->addAction("🔧 FIC-Analyzer", [this]() { m_ficTabs->setCurrentIndex(0); });
 }
 
-void DABXplorerMainWindow::setupStatusBar()
+void DABAnalyzerMainWindow::setupStatusBar()
 {
     m_statusBar = statusBar();
     m_statusBar->showMessage("🟢 Ready");
 }
 
-void DABXplorerMainWindow::setupSignalConnections()
+void DABAnalyzerMainWindow::setupSignalConnections()
 {
     // ETI Processor connections
     connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::frameProcessed,
-            this, &DABXplorerMainWindow::onFrameProcessedQt);
+            this, &DABAnalyzerMainWindow::onFrameProcessedQt);
     connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingError,
-            this, &DABXplorerMainWindow::onProcessingError);
+            this, &DABAnalyzerMainWindow::onProcessingError);
     
     // Advanced FIG Analyzer connections (Phase 1.4)
     connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceDiscovered,
-            this, &DABXplorerMainWindow::onServiceDiscoveredFIG);
+            this, &DABAnalyzerMainWindow::onServiceDiscoveredFIG);
     connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::ensembleUpdated,
-            this, &DABXplorerMainWindow::onEnsembleUpdatedFIG);
+            this, &DABAnalyzerMainWindow::onEnsembleUpdatedFIG);
     connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceLabelUpdated,
-            this, &DABXplorerMainWindow::onServiceLabelUpdated);
+            this, &DABAnalyzerMainWindow::onServiceLabelUpdated);
     connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::figProcessed,
-            this, &DABXplorerMainWindow::onFIGProcessed);
+            this, &DABAnalyzerMainWindow::onFIGProcessed);
     connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::figError,
-            this, &DABXplorerMainWindow::onFIGError);
+            this, &DABAnalyzerMainWindow::onFIGError);
     connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::programmeTypeUpdated,
-            this, &DABXplorerMainWindow::onProgrammeTypeUpdated);
+            this, &DABAnalyzerMainWindow::onProgrammeTypeUpdated);
     connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::timeInfoUpdated,
-            this, &DABXplorerMainWindow::onTimeInfoUpdated);
+            this, &DABAnalyzerMainWindow::onTimeInfoUpdated);
 
     // UI element connections
     connect(m_ensembleTree, &QTreeWidget::itemChanged,
-            this, &DABXplorerMainWindow::onEnsembleItemChanged);
+            this, &DABAnalyzerMainWindow::onEnsembleItemChanged);
     connect(m_ensembleTree, &QTreeWidget::itemSelectionChanged,
-            this, &DABXplorerMainWindow::onServiceSelectionChanged);
+            this, &DABAnalyzerMainWindow::onServiceSelectionChanged);
     connect(m_frameList, &QListWidget::itemSelectionChanged,
-            this, &DABXplorerMainWindow::onFrameSelectionChanged);
+            this, &DABAnalyzerMainWindow::onFrameSelectionChanged);
 
     // FIG type checkbox connections
-    connect(m_figType00CheckBox, &QCheckBox::toggled, this, &DABXplorerMainWindow::onFIGTypeToggled);
-    connect(m_figType01CheckBox, &QCheckBox::toggled, this, &DABXplorerMainWindow::onFIGTypeToggled);
-    connect(m_figType02CheckBox, &QCheckBox::toggled, this, &DABXplorerMainWindow::onFIGTypeToggled);
-    connect(m_figType10CheckBox, &QCheckBox::toggled, this, &DABXplorerMainWindow::onFIGTypeToggled);
-    connect(m_figType11CheckBox, &QCheckBox::toggled, this, &DABXplorerMainWindow::onFIGTypeToggled);
-    connect(m_figType14CheckBox, &QCheckBox::toggled, this, &DABXplorerMainWindow::onFIGTypeToggled);
+    connect(m_figType00CheckBox, &QCheckBox::toggled, this, &DABAnalyzerMainWindow::onFIGTypeToggled);
+    connect(m_figType01CheckBox, &QCheckBox::toggled, this, &DABAnalyzerMainWindow::onFIGTypeToggled);
+    connect(m_figType02CheckBox, &QCheckBox::toggled, this, &DABAnalyzerMainWindow::onFIGTypeToggled);
+    connect(m_figType10CheckBox, &QCheckBox::toggled, this, &DABAnalyzerMainWindow::onFIGTypeToggled);
+    connect(m_figType11CheckBox, &QCheckBox::toggled, this, &DABAnalyzerMainWindow::onFIGTypeToggled);
+    connect(m_figType14CheckBox, &QCheckBox::toggled, this, &DABAnalyzerMainWindow::onFIGTypeToggled);
 }
 
-void DABXplorerMainWindow::applyDABXplorerTheme()
+void DABAnalyzerMainWindow::applyDABAnalyzerTheme()
 {
-    QString styleSheet = QString(
-        "QMainWindow {"
-        "    background-color: %1;"
-        "}"
-        "QWidget {"
-        "    background-color: %2;"
-        "    color: %3;"
-        "    font-family: Arial, Helvetica, sans-serif;"
-        "}"
-        "QGroupBox {"
-        "    font-weight: bold;"
-        "    border: 1px solid %4;"
-        "    border-radius: 3px;"
-        "    margin-top: 10px;"
-        "    padding-top: 5px;"
-        "}"
-        "QGroupBox::title {"
-        "    subcontrol-origin: margin;"
-        "    left: 10px;"
-        "    padding: 0 5px 0 5px;"
-        "}"
-        "QTreeWidget::item:selected {"
-        "    background-color: %5;"
-        "}"
-        "QListWidget::item:selected {"
-        "    background-color: %5;"
-        "}"
-        "QPushButton {"
-        "    background-color: %6;"
-        "    color: white;"
-        "    border: 1px solid %4;"
-        "    border-radius: 3px;"
-        "    padding: 5px;"
-        "}"
-        "QPushButton:hover {"
-        "    background-color: %7;"
-        "}"
-        "QProgressBar {"
-        "    border: 1px solid %4;"
-        "    border-radius: 3px;"
-        "    text-align: center;"
-        "}"
-        "QProgressBar::chunk {"
-        "    background-color: %7;"
-        "}"
-        "QTabWidget::pane {"
-        "    border: 1px solid %4;"
-        "}"
-        "QTabBar::tab {"
-        "    background-color: %8;"
-        "    border: 1px solid %4;"
-        "    padding: 5px 10px;"
-        "}"
-        "QTabBar::tab:selected {"
-        "    background-color: %2;"
-        "}"
-    ).arg(DABXplorerTheme::BACKGROUND_LIGHT.name())
-     .arg(DABXplorerTheme::PANEL_BACKGROUND.name())
-     .arg(DABXplorerTheme::TEXT_PRIMARY.name())
-     .arg(DABXplorerTheme::BORDER_COLOR.name())
-     .arg(DABXplorerTheme::SELECTED_ITEM.name())
-     .arg(DABXplorerTheme::ACCENT_BLUE.name())
-     .arg(DABXplorerTheme::SUCCESS_GREEN.name())
-     .arg(DABXplorerTheme::BACKGROUND_LIGHT.name());
-
-    setStyleSheet(styleSheet);
+    // EMERGENCY: ALL CUSTOM THEMING DISABLED FOR TEXT VISIBILITY
+    // Using pure Qt system default theme for maximum compatibility
+    // This ensures text is always visible regardless of system settings
+    
+    // Clear any existing custom stylesheets to revert to system defaults
+    setStyleSheet("");
+    
+    // Ensure all child widgets also use system defaults
+    QList<QWidget*> allWidgets = findChildren<QWidget*>();
+    for (QWidget* widget : allWidgets) {
+        if (widget) {
+            widget->setStyleSheet("");
+        }
+    }
+    
+    // Let the operating system handle all styling for guaranteed visibility
+    // Qt will automatically use appropriate colors for dark/light themes
 }
 
 // File Operations
-bool DABXplorerMainWindow::openETIFile(const QString& filePath)
+bool DABAnalyzerMainWindow::openETIFile(const QString& filePath)
 {
     if (filePath.isEmpty()) return false;
 
@@ -544,7 +496,7 @@ bool DABXplorerMainWindow::openETIFile(const QString& filePath)
     }
 }
 
-void DABXplorerMainWindow::updateFrameList()
+void DABAnalyzerMainWindow::updateFrameList()
 {
     m_frameList->clear();
 
@@ -570,7 +522,7 @@ void DABXplorerMainWindow::updateFrameList()
 }
 
 // New slot implementations for EnhancedETIProcessorQt compatibility
-void DABXplorerMainWindow::onFrameProcessedQt(const ProcessedFrame& frame)
+void DABAnalyzerMainWindow::onFrameProcessedQt(const ProcessedFrame& frame)
 {
     // Convert ProcessedFrame to ETIFrame for internal use
     ETIFrame etiFrame;
@@ -608,10 +560,10 @@ void DABXplorerMainWindow::onFrameProcessedQt(const ProcessedFrame& frame)
     }
 }
 
-void DABXplorerMainWindow::onProcessingProgress(int percentage, int currentFrame, int totalFrames)
+void DABAnalyzerMainWindow::onProcessingProgress(int percentage, int currentFrame, int totalFrames)
 {
     Q_UNUSED(percentage)
-    m_currentFrameIndex = currentFrame;
+    m_currentFrameIndex = currentFrame - 1; // Convert to 0-based index
     m_totalFrames = totalFrames;
 
     // Update status bar with progress
@@ -622,7 +574,7 @@ void DABXplorerMainWindow::onProcessingProgress(int percentage, int currentFrame
     m_statusBar->showMessage(status);
 }
 
-void DABXplorerMainWindow::onProcessingComplete(int totalFrames, int processingTimeMs)
+void DABAnalyzerMainWindow::onProcessingComplete(int totalFrames, int processingTimeMs)
 {
     m_totalFrames = totalFrames;
 
@@ -639,7 +591,7 @@ void DABXplorerMainWindow::onProcessingComplete(int totalFrames, int processingT
 }
 
 // Legacy slot implementations for compatibility
-void DABXplorerMainWindow::onFrameProcessed(const ETIFrame& frame)
+void DABAnalyzerMainWindow::onFrameProcessed(const ETIFrame& frame)
 {
     // Add frame to our list
     m_frames.append(frame);
@@ -659,7 +611,7 @@ void DABXplorerMainWindow::onFrameProcessed(const ETIFrame& frame)
     }
 }
 
-void DABXplorerMainWindow::onServiceDiscovered(const ServiceInfo& service)
+void DABAnalyzerMainWindow::onServiceDiscovered(const ServiceInfo& service)
 {
     m_services.append(service);
 
@@ -697,7 +649,7 @@ void DABXplorerMainWindow::onServiceDiscovered(const ServiceInfo& service)
     ensembleItem->addChild(serviceItem);
 }
 
-void DABXplorerMainWindow::onEnsembleUpdated(const EnsembleInfo& ensemble)
+void DABAnalyzerMainWindow::onEnsembleUpdated(const EnsembleInfo& ensemble)
 {
     m_currentEnsemble = ensemble;
 
@@ -705,7 +657,7 @@ void DABXplorerMainWindow::onEnsembleUpdated(const EnsembleInfo& ensemble)
     populateEnsembleTree(ensemble);
 }
 
-void DABXplorerMainWindow::onProcessingError(const QString& error)
+void DABAnalyzerMainWindow::onProcessingError(const QString& error)
 {
     // Add error to system messages
     QString timestamp = QTime::currentTime().toString();
@@ -718,7 +670,7 @@ void DABXplorerMainWindow::onProcessingError(const QString& error)
 }
 
 // Advanced FIG Analyzer slot implementations (Phase 1.4)
-void DABXplorerMainWindow::onServiceDiscoveredFIG(const ServiceInfo& service)
+void DABAnalyzerMainWindow::onServiceDiscoveredFIG(const ServiceInfo& service)
 {
     // Add service to ensemble tree with enhanced information
     QTreeWidgetItem* serviceItem = new QTreeWidgetItem();
@@ -757,7 +709,7 @@ void DABXplorerMainWindow::onServiceDiscoveredFIG(const ServiceInfo& service)
     m_services.append(service);
 }
 
-void DABXplorerMainWindow::onEnsembleUpdatedFIG(const EnsembleInfo& ensemble)
+void DABAnalyzerMainWindow::onEnsembleUpdatedFIG(const EnsembleInfo& ensemble)
 {
     m_currentEnsemble = ensemble;
     
@@ -780,7 +732,7 @@ void DABXplorerMainWindow::onEnsembleUpdatedFIG(const EnsembleInfo& ensemble)
     m_statusBar->showMessage(status);
 }
 
-void DABXplorerMainWindow::onServiceLabelUpdated(uint32_t serviceId, const QString& label)
+void DABAnalyzerMainWindow::onServiceLabelUpdated(uint32_t serviceId, const QString& label)
 {
     // Update service label in ensemble tree
     for (int i = 0; i < m_ensembleTree->topLevelItemCount(); ++i) {
@@ -796,12 +748,12 @@ void DABXplorerMainWindow::onServiceLabelUpdated(uint32_t serviceId, const QStri
         }
     }
     
-    // Update FIC-XTractor service labels display
+    // Update FIC-Extractor service labels display
     QStringList labels = m_figAnalyzer->getServiceLabels();
     m_serviceLabelsText->setPlainText(labels.join("\n"));
 }
 
-void DABXplorerMainWindow::onFIGProcessed(const FIGData& figData)
+void DABAnalyzerMainWindow::onFIGProcessed(const FIGData& figData)
 {
     // Update FIC analysis display based on FIG type
     QString figInfo = QString("[FIG %1/%2] %3")
@@ -815,7 +767,7 @@ void DABXplorerMainWindow::onFIGProcessed(const FIGData& figData)
     m_systemMessages->append(message);
 }
 
-void DABXplorerMainWindow::onFIGError(uint8_t figType, uint8_t extension, const QString& error)
+void DABAnalyzerMainWindow::onFIGError(uint8_t figType, uint8_t extension, const QString& error)
 {
     // Add error to system messages
     QString timestamp = QTime::currentTime().toString();
@@ -831,24 +783,24 @@ void DABXplorerMainWindow::onFIGError(uint8_t figType, uint8_t extension, const 
     m_statusBar->showMessage(QString("🔴 FIG Error: %1").arg(error), 5000);
 }
 
-void DABXplorerMainWindow::onProgrammeTypeUpdated(uint32_t serviceId, uint8_t ptyCode)
+void DABAnalyzerMainWindow::onProgrammeTypeUpdated(uint32_t serviceId, uint8_t ptyCode)
 {
     Q_UNUSED(serviceId)
     Q_UNUSED(ptyCode)
     
-    // Update FIC-XTractor programme information display
+    // Update FIC-Extractor programme information display
     QStringList programmeInfo = m_figAnalyzer->getProgrammeInfo();
     m_programmeInfoText->setPlainText(programmeInfo.join("\n"));
 }
 
-void DABXplorerMainWindow::onTimeInfoUpdated(const QDateTime& currentTime)
+void DABAnalyzerMainWindow::onTimeInfoUpdated(const QDateTime& currentTime)
 {
-    // Update time display in FIC-XTractor
+    // Update time display in FIC-Extractor
     m_timeDisplayLabel->setText(QString("Time: %1").arg(currentTime.toString("hh:mm:ss UTC")));
     m_dateDisplayLabel->setText(QString("Date: %1").arg(currentTime.toString("dd/MM/yyyy")));
 }
 
-void DABXplorerMainWindow::onFrameSelectionChanged()
+void DABAnalyzerMainWindow::onFrameSelectionChanged()
 {
     QListWidgetItem* currentItem = m_frameList->currentItem();
     if (!currentItem) return;
@@ -866,32 +818,28 @@ void DABXplorerMainWindow::onFrameSelectionChanged()
     }
 }
 
-void DABXplorerMainWindow::updateSelectedFrameDetails(const ETIFrame& frame)
+void DABAnalyzerMainWindow::updateSelectedFrameDetails(const ETIFrame& frame)
 {
     m_selectedFrameLabel->setText(QString("Selected: #%1").arg(m_currentFrameIndex + 1));
     m_frameTimeLabel->setText(QString("Time: %1ms").arg(m_currentFrameIndex * 24));
     m_frameSizeLabel->setText(QString("Size: %1 B").arg(frame.data.size()));
     m_frameFormatLabel->setText(QString("Format: %1").arg(frame.format));
 
-    // Update sync and CRC status with colored indicators
+    // Update sync and CRC status - using system default colors for visibility
     if (frame.syncValid) {
-        m_frameSyncStatus->setText("SYNC: ✅");
-        m_frameSyncStatus->setStyleSheet("color: green;");
+        m_frameSyncStatus->setText("SYNC: ✅ Valid");
     } else {
-        m_frameSyncStatus->setText("SYNC: ❌");
-        m_frameSyncStatus->setStyleSheet("color: red;");
+        m_frameSyncStatus->setText("SYNC: ❌ Invalid");
     }
 
     if (frame.crcValid) {
-        m_frameCRCStatus->setText("CRC: ✅");
-        m_frameCRCStatus->setStyleSheet("color: green;");
+        m_frameCRCStatus->setText("CRC: ✅ Valid");
     } else {
-        m_frameCRCStatus->setText("CRC: ❌");
-        m_frameCRCStatus->setStyleSheet("color: red;");
+        m_frameCRCStatus->setText("CRC: ❌ Invalid");
     }
 }
 
-void DABXplorerMainWindow::updateFrameContentDisplay(const ETIFrame& frame)
+void DABAnalyzerMainWindow::updateFrameContentDisplay(const ETIFrame& frame)
 {
     // Update hex viewer
     QString hexData;
@@ -915,7 +863,7 @@ void DABXplorerMainWindow::updateFrameContentDisplay(const ETIFrame& frame)
 }
 
 // Menu action implementations
-void DABXplorerMainWindow::openFile()
+void DABAnalyzerMainWindow::openFile()
 {
     QString fileName = QFileDialog::getOpenFileName(
         this,
@@ -930,14 +878,14 @@ void DABXplorerMainWindow::openFile()
 }
 
 // Additional slot implementations
-void DABXplorerMainWindow::onEnsembleItemChanged(QTreeWidgetItem* item, int column)
+void DABAnalyzerMainWindow::onEnsembleItemChanged(QTreeWidgetItem* item, int column)
 {
     Q_UNUSED(column)
     // Handle checkbox state changes for service filtering
     updateServiceFiltering();
 }
 
-void DABXplorerMainWindow::onServiceSelectionChanged()
+void DABAnalyzerMainWindow::onServiceSelectionChanged()
 {
     QTreeWidgetItem* currentItem = m_ensembleTree->currentItem();
     if (!currentItem) return;
@@ -958,7 +906,7 @@ void DABXplorerMainWindow::onServiceSelectionChanged()
     }
 }
 
-void DABXplorerMainWindow::updateServiceDetails(const ServiceInfo& service)
+void DABAnalyzerMainWindow::updateServiceDetails(const ServiceInfo& service)
 {
     m_serviceSIDLabel->setText(QString("SID: 0x%1").arg(service.serviceId, 0, 16));
     m_serviceTypeLabel->setText(QString("Type: %1").arg(service.type));
@@ -966,7 +914,7 @@ void DABXplorerMainWindow::updateServiceDetails(const ServiceInfo& service)
     m_serviceProtectionLabel->setText(QString("Protection: %1").arg(service.protection));
     m_serviceSubChannelLabel->setText(QString("SubCh: %1").arg(service.subchannelId));
 
-    // Update service labels in FIC-XTractor
+    // Update service labels in FIC-Extractor
     QString labels = m_serviceLabelsText->toPlainText();
     QString serviceLabel = QString("%1: %2").arg(service.label, service.description);
     if (!labels.contains(serviceLabel)) {
@@ -975,7 +923,7 @@ void DABXplorerMainWindow::updateServiceDetails(const ServiceInfo& service)
     }
 }
 
-void DABXplorerMainWindow::updateStatusBar()
+void DABAnalyzerMainWindow::updateStatusBar()
 {
     if (!m_currentFilePath.isEmpty()) {
         QString fileName = QFileInfo(m_currentFilePath).fileName();
@@ -992,7 +940,7 @@ void DABXplorerMainWindow::updateStatusBar()
     m_networkStatusLabel->setText("🌐 Network: Offline");
 }
 
-void DABXplorerMainWindow::updateSignalQuality()
+void DABAnalyzerMainWindow::updateSignalQuality()
 {
     // Simulate signal quality updates (in real implementation, get from ETI processor)
     static int qualityValue = 75;
@@ -1004,7 +952,7 @@ void DABXplorerMainWindow::updateSignalQuality()
 }
 
 // Helper methods
-QColor DABXplorerMainWindow::getServiceTypeColor(const QString& serviceType) const
+QColor DABAnalyzerMainWindow::getServiceTypeColor(const QString& serviceType) const
 {
     if (serviceType.contains("Audio", Qt::CaseInsensitive)) {
         return DABXplorerTheme::SERVICE_AUDIO;
@@ -1017,76 +965,76 @@ QColor DABXplorerMainWindow::getServiceTypeColor(const QString& serviceType) con
     }
 }
 
-void DABXplorerMainWindow::populateEnsembleTree(const EnsembleInfo& ensemble)
+void DABAnalyzerMainWindow::populateEnsembleTree(const EnsembleInfo& ensemble)
 {
     // Implementation for populating ensemble tree
     // This will be called when ensemble information is updated
 }
 
 // Placeholder implementations for menu actions
-void DABXplorerMainWindow::exportAnalysis()
+void DABAnalyzerMainWindow::exportAnalysis()
 {
     QMessageBox::information(this, "Export Analysis", "Export functionality will be implemented in Phase 2");
 }
 
-void DABXplorerMainWindow::showSettings()
+void DABAnalyzerMainWindow::showSettings()
 {
     QMessageBox::information(this, "Settings", "Settings dialog will be implemented in Phase 2");
 }
 
-void DABXplorerMainWindow::showAbout()
+void DABAnalyzerMainWindow::showAbout()
 {
     QMessageBox::about(this, "About StreamDAB Analyzer",
-        "StreamDAB Stream Analyzer v1.3\n"
+        "StreamDAB Stream Analyzer v1.4\n"
         "DAB Analyzer Professional Interface\n\n"
-        "Enhanced ETI processing with Bangkok support\n"
+        "Advanced FIG analysis with Bangkok support\n"
         "Qt6 + C++20 Implementation\n\n"
-        "Phase 1.3 - Frame Navigation & Service Selection");
+        "Phase 1.4 - Advanced FIG Analysis & Real Service Discovery");
 }
 
-void DABXplorerMainWindow::toggleFrameNavigator()
+void DABAnalyzerMainWindow::toggleFrameNavigator()
 {
     m_frameNavigatorPanel->setVisible(!m_frameNavigatorPanel->isVisible());
 }
 
-void DABXplorerMainWindow::toggleServiceDetails()
+void DABAnalyzerMainWindow::toggleServiceDetails()
 {
     m_serviceDetailsPanel->setVisible(!m_serviceDetailsPanel->isVisible());
 }
 
-void DABXplorerMainWindow::toggleFICAnalysis()
+void DABAnalyzerMainWindow::toggleFICAnalysis()
 {
     m_ficAnalysisPanel->setVisible(!m_ficAnalysisPanel->isVisible());
 }
 
-void DABXplorerMainWindow::connectETIStream()
+void DABAnalyzerMainWindow::connectETIStream()
 {
     QMessageBox::information(this, "ETI Stream", "Real-time ETI streaming will be implemented in Phase 2");
 }
 
-void DABXplorerMainWindow::recordStream()
+void DABAnalyzerMainWindow::recordStream()
 {
     QMessageBox::information(this, "Record Stream", "Stream recording will be implemented in Phase 2");
 }
 
-void DABXplorerMainWindow::pauseProcessing()
+void DABAnalyzerMainWindow::pauseProcessing()
 {
     QMessageBox::information(this, "Pause Processing", "Processing control will be implemented in Phase 2");
 }
 
-void DABXplorerMainWindow::startRealTimeMode()
+void DABAnalyzerMainWindow::startRealTimeMode()
 {
     m_isRealTimeMode = true;
     // Note: EnhancedETIProcessorQt doesn't have setRealTimeMode method
 }
 
-void DABXplorerMainWindow::stopRealTimeMode()
+void DABAnalyzerMainWindow::stopRealTimeMode()
 {
     m_isRealTimeMode = false;
     // Note: EnhancedETIProcessorQt doesn't have setRealTimeMode method
 }
 
-void DABXplorerMainWindow::closeCurrentFile()
+void DABAnalyzerMainWindow::closeCurrentFile()
 {
     m_currentFilePath.clear();
     m_frames.clear();
@@ -1099,7 +1047,7 @@ void DABXplorerMainWindow::closeCurrentFile()
     m_statusBar->showMessage("🟢 Ready");
 }
 
-void DABXplorerMainWindow::onFIGTypeToggled(bool enabled)
+void DABAnalyzerMainWindow::onFIGTypeToggled(bool enabled)
 {
     Q_UNUSED(enabled)
     
@@ -1115,13 +1063,41 @@ void DABXplorerMainWindow::onFIGTypeToggled(bool enabled)
     updateFICAnalysis();
 }
 
-void DABXplorerMainWindow::updateFICAnalysis()
+void DABAnalyzerMainWindow::updateFICAnalysis()
 {
     // Update FIC analysis based on enabled FIG types
-    // This will be expanded in Phase 2 with actual FIG processing
+    // Force reprocessing of current frame's FIC data if available
+    if (m_currentFrameIndex >= 0 && m_currentFrameIndex < m_frames.size()) {
+        const ETIFrame& frame = m_frames[m_currentFrameIndex];
+        if (!frame.ficContent.isEmpty()) {
+            // Convert QString back to QByteArray for reprocessing
+            QByteArray ficData = frame.ficContent.toUtf8();
+            m_figAnalyzer->analyzeFICData(ficData);
+        }
+    }
+    
+    // Update FIC-Extractor displays with current analyzer state
+    QStringList labels = m_figAnalyzer->getServiceLabels();
+    m_serviceLabelsText->setPlainText(labels.join("\n"));
+    
+    QStringList programmeInfo = m_figAnalyzer->getProgrammeInfo();
+    m_programmeInfoText->setPlainText(programmeInfo.join("\n"));
+    
+    // Update system messages with FIG processing status
+    QString timestamp = QTime::currentTime().toString();
+    QString message = QString("[%1] 🔧 FIG Analysis updated - Types: %2%3%4%5%6%7")
+        .arg(timestamp)
+        .arg(m_figType00CheckBox->isChecked() ? "0/0 " : "")
+        .arg(m_figType01CheckBox->isChecked() ? "0/1 " : "")
+        .arg(m_figType02CheckBox->isChecked() ? "0/2 " : "")
+        .arg(m_figType10CheckBox->isChecked() ? "1/0 " : "")
+        .arg(m_figType11CheckBox->isChecked() ? "1/1 " : "")
+        .arg(m_figType14CheckBox->isChecked() ? "1/4 " : "");
+    
+    m_systemMessages->append(message);
 }
 
-void DABXplorerMainWindow::updateServiceFiltering()
+void DABAnalyzerMainWindow::updateServiceFiltering()
 {
     // Update frame display based on selected services
     // This will be implemented with actual filtering logic

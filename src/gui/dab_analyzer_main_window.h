@@ -1,5 +1,5 @@
-#ifndef DAB_XPLORER_MAIN_WINDOW_H
-#define DAB_XPLORER_MAIN_WINDOW_H
+#ifndef DAB_ANALYZER_MAIN_WINDOW_H
+#define DAB_ANALYZER_MAIN_WINDOW_H
 
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QSplitter>
@@ -31,17 +31,17 @@
  * - Ensemble Tree Explorer (left panel) with checkbox selection
  * - Frame Navigator with selectable frame list (center panel)
  * - Service Details & Signal Quality (right panel)
- * - FIC Analysis Hub with FIC-XPlorer/FIC-XTractor tabs (bottom panel)
+ * - FIC Analysis Hub with FIC-Analyzer/FIC-Extractor tabs (bottom panel)
  *
  * Reference: DAB Analyzer Application manual Figures 1, 10, 14, 15
  */
-class DABXplorerMainWindow : public QMainWindow
+class DABAnalyzerMainWindow : public QMainWindow
 {
     Q_OBJECT
 
 public:
-    explicit DABXplorerMainWindow(QWidget *parent = nullptr);
-    ~DABXplorerMainWindow();
+    explicit DABAnalyzerMainWindow(QWidget *parent = nullptr);
+    ~DABAnalyzerMainWindow();
 
     // File operations following DAB Analyzer patterns
     bool openETIFile(const QString& filePath);
@@ -107,7 +107,7 @@ private:
     void setupStatusBar();
     void setupSplitters();
     void setupSignalConnections();
-    void applyDABXplorerTheme();
+    void applyDABAnalyzerTheme();
 
     // Panel creation methods
     QWidget* createEnsembleTreePanel();
@@ -125,7 +125,7 @@ private:
     void updateServiceFiltering();
 
     // Theme and styling
-    void setupDABXplorerColors();
+    void setupDABAnalyzerColors();
     QString getServiceTypeIcon(const QString& serviceType) const;
     QColor getServiceTypeColor(const QString& serviceType) const;
 
@@ -175,11 +175,11 @@ private:
     // Bottom Panel: FIC Analysis Hub
     QWidget* m_ficAnalysisPanel;
     QTabWidget* m_ficTabs;
-    QWidget* m_ficXplorerTab;
-    QWidget* m_ficXtractorTab;
+    QWidget* m_ficAnalyzerTab;
+    QWidget* m_ficExtractorTab;
     QWidget* m_systemMessagesTab;
 
-    // FIC-XPlorer components
+    // FIC-Analyzer components
     QCheckBox* m_figType00CheckBox;
     QCheckBox* m_figType01CheckBox;
     QCheckBox* m_figType02CheckBox;
@@ -187,7 +187,7 @@ private:
     QCheckBox* m_figType11CheckBox;
     QCheckBox* m_figType14CheckBox;
 
-    // FIC-XTractor components
+    // FIC-Extractor components
     QTextEdit* m_serviceLabelsText;
     QTextEdit* m_programmeInfoText;
     QLabel* m_timeDisplayLabel;
@@ -223,4 +223,4 @@ private:
     bool m_isConnected;
 };
 
-#endif // DAB_XPLORER_MAIN_WINDOW_H
+#endif // DAB_ANALYZER_MAIN_WINDOW_H

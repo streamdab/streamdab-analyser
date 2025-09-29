@@ -135,32 +135,35 @@ void initializeApplicationDirectories()
  */
 void setupApplicationStyle(QApplication& app)
 {
+    // EMERGENCY: ALL CUSTOM STYLING DISABLED FOR TEXT VISIBILITY
+    // Using pure Qt system default theme for maximum compatibility
+    
     // Set application style
     QStringList availableStyles = QStyleFactory::keys();
     qCDebug(etiMain) << "Available styles:" << availableStyles;
 
-    // Use Fusion style for consistent cross-platform appearance
-    if (availableStyles.contains("Fusion")) {
-        app.setStyle("Fusion");
-    }
+    // Use system default style instead of Fusion for native appearance
+    // if (availableStyles.contains("Fusion")) {
+    //     app.setStyle("Fusion");
+    // }
 
-    // Set professional color scheme
-    QPalette darkPalette;
-    darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::WindowText, Qt::white);
-    darkPalette.setColor(QPalette::Base, QColor(25, 25, 25));
-    darkPalette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::ToolTipBase, Qt::white);
-    darkPalette.setColor(QPalette::ToolTipText, Qt::white);
-    darkPalette.setColor(QPalette::Text, Qt::white);
-    darkPalette.setColor(QPalette::Button, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::ButtonText, Qt::white);
-    darkPalette.setColor(QPalette::BrightText, Qt::red);
-    darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
-    darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
-    darkPalette.setColor(QPalette::HighlightedText, Qt::black);
-    
-    app.setPalette(darkPalette);
+    // DISABLED: Set professional color scheme - causing text visibility issues
+    // QPalette darkPalette;
+    // darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
+    // darkPalette.setColor(QPalette::WindowText, Qt::white);
+    // darkPalette.setColor(QPalette::Base, QColor(25, 25, 25));
+    // darkPalette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
+    // darkPalette.setColor(QPalette::ToolTipBase, Qt::white);
+    // darkPalette.setColor(QPalette::ToolTipText, Qt::white);
+    // darkPalette.setColor(QPalette::Text, Qt::white);
+    // darkPalette.setColor(QPalette::Button, QColor(53, 53, 53));
+    // darkPalette.setColor(QPalette::ButtonText, Qt::white);
+    // darkPalette.setColor(QPalette::BrightText, Qt::red);
+    // darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
+    // darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+    // darkPalette.setColor(QPalette::HighlightedText, Qt::black);
+    // 
+    // app.setPalette(darkPalette);
 }
 
 /**

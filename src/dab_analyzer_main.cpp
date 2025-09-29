@@ -6,7 +6,7 @@
 #include <QtCore/QDir>
 #include <QtCore/QLoggingCategory>
 
-#include "gui/dab_xplorer_main_window.h"
+#include "gui/dab_analyzer_main_window.h"
 
 // Enable Qt logging for development
 Q_LOGGING_CATEGORY(dabAnalyzer, "dab.analyzer")
@@ -19,7 +19,7 @@ Q_LOGGING_CATEGORY(dabAnalyzer, "dab.analyzer")
  * - Ensemble Tree Explorer with checkbox selection
  * - Frame Navigator with selectable frame list (24ms precision)
  * - Service Details panel with signal quality metrics
- * - FIC Analysis Hub with FIC-XPlorer/FIC-XTractor tabs
+ * - FIC Analysis Hub with FIC-Analyzer/FIC-Extractor tabs
  * - Enhanced ETI processing with Bangkok ETI-LI format support
  * - Professional DAB broadcast industry styling
  */
@@ -27,7 +27,7 @@ Q_LOGGING_CATEGORY(dabAnalyzer, "dab.analyzer")
 void setupApplication()
 {
     QApplication::setApplicationName("StreamDAB Stream Analyzer");
-    QApplication::setApplicationVersion("1.3.0");
+    QApplication::setApplicationVersion("1.4.0");
     QApplication::setOrganizationName("StreamDAB Project");
     QApplication::setOrganizationDomain("streamdab.org");
 
@@ -48,7 +48,7 @@ QSplashScreen* createSplashScreen()
     splash->show();
 
     // Show loading messages
-    splash->showMessage("StreamDAB Stream Analyzer v1.3",
+    splash->showMessage("StreamDAB Stream Analyzer v1.4",
                        Qt::AlignCenter | Qt::AlignBottom, Qt::white);
     QApplication::processEvents();
 
@@ -59,13 +59,13 @@ QSplashScreen* createSplashScreen()
     });
 
     QTimer::singleShot(1000, [splash]() {
-        splash->showMessage("Loading Enhanced ETI Processor...",
+        splash->showMessage("Loading Advanced FIG Analyzer...",
                            Qt::AlignCenter | Qt::AlignBottom, Qt::white);
         QApplication::processEvents();
     });
 
     QTimer::singleShot(1500, [splash]() {
-        splash->showMessage("Ready for Professional DAB Analysis",
+        splash->showMessage("Ready for Advanced DAB Analysis",
                            Qt::AlignCenter | Qt::AlignBottom, Qt::white);
         QApplication::processEvents();
     });
@@ -79,10 +79,10 @@ void setupLogging()
     QLoggingCategory::setFilterRules("dab.analyzer.debug=true");
 
     // Log application startup
-    qCDebug(dabAnalyzer) << "StreamDAB Stream Analyzer Phase 1.3 starting...";
+    qCDebug(dabAnalyzer) << "StreamDAB Stream Analyzer Phase 1.4 starting...";
     qCDebug(dabAnalyzer) << "Qt version:" << qVersion();
     qCDebug(dabAnalyzer) << "DAB Analyzer interface enabled";
-    qCDebug(dabAnalyzer) << "Enhanced ETI processor with Bangkok support ready";
+    qCDebug(dabAnalyzer) << "Advanced FIG analyzer with Bangkok support ready";
 }
 
 int main(int argc, char *argv[])
@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
     QSplashScreen* splash = createSplashScreen();
 
     // Create main window
-    DABXplorerMainWindow window;
+    DABAnalyzerMainWindow window;
 
     // Setup window with professional appearance
     window.setWindowIcon(QIcon());  // Could add icon later
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
 
         // Log successful startup
         qCDebug(dabAnalyzer) << "DAB Analyzer main window displayed successfully";
-        qCDebug(dabAnalyzer) << "Phase 1.3 initialization complete";
+        qCDebug(dabAnalyzer) << "Phase 1.4 initialization complete";
     });
 
     // Handle command line ETI file argument
