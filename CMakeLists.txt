@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Qt6 components for professional application
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui Network Test)
 qt6_standard_project_setup()
 
 message(STATUS "Qt6 Version: ${Qt6_VERSION}")
@@ -227,3 +227,37 @@ message(STATUS "Professional StreamDAB Analyzer Configuration")
 message(STATUS "Target: StreamDABAnalyzer")
 message(STATUS "Features: Three-Panel Professional Layout + Full ETI Processing")
 message(STATUS "===========================================")
+
+# =========================================
+# ENHANCED FIC ANALYSIS HUB TEST
+# =========================================
+message(STATUS "Enhanced FIC Analysis Hub Test Configuration")
+message(STATUS "Testing: Option C Hybrid Implementation")
+message(STATUS "===========================================")
+
+add_executable(Test_Enhanced_FIC_Analysis_Hub
+    test_enhanced_fic_analysis_hub.cpp
+)
+
+target_link_libraries(Test_Enhanced_FIC_Analysis_Hub
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Gui
+    Qt6::Test
+    Threads::Threads
+)
+
+target_include_directories(Test_Enhanced_FIC_Analysis_Hub PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+set_target_properties(Test_Enhanced_FIC_Analysis_Hub PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    AUTOMOC ON
+)
+
+message(STATUS "Target: Test_Enhanced_FIC_Analysis_Hub")
+message(STATUS "Testing: Professional 5-Tab Interface + Bangkok ETI Processing")
+message(STATUS "==========================================")

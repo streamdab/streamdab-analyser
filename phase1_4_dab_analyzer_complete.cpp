@@ -276,18 +276,8 @@ private:
         qualityLayout->addWidget(m_qualityMeter);
         layout->addWidget(qualityGroup);
 
-        // FIG Analysis controls
-        QGroupBox* figGroup = new QGroupBox("FIG Analysis");
-        QVBoxLayout* figLayout = new QVBoxLayout(figGroup);
-        m_figType00 = new QCheckBox("FIG 0/0 - Service Organization");
-        m_figType01 = new QCheckBox("FIG 0/1 - Service Labels");
-        m_figType02 = new QCheckBox("FIG 0/2 - Service Components");
-        m_figType00->setChecked(true);
-        m_figType01->setChecked(true);
-        figLayout->addWidget(m_figType00);
-        figLayout->addWidget(m_figType01);
-        figLayout->addWidget(m_figType02);
-        layout->addWidget(figGroup);
+        // FIG Analysis moved to professional FIC-Analyzer tab
+        // (Obsolete controls removed - use FIC-Analyzer tab instead)
 
         layout->addStretch();
         parent->addWidget(detailsWidget);
