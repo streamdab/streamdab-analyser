@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QTimer>
+#include <QThread>
 #include <QMutex>
 #include <QString>
 #include <QDateTime>
@@ -141,6 +142,34 @@ struct LogStatistics {
     }
 };
 
+// QThread Worker for background logging operations
+class LoggingWorker : public QObject {
+    Q_OBJECT
+
+public:
+    explicit LoggingWorker(QObject* parent = nullptr);
+    ~LoggingWorker() = default;
+
+public slots:
+    void startLogging();
+    void stopLogging();
+    void performLogRotation();
+    void performLogCleanup();
+    void flushLogBuffers();
+
+signals:
+    void logRotationCompleted();
+    void logCleanupCompleted();
+    void logBuffersFlushed();
+    void loggingError(const QString& error);
+
+private:
+    std::atomic<bool> m_logging_active{false};
+    QTimer* m_rotation_timer{nullptr};
+    QTimer* m_cleanup_timer{nullptr};
+    QTimer* m_flush_timer{nullptr};
+};
+
 // Professional Logging System
 class ProfessionalLoggingSystem : public QObject {
     Q_OBJECT
@@ -154,6 +183,10 @@ public:
     void setRotationConfiguration(const LogRotationConfig& config);
     void setMinimumLogLevel(LogLevel level);
     void setSessionId(const QString& session_id);
+    
+    // Timer control for file dialog compatibility
+    void pauseTimers();
+    void resumeTimers();
     
     // Logging methods with macro support
     void log(LogLevel level, LogCategory category, const QString& component,
@@ -249,10 +282,9 @@ private:
     LogStatistics m_statistics;
     std::unordered_map<QString, uint64_t> m_component_counts;
     
-    // Timers
-    std::unique_ptr<QTimer> m_rotation_timer;
-    std::unique_ptr<QTimer> m_monitoring_timer;
-    std::unique_ptr<QTimer> m_buffer_flush_timer;
+    // QThread-based background processing (replaces blocking timers)
+    QThread* m_worker_thread;
+    LoggingWorker* m_worker;
     
     // State management
     std::atomic<bool> m_initialized;

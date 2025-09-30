@@ -38,6 +38,10 @@ struct FIGInfo {
     bool other_ensemble;
 };
 
+// Register custom types with Qt meta-object system
+Q_DECLARE_METATYPE(ProcessedFrame)
+Q_DECLARE_METATYPE(ETIFormat)
+
 class EnhancedETIProcessorQt : public QObject
 {
     Q_OBJECT

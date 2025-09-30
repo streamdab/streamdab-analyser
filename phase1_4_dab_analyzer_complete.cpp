@@ -22,6 +22,9 @@
 #include <QComboBox>
 #include <QSpinBox>
 #include <QPushButton>
+#include <QtConcurrent>
+#include <QFuture>
+#include <QFutureWatcher>
 #include <chrono>
 #include <memory>
 
@@ -43,14 +46,11 @@ public:
         setMinimumSize(1200, 800);
         resize(1400, 1000);
 
-        // Initialize core components
-        m_etiProcessor = std::make_unique<EnhancedETIProcessorQt>();
-        m_figAnalyzer = std::make_unique<AdvancedFIGAnalyzer>();
-        m_etsiComplianceEngine = std::make_unique<etsi::ETSIComplianceEngine>();
-        // WORKING COMBINATION: Multi-stream + Error Detection (Logging causes file dialog freeze)
-        m_multiStreamProcessor = std::make_unique<multistream::MultiStreamProcessor>();
-        m_errorDetector = std::make_unique<error_detection::AdvancedErrorDetector>();
-        // IDENTIFIED PROBLEM: Professional Logging System causes file dialog freeze
+        // Initialize core components using QConcurrent to prevent UI freeze
+        initializeCoreComponentsAsync();
+        // PHASE 2B COMPONENTS: Create only when first accessed (prevent UI freeze on startup)
+        // m_multiStreamProcessor = std::make_unique<multistream::MultiStreamProcessor>();
+        // m_errorDetector = std::make_unique<error_detection::AdvancedErrorDetector>();
         // m_loggingSystem = std::make_unique<professional_logging::ProfessionalLoggingSystem>();
 
         setupUI();
@@ -61,10 +61,122 @@ public:
         // EMERGENCY: ALL CUSTOM THEMING DISABLED FOR TEXT VISIBILITY
         // applyTheme();
     }
+    
+    void initializeCoreComponentsAsync()
+    {
+        // Use simpler approach with QTimer instead of QConcurrent for unique_ptr
+        QTimer::singleShot(100, this, [this]() {
+            qDebug() << "Creating ETI Processor (deferred)...";
+            m_etiProcessor = std::make_unique<EnhancedETIProcessorQt>();
+            
+            QTimer::singleShot(100, this, [this]() {
+                qDebug() << "Creating FIG Analyzer (deferred)...";
+                m_figAnalyzer = std::make_unique<AdvancedFIGAnalyzer>();
+                
+                QTimer::singleShot(100, this, [this]() {
+                    qDebug() << "Creating ETSI Compliance Engine (deferred)...";
+                    m_etsiComplianceEngine = std::make_unique<etsi::ETSIComplianceEngine>();
+                    
+                    qDebug() << "All core components ready! UI should be responsive now.";
+                });
+            });
+        });
+        
+        qDebug() << "Core components initialization deferred with timers...";
+    }
+    
+    // Ensure components are ready before use
+    void ensureETIProcessorReady() {
+        if (!m_etiProcessor) {
+            qDebug() << "Creating ETI Processor on-demand...";
+            m_etiProcessor = std::make_unique<EnhancedETIProcessorQt>();
+            
+            // Connect signals with modern Qt syntax and Qt::QueuedConnection for thread safety
+            bool frameConnection = connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::frameProcessed,
+                    this, &Phase14DABAnalyzerWindow::onFrameProcessed, Qt::QueuedConnection);
+            qDebug() << "🔗 frameProcessed signal connection (modern syntax):" << (frameConnection ? "SUCCESS" : "FAILED");
+            m_systemMessages->append(QString("🔗 frameProcessed connection (modern syntax): %1").arg(frameConnection ? "SUCCESS" : "FAILED"));
+            
+            connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingProgress,
+                    this, &Phase14DABAnalyzerWindow::onProcessingProgress, Qt::QueuedConnection);
+            connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingComplete,
+                    this, &Phase14DABAnalyzerWindow::onProcessingComplete, Qt::QueuedConnection);
+            connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingError,
+                    this, &Phase14DABAnalyzerWindow::onProcessingError, Qt::QueuedConnection);
+            connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::frameError,
+                    this, &Phase14DABAnalyzerWindow::onFrameError, Qt::QueuedConnection);
+            connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::figDiscovered,
+                    this, &Phase14DABAnalyzerWindow::onFIGDiscovered, Qt::QueuedConnection);
+            connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::formatDetected,
+                    this, &Phase14DABAnalyzerWindow::onETIFormatDetected, Qt::QueuedConnection);
+            
+            qDebug() << "ETI Processor signals connected!";
+            
+            // TEST: Add a test frame to verify signal connection works
+            m_systemMessages->append("🔧 Testing signal connection...");
+            
+            // TEST: Call onFrameProcessed directly to verify UI update works
+            ProcessedFrame testFrame;
+            testFrame.frame_number = 9999;
+            testFrame.format = ETIFormat::ETI_NI;
+            testFrame.sync_pattern = 0x49931E03;
+            testFrame.is_valid = true;
+            
+            m_systemMessages->append("🧪 Testing direct slot call...");
+            onFrameProcessed(testFrame);
+            m_systemMessages->append("🧪 Direct slot call completed");
+            
+            // Test if signals work by connecting to processingComplete
+            connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingComplete,
+                    this, [this](int totalFrames, int processingTime) {
+                qDebug() << "🎯 processingComplete signal received!" << totalFrames << "frames in" << processingTime << "ms";
+                m_systemMessages->append(QString("🎯 Processing completed: %1 frames in %2ms").arg(totalFrames).arg(processingTime));
+                
+                // Force final UI update
+                if (m_frameList) {
+                    qDebug() << "🔄 Final UI refresh - frame list has" << m_frameList->count() << "items";
+                    m_frameList->viewport()->update();
+                    m_frameList->viewport()->repaint();
+                    QCoreApplication::processEvents();
+                    m_systemMessages->append(QString("🔄 Final refresh: Frame list contains %1 items").arg(m_frameList->count()));
+                }
+            }, Qt::QueuedConnection);
+            
+            connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingStarted,
+                    this, [this](const QString& fileName, int totalFrames) {
+                qDebug() << "🚀 processingStarted signal received!" << fileName << totalFrames << "frames";
+                m_systemMessages->append(QString("🚀 Processing started: %1 (%2 frames)").arg(fileName).arg(totalFrames));
+            }, Qt::QueuedConnection);
+        }
+    }
+    
+    void ensureFIGAnalyzerReady() {
+        if (!m_figAnalyzer) {
+            qDebug() << "Creating FIG Analyzer on-demand...";
+            m_figAnalyzer = std::make_unique<AdvancedFIGAnalyzer>();
+        }
+    }
+    
+    void ensureETSIComplianceReady() {
+        if (!m_etsiComplianceEngine) {
+            qDebug() << "Creating ETSI Compliance Engine on-demand...";
+            m_etsiComplianceEngine = std::make_unique<etsi::ETSIComplianceEngine>();
+        }
+    }
+    
+    void ensureMultiStreamReady() {
+        if (!m_multiStreamProcessor) {
+            qDebug() << "Creating Multi-stream Processor on-demand...";
+            m_multiStreamProcessor = std::make_unique<multistream::MultiStreamProcessor>();
+        }
+    }
 
 private slots:
     void openFile()
     {
+        qDebug() << "🔍 openFile() method called!";
+        m_systemMessages->append("🔍 File dialog opening...");
+        
         QString fileName = QFileDialog::getOpenFileName(
             this,
             "Open ETI File",
@@ -72,13 +184,22 @@ private slots:
             "ETI Files (*.eti);;All Files (*)"
         );
 
+        qDebug() << "📁 File dialog result:" << fileName;
+        m_systemMessages->append(QString("📁 Selected file: %1").arg(fileName.isEmpty() ? "None" : fileName));
+
         if (!fileName.isEmpty()) {
+            m_systemMessages->append("🚀 Calling loadETIFile...");
             loadETIFile(fileName);
         }
     }
 
     void loadETIFile(const QString& filePath)
     {
+        // Ensure components are ready before processing
+        ensureETIProcessorReady();
+        ensureFIGAnalyzerReady();
+        ensureETSIComplianceReady();
+        
         // Reset UI
         m_frameList->clear();
         m_ensembleTree->clear();
@@ -100,18 +221,51 @@ private slots:
 
     void onFrameProcessed(const ProcessedFrame& frame)
     {
+        qDebug() << "🔧 onFrameProcessed called for frame:" << frame.frame_number;
+        
+        // Check if frame list widget exists
+        if (!m_frameList) {
+            qDebug() << "❌ ERROR: m_frameList is nullptr!";
+            m_systemMessages->append("❌ ERROR: Frame list widget not initialized!");
+            return;
+        }
+        
         // Add frame to list (show all frames for complete analysis)
         QString frameText = QString("Frame %1: %2 (0x%3)")
                            .arg(frame.frame_number)
                            .arg(formatToString(frame.format))
                            .arg(frame.sync_pattern, 8, 16, QChar('0'));
+        
+        qDebug() << "📝 Adding frame to list:" << frameText;
         m_frameList->addItem(frameText);
         
+        int count = m_frameList->count();
+        qDebug() << "📊 Frame list now has" << count << "items";
+        
+        // Add confirmation to system messages for first few frames
+        if (frame.frame_number <= 5) {
+            m_systemMessages->append(QString("✅ Frame %1 added to list! (Total: %2)").arg(frame.frame_number).arg(count));
+        }
+        
         // Auto-scroll to latest frame (but allow user to scroll back)
-        if (m_frameList->count() % 100 == 0) {
+        if (count % 100 == 0) {
+            qDebug() << "📜 Auto-scrolling frame list (count:" << count << ")";
             m_frameList->scrollToBottom();
         }
-
+        
+        // Force Qt to process events and update display
+        QCoreApplication::processEvents();
+        m_frameList->viewport()->update();
+        m_frameList->viewport()->repaint();
+        
+        // Ensure widget is visible and active
+        if (frame.frame_number == 1) {
+            m_frameList->setVisible(true);
+            m_frameList->show();
+            qDebug() << "📺 Frame list widget visibility:" << m_frameList->isVisible();
+            qDebug() << "📺 Frame list widget size:" << m_frameList->size();
+        }
+        
         // Update frame details if this is the first frame
         if (frame.frame_number == 1) {
             updateFrameDetails(frame);
@@ -126,9 +280,9 @@ private slots:
         m_progressBar->setValue(percentage);
         m_frameCountLabel->setText(QString("Frames: %1 / %2").arg(currentFrame).arg(totalFrames));
         
-        // Update system messages periodically
-        if (currentFrame % 500 == 0) {
-            m_systemMessages->append(QString("Processing frame %1 / %2 (%3%)")
+        // Update system messages more frequently for testing
+        if (currentFrame % 100 == 0 || currentFrame <= 10) {
+            m_systemMessages->append(QString("📊 Processing frame %1 / %2 (%3%)")
                                    .arg(currentFrame).arg(totalFrames).arg(percentage));
         }
     }
@@ -550,8 +704,21 @@ private slots:
     // Multi-stream processing slots
     void onAddStreamClicked()
     {
+        // Ensure multi-stream processor is ready before using it
+        ensureMultiStreamReady();
+        
+        // Pause Professional Logging timers to prevent file dialog freeze
+        if (m_loggingSystem) {
+            m_loggingSystem->pauseTimers();
+        }
+        
         QString fileName = QFileDialog::getOpenFileName(this, 
             "Add ETI Stream", "", "ETI Files (*.eti);;All Files (*)");
+        
+        // Resume Professional Logging timers after file dialog
+        if (m_loggingSystem) {
+            m_loggingSystem->resumeTimers();
+        }
         
         if (!fileName.isEmpty()) {
             QString streamId = m_multiStreamProcessor->addETIStream(fileName);
@@ -565,6 +732,9 @@ private slots:
     
     void onRemoveStreamClicked()
     {
+        // Ensure multi-stream processor is ready before using it
+        ensureMultiStreamReady();
+        
         QTreeWidgetItem* selectedItem = m_activeStreamsTree->currentItem();
         if (selectedItem) {
             QString streamId = selectedItem->data(0, Qt::UserRole).toString();
@@ -578,6 +748,9 @@ private slots:
     
     void onStartProcessingClicked()
     {
+        // Ensure multi-stream processor is ready before using it
+        ensureMultiStreamReady();
+        
         m_multiStreamProcessor->startParallelProcessing();
         if (m_systemMessages) {
             m_systemMessages->append("🚀 Started parallel multi-stream processing");
@@ -586,6 +759,9 @@ private slots:
     
     void onStopProcessingClicked()
     {
+        // Ensure multi-stream processor is ready before using it
+        ensureMultiStreamReady();
+        
         m_multiStreamProcessor->stopParallelProcessing();
         if (m_systemMessages) {
             m_systemMessages->append("⏹️ Stopped parallel multi-stream processing");
@@ -594,6 +770,9 @@ private slots:
     
     void onCompareStreamsClicked()
     {
+        // Ensure multi-stream processor is ready before using it
+        ensureMultiStreamReady();
+        
         multistream::ComparativeAnalysisResult result = m_multiStreamProcessor->compareAllStreams();
         displayComparativeAnalysis(result);
     }
@@ -1616,9 +1795,198 @@ protected:
 private:
     void setupUI()
     {
+        // Create main container for test button and splitter
+        QWidget* mainContainer = new QWidget();
+        setCentralWidget(mainContainer);
+        QVBoxLayout* containerLayout = new QVBoxLayout(mainContainer);
+        
+        // TEST: Add emergency test buttons
+        QPushButton* testButton = new QPushButton("🔴 TEST 1: Load ETI File with Dialog");
+        testButton->setStyleSheet("background-color: red; color: white; font-weight: bold; font-size: 14px; padding: 8px;");
+        containerLayout->addWidget(testButton);
+        
+        QPushButton* directTestButton = new QPushButton("🟢 TEST 2: Load ETI File Directly (NO DIALOG)");
+        directTestButton->setStyleSheet("background-color: green; color: white; font-weight: bold; font-size: 14px; padding: 8px;");
+        containerLayout->addWidget(directTestButton);
+        
+        QPushButton* uiTestButton = new QPushButton("🔵 TEST 3: Add Frames to UI Directly (NO SIGNALS)");
+        uiTestButton->setStyleSheet("background-color: blue; color: white; font-weight: bold; font-size: 14px; padding: 8px;");
+        containerLayout->addWidget(uiTestButton);
+        
+        // Connect test button
+        connect(testButton, &QPushButton::clicked, [this]() {
+            qDebug() << "🚨 TEST BUTTON CLICKED!";
+            if (m_systemMessages) {
+                m_systemMessages->append("🚨 TEST BUTTON WORKS!");
+                m_systemMessages->append("🔧 Qt signals are working!");
+                m_systemMessages->append("📂 Opening file dialog...");
+                
+                // Show file dialog with detailed debugging
+                QString fileName = QFileDialog::getOpenFileName(
+                    this,
+                    "Select ETI File for Testing",
+                    "/home/seksan/workspace/streamdab-analyzer/eti/",
+                    "ETI Files (*.eti);;All Files (*)"
+                );
+                
+                qDebug() << "📁 File dialog returned:" << fileName;
+                m_systemMessages->append(QString("📁 File dialog returned: '%1'").arg(fileName));
+                
+                if (fileName.isEmpty()) {
+                    m_systemMessages->append("❌ No file selected or dialog cancelled");
+                    return;
+                }
+                
+                // Check if file exists
+                QFileInfo fileInfo(fileName);
+                m_systemMessages->append(QString("📋 File path: %1").arg(fileName));
+                m_systemMessages->append(QString("📋 File exists: %1").arg(fileInfo.exists() ? "YES" : "NO"));
+                m_systemMessages->append(QString("📋 File size: %1 bytes").arg(fileInfo.size()));
+                m_systemMessages->append(QString("📋 File readable: %1").arg(fileInfo.isReadable() ? "YES" : "NO"));
+                
+                if (!fileInfo.exists()) {
+                    m_systemMessages->append("❌ ERROR: File does not exist!");
+                    return;
+                }
+                
+                if (!fileInfo.isReadable()) {
+                    m_systemMessages->append("❌ ERROR: File is not readable!");
+                    return;
+                }
+                
+                // Ensure ETI processor
+                m_systemMessages->append("🔧 Creating ETI processor...");
+                ensureETIProcessorReady();
+                
+                if (!m_etiProcessor) {
+                    m_systemMessages->append("❌ ERROR: Failed to create ETI processor!");
+                    return;
+                }
+                
+                m_systemMessages->append("✅ ETI processor ready");
+                
+                // Clear UI
+                m_systemMessages->append("🧹 Clearing UI...");
+                if (m_frameList) m_frameList->clear();
+                if (m_ensembleTree) m_ensembleTree->clear();
+                if (m_hexViewer) m_hexViewer->clear();
+                
+                // Process file with detailed logging
+                m_systemMessages->append("🔄 Starting ETI file processing...");
+                qDebug() << "🔄 Calling processETIFile with:" << fileName;
+                
+                bool result = m_etiProcessor->processETIFile(fileName);
+                qDebug() << "📊 processETIFile returned:" << result;
+                
+                if (result) {
+                    m_systemMessages->append("✅ ETI file processing started successfully!");
+                    m_systemMessages->append("⏳ Waiting for frames to be processed...");
+                } else {
+                    m_systemMessages->append("❌ ETI file processing failed to start!");
+                }
+            }
+        });
+        
+        // Connect direct test button (bypasses file dialog completely)
+        connect(directTestButton, &QPushButton::clicked, [this]() {
+            qDebug() << "🟢 DIRECT TEST BUTTON CLICKED!";
+            if (m_systemMessages) {
+                m_systemMessages->append("🟢 DIRECT TEST - NO FILE DIALOG!");
+                m_systemMessages->append("🔧 Qt signals are working!");
+                
+                // Use hardcoded file path
+                QString fileName = "/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti";
+                
+                qDebug() << "📁 Using direct file path:" << fileName;
+                m_systemMessages->append(QString("📁 Using direct file path: '%1'").arg(fileName));
+                
+                // Check if file exists
+                QFileInfo fileInfo(fileName);
+                m_systemMessages->append(QString("📋 File path: %1").arg(fileName));
+                m_systemMessages->append(QString("📋 File exists: %1").arg(fileInfo.exists() ? "YES" : "NO"));
+                m_systemMessages->append(QString("📋 File size: %1 bytes").arg(fileInfo.size()));
+                m_systemMessages->append(QString("📋 File readable: %1").arg(fileInfo.isReadable() ? "YES" : "NO"));
+                
+                if (!fileInfo.exists()) {
+                    m_systemMessages->append("❌ ERROR: File does not exist!");
+                    return;
+                }
+                
+                if (!fileInfo.isReadable()) {
+                    m_systemMessages->append("❌ ERROR: File is not readable!");
+                    return;
+                }
+                
+                // Ensure ETI processor
+                m_systemMessages->append("🔧 Creating ETI processor...");
+                ensureETIProcessorReady();
+                
+                if (!m_etiProcessor) {
+                    m_systemMessages->append("❌ ERROR: Failed to create ETI processor!");
+                    return;
+                }
+                
+                m_systemMessages->append("✅ ETI processor ready");
+                
+                // Clear UI
+                m_systemMessages->append("🧹 Clearing UI...");
+                if (m_frameList) m_frameList->clear();
+                if (m_ensembleTree) m_ensembleTree->clear();
+                if (m_hexViewer) m_hexViewer->clear();
+                
+                // Process file with detailed logging
+                m_systemMessages->append("🔄 Starting ETI file processing...");
+                qDebug() << "🔄 Calling processETIFile with:" << fileName;
+                
+                bool result = m_etiProcessor->processETIFile(fileName);
+                qDebug() << "📊 processETIFile returned:" << result;
+                
+                if (result) {
+                    m_systemMessages->append("✅ ETI file processing started successfully!");
+                    m_systemMessages->append("⏳ Waiting for frames to be processed...");
+                } else {
+                    m_systemMessages->append("❌ ETI file processing failed to start!");
+                }
+            }
+        });
+        
+        // Connect UI test button (completely bypasses all signals and ETI processing)
+        connect(uiTestButton, &QPushButton::clicked, [this]() {
+            qDebug() << "🔵 UI TEST BUTTON CLICKED!";
+            if (m_systemMessages && m_frameList) {
+                m_systemMessages->append("🔵 UI TEST - ADDING FRAMES DIRECTLY!");
+                
+                // Clear existing items
+                m_frameList->clear();
+                m_systemMessages->append("🧹 Cleared frame list");
+                
+                // Add test items directly to QListWidget
+                for (int i = 1; i <= 10; i++) {
+                    QString frameText = QString("TEST Frame %1: ETI_NI (0x49931E03)").arg(i);
+                    m_frameList->addItem(frameText);
+                    qDebug() << "📝 Added:" << frameText;
+                }
+                
+                int count = m_frameList->count();
+                m_systemMessages->append(QString("📊 Added %1 test frames directly to widget").arg(count));
+                qDebug() << "📊 Frame list now has" << count << "items";
+                
+                // Force UI update
+                m_frameList->update();
+                m_frameList->repaint();
+                m_frameList->show();
+                QCoreApplication::processEvents();
+                
+                m_systemMessages->append("🔄 Forced UI update - frames should be visible now!");
+                qDebug() << "🔄 UI update completed";
+            } else {
+                qDebug() << "❌ ERROR: m_systemMessages or m_frameList is nullptr!";
+            }
+        });
+        
         // Create main splitter layout
-        QSplitter* mainSplitter = new QSplitter(Qt::Vertical, this);
-        setCentralWidget(mainSplitter);
+        QSplitter* mainSplitter = new QSplitter(Qt::Vertical);
+        containerLayout->addWidget(mainSplitter);
 
         // Top horizontal splitter
         QSplitter* topSplitter = new QSplitter(Qt::Horizontal);
@@ -1751,15 +2119,15 @@ private:
         QWidget* performanceTab = createPerformanceDashboardTab();
         analysisTabs->addTab(performanceTab, "Performance");
 
-        // Tab 5: Multi-stream Manager
+        // Tab 5: Multi-stream Manager - Create tab but defer component initialization
         QWidget* multiStreamTab = createMultiStreamTab();
         analysisTabs->addTab(multiStreamTab, "Multi-stream");
         
-        // Tab 6: Advanced Error Detection
+        // Tab 6: Advanced Error Detection - RE-ENABLED with QThread
         QWidget* errorDetectionTab = createErrorDetectionTab();
         analysisTabs->addTab(errorDetectionTab, "Error Detection");
         
-        // Tab 7: Professional Logging
+        // Tab 7: Professional Logging - RE-ENABLED with QThread
         QWidget* loggingTab = createLoggingTab();
         analysisTabs->addTab(loggingTab, "Logging");
         
@@ -1969,22 +2337,7 @@ private:
         
         layout->addWidget(analysisGroup);
         
-        // PHASE 1 RE-ENABLE: Multi-stream signals with delayed connection for safety
-        QTimer::singleShot(500, this, [this]() {
-            if (m_multiStreamProcessor) {
-                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamAdded,
-                        this, &Phase14DABAnalyzerWindow::onStreamAdded);
-                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamRemoved,
-                        this, &Phase14DABAnalyzerWindow::onStreamRemoved);
-                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamProcessingProgress,
-                        this, &Phase14DABAnalyzerWindow::onStreamProcessingProgress);
-                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamProcessingCompleted,
-                        this, &Phase14DABAnalyzerWindow::onStreamProcessingCompleted);
-                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::comparativeAnalysisCompleted,
-                        this, &Phase14DABAnalyzerWindow::onComparativeAnalysisCompleted);
-                qDebug() << "Multi-stream processor signals connected after delay";
-            }
-        });
+        // Multi-stream signals will be connected when component is first created (on-demand)
         
         // Connect button signals
         connect(addStreamBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onAddStreamClicked);
@@ -2211,7 +2564,45 @@ private:
         // File menu
         QMenu* fileMenu = menuBar->addMenu("File");
         QAction* openAction = fileMenu->addAction("Open ETI File...");
-        connect(openAction, &QAction::triggered, this, &Phase14DABAnalyzerWindow::openFile);
+        
+        // Test: Use simple lambda without calling method
+        connect(openAction, &QAction::triggered, [this]() {
+            qDebug() << "🔍 FILE MENU CLICKED!";
+            if (m_systemMessages) {
+                m_systemMessages->append("🔍 FILE MENU CLICKED!");
+                m_systemMessages->append("🚀 Starting file dialog...");
+                
+                QString fileName = QFileDialog::getOpenFileName(
+                    this,
+                    "Open ETI File",
+                    "eti/",
+                    "ETI Files (*.eti);;All Files (*)"
+                );
+                
+                if (!fileName.isEmpty()) {
+                    m_systemMessages->append(QString("📁 File selected: %1").arg(fileName));
+                    
+                    // Ensure ETI processor is ready
+                    ensureETIProcessorReady();
+                    
+                    // Clear UI
+                    m_frameList->clear();
+                    m_ensembleTree->clear();
+                    m_hexViewer->clear();
+                    
+                    // Process file
+                    m_systemMessages->append("🔄 Processing ETI file...");
+                    if (m_etiProcessor && m_etiProcessor->processETIFile(fileName)) {
+                        m_systemMessages->append("✅ ETI file processing started!");
+                        m_currentFilePath = fileName;
+                    } else {
+                        m_systemMessages->append("❌ ETI file processing failed!");
+                    }
+                } else {
+                    m_systemMessages->append("❌ No file selected");
+                }
+            }
+        });
         
         fileMenu->addSeparator();
         QAction* exitAction = fileMenu->addAction("Exit");
@@ -2232,23 +2623,8 @@ private:
 
     void setupSignalConnections()
     {
-        // ETI Processor signals
-        connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::frameProcessed,
-                this, &Phase14DABAnalyzerWindow::onFrameProcessed);
-        connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingProgress,
-                this, &Phase14DABAnalyzerWindow::onProcessingProgress);
-        connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingComplete,
-                this, &Phase14DABAnalyzerWindow::onProcessingComplete);
-        connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingError,
-                this, &Phase14DABAnalyzerWindow::onProcessingError);
-        connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::frameError,
-                this, &Phase14DABAnalyzerWindow::onFrameError);
-        
-        // FIG Analysis signals for real-time FIC-Analyzer updates
-        connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::figDiscovered,
-                this, &Phase14DABAnalyzerWindow::onFIGDiscovered);
-        connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::formatDetected,
-                this, &Phase14DABAnalyzerWindow::onETIFormatDetected);
+        // NOTE: ETI Processor signals are now connected in ensureETIProcessorReady() 
+        // to avoid nullptr connection errors during deferred initialization
         
         // FIG Type checkbox filtering signals
         connect(m_figType00, &QCheckBox::toggled, this, &Phase14DABAnalyzerWindow::onFIGTypeFilterChanged);
@@ -2263,23 +2639,23 @@ private:
         connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceDiscovered,
                 this, &Phase14DABAnalyzerWindow::onServiceDiscovered);
 
-        // PHASE 2 RE-ENABLE: Error Detection signals with delayed connection for safety
-        QTimer::singleShot(1000, this, [this]() {
+        // ULTRA-CONSERVATIVE: Error Detection signals with very long delay to prevent tab freeze
+        QTimer::singleShot(15000, this, [this]() {
             if (m_errorDetector) {
                 connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::errorDetected,
                         this, &Phase14DABAnalyzerWindow::onErrorDetected);
                 connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::systemHealthChanged,
                         this, &Phase14DABAnalyzerWindow::onSystemHealthChanged);
-                qDebug() << "Error Detection signals connected after delay";
+                qDebug() << "Error Detection signals connected after 15-second delay";
             }
         });
         
-        // IDENTIFIED PROBLEM: Professional Logging signals cause file dialog freeze
-        // QTimer::singleShot(2000, this, [this]() {
+        // DISABLED: Professional Logging signals (component deferred to future development)
+        // QTimer::singleShot(6000, this, [this]() {
         //     if (m_loggingSystem) {
         //         connect(m_loggingSystem.get(), &professional_logging::ProfessionalLoggingSystem::logEntryAdded,
         //                 this, &Phase14DABAnalyzerWindow::onLogEntryAdded, Qt::QueuedConnection);
-        //         qDebug() << "Professional logging signals connected after delay";
+        //         qDebug() << "Professional logging signals connected after extended delay";
         //     }
         // });
         

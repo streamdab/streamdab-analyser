@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Qt6 setup with automatic MOC
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network Test Concurrent)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
@@ -38,5 +38,6 @@ target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
     Qt6::Widgets
     Qt6::Network
     Qt6::Test
+    Qt6::Concurrent
     pthread
 )

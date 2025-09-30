@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QTimer>
 #include <QMutex>
+#include <QThread>
 #include <QString>
 #include <QDateTime>
 #include <QDebug>
@@ -13,6 +14,9 @@
 #include <chrono>
 
 namespace error_detection {
+
+// Forward declarations
+class ErrorDetectionWorker;
 
 // Error severity levels
 enum class ErrorSeverity {
@@ -109,6 +113,35 @@ struct SystemHealthMetrics {
         total_errors_detected(0),
         successful_recoveries(0),
         failed_recoveries(0) {}
+};
+
+// QThread Worker for background error detection processing
+class ErrorDetectionWorker : public QObject {
+    Q_OBJECT
+
+public:
+    explicit ErrorDetectionWorker(QObject* parent = nullptr);
+    ~ErrorDetectionWorker() = default;
+
+public slots:
+    void startMonitoring();
+    void stopMonitoring();
+    void performMonitoringCycle();
+    void performPatternAnalysis();
+    void updateHealthMetrics();
+
+signals:
+    void monitoringCycleCompleted();
+    void patternAnalysisCompleted();
+    void healthMetricsUpdated();
+    void errorDetected(const ErrorReport& error);
+    void criticalErrorDetected(const ErrorReport& error);
+
+private:
+    std::atomic<bool> m_monitoring_active{false};
+    QTimer* m_monitoring_timer{nullptr};
+    QTimer* m_pattern_timer{nullptr};
+    QTimer* m_health_timer{nullptr};
 };
 
 // Advanced Error Detection Engine
@@ -211,14 +244,14 @@ private:
     mutable QMutex m_health_mutex;
     SystemHealthMetrics m_system_health;
     
-    // Timers
-    std::unique_ptr<QTimer> m_monitoring_timer;
-    std::unique_ptr<QTimer> m_pattern_analysis_timer;
-    std::unique_ptr<QTimer> m_health_update_timer;
+    // QThread-based background processing (replaces blocking timers)
+    QThread* m_worker_thread;
+    ErrorDetectionWorker* m_worker;
     
     // Internal methods
     QString generateErrorId() const;
     void addErrorToHistory(const ErrorReport& error);
+    void initializeWorkerIfNeeded();
     void updateErrorPattern(const ErrorReport& error);
     bool isFrameCorrupted(const std::vector<uint8_t>& frame_data) const;
     bool validateETIFrameStructure(const std::vector<uint8_t>& frame_data) const;
