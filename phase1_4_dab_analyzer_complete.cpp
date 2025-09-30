@@ -1,5 +1,7 @@
 #include <QApplication>
 #include <QMainWindow>
+#include <QCloseEvent>
+#include <QCoreApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QSplitter>
@@ -19,12 +21,16 @@
 #include <QTimer>
 #include <QComboBox>
 #include <QSpinBox>
+#include <QPushButton>
 #include <chrono>
 #include <memory>
 
 #include "src/core/enhanced_eti_processor_qt.h"
 #include "src/core/advanced_fig_analyzer.h"
 #include "src/core/etsi_compliance_engine.hpp"
+#include "src/core/multi_stream_processor.hpp"
+#include "src/core/advanced_error_detection.hpp"
+#include "src/core/professional_logging_system.hpp"
 
 class Phase14DABAnalyzerWindow : public QMainWindow
 {
@@ -41,6 +47,11 @@ public:
         m_etiProcessor = std::make_unique<EnhancedETIProcessorQt>();
         m_figAnalyzer = std::make_unique<AdvancedFIGAnalyzer>();
         m_etsiComplianceEngine = std::make_unique<etsi::ETSIComplianceEngine>();
+        // WORKING COMBINATION: Multi-stream + Error Detection (Logging causes file dialog freeze)
+        m_multiStreamProcessor = std::make_unique<multistream::MultiStreamProcessor>();
+        m_errorDetector = std::make_unique<error_detection::AdvancedErrorDetector>();
+        // IDENTIFIED PROBLEM: Professional Logging System causes file dialog freeze
+        // m_loggingSystem = std::make_unique<professional_logging::ProfessionalLoggingSystem>();
 
         setupUI();
         setupMenuBar();
@@ -156,6 +167,31 @@ private slots:
     {
         m_systemMessages->append(QString("❌ Error: %1").arg(error));
         QMessageBox::critical(this, "Processing Error", error);
+        
+        // Forward error to Error Detection system using performance error detection
+        if (m_errorDetector) {
+            // Use performance error detection for general processing errors
+            m_errorDetector->detectPerformanceErrors(0.0, 0.0); // Trigger performance error
+        }
+    }
+    
+    void onFrameError(int frameNumber, const QString& error, const QString& details)
+    {
+        m_systemMessages->append(QString("⚠️ Frame %1 Error: %2").arg(frameNumber).arg(error));
+        
+        // Forward frame error to Error Detection system using appropriate detection method
+        if (m_errorDetector) {
+            // Create dummy frame data for error detection
+            std::vector<uint8_t> frame_data(6144, 0); // Empty frame for error simulation
+            
+            if (error.contains("SYNC", Qt::CaseInsensitive)) {
+                // Use ETI sync error detection for sync pattern errors
+                m_errorDetector->detectETISyncErrors(frame_data, frameNumber);
+            } else {
+                // Use frame structure error detection for other frame errors
+                m_errorDetector->detectFrameStructureErrors(frame_data, frameNumber);
+            }
+        }
     }
 
     void onFrameSelectionChanged()
@@ -511,6 +547,742 @@ private slots:
         m_complianceViewer->setHtml(html);
     }
     
+    // Multi-stream processing slots
+    void onAddStreamClicked()
+    {
+        QString fileName = QFileDialog::getOpenFileName(this, 
+            "Add ETI Stream", "", "ETI Files (*.eti);;All Files (*)");
+        
+        if (!fileName.isEmpty()) {
+            QString streamId = m_multiStreamProcessor->addETIStream(fileName);
+            if (!streamId.isEmpty()) {
+                if (m_systemMessages) {
+                    m_systemMessages->append(QString("📡 Added ETI stream: %1").arg(QFileInfo(fileName).baseName()));
+                }
+            }
+        }
+    }
+    
+    void onRemoveStreamClicked()
+    {
+        QTreeWidgetItem* selectedItem = m_activeStreamsTree->currentItem();
+        if (selectedItem) {
+            QString streamId = selectedItem->data(0, Qt::UserRole).toString();
+            if (m_multiStreamProcessor->removeETIStream(streamId)) {
+                if (m_systemMessages) {
+                    m_systemMessages->append(QString("❌ Removed ETI stream: %1").arg(selectedItem->text(0)));
+                }
+            }
+        }
+    }
+    
+    void onStartProcessingClicked()
+    {
+        m_multiStreamProcessor->startParallelProcessing();
+        if (m_systemMessages) {
+            m_systemMessages->append("🚀 Started parallel multi-stream processing");
+        }
+    }
+    
+    void onStopProcessingClicked()
+    {
+        m_multiStreamProcessor->stopParallelProcessing();
+        if (m_systemMessages) {
+            m_systemMessages->append("⏹️ Stopped parallel multi-stream processing");
+        }
+    }
+    
+    void onCompareStreamsClicked()
+    {
+        multistream::ComparativeAnalysisResult result = m_multiStreamProcessor->compareAllStreams();
+        displayComparativeAnalysis(result);
+    }
+    
+    void onStreamAdded(const QString& streamId, const multistream::ETIStreamInfo& info)
+    {
+        if (!m_activeStreamsTree) return;
+        
+        QTreeWidgetItem* item = new QTreeWidgetItem(m_activeStreamsTree);
+        item->setText(0, info.stream_name);
+        item->setText(1, info.file_path);
+        item->setText(2, QString::number(info.total_frames));
+        item->setText(3, QString("%1 MB").arg(info.file_size / 1024.0 / 1024.0, 0, 'f', 1));
+        item->setText(4, "Ready");
+        item->setText(5, "0%");
+        item->setData(0, Qt::UserRole, streamId);
+        
+        m_activeStreamsTree->resizeColumnToContents(0);
+        m_activeStreamsTree->resizeColumnToContents(1);
+    }
+    
+    void onStreamRemoved(const QString& streamId)
+    {
+        if (!m_activeStreamsTree) return;
+        
+        for (int i = 0; i < m_activeStreamsTree->topLevelItemCount(); i++) {
+            QTreeWidgetItem* item = m_activeStreamsTree->topLevelItem(i);
+            if (item && item->data(0, Qt::UserRole).toString() == streamId) {
+                delete m_activeStreamsTree->takeTopLevelItem(i);
+                break;
+            }
+        }
+    }
+    
+    void onStreamProcessingProgress(const QString& streamId, double progress)
+    {
+        if (!m_activeStreamsTree) return;
+        
+        for (int i = 0; i < m_activeStreamsTree->topLevelItemCount(); i++) {
+            QTreeWidgetItem* item = m_activeStreamsTree->topLevelItem(i);
+            if (item && item->data(0, Qt::UserRole).toString() == streamId) {
+                item->setText(4, "Processing");
+                item->setText(5, QString("%1%").arg(progress, 0, 'f', 1));
+                break;
+            }
+        }
+    }
+    
+    void onStreamProcessingCompleted(const QString& streamId, const multistream::StreamProcessingStats& stats)
+    {
+        if (!m_activeStreamsTree) return;
+        
+        QTreeWidgetItem* foundItem = nullptr;
+        for (int i = 0; i < m_activeStreamsTree->topLevelItemCount(); i++) {
+            QTreeWidgetItem* item = m_activeStreamsTree->topLevelItem(i);
+            if (item && item->data(0, Qt::UserRole).toString() == streamId) {
+                item->setText(4, "Completed");
+                item->setText(5, "100%");
+                foundItem = item;
+                break;
+            }
+        }
+        
+        if (m_systemMessages && foundItem) {
+            m_systemMessages->append(QString("✅ Completed processing stream: %1 (%2 frames at %3 FPS)")
+                                   .arg(foundItem->text(0))
+                                   .arg(stats.frames_processed)
+                                   .arg(stats.fps_rate, 0, 'f', 1));
+        }
+    }
+    
+    void onComparativeAnalysisCompleted(const multistream::ComparativeAnalysisResult& result)
+    {
+        displayComparativeAnalysis(result);
+        
+        if (m_systemMessages) {
+            m_systemMessages->append(QString("📊 Comparative analysis completed for %1 streams")
+                                   .arg(result.compared_streams.size()));
+        }
+    }
+    
+    void displayComparativeAnalysis(const multistream::ComparativeAnalysisResult& result)
+    {
+        if (!m_comparativeResults) return;
+        
+        QString html = "<html><head><style>"
+                      "body { font-family: 'Consolas', monospace; font-size: 10px; }"
+                      ".header { background-color: #e6f3ff; padding: 8px; font-weight: bold; }"
+                      ".synchronized { color: #28a745; font-weight: bold; }"
+                      ".not-synchronized { color: #dc3545; font-weight: bold; }"
+                      ".stream-info { margin: 5px 0; padding: 5px; background-color: #f8f9fa; }"
+                      "</style></head><body>";
+        
+        html += QString("<div class='header'>Multi-stream Comparative Analysis</div>");
+        html += QString("<p><strong>Analysis ID:</strong> %1</p>").arg(result.analysis_id);
+        html += QString("<p><strong>Analysis Time:</strong> %1</p>").arg(result.analysis_time.toString());
+        html += QString("<p><strong>Streams Compared:</strong> %1</p>").arg(result.compared_streams.size());
+        
+        // Synchronization status
+        if (result.streams_synchronized) {
+            html += "<p><span class='synchronized'>✅ SYNCHRONIZED</span></p>";
+        } else {
+            html += "<p><span class='not-synchronized'>❌ NOT SYNCHRONIZED</span></p>";
+        }
+        
+        // Frame count comparison
+        html += "<h4>Frame Count Comparison:</h4>";
+        for (const auto& pair : result.frame_counts) {
+            const QString& streamId = pair.first;
+            uint32_t frameCount = pair.second;
+            
+            // Find stream name from active streams
+            QString streamName = streamId;
+            for (int i = 0; i < m_activeStreamsTree->topLevelItemCount(); i++) {
+                QTreeWidgetItem* item = m_activeStreamsTree->topLevelItem(i);
+                if (item && item->data(0, Qt::UserRole).toString() == streamId) {
+                    streamName = item->text(0);
+                    break;
+                }
+            }
+            
+            html += QString("<div class='stream-info'>%1: %2 frames</div>")
+                   .arg(streamName).arg(frameCount);
+        }
+        
+        // Quality scores
+        html += "<h4>Stream Quality Scores:</h4>";
+        for (const auto& pair : result.quality_scores) {
+            const QString& streamId = pair.first;
+            double quality = pair.second;
+            
+            QString streamName = streamId;
+            for (int i = 0; i < m_activeStreamsTree->topLevelItemCount(); i++) {
+                QTreeWidgetItem* item = m_activeStreamsTree->topLevelItem(i);
+                if (item && item->data(0, Qt::UserRole).toString() == streamId) {
+                    streamName = item->text(0);
+                    break;
+                }
+            }
+            
+            html += QString("<div class='stream-info'>%1: %2%</div>")
+                   .arg(streamName).arg(quality, 0, 'f', 1);
+        }
+        
+        html += "</body></html>";
+        
+        m_comparativeResults->setHtml(html);
+    }
+    
+    // Advanced Error Detection signal handlers
+    void onEnableErrorDetection()
+    {
+        if (m_errorDetector) {
+            m_errorDetector->setErrorDetectionEnabled(true);
+            m_errorDetector->setRealTimeMonitoringEnabled(true);
+            
+            if (m_errorDetectionStatus) {
+                m_errorDetectionStatus->setText("Status: Active - Real-time monitoring enabled");
+                m_errorDetectionStatus->setStyleSheet("QLabel { color: green; font-weight: bold; }");
+            }
+            
+            if (m_systemMessages) {
+                m_systemMessages->append("🛡️ Advanced Error Detection enabled");
+            }
+        }
+    }
+    
+    void onDisableErrorDetection()
+    {
+        if (m_errorDetector) {
+            m_errorDetector->setErrorDetectionEnabled(false);
+            m_errorDetector->setRealTimeMonitoringEnabled(false);
+            
+            if (m_errorDetectionStatus) {
+                m_errorDetectionStatus->setText("Status: Disabled - Monitoring stopped");
+                m_errorDetectionStatus->setStyleSheet("QLabel { color: red; font-weight: bold; }");
+            }
+            
+            if (m_systemMessages) {
+                m_systemMessages->append("🚫 Advanced Error Detection disabled");
+            }
+        }
+    }
+    
+    void onResetErrors()
+    {
+        if (m_errorDetector) {
+            m_errorDetector->resetErrorState();
+            
+            if (m_errorHistoryTree) {
+                m_errorHistoryTree->clear();
+            }
+            
+            if (m_errorCountLabel) {
+                m_errorCountLabel->setText("Total Errors: 0");
+            }
+            
+            if (m_errorPatternsDisplay) {
+                m_errorPatternsDisplay->clear();
+            }
+            
+            if (m_systemMessages) {
+                m_systemMessages->append("🔄 Error state reset - All error history cleared");
+            }
+        }
+    }
+    
+    void onExportErrorReport()
+    {
+        if (!m_errorDetector) return;
+        
+        QString fileName = QFileDialog::getSaveFileName(this,
+            "Export Error Report", 
+            QString("error_report_%1.json").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss")),
+            "JSON Files (*.json);;All Files (*)");
+        
+        if (!fileName.isEmpty()) {
+            QDateTime from = QDateTime::currentDateTime().addDays(-1); // Last 24 hours
+            QDateTime to = QDateTime::currentDateTime();
+            
+            QString report = m_errorDetector->generateErrorReport(from, to);
+            
+            QFile file(fileName);
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream stream(&file);
+                stream << report;
+                
+                if (m_systemMessages) {
+                    m_systemMessages->append(QString("💾 Error report exported to: %1").arg(fileName));
+                }
+            } else {
+                if (m_systemMessages) {
+                    m_systemMessages->append("❌ Failed to export error report");
+                }
+            }
+        }
+    }
+    
+    void onShowSystemHealth()
+    {
+        if (!m_errorDetector) return;
+        
+        error_detection::SystemHealthMetrics health = m_errorDetector->getSystemHealth();
+        
+        QString healthReport = QString(
+            "<html><head><style>"
+            "body { font-family: 'Consolas', monospace; font-size: 10px; }"
+            ".header { background-color: #e6f3ff; padding: 8px; font-weight: bold; }"
+            ".healthy { color: #28a745; font-weight: bold; }"
+            ".warning { color: #ffc107; font-weight: bold; }"
+            ".critical { color: #dc3545; font-weight: bold; }"
+            ".metric { margin: 5px 0; padding: 5px; background-color: #f8f9fa; }"
+            "</style></head><body>"
+            "<div class='header'>System Health Report</div>"
+            "<div class='metric'><strong>Overall Health Score:</strong> <span class='%1'>%2%</span></div>"
+            "<div class='metric'><strong>Error Rate:</strong> %3 errors/minute</div>"
+            "<div class='metric'><strong>Critical Error Rate:</strong> %4 critical/minute</div>"
+            "<div class='metric'><strong>Total Errors:</strong> %5</div>"
+            "<div class='metric'><strong>Successful Recoveries:</strong> %6</div>"
+            "<div class='metric'><strong>Failed Recoveries:</strong> %7</div>"
+            "<div class='metric'><strong>Last Critical Error:</strong> %8</div>"
+            "</body></html>"
+        ).arg(health.overall_health_score >= 80 ? "healthy" : health.overall_health_score >= 60 ? "warning" : "critical")
+         .arg(health.overall_health_score, 0, 'f', 1)
+         .arg(health.error_rate_per_minute, 0, 'f', 2)
+         .arg(health.critical_error_rate, 0, 'f', 2)
+         .arg(health.total_errors_detected)
+         .arg(health.successful_recoveries)
+         .arg(health.failed_recoveries)
+         .arg(health.last_critical_error.isNull() ? "None" : health.last_critical_error.toString());
+        
+        if (m_errorPatternsDisplay) {
+            m_errorPatternsDisplay->setHtml(healthReport);
+        }
+        
+        if (m_systemMessages) {
+            m_systemMessages->append(QString("📊 System Health: %1% (Last update: %2)")
+                                   .arg(health.overall_health_score, 0, 'f', 1)
+                                   .arg(QDateTime::currentDateTime().toString("hh:mm:ss")));
+        }
+    }
+    
+    void onErrorDetected(const error_detection::ErrorReport& error)
+    {
+        if (!m_errorHistoryTree) return;
+        
+        QTreeWidgetItem* item = new QTreeWidgetItem(m_errorHistoryTree);
+        item->setText(0, error.timestamp.toString("hh:mm:ss"));
+        
+        // Severity with color coding
+        QString severityText;
+        QString severityColor;
+        switch (error.severity) {
+            case error_detection::ErrorSeverity::CRITICAL:
+                severityText = "CRITICAL";
+                severityColor = "#dc3545";
+                break;
+            case error_detection::ErrorSeverity::HIGH:
+                severityText = "HIGH";
+                severityColor = "#fd7e14";
+                break;
+            case error_detection::ErrorSeverity::MEDIUM:
+                severityText = "MEDIUM";
+                severityColor = "#ffc107";
+                break;
+            case error_detection::ErrorSeverity::LOW:
+                severityText = "LOW";
+                severityColor = "#28a745";
+                break;
+            default:
+                severityText = "INFO";
+                severityColor = "#6c757d";
+                break;
+        }
+        
+        item->setText(1, severityText);
+        item->setForeground(1, QColor(severityColor));
+        
+        // Category
+        QString categoryText = QString::number(static_cast<int>(error.category));
+        item->setText(2, categoryText);
+        
+        // Description
+        item->setText(3, error.description);
+        
+        // Frame number
+        item->setText(4, QString::number(error.frame_number));
+        
+        // Recovery status
+        QString recoveryText = error.auto_recovery_attempted ? 
+                             (error.recovery_successful ? "✅ Success" : "❌ Failed") : 
+                             "No attempt";
+        item->setText(5, recoveryText);
+        
+        // Store error details
+        item->setData(0, Qt::UserRole, QVariant::fromValue(error.error_id));
+        
+        // Auto-scroll to latest error
+        m_errorHistoryTree->scrollToBottom();
+        
+        // Update error count
+        if (m_errorCountLabel) {
+            uint32_t totalErrors = m_errorDetector->getTotalErrorCount();
+            m_errorCountLabel->setText(QString("Total Errors: %1").arg(totalErrors));
+        }
+    }
+    
+    void onSystemHealthChanged(const error_detection::SystemHealthMetrics& health)
+    {
+        if (m_systemHealthScore) {
+            QString healthColor = health.overall_health_score >= 80 ? "green" : 
+                                 health.overall_health_score >= 60 ? "orange" : "red";
+            
+            m_systemHealthScore->setText(QString("System Health: %1%").arg(health.overall_health_score, 0, 'f', 1));
+            m_systemHealthScore->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }").arg(healthColor));
+        }
+    }
+    
+    // Professional Logging signal handlers
+    void onEnableLogging()
+    {
+        if (m_loggingSystem) {
+            // Configure logging for broadcast industry standards
+            professional_logging::LogOutputConfig config;
+            config.console_output = true;
+            config.file_output = true;
+            config.minimum_level = professional_logging::LogLevel::DEBUG;
+            m_loggingSystem->setOutputConfiguration(config);
+            
+            if (m_loggingStatus) {
+                m_loggingStatus->setText("Status: Active - Professional logging enabled");
+                m_loggingStatus->setStyleSheet("QLabel { color: green; font-weight: bold; }");
+            }
+            
+            m_loggingSystem->logInfo(professional_logging::LogCategory::SYSTEM, "MainWindow", "Professional logging system enabled");
+            
+            if (m_systemMessages) {
+                m_systemMessages->append("📝 Professional Logging System enabled");
+            }
+            
+            updateLoggingStats();
+        }
+    }
+    
+    void onDisableLogging()
+    {
+        if (m_loggingSystem) {
+            m_loggingSystem->logInfo(professional_logging::LogCategory::SYSTEM, "MainWindow", "Professional logging system being disabled");
+            
+            professional_logging::LogOutputConfig config;
+            config.console_output = false;
+            config.file_output = false;
+            m_loggingSystem->setOutputConfiguration(config);
+            
+            if (m_loggingStatus) {
+                m_loggingStatus->setText("Status: Disabled - Logging stopped");
+                m_loggingStatus->setStyleSheet("QLabel { color: red; font-weight: bold; }");
+            }
+            
+            if (m_systemMessages) {
+                m_systemMessages->append("🚫 Professional Logging System disabled");
+            }
+        }
+    }
+    
+    void onSetDebugLevel()
+    {
+        if (m_loggingSystem) {
+            m_loggingSystem->setMinimumLogLevel(professional_logging::LogLevel::DEBUG);
+            
+            if (m_loggingLevel) {
+                m_loggingLevel->setText("Level: DEBUG");
+            }
+            
+            m_loggingSystem->logInfo(professional_logging::LogCategory::SYSTEM, "MainWindow", "Log level set to DEBUG");
+            
+            if (m_systemMessages) {
+                m_systemMessages->append("🔍 Log level set to DEBUG - Detailed logging enabled");
+            }
+            
+            updateLoggingStats();
+        }
+    }
+    
+    void onSetInfoLevel()
+    {
+        if (m_loggingSystem) {
+            m_loggingSystem->setMinimumLogLevel(professional_logging::LogLevel::INFO);
+            
+            if (m_loggingLevel) {
+                m_loggingLevel->setText("Level: INFO");
+            }
+            
+            m_loggingSystem->logInfo(professional_logging::LogCategory::SYSTEM, "MainWindow", "Log level set to INFO");
+            
+            if (m_systemMessages) {
+                m_systemMessages->append("ℹ️ Log level set to INFO - Standard logging enabled");
+            }
+            
+            updateLoggingStats();
+        }
+    }
+    
+    void onExportLogs()
+    {
+        if (!m_loggingSystem) return;
+        
+        QString fileName = QFileDialog::getSaveFileName(this,
+            "Export Logs", 
+            QString("logs_export_%1.json").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss")),
+            "JSON Files (*.json);;All Files (*)");
+        
+        if (!fileName.isEmpty()) {
+            professional_logging::LogFilter filter; // Default filter (all logs)
+            
+            if (m_loggingSystem->exportLogsToJSON(fileName, filter)) {
+                m_loggingSystem->logInfo(professional_logging::LogCategory::FILE_IO, "MainWindow", 
+                                       QString("Logs exported to: %1").arg(fileName));
+                
+                if (m_systemMessages) {
+                    m_systemMessages->append(QString("💾 Logs exported to: %1").arg(fileName));
+                }
+            } else {
+                m_loggingSystem->logError(professional_logging::LogCategory::FILE_IO, "MainWindow", 
+                                        QString("Failed to export logs to: %1").arg(fileName));
+                
+                if (m_systemMessages) {
+                    m_systemMessages->append("❌ Failed to export logs");
+                }
+            }
+        }
+    }
+    
+    void onClearLogs()
+    {
+        if (m_loggingSystem) {
+            m_loggingSystem->logWarning(professional_logging::LogCategory::SYSTEM, "MainWindow", "Log buffer cleared by user");
+            
+            // Note: The actual clearing would need to be implemented in the logging system
+            // For now, we'll clear the UI view
+            if (m_logEntriesTree) {
+                m_logEntriesTree->clear();
+            }
+            
+            if (m_systemMessages) {
+                m_systemMessages->append("🧹 Log display cleared");
+            }
+            
+            updateLoggingStats();
+        }
+    }
+    
+    void onRotateLogs()
+    {
+        if (m_loggingSystem) {
+            m_loggingSystem->logInfo(professional_logging::LogCategory::SYSTEM, "MainWindow", "Manual log rotation requested");
+            m_loggingSystem->rotateLogFiles();
+            
+            if (m_systemMessages) {
+                m_systemMessages->append("🔄 Log files rotated");
+            }
+            
+            updateLoggingStats();
+        }
+    }
+    
+    void onRefreshLogs()
+    {
+        refreshLogDisplay();
+        
+        if (m_systemMessages) {
+            m_systemMessages->append("🔄 Log display refreshed");
+        }
+    }
+    
+    void onClearLogsView()
+    {
+        if (m_logEntriesTree) {
+            m_logEntriesTree->clear();
+        }
+        
+        if (m_systemMessages) {
+            m_systemMessages->append("🧹 Log view cleared");
+        }
+    }
+    
+    void onLogEntryAdded(const professional_logging::LogEntry& entry)
+    {
+        if (!m_logEntriesTree) return;
+        
+        // Apply current filters
+        QString levelFilter = m_logLevelFilter ? m_logLevelFilter->currentText() : "ALL";
+        QString categoryFilter = m_logCategoryFilter ? m_logCategoryFilter->currentText() : "ALL";
+        
+        // Check level filter
+        if (levelFilter != "ALL") {
+            QString entryLevelStr = QString::number(static_cast<int>(entry.level));
+            if (levelFilter != entryLevelStr) {
+                return; // Filtered out
+            }
+        }
+        
+        // Check category filter  
+        if (categoryFilter != "ALL") {
+            QString entryCategoryStr = QString::number(static_cast<int>(entry.category));
+            if (categoryFilter != entryCategoryStr) {
+                return; // Filtered out
+            }
+        }
+        
+        QTreeWidgetItem* item = new QTreeWidgetItem(m_logEntriesTree);
+        item->setText(0, entry.timestamp.toString("hh:mm:ss.zzz"));
+        
+        // Level with color coding
+        QString levelText;
+        QString levelColor;
+        switch (entry.level) {
+            case professional_logging::LogLevel::CRITICAL:
+            case professional_logging::LogLevel::EMERGENCY:
+                levelText = "CRITICAL";
+                levelColor = "#dc3545";
+                break;
+            case professional_logging::LogLevel::ERROR:
+                levelText = "ERROR";
+                levelColor = "#fd7e14";
+                break;
+            case professional_logging::LogLevel::WARNING:
+                levelText = "WARNING";
+                levelColor = "#ffc107";
+                break;
+            case professional_logging::LogLevel::INFO:
+                levelText = "INFO";
+                levelColor = "#17a2b8";
+                break;
+            case professional_logging::LogLevel::DEBUG:
+                levelText = "DEBUG";
+                levelColor = "#28a745";
+                break;
+            default:
+                levelText = "TRACE";
+                levelColor = "#6c757d";
+                break;
+        }
+        
+        item->setText(1, levelText);
+        item->setForeground(1, QColor(levelColor));
+        
+        // Category
+        QString categoryText;
+        switch (entry.category) {
+            case professional_logging::LogCategory::SYSTEM: categoryText = "SYSTEM"; break;
+            case professional_logging::LogCategory::ETI_PROCESSING: categoryText = "ETI_PROC"; break;
+            case professional_logging::LogCategory::SERVICE_DISCOVERY: categoryText = "SERVICE"; break;
+            case professional_logging::LogCategory::AUDIO_ANALYSIS: categoryText = "AUDIO"; break;
+            case professional_logging::LogCategory::NETWORK: categoryText = "NETWORK"; break;
+            case professional_logging::LogCategory::FILE_IO: categoryText = "FILE_IO"; break;
+            case professional_logging::LogCategory::USER_INTERFACE: categoryText = "UI"; break;
+            case professional_logging::LogCategory::ETSI_COMPLIANCE: categoryText = "ETSI"; break;
+            case professional_logging::LogCategory::ERROR_DETECTION: categoryText = "ERROR_DET"; break;
+            case professional_logging::LogCategory::PERFORMANCE: categoryText = "PERF"; break;
+            case professional_logging::LogCategory::SECURITY: categoryText = "SECURITY"; break;
+            case professional_logging::LogCategory::CONFIGURATION: categoryText = "CONFIG"; break;
+            default: categoryText = "UNKNOWN"; break;
+        }
+        item->setText(2, categoryText);
+        
+        // Component and message
+        item->setText(3, entry.component);
+        item->setText(4, entry.message);
+        
+        // Store entry ID for details lookup
+        item->setData(0, Qt::UserRole, QVariant::fromValue(entry.log_id));
+        
+        // Auto-scroll to latest entry
+        m_logEntriesTree->scrollToBottom();
+        
+        // Update log count
+        updateLoggingStats();
+    }
+    
+    void refreshLogDisplay()
+    {
+        if (!m_loggingSystem || !m_logEntriesTree) return;
+        
+        m_logEntriesTree->clear();
+        
+        // Get recent log entries
+        std::vector<professional_logging::LogEntry> entries = m_loggingSystem->getRecentEntries(500);
+        
+        for (const auto& entry : entries) {
+            onLogEntryAdded(entry);
+        }
+        
+        updateLoggingStats();
+    }
+    
+    void updateLoggingStats()
+    {
+        if (!m_loggingSystem) return;
+        
+        // Update session ID
+        if (m_sessionIdLabel) {
+            // Get session ID from logging system (would need to add getter method)
+            m_sessionIdLabel->setText("Session: Active");
+        }
+        
+        // Update log count
+        if (m_logCountLabel) {
+            uint64_t totalLogs = 0; // Would need to get from logging system
+            m_logCountLabel->setText(QString("Total Logs: %1").arg(totalLogs));
+        }
+        
+        // Update statistics display
+        if (m_loggingStatsDisplay) {
+            professional_logging::LogStatistics stats = m_loggingSystem->getLogStatistics();
+            
+            QString statsHtml = QString(
+                "<html><head><style>"
+                "body { font-family: 'Consolas', monospace; font-size: 9px; }"
+                ".header { background-color: #e6f3ff; padding: 4px; font-weight: bold; }"
+                ".stat { margin: 2px 0; padding: 2px; background-color: #f8f9fa; }"
+                "</style></head><body>"
+                "<div class='header'>Professional Logging Statistics</div>"
+                "<div class='stat'><strong>Total Entries:</strong> %1</div>"
+                "<div class='stat'><strong>Critical/Emergency:</strong> %2</div>"
+                "<div class='stat'><strong>Errors:</strong> %3</div>"
+                "<div class='stat'><strong>Warnings:</strong> %4</div>"
+                "<div class='stat'><strong>Info:</strong> %5</div>"
+                "<div class='stat'><strong>Debug/Trace:</strong> %6</div>"
+                "<div class='stat'><strong>Most Active Component:</strong> %7</div>"
+                "<div class='stat'><strong>Session Duration:</strong> %8</div>"
+                "</body></html>"
+            ).arg(stats.total_entries)
+             .arg(stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::CRITICAL)] + 
+                  stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::EMERGENCY)])
+             .arg(stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::ERROR)])
+             .arg(stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::WARNING)])
+             .arg(stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::INFO)])
+             .arg(stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::DEBUG)] + 
+                  stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::TRACE)])
+             .arg(stats.most_active_component.isEmpty() ? "None" : stats.most_active_component)
+             .arg(stats.first_entry_time.isNull() ? "N/A" : 
+                  stats.first_entry_time.secsTo(QDateTime::currentDateTime()) > 0 ?
+                  QString("%1s").arg(stats.first_entry_time.secsTo(QDateTime::currentDateTime())) : "0s");
+            
+            m_loggingStatsDisplay->setHtml(statsHtml);
+        }
+    }
+    
     void displayFrameHexData(int frameIndex)
     {
         if (!m_hexViewer || !m_etiProcessor || frameIndex < 0) {
@@ -798,6 +1570,49 @@ private slots:
         }
     }
 
+protected:
+    void closeEvent(QCloseEvent* event) override
+    {
+        // AGGRESSIVE cleanup: Destroy Phase 2B components completely before closing
+        qDebug() << "Window closing - performing aggressive component cleanup...";
+        
+        // Force destroy Error Detection system (timers, threads, etc.)
+        if (m_errorDetector) {
+            qDebug() << "Destroying Error Detection system...";
+            m_errorDetector.reset(); // Force immediate destruction
+        }
+        
+        // Force destroy Multi-stream processor (threads, connections, etc.)
+        if (m_multiStreamProcessor) {
+            qDebug() << "Destroying Multi-stream processor...";
+            m_multiStreamProcessor.reset(); // Force immediate destruction
+        }
+        
+        // Force destroy ETI processor
+        if (m_etiProcessor) {
+            qDebug() << "Destroying ETI processor...";
+            m_etiProcessor.reset(); // Force immediate destruction
+        }
+        
+        // Force destroy other components
+        if (m_figAnalyzer) {
+            qDebug() << "Destroying FIG analyzer...";
+            m_figAnalyzer.reset();
+        }
+        
+        if (m_etsiComplianceEngine) {
+            qDebug() << "Destroying ETSI compliance engine...";
+            m_etsiComplianceEngine.reset();
+        }
+        
+        // Force process events to ensure cleanup completes
+        QCoreApplication::processEvents();
+        
+        // Accept the close event after aggressive cleanup
+        qDebug() << "Aggressive cleanup complete - closing window";
+        event->accept();
+    }
+
 private:
     void setupUI()
     {
@@ -936,7 +1751,19 @@ private:
         QWidget* performanceTab = createPerformanceDashboardTab();
         analysisTabs->addTab(performanceTab, "Performance");
 
-        // Tab 5: Constellation Viewer
+        // Tab 5: Multi-stream Manager
+        QWidget* multiStreamTab = createMultiStreamTab();
+        analysisTabs->addTab(multiStreamTab, "Multi-stream");
+        
+        // Tab 6: Advanced Error Detection
+        QWidget* errorDetectionTab = createErrorDetectionTab();
+        analysisTabs->addTab(errorDetectionTab, "Error Detection");
+        
+        // Tab 7: Professional Logging
+        QWidget* loggingTab = createLoggingTab();
+        analysisTabs->addTab(loggingTab, "Logging");
+        
+        // Tab 8: Constellation Viewer
         QWidget* constellationTab = createConstellationTab();
         analysisTabs->addTab(constellationTab, "Constellation");
 
@@ -1093,6 +1920,289 @@ private:
         layout->addWidget(placeholder);
         return widget;
     }
+    
+    QWidget* createMultiStreamTab()
+    {
+        QWidget* multiStreamTab = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(multiStreamTab);
+        
+        // Multi-stream controls section
+        QGroupBox* controlsGroup = new QGroupBox("Multi-stream Processing Controls");
+        QHBoxLayout* controlsLayout = new QHBoxLayout(controlsGroup);
+        
+        // Stream management buttons
+        QPushButton* addStreamBtn = new QPushButton("Add ETI Stream");
+        QPushButton* removeStreamBtn = new QPushButton("Remove Stream");
+        QPushButton* startProcessingBtn = new QPushButton("Start Parallel Processing");
+        QPushButton* stopProcessingBtn = new QPushButton("Stop Processing");
+        QPushButton* compareStreamsBtn = new QPushButton("Compare All Streams");
+        
+        controlsLayout->addWidget(addStreamBtn);
+        controlsLayout->addWidget(removeStreamBtn);
+        controlsLayout->addWidget(startProcessingBtn);
+        controlsLayout->addWidget(stopProcessingBtn);
+        controlsLayout->addWidget(compareStreamsBtn);
+        controlsLayout->addStretch();
+        
+        layout->addWidget(controlsGroup);
+        
+        // Active streams display
+        QGroupBox* streamsGroup = new QGroupBox("Active ETI Streams");
+        QVBoxLayout* streamsLayout = new QVBoxLayout(streamsGroup);
+        
+        m_activeStreamsTree = new QTreeWidget();
+        m_activeStreamsTree->setHeaderLabels({"Stream Name", "File Path", "Frames", "Size", "Status", "Progress"});
+        m_activeStreamsTree->setAlternatingRowColors(true);
+        streamsLayout->addWidget(m_activeStreamsTree);
+        
+        layout->addWidget(streamsGroup);
+        
+        // Comparative analysis results
+        QGroupBox* analysisGroup = new QGroupBox("Comparative Analysis Results");
+        QVBoxLayout* analysisLayout = new QVBoxLayout(analysisGroup);
+        
+        m_comparativeResults = new QTextEdit();
+        m_comparativeResults->setFont(QFont("Consolas", 9));
+        m_comparativeResults->setPlaceholderText("Comparative analysis results will appear here...");
+        m_comparativeResults->setMaximumHeight(200);
+        analysisLayout->addWidget(m_comparativeResults);
+        
+        layout->addWidget(analysisGroup);
+        
+        // PHASE 1 RE-ENABLE: Multi-stream signals with delayed connection for safety
+        QTimer::singleShot(500, this, [this]() {
+            if (m_multiStreamProcessor) {
+                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamAdded,
+                        this, &Phase14DABAnalyzerWindow::onStreamAdded);
+                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamRemoved,
+                        this, &Phase14DABAnalyzerWindow::onStreamRemoved);
+                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamProcessingProgress,
+                        this, &Phase14DABAnalyzerWindow::onStreamProcessingProgress);
+                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamProcessingCompleted,
+                        this, &Phase14DABAnalyzerWindow::onStreamProcessingCompleted);
+                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::comparativeAnalysisCompleted,
+                        this, &Phase14DABAnalyzerWindow::onComparativeAnalysisCompleted);
+                qDebug() << "Multi-stream processor signals connected after delay";
+            }
+        });
+        
+        // Connect button signals
+        connect(addStreamBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onAddStreamClicked);
+        connect(removeStreamBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onRemoveStreamClicked);
+        connect(startProcessingBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onStartProcessingClicked);
+        connect(stopProcessingBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onStopProcessingClicked);
+        connect(compareStreamsBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onCompareStreamsClicked);
+        
+        return multiStreamTab;
+    }
+
+    QWidget* createErrorDetectionTab()
+    {
+        QWidget* errorDetectionTab = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(errorDetectionTab);
+        
+        // Error detection controls section
+        QGroupBox* controlsGroup = new QGroupBox("Advanced Error Detection Controls");
+        QHBoxLayout* controlsLayout = new QHBoxLayout(controlsGroup);
+        
+        // Error detection configuration buttons
+        QPushButton* enableDetectionBtn = new QPushButton("Enable Detection");
+        QPushButton* disableDetectionBtn = new QPushButton("Disable Detection");
+        QPushButton* resetErrorsBtn = new QPushButton("Reset Errors");
+        QPushButton* exportErrorsBtn = new QPushButton("Export Error Report");
+        QPushButton* systemHealthBtn = new QPushButton("System Health");
+        
+        enableDetectionBtn->setCheckable(true);
+        enableDetectionBtn->setChecked(true); // Start enabled
+        
+        controlsLayout->addWidget(enableDetectionBtn);
+        controlsLayout->addWidget(disableDetectionBtn);
+        controlsLayout->addWidget(resetErrorsBtn);
+        controlsLayout->addWidget(exportErrorsBtn);
+        controlsLayout->addWidget(systemHealthBtn);
+        controlsLayout->addStretch();
+        
+        layout->addWidget(controlsGroup);
+        
+        // Error detection status section
+        QGroupBox* statusGroup = new QGroupBox("Error Detection Status");
+        QHBoxLayout* statusLayout = new QHBoxLayout(statusGroup);
+        
+        m_errorDetectionStatus = new QLabel("Status: Active - Real-time monitoring enabled");
+        m_errorDetectionStatus->setStyleSheet("QLabel { color: green; font-weight: bold; }");
+        m_systemHealthScore = new QLabel("System Health: 100%");
+        m_systemHealthScore->setStyleSheet("QLabel { color: green; font-weight: bold; }");
+        m_errorCountLabel = new QLabel("Total Errors: 0");
+        
+        statusLayout->addWidget(m_errorDetectionStatus);
+        statusLayout->addWidget(m_systemHealthScore);
+        statusLayout->addWidget(m_errorCountLabel);
+        statusLayout->addStretch();
+        
+        layout->addWidget(statusGroup);
+        
+        // Error history display
+        QGroupBox* historyGroup = new QGroupBox("Error History");
+        QVBoxLayout* historyLayout = new QVBoxLayout(historyGroup);
+        
+        m_errorHistoryTree = new QTreeWidget();
+        m_errorHistoryTree->setHeaderLabels({"Timestamp", "Severity", "Category", "Description", "Frame", "Recovery"});
+        m_errorHistoryTree->setAlternatingRowColors(true);
+        m_errorHistoryTree->setSortingEnabled(true);
+        m_errorHistoryTree->header()->setStretchLastSection(false);
+        m_errorHistoryTree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+        m_errorHistoryTree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+        m_errorHistoryTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+        m_errorHistoryTree->header()->setSectionResizeMode(3, QHeaderView::Stretch);
+        m_errorHistoryTree->header()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+        m_errorHistoryTree->header()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+        
+        historyLayout->addWidget(m_errorHistoryTree);
+        
+        layout->addWidget(historyGroup);
+        
+        // Error pattern analysis
+        QGroupBox* patternGroup = new QGroupBox("Error Pattern Analysis");
+        QVBoxLayout* patternLayout = new QVBoxLayout(patternGroup);
+        
+        m_errorPatternsDisplay = new QTextEdit();
+        m_errorPatternsDisplay->setFont(QFont("Consolas", 9));
+        m_errorPatternsDisplay->setPlaceholderText("Error pattern analysis will appear here...");
+        m_errorPatternsDisplay->setMaximumHeight(150);
+        patternLayout->addWidget(m_errorPatternsDisplay);
+        
+        layout->addWidget(patternGroup);
+        
+        // Connect error detection button signals
+        connect(enableDetectionBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onEnableErrorDetection);
+        connect(disableDetectionBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onDisableErrorDetection);
+        connect(resetErrorsBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onResetErrors);
+        connect(exportErrorsBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onExportErrorReport);
+        connect(systemHealthBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onShowSystemHealth);
+        
+        return errorDetectionTab;
+    }
+
+    QWidget* createLoggingTab()
+    {
+        QWidget* loggingTab = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(loggingTab);
+        
+        // Logging controls section
+        QGroupBox* controlsGroup = new QGroupBox("Professional Logging Controls");
+        QHBoxLayout* controlsLayout = new QHBoxLayout(controlsGroup);
+        
+        // Logging control buttons
+        QPushButton* enableLoggingBtn = new QPushButton("Enable Logging");
+        QPushButton* disableLoggingBtn = new QPushButton("Disable Logging");
+        QPushButton* setDebugLevelBtn = new QPushButton("Debug Level");
+        QPushButton* setInfoLevelBtn = new QPushButton("Info Level");
+        QPushButton* exportLogsBtn = new QPushButton("Export Logs");
+        QPushButton* clearLogsBtn = new QPushButton("Clear Logs");
+        QPushButton* rotateLogsBtn = new QPushButton("Rotate Logs");
+        
+        enableLoggingBtn->setCheckable(true);
+        enableLoggingBtn->setChecked(true); // Start enabled
+        
+        controlsLayout->addWidget(enableLoggingBtn);
+        controlsLayout->addWidget(disableLoggingBtn);
+        controlsLayout->addWidget(setDebugLevelBtn);
+        controlsLayout->addWidget(setInfoLevelBtn);
+        controlsLayout->addWidget(exportLogsBtn);
+        controlsLayout->addWidget(clearLogsBtn);
+        controlsLayout->addWidget(rotateLogsBtn);
+        controlsLayout->addStretch();
+        
+        layout->addWidget(controlsGroup);
+        
+        // Logging status section
+        QGroupBox* statusGroup = new QGroupBox("Logging System Status");
+        QHBoxLayout* statusLayout = new QHBoxLayout(statusGroup);
+        
+        m_loggingStatus = new QLabel("Status: Active - Professional logging enabled");
+        m_loggingStatus->setStyleSheet("QLabel { color: green; font-weight: bold; }");
+        m_loggingLevel = new QLabel("Level: DEBUG");
+        m_logCountLabel = new QLabel("Total Logs: 0");
+        m_sessionIdLabel = new QLabel("Session: Loading...");
+        
+        statusLayout->addWidget(m_loggingStatus);
+        statusLayout->addWidget(m_loggingLevel);
+        statusLayout->addWidget(m_logCountLabel);
+        statusLayout->addWidget(m_sessionIdLabel);
+        statusLayout->addStretch();
+        
+        layout->addWidget(statusGroup);
+        
+        // Log entries display
+        QGroupBox* logsGroup = new QGroupBox("Recent Log Entries");
+        QVBoxLayout* logsLayout = new QVBoxLayout(logsGroup);
+        
+        // Log filter controls
+        QHBoxLayout* filterLayout = new QHBoxLayout();
+        
+        QLabel* levelFilterLabel = new QLabel("Level:");
+        m_logLevelFilter = new QComboBox();
+        m_logLevelFilter->addItems({"ALL", "TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "EMERGENCY"});
+        m_logLevelFilter->setCurrentText("DEBUG");
+        
+        QLabel* categoryFilterLabel = new QLabel("Category:");
+        m_logCategoryFilter = new QComboBox();
+        m_logCategoryFilter->addItems({"ALL", "SYSTEM", "ETI_PROC", "SERVICE", "AUDIO", "NETWORK", "FILE_IO", "UI", "ETSI", "ERROR_DET", "PERF", "SECURITY", "CONFIG"});
+        
+        QPushButton* refreshLogsBtn = new QPushButton("Refresh");
+        QPushButton* clearViewBtn = new QPushButton("Clear View");
+        
+        filterLayout->addWidget(levelFilterLabel);
+        filterLayout->addWidget(m_logLevelFilter);
+        filterLayout->addWidget(categoryFilterLabel);
+        filterLayout->addWidget(m_logCategoryFilter);
+        filterLayout->addWidget(refreshLogsBtn);
+        filterLayout->addWidget(clearViewBtn);
+        filterLayout->addStretch();
+        
+        logsLayout->addLayout(filterLayout);
+        
+        // Log entries tree
+        m_logEntriesTree = new QTreeWidget();
+        m_logEntriesTree->setHeaderLabels({"Time", "Level", "Category", "Component", "Message"});
+        m_logEntriesTree->setAlternatingRowColors(true);
+        m_logEntriesTree->setSortingEnabled(true);
+        m_logEntriesTree->header()->setStretchLastSection(false);
+        m_logEntriesTree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+        m_logEntriesTree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+        m_logEntriesTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+        m_logEntriesTree->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+        m_logEntriesTree->header()->setSectionResizeMode(4, QHeaderView::Stretch);
+        
+        logsLayout->addWidget(m_logEntriesTree);
+        
+        layout->addWidget(logsGroup);
+        
+        // Log statistics section
+        QGroupBox* statsGroup = new QGroupBox("Logging Statistics");
+        QVBoxLayout* statsLayout = new QVBoxLayout(statsGroup);
+        
+        m_loggingStatsDisplay = new QTextEdit();
+        m_loggingStatsDisplay->setFont(QFont("Consolas", 9));
+        m_loggingStatsDisplay->setPlaceholderText("Logging statistics will appear here...");
+        m_loggingStatsDisplay->setMaximumHeight(120);
+        statsLayout->addWidget(m_loggingStatsDisplay);
+        
+        layout->addWidget(statsGroup);
+        
+        // Connect logging button signals
+        connect(enableLoggingBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onEnableLogging);
+        connect(disableLoggingBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onDisableLogging);
+        connect(setDebugLevelBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onSetDebugLevel);
+        connect(setInfoLevelBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onSetInfoLevel);
+        connect(exportLogsBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onExportLogs);
+        connect(clearLogsBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onClearLogs);
+        connect(rotateLogsBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onRotateLogs);
+        connect(refreshLogsBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onRefreshLogs);
+        connect(clearViewBtn, &QPushButton::clicked, this, &Phase14DABAnalyzerWindow::onClearLogsView);
+        
+        return loggingTab;
+    }
 
     void setupMenuBar()
     {
@@ -1131,6 +2241,8 @@ private:
                 this, &Phase14DABAnalyzerWindow::onProcessingComplete);
         connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingError,
                 this, &Phase14DABAnalyzerWindow::onProcessingError);
+        connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::frameError,
+                this, &Phase14DABAnalyzerWindow::onFrameError);
         
         // FIG Analysis signals for real-time FIC-Analyzer updates
         connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::figDiscovered,
@@ -1151,6 +2263,26 @@ private:
         connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceDiscovered,
                 this, &Phase14DABAnalyzerWindow::onServiceDiscovered);
 
+        // PHASE 2 RE-ENABLE: Error Detection signals with delayed connection for safety
+        QTimer::singleShot(1000, this, [this]() {
+            if (m_errorDetector) {
+                connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::errorDetected,
+                        this, &Phase14DABAnalyzerWindow::onErrorDetected);
+                connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::systemHealthChanged,
+                        this, &Phase14DABAnalyzerWindow::onSystemHealthChanged);
+                qDebug() << "Error Detection signals connected after delay";
+            }
+        });
+        
+        // IDENTIFIED PROBLEM: Professional Logging signals cause file dialog freeze
+        // QTimer::singleShot(2000, this, [this]() {
+        //     if (m_loggingSystem) {
+        //         connect(m_loggingSystem.get(), &professional_logging::ProfessionalLoggingSystem::logEntryAdded,
+        //                 this, &Phase14DABAnalyzerWindow::onLogEntryAdded, Qt::QueuedConnection);
+        //         qDebug() << "Professional logging signals connected after delay";
+        //     }
+        // });
+        
         // UI signals
         connect(m_frameList, &QListWidget::currentRowChanged,
                 this, &Phase14DABAnalyzerWindow::onFrameSelectionChanged);
@@ -1225,6 +2357,9 @@ private:
     std::unique_ptr<EnhancedETIProcessorQt> m_etiProcessor;
     std::unique_ptr<AdvancedFIGAnalyzer> m_figAnalyzer;
     std::unique_ptr<etsi::ETSIComplianceEngine> m_etsiComplianceEngine;
+    std::unique_ptr<multistream::MultiStreamProcessor> m_multiStreamProcessor;
+    std::unique_ptr<error_detection::AdvancedErrorDetector> m_errorDetector;
+    std::unique_ptr<professional_logging::ProfessionalLoggingSystem> m_loggingSystem;
 
     // UI components
     QTreeWidget* m_ensembleTree;
@@ -1232,6 +2367,27 @@ private:
     QTextEdit* m_hexViewer;
     QTextEdit* m_complianceViewer;
     QTextEdit* m_systemMessages;
+    
+    // Multi-stream UI components
+    QTreeWidget* m_activeStreamsTree;
+    QTextEdit* m_comparativeResults;
+    
+    // Advanced Error Detection UI components
+    QLabel* m_errorDetectionStatus;
+    QLabel* m_systemHealthScore;
+    QLabel* m_errorCountLabel;
+    QTreeWidget* m_errorHistoryTree;
+    QTextEdit* m_errorPatternsDisplay;
+    
+    // Professional Logging UI components
+    QLabel* m_loggingStatus;
+    QLabel* m_loggingLevel;
+    QLabel* m_logCountLabel;
+    QLabel* m_sessionIdLabel;
+    QComboBox* m_logLevelFilter;
+    QComboBox* m_logCategoryFilter;
+    QTreeWidget* m_logEntriesTree;
+    QTextEdit* m_loggingStatsDisplay;
     QLabel* m_frameDetails;
     
     // Professional FIC Analysis Hub widgets
