@@ -68,6 +68,7 @@ signals:
     void processingProgress(int percentage, int currentFrame, int totalFrames);
     void processingComplete(int totalFrames, int processingTimeMs);
     void processingError(const QString& error);
+    void frameError(int frameNumber, const QString& error, const QString& details);
     
     // Analysis signals
     void formatDetected(ETIFormat format, const QString& formatName);

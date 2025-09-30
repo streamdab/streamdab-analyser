@@ -2,6 +2,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDebug>
+#include <QCoreApplication>
 
 EnhancedETIProcessorQt::EnhancedETIProcessorQt(QObject *parent)
     : QObject(parent)
@@ -15,7 +16,7 @@ EnhancedETIProcessorQt::EnhancedETIProcessorQt(QObject *parent)
 {
     // Setup processing timer for real-time updates
     processing_timer_->setSingleShot(false);
-    processing_timer_->setInterval(10); // 10ms intervals for smooth updates
+    processing_timer_->setInterval(1); // 1ms intervals for fast processing (Phase 2B disabled)
     connect(processing_timer_, &QTimer::timeout, this, &EnhancedETIProcessorQt::processNextFrame);
 }
 
@@ -24,7 +25,7 @@ bool EnhancedETIProcessorQt::processETIFile(const QString& filePath)
     // Reset state
     resetStatistics();
     
-    // Load file
+    // Load file - fast loading since Phase 2B is disabled
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
         emit processingError(QString("Cannot open file: %1").arg(filePath));
@@ -52,8 +53,12 @@ bool EnhancedETIProcessorQt::processETIFile(const QString& filePath)
     // Start processing
     emit processingStarted(current_file_name_, total_frames_);
     
-    // PHASE 1.4 FIX: Process all frames immediately for file analysis
-    processAllFramesImmediate();
+    // Start processing immediately (Phase 2B disabled, no delay needed)
+    if (total_frames_ > 0) {
+        processing_timer_->start();
+    } else {
+        emit processingComplete(total_frames_, 0);
+    }
     
     return true;
 }
@@ -98,20 +103,28 @@ void EnhancedETIProcessorQt::processNextFrame()
         return;
     }
     
-    // Extract frame data
-    int frameOffset = current_frame_index_ * 6144;
-    QByteArray frameData = file_data_.mid(frameOffset, 6144);
+    // Restore fast processing: larger batches since Phase 2B is disabled
+    const int BATCH_SIZE = 100; // Process 100 frames per timer tick for speed
+    int batch_end = std::min(current_frame_index_ + BATCH_SIZE, static_cast<int>(total_frames_));
     
-    // Process frame
-    if (processEtiFrame(frameData)) {
-        // Calculate progress
-        int percentage = (current_frame_index_ * 100) / total_frames_;
-        emit processingProgress(percentage, current_frame_index_ + 1, total_frames_);
+    for (int i = current_frame_index_; i < batch_end; ++i) {
+        // Extract frame data
+        int frameOffset = i * 6144;
+        QByteArray frameData = file_data_.mid(frameOffset, 6144);
+        
+        // Process frame
+        if (processEtiFrame(frameData)) {
+            // Update progress every batch or for the last frame
+            if (i == batch_end - 1 || i == total_frames_ - 1) {
+                int percentage = (i * 100) / total_frames_;
+                emit processingProgress(percentage, i + 1, total_frames_);
+            }
+        }
     }
     
-    current_frame_index_++;
+    current_frame_index_ = batch_end;
     
-    // Check if all frames processed (Phase 1.4 - process all frames)
+    // Check if all frames processed
     if (current_frame_index_ >= total_frames_) {
         processing_timer_->stop();
         
@@ -139,8 +152,9 @@ bool EnhancedETIProcessorQt::processEtiFrame(const QByteArray& frameData)
     frame.format = detectETIFormat(frame.sync_pattern);
     
     if (frame.format == ETIFormat::UNKNOWN) {
-        emit processingError(QString("Unknown ETI format with SYNC pattern: 0x%1")
-                           .arg(frame.sync_pattern, 8, 16, QChar('0')));
+        QString error = QString("Unknown ETI format with SYNC pattern: 0x%1")
+                       .arg(frame.sync_pattern, 8, 16, QChar('0'));
+        emit frameError(current_frame_index_, "Invalid SYNC Pattern", error);
         frame.is_valid = false;
         return false;
     }
