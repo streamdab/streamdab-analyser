@@ -10,10 +10,75 @@
 
 namespace error_detection {
 
+// ErrorDetectionWorker implementation
+ErrorDetectionWorker::ErrorDetectionWorker(QObject* parent)
+    : QObject(parent)
+{
+    // Initialize timers - these will run in the worker thread
+    m_monitoring_timer = new QTimer(this);
+    m_pattern_timer = new QTimer(this);
+    m_health_timer = new QTimer(this);
+    
+    // Connect signals
+    connect(m_monitoring_timer, &QTimer::timeout, this, &ErrorDetectionWorker::performMonitoringCycle);
+    connect(m_pattern_timer, &QTimer::timeout, this, &ErrorDetectionWorker::performPatternAnalysis);
+    connect(m_health_timer, &QTimer::timeout, this, &ErrorDetectionWorker::updateHealthMetrics);
+}
+
+void ErrorDetectionWorker::startMonitoring()
+{
+    if (!m_monitoring_active) {
+        m_monitoring_active = true;
+        
+        // Start timers with reasonable intervals (background thread can handle this)
+        m_monitoring_timer->start(10000);  // 10 seconds
+        m_pattern_timer->start(300000);    // 5 minutes  
+        m_health_timer->start(30000);      // 30 seconds
+        
+        qDebug() << "ErrorDetectionWorker: Background monitoring started in thread" << QThread::currentThread();
+    }
+}
+
+void ErrorDetectionWorker::stopMonitoring()
+{
+    m_monitoring_active = false;
+    m_monitoring_timer->stop();
+    m_pattern_timer->stop();
+    m_health_timer->stop();
+    qDebug() << "ErrorDetectionWorker: Background monitoring stopped";
+}
+
+void ErrorDetectionWorker::performMonitoringCycle()
+{
+    if (!m_monitoring_active) return;
+    
+    // Background processing - doesn't block UI
+    // TODO: Add actual monitoring logic here
+    emit monitoringCycleCompleted();
+}
+
+void ErrorDetectionWorker::performPatternAnalysis()
+{
+    if (!m_monitoring_active) return;
+    
+    // Background processing - doesn't block UI  
+    // TODO: Add actual pattern analysis here
+    emit patternAnalysisCompleted();
+}
+
+void ErrorDetectionWorker::updateHealthMetrics()
+{
+    if (!m_monitoring_active) return;
+    
+    // Background processing - doesn't block UI
+    // TODO: Add actual health metrics update here
+    emit healthMetricsUpdated();
+}
+
 AdvancedErrorDetector::AdvancedErrorDetector(QObject* parent)
     : QObject(parent)
     , m_error_detection_enabled(true)
-    , m_real_time_monitoring_enabled(true)  // RE-ENABLED: With delayed timer startup
+    , m_real_time_monitoring_enabled(true)  // RE-ENABLED: With QThread background processing
     , m_auto_recovery_enabled(true)
     , m_detection_sensitivity(0.8)
     , m_critical_error_threshold(10)
@@ -21,30 +86,11 @@ AdvancedErrorDetector::AdvancedErrorDetector(QObject* parent)
     , m_max_memory_threshold(500.0)
     , m_min_quality_threshold(75.0)
 {
-    // Initialize timers
-    m_monitoring_timer = std::make_unique<QTimer>(this);
-    m_pattern_analysis_timer = std::make_unique<QTimer>(this);
-    m_health_update_timer = std::make_unique<QTimer>(this);
+    // Initialize worker pointers (create workers only when needed)
+    m_worker_thread = nullptr;
+    m_worker = nullptr;
     
-    // Connect timer signals
-    connect(m_monitoring_timer.get(), &QTimer::timeout, 
-            this, &AdvancedErrorDetector::onMonitoringTimerTimeout);
-    connect(m_pattern_analysis_timer.get(), &QTimer::timeout,
-            this, &AdvancedErrorDetector::onPatternAnalysisTimerTimeout);
-    connect(m_health_update_timer.get(), &QTimer::timeout,
-            this, &AdvancedErrorDetector::onHealthUpdateTimerTimeout);
-    
-    // Delay timer startup to prevent file dialog conflicts - use single shot timer
-    QTimer::singleShot(3000, this, [this]() {
-        if (m_real_time_monitoring_enabled) {
-            m_monitoring_timer->start(10000);        // Monitor every 10 seconds (less aggressive)
-            m_pattern_analysis_timer->start(300000); // Analyze patterns every 5 minutes (very conservative)
-            m_health_update_timer->start(30000);     // Update health every 30 seconds (conservative)
-            qDebug() << "Advanced Error Detector timers started after delay";
-        }
-    });
-    
-    qDebug() << "Advanced Error Detector initialized with delayed timer startup";
+    qDebug() << "AdvancedErrorDetector initialized with QThread background processing";
 }
 
 AdvancedErrorDetector::~AdvancedErrorDetector() = default;
@@ -59,11 +105,40 @@ void AdvancedErrorDetector::setRealTimeMonitoringEnabled(bool enabled)
 {
     m_real_time_monitoring_enabled.store(enabled);
     if (enabled) {
-        m_monitoring_timer->start(1000);
-    } else {
-        m_monitoring_timer->stop();
+        // Lazy initialization - create worker only when first needed
+        initializeWorkerIfNeeded();
+        if (m_worker_thread && !m_worker_thread->isRunning()) {
+            m_worker_thread->start();
+            qDebug() << "Real-time monitoring enabled - worker thread started";
+        }
+    } else if (!enabled && m_worker) {
+        QMetaObject::invokeMethod(m_worker, "stopMonitoring", Qt::QueuedConnection);
+        qDebug() << "Real-time monitoring disabled";
     }
-    qDebug() << "Real-time monitoring" << (enabled ? "enabled" : "disabled");
+}
+
+void AdvancedErrorDetector::initializeWorkerIfNeeded()
+{
+    if (!m_worker_thread) {
+        // Create background thread and worker (only when first needed)
+        m_worker_thread = new QThread(this);
+        m_worker = new ErrorDetectionWorker();
+        m_worker->moveToThread(m_worker_thread);
+        
+        // Connect worker signals to main thread (thread-safe)
+        connect(m_worker, &ErrorDetectionWorker::monitoringCycleCompleted, 
+                this, &AdvancedErrorDetector::onMonitoringTimerTimeout, Qt::QueuedConnection);
+        connect(m_worker, &ErrorDetectionWorker::patternAnalysisCompleted,
+                this, &AdvancedErrorDetector::onPatternAnalysisTimerTimeout, Qt::QueuedConnection);
+        connect(m_worker, &ErrorDetectionWorker::healthMetricsUpdated,
+                this, &AdvancedErrorDetector::onHealthUpdateTimerTimeout, Qt::QueuedConnection);
+        
+        // Connect thread lifecycle
+        connect(m_worker_thread, &QThread::started, m_worker, &ErrorDetectionWorker::startMonitoring);
+        connect(m_worker_thread, &QThread::finished, m_worker, &QObject::deleteLater);
+        
+        qDebug() << "AdvancedErrorDetector: Worker thread created on-demand";
+    }
 }
 
 void AdvancedErrorDetector::setAutoRecoveryEnabled(bool enabled)

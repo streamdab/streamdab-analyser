@@ -3,6 +3,7 @@
 #include <QFileInfo>
 #include <QDebug>
 #include <QCoreApplication>
+#include <QThread>
 
 EnhancedETIProcessorQt::EnhancedETIProcessorQt(QObject *parent)
     : QObject(parent)
@@ -14,6 +15,11 @@ EnhancedETIProcessorQt::EnhancedETIProcessorQt(QObject *parent)
     , total_frames_(0)
     , processing_timer_(new QTimer(this))
 {
+    // Register custom types with Qt meta-object system for signal/slot connections
+    qRegisterMetaType<ProcessedFrame>("ProcessedFrame");
+    qRegisterMetaType<ETIFormat>("ETIFormat");
+    qDebug() << "🔧 ETI Processor: Registered custom metatypes for Qt signals";
+    
     // Setup processing timer for real-time updates
     processing_timer_->setSingleShot(false);
     processing_timer_->setInterval(1); // 1ms intervals for fast processing (Phase 2B disabled)
@@ -51,21 +57,26 @@ bool EnhancedETIProcessorQt::processETIFile(const QString& filePath)
     processing_start_time_ = QDateTime::currentDateTime();
     
     // Start processing
+    qDebug() << "🚀 ETI Processor: Emitting processingStarted signal for" << total_frames_ << "frames";
     emit processingStarted(current_file_name_, total_frames_);
     
-    // Start processing immediately (Phase 2B disabled, no delay needed)
+    // Use immediate processing instead of timer for better reliability
     if (total_frames_ > 0) {
-        processing_timer_->start();
+        qDebug() << "🔄 ETI Processor: Starting immediate processing of" << total_frames_ << "frames";
+        processAllFramesImmediate();
+        qDebug() << "✅ ETI Processor: Immediate processing completed";
     } else {
+        qDebug() << "⚠️ ETI Processor: No frames to process, emitting processingComplete";
         emit processingComplete(total_frames_, 0);
     }
     
+    qDebug() << "✅ ETI Processor: processETIFile returning true";
     return true;
 }
 
 void EnhancedETIProcessorQt::processAllFramesImmediate()
 {
-    // Process all frames immediately for file analysis (Phase 1.4)
+    // Process frames immediately for file analysis
     for (int i = 0; i < total_frames_; ++i) {
         current_frame_index_ = i;
         
@@ -73,13 +84,20 @@ void EnhancedETIProcessorQt::processAllFramesImmediate()
         int frameOffset = i * 6144;
         QByteArray frameData = file_data_.mid(frameOffset, 6144);
         
-        // Process frame
-        if (processEtiFrame(frameData)) {
-            // Calculate progress and emit every 100 frames to avoid UI flooding
-            if (i % 100 == 0 || i == total_frames_ - 1) {
-                int percentage = (i * 100) / total_frames_;
-                emit processingProgress(percentage, i + 1, total_frames_);
-            }
+        // Process frame - this will emit frameProcessed signals
+        processEtiFrame(frameData);
+        
+        // Update progress every 100 frames to avoid UI flooding
+        if (i % 100 == 0 || i == total_frames_ - 1) {
+            int percentage = (i * 100) / total_frames_;
+            emit processingProgress(percentage, i + 1, total_frames_);
+        }
+        
+        // Process Qt events frequently to keep UI responsive
+        if (i % 10 == 0) {
+            QCoreApplication::processEvents();
+            // Small delay to allow UI updates
+            QThread::msleep(1);
         }
     }
     
@@ -178,6 +196,7 @@ bool EnhancedETIProcessorQt::processEtiFrame(const QByteArray& frameData)
     processed_frames_.push_back(frame);
     
     // Emit signals
+    qDebug() << "📡 ETI Processor: Emitting frameProcessed signal for frame" << frame.frame_number;
     emit formatDetected(frame.format, formatToString(frame.format));
     emit frameProcessed(frame);
     

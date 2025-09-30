@@ -65,6 +65,32 @@ struct ComparativeAnalysisResult {
     ComparativeAnalysisResult() : streams_synchronized(false) {}
 };
 
+// QThread Worker for background multi-stream processing
+class MultiStreamWorker : public QObject {
+    Q_OBJECT
+
+public:
+    explicit MultiStreamWorker(QObject* parent = nullptr);
+    ~MultiStreamWorker() = default;
+
+public slots:
+    void startProcessing();
+    void stopProcessing();
+    void processStreams();
+    void performComparativeAnalysis();
+
+signals:
+    void streamProcessingProgress(const QString& streamId, double progress);
+    void streamProcessingCompleted(const QString& streamId, const StreamProcessingStats& stats);
+    void comparativeAnalysisCompleted(const ComparativeAnalysisResult& result);
+    void processingError(const QString& streamId, const QString& error);
+
+private:
+    std::atomic<bool> m_processing_active{false};
+    QTimer* m_processing_timer{nullptr};
+    QTimer* m_analysis_timer{nullptr};
+};
+
 // Multi-stream Processing Engine
 class MultiStreamProcessor : public QObject {
     Q_OBJECT
@@ -129,13 +155,14 @@ private:
     std::atomic<int> m_processing_thread_count;
     std::atomic<bool> m_comparative_analysis_enabled;
     
-    // Monitoring
-    std::unique_ptr<QTimer> m_processing_timer;
-    std::map<QString, std::future<StreamProcessingStats>> m_processing_futures;
+    // QThread-based background processing (replaces blocking timer)
+    QThread* m_worker_thread;
+    MultiStreamWorker* m_worker;
     
     // Internal methods
     QString generateStreamId(const QString& file_path);
     bool isValidETIFile(const QString& file_path);
+    void initializeWorkerIfNeeded();
     StreamProcessingStats processETIStreamInternal(const QString& stream_id, const ETIStreamInfo& stream_info);
     void updateStreamProgress(const QString& stream_id, double progress);
     void performComparativeAnalysis();

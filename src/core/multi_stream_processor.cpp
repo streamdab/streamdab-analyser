@@ -9,6 +9,59 @@
 
 namespace multistream {
 
+// MultiStreamWorker implementation
+MultiStreamWorker::MultiStreamWorker(QObject* parent)
+    : QObject(parent)
+{
+    // Initialize timers - these will run in the worker thread
+    m_processing_timer = new QTimer(this);
+    m_analysis_timer = new QTimer(this);
+    
+    // Connect signals
+    connect(m_processing_timer, &QTimer::timeout, this, &MultiStreamWorker::processStreams);
+    connect(m_analysis_timer, &QTimer::timeout, this, &MultiStreamWorker::performComparativeAnalysis);
+}
+
+void MultiStreamWorker::startProcessing()
+{
+    if (!m_processing_active) {
+        m_processing_active = true;
+        
+        // Start timers with reasonable intervals (background thread can handle this)
+        m_processing_timer->start(1000);   // 1 second for stream processing
+        m_analysis_timer->start(5000);     // 5 seconds for comparative analysis
+        
+        qDebug() << "MultiStreamWorker: Background processing started in thread" << QThread::currentThread();
+    }
+}
+
+void MultiStreamWorker::stopProcessing()
+{
+    m_processing_active = false;
+    m_processing_timer->stop();
+    m_analysis_timer->stop();
+    qDebug() << "MultiStreamWorker: Background processing stopped";
+}
+
+void MultiStreamWorker::processStreams()
+{
+    if (!m_processing_active) return;
+    
+    // Background processing - doesn't block UI
+    // TODO: Add actual stream processing logic here
+    // For now, just emit progress signals
+}
+
+void MultiStreamWorker::performComparativeAnalysis()
+{
+    if (!m_processing_active) return;
+    
+    // Background processing - doesn't block UI
+    // TODO: Add actual comparative analysis here
+    ComparativeAnalysisResult result;
+    emit comparativeAnalysisCompleted(result);
+}
+
 MultiStreamProcessor::MultiStreamProcessor(QObject* parent)
     : QObject(parent)
     , m_processing_active(false)
@@ -16,10 +69,11 @@ MultiStreamProcessor::MultiStreamProcessor(QObject* parent)
     , m_processing_thread_count(4)
     , m_comparative_analysis_enabled(true)
 {
-    // Initialize processing timer for monitoring
-    m_processing_timer = std::make_unique<QTimer>();
-    m_processing_timer->setInterval(1000); // Update every second
-    connect(m_processing_timer.get(), &QTimer::timeout, this, &MultiStreamProcessor::onProcessingTimerTimeout);
+    // Initialize worker pointers (create workers only when needed)
+    m_worker_thread = nullptr;
+    m_worker = nullptr;
+    
+    qDebug() << "MultiStreamProcessor initialized with QThread background processing";
 }
 
 MultiStreamProcessor::~MultiStreamProcessor()
@@ -167,10 +221,40 @@ void MultiStreamProcessor::startParallelProcessing()
         started_streams++;
     }
     
-    // Start monitoring timer
-    m_processing_timer->start();
+    // Lazy initialization - create worker only when first needed
+    initializeWorkerIfNeeded();
+    
+    // Start worker thread processing
+    if (m_worker_thread && !m_worker_thread->isRunning()) {
+        m_worker_thread->start();
+    }
     
     qDebug() << "Started parallel processing for" << started_streams << "streams";
+}
+
+void MultiStreamProcessor::initializeWorkerIfNeeded()
+{
+    if (!m_worker_thread) {
+        // Create background thread and worker (only when first needed)
+        m_worker_thread = new QThread(this);
+        m_worker = new MultiStreamWorker();
+        m_worker->moveToThread(m_worker_thread);
+        
+        // Connect worker signals to main thread (thread-safe)
+        connect(m_worker, &MultiStreamWorker::streamProcessingProgress,
+                this, &MultiStreamProcessor::streamProcessingProgress, Qt::QueuedConnection);
+        connect(m_worker, &MultiStreamWorker::streamProcessingCompleted,
+                this, &MultiStreamProcessor::streamProcessingCompleted, Qt::QueuedConnection);
+        connect(m_worker, &MultiStreamWorker::comparativeAnalysisCompleted,
+                this, &MultiStreamProcessor::comparativeAnalysisCompleted, Qt::QueuedConnection);
+        connect(m_worker, &MultiStreamWorker::processingError,
+                this, &MultiStreamProcessor::streamProcessingError, Qt::QueuedConnection);
+        
+        // Connect thread lifecycle
+        connect(m_worker_thread, &QThread::finished, m_worker, &QObject::deleteLater);
+        
+        qDebug() << "MultiStreamProcessor: Worker thread created on-demand";
+    }
 }
 
 void MultiStreamProcessor::stopParallelProcessing()
@@ -180,7 +264,11 @@ void MultiStreamProcessor::stopParallelProcessing()
     }
     
     m_processing_active.store(false);
-    m_processing_timer->stop();
+    
+    // Stop worker processing
+    if (m_worker) {
+        QMetaObject::invokeMethod(m_worker, "stopProcessing", Qt::QueuedConnection);
+    }
     
     QMutexLocker locker(&m_streams_mutex);
     
