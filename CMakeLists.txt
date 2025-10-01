@@ -16,7 +16,8 @@ set(CMAKE_BUILD_TYPE Release)
 
 # Source files
 set(SOURCES
-    phase1_4_dab_analyzer_complete.cpp
+    src/main.cpp
+    src/gui/main_window.cpp
     src/core/enhanced_eti_processor_qt.cpp
     src/core/advanced_fig_analyzer.cpp
     src/core/etsi_compliance_engine.cpp
