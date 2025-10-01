@@ -66,7 +66,7 @@ DABAnalyzerMainWindow::DABAnalyzerMainWindow(QWidget *parent)
     // Note: EnhancedETIProcessorQt doesn't have setRealTimeMode method
 }
 
-DABAnalyzerMainWindow::~DABXplorerMainWindow() = default;
+DABAnalyzerMainWindow::~DABAnalyzerMainWindow() = default;
 
 void DABAnalyzerMainWindow::setupUI()
 {
@@ -641,7 +641,7 @@ void DABAnalyzerMainWindow::onServiceDiscovered(const ServiceInfo& service)
         ensembleItem->setText(1, "Ensemble");
         ensembleItem->setText(2, QString("0x%1").arg(service.ensembleId, 0, 16));
         ensembleItem->setCheckState(0, Qt::Checked);
-        ensembleItem->setForeground(1, QBrush(DABXplorerTheme::SERVICE_ENSEMBLE));
+        ensembleItem->setForeground(1, QBrush(DABAnalyzerTheme::SERVICE_ENSEMBLE));
         m_ensembleTree->addTopLevelItem(ensembleItem);
         ensembleItem->setExpanded(true);
     }
@@ -698,7 +698,7 @@ void DABAnalyzerMainWindow::onServiceDiscoveredFIG(const ServiceInfo& service)
         ensembleItem->setText(1, "Ensemble");
         ensembleItem->setText(2, QString("0x%1").arg(service.ensembleId, 4, 16, QChar('0')));
         ensembleItem->setCheckState(0, Qt::Checked);
-        ensembleItem->setForeground(1, QBrush(DABXplorerTheme::SERVICE_ENSEMBLE));
+        ensembleItem->setForeground(1, QBrush(DABAnalyzerTheme::SERVICE_ENSEMBLE));
         m_ensembleTree->addTopLevelItem(ensembleItem);
         ensembleItem->setExpanded(true);
     }
@@ -955,13 +955,13 @@ void DABAnalyzerMainWindow::updateSignalQuality()
 QColor DABAnalyzerMainWindow::getServiceTypeColor(const QString& serviceType) const
 {
     if (serviceType.contains("Audio", Qt::CaseInsensitive)) {
-        return DABXplorerTheme::SERVICE_AUDIO;
+        return DABAnalyzerTheme::SERVICE_AUDIO;
     } else if (serviceType.contains("Data", Qt::CaseInsensitive)) {
-        return DABXplorerTheme::SERVICE_DATA;
+        return DABAnalyzerTheme::SERVICE_DATA;
     } else if (serviceType.contains("Ensemble", Qt::CaseInsensitive)) {
-        return DABXplorerTheme::SERVICE_ENSEMBLE;
+        return DABAnalyzerTheme::SERVICE_ENSEMBLE;
     } else {
-        return DABXplorerTheme::TEXT_PRIMARY;
+        return DABAnalyzerTheme::TEXT_PRIMARY;
     }
 }
 

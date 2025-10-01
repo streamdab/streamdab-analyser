@@ -1,11 +1,11 @@
 #include <QApplication>
-#include "gui/main_window.h"
+#include "gui/dab_analyzer_main_window.h"
 
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     
-    Phase14DABAnalyzerWindow window;
+    DABAnalyzerMainWindow window;
     window.show();
     
     return app.exec();
