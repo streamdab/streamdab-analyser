@@ -1751,9 +1751,9 @@ private:
         QWidget* performanceTab = createPerformanceDashboardTab();
         analysisTabs->addTab(performanceTab, "Performance");
 
-        // Tab 5: Multi-stream Manager
-        QWidget* multiStreamTab = createMultiStreamTab();
-        analysisTabs->addTab(multiStreamTab, "Multi-stream");
+        // Tab 5: Multi-stream Manager (Hidden for future development)
+        // QWidget* multiStreamTab = createMultiStreamTab();
+        // analysisTabs->addTab(multiStreamTab, "Multi-stream");
         
         // Tab 6: Advanced Error Detection
         QWidget* errorDetectionTab = createErrorDetectionTab();
