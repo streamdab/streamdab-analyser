@@ -81,6 +81,9 @@ public:
         m_figAnalyzer = std::make_unique<AdvancedFIGAnalyzer>();
         m_etsiComplianceEngine = std::make_unique<etsi::ETSIComplianceEngine>();
         
+        // Initialize error detection for real-time monitoring during ETI processing
+        m_errorDetector = std::make_unique<error_detection::AdvancedErrorDetector>();
+        
         qDebug() << "✅ SIMPLIFIED ARCHITECTURE: All components ready!";
     }
     
@@ -265,6 +268,18 @@ private slots:
         if (frame.frame_number == 1) {
             updateFrameDetails(frame);
             updatePerformanceMetrics(frame);
+        }
+        
+        // Trigger error detection for this frame (every 10 frames to avoid overload)
+        if (frame.frame_number % 10 == 0 && m_errorDetector) {
+            // Create dummy frame data for error detection
+            std::vector<uint8_t> frame_data(6144, 0x00);
+            
+            // Queue error detection on timer to avoid blocking UI
+            QTimer::singleShot(1, this, [this, frame_data, frame]() {
+                m_errorDetector->detectFrameStructureErrors(frame_data, frame.frame_number);
+                m_errorDetector->detectETISyncErrors(frame_data, frame.frame_number);
+            });
         }
         
         qDebug() << "✅ Frame processed: Added frame" << frame.frame_number << "to UI";
@@ -1995,9 +2010,9 @@ private:
         QWidget* performanceTab = createPerformanceDashboardTab();
         analysisTabs->addTab(performanceTab, "Performance");
 
-        // Tab 5: Multi-stream Manager - Create tab but defer component initialization
-        QWidget* multiStreamTab = createMultiStreamTab();
-        analysisTabs->addTab(multiStreamTab, "Multi-stream");
+        // Tab 5: Multi-stream Manager - HIDDEN for future implementation
+        // QWidget* multiStreamTab = createMultiStreamTab();
+        // analysisTabs->addTab(multiStreamTab, "Multi-stream");
         
         // Tab 6: Advanced Error Detection - RE-ENABLED with QThread
         QWidget* errorDetectionTab = createErrorDetectionTab();
@@ -2515,16 +2530,14 @@ private:
         connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceDiscovered,
                 this, &Phase14DABAnalyzerWindow::onServiceDiscovered);
 
-        // ULTRA-CONSERVATIVE: Error Detection signals with very long delay to prevent tab freeze
-        QTimer::singleShot(15000, this, [this]() {
-            if (m_errorDetector) {
-                connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::errorDetected,
-                        this, &Phase14DABAnalyzerWindow::onErrorDetected);
-                connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::systemHealthChanged,
-                        this, &Phase14DABAnalyzerWindow::onSystemHealthChanged);
-                qDebug() << "Error Detection signals connected after 15-second delay";
-            }
-        });
+        // Error Detection signals - connect immediately since it's now simple
+        if (m_errorDetector) {
+            connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::errorDetected,
+                    this, &Phase14DABAnalyzerWindow::onErrorDetected);
+            connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::systemHealthChanged,
+                    this, &Phase14DABAnalyzerWindow::onSystemHealthChanged);
+            qDebug() << "Error Detection signals connected immediately";
+        }
         
         // DISABLED: Professional Logging signals (component deferred to future development)
         // QTimer::singleShot(6000, this, [this]() {
