@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Qt6 setup with automatic MOC
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network Test Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network Test)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
@@ -16,8 +16,7 @@ set(CMAKE_BUILD_TYPE Release)
 
 # Source files
 set(SOURCES
-    src/dab_analyzer_main.cpp
-    src/gui/dab_analyzer_main_window.cpp
+    src/main.cpp
     src/core/enhanced_eti_processor_qt.cpp
     src/core/advanced_fig_analyzer.cpp
     src/core/etsi_compliance_engine.cpp
@@ -39,6 +38,5 @@ target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
     Qt6::Widgets
     Qt6::Network
     Qt6::Test
-    Qt6::Concurrent
     pthread
 )
