@@ -134,7 +134,7 @@ void TestFIG0Processor::cleanup()
 // FIG 0/0 Tests (Ensemble Information)
 // ============================================================================
 
-void TestFIG0_Processor::testFIG0_0_EnsembleIDExtraction()
+void TestFIG0Processor::testFIG0_0_EnsembleIDExtraction()
 {
     // Create FIG 0/0 with Ensemble ID 0x1234
     QByteArray fig = createFIG0_0(0x1234, 0x0E);
