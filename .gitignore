@@ -240,6 +240,12 @@ config/local.*
 test_data/streams/
 samples/large/
 
+# Large ETI test data directories (excluded from git to prevent repo bloat)
+# Developers should obtain these files separately for testing
+eti/BayerischerRundfunk-Warntag2024-2024-09-12/
+eti/EWSv1_1/
+eti/*.eti
+
 # Generated reports
 reports/
 exports/
