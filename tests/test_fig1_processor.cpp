@@ -95,6 +95,7 @@ private:
     QByteArray createFIG1_1(uint32_t service_id, const QString& label, uint16_t char_flag = 0xFF00, bool is_data_service = false);
     QByteArray createFIG1_4(uint32_t service_id, uint8_t component_id, const QString& label);
     QByteArray createLabelData(const QString& label, uint16_t char_flag);
+    QByteArray createFIG0_0(uint16_t ensemble_id);  // Setup ensemble ID for FIG 1/0 tests
 
     QString extractExpectedShortLabel(const QString& full_label, uint16_t char_flag);
     void verifyLabel(const QString& expected_full, const QString& expected_short);
@@ -292,6 +293,9 @@ void TestFIG1Processor::testSpecialCharacters()
 
 void TestFIG1Processor::testFIG1_0_EnsembleLabel()
 {
+    // Setup ensemble ID first (required for FIG 1/0)
+    m_analyzer->analyzeFICData(createFIG0_0(0x1234));
+
     // Create ensemble with label "Bangkok DAB     "
     QByteArray fig = createFIG1_0("Bangkok DAB     ", 0xFF00);
 
@@ -306,6 +310,9 @@ void TestFIG1Processor::testFIG1_0_EnsembleLabel()
 
 void TestFIG1Processor::testFIG1_0_ShortLabel()
 {
+    // Setup ensemble ID first
+    m_analyzer->analyzeFICData(createFIG0_0(0x1234));
+
     // Ensemble label with short form
     // Full: "Bangkok DAB     "
     // Short: "BKK DAB" (positions 0,1,2,8,9,10,11)
@@ -322,6 +329,9 @@ void TestFIG1Processor::testFIG1_0_ShortLabel()
 
 void TestFIG1Processor::testFIG1_0_CharacterFlag()
 {
+    // Setup ensemble ID first
+    m_analyzer->analyzeFICData(createFIG0_0(0x1234));
+
     // Test different character flag values
     uint16_t test_flags[] = {0x0000, 0x00FF, 0xFF00, 0xFFFF, 0xAAAA, 0x5555};
 
@@ -337,6 +347,9 @@ void TestFIG1Processor::testFIG1_0_CharacterFlag()
 
 void TestFIG1Processor::testFIG1_0_MultipleEnsembleLabels()
 {
+    // Setup ensemble ID first
+    m_analyzer->analyzeFICData(createFIG0_0(0x1234));
+
     // Process multiple ensemble labels (updates)
     m_analyzer->analyzeFICData(createFIG1_0("Ensemble v1     "));
     m_analyzer->analyzeFICData(createFIG1_0("Ensemble v2     "));
@@ -990,11 +1003,19 @@ QByteArray TestFIG1Processor::createLabelData(const QString& label, uint16_t cha
     // FIC header (2 bytes) - ETSI EN 300 401 Section 5.2
     uint8_t type_byte = (1 << 5);  // FIG type 1, C/N=0, OE=0
     fig.append(static_cast<char>(type_byte));
-    fig.append(static_cast<char>(0x14));  // Length=20 bytes (ext + EId + label + flag)
+    fig.append(static_cast<char>(0x16));  // Length=22 bytes (ext + charset + EId + label + flag = 1+1+2+16+2)
 
-    // Extension + Charset/OE field (1 byte) - ETSI EN 300 401 Section 8.1.13
-    uint8_t ext_byte = (0 << 3);  // Extension 0 (FIG 1/0), Charset=0 (EBU Latin), OE=0
+    // Extension field (1 byte) - ETSI EN 300 401 Section 8.1.13
+    // Bits 7-3: Extension (0 for FIG 1/0)
+    // Bits 2-0: Reserved (0)
+    uint8_t ext_byte = (0 << 3);  // Extension 0
     fig.append(static_cast<char>(ext_byte));
+
+    // Charset/OE field (1 byte)
+    // Bit 4: Charset (0 = EBU Latin)
+    // Bits 0-3: OE (Other Ensemble, 0 for current)
+    uint8_t charset_byte = 0x00;  // Charset=0 (EBU Latin), OE=0
+    fig.append(static_cast<char>(charset_byte));
 
     // Ensemble ID (2 bytes) - test ensemble ID 0x1234
     fig.append(static_cast<char>(0x12));  // EId MSB
@@ -1038,6 +1059,40 @@ void TestFIG1Processor::setupServiceForLabeling(uint32_t service_id)
     fig0_2.append(static_cast<char>(0x00));
 
     m_analyzer->analyzeFICData(fig0_2);
+}
+
+/**
+ * @brief Create FIG 0/0 (Ensemble Information) to set ensemble ID
+ *
+ * ETSI EN 300 401 Section 6.4 - FIG 0/0 Structure
+ */
+QByteArray TestFIG1Processor::createFIG0_0(uint16_t ensemble_id)
+{
+    QByteArray fig;
+
+    // FIC header (2 bytes)
+    uint8_t type_byte = (0 << 5);  // FIG type 0
+    fig.append(static_cast<char>(type_byte));
+    fig.append(static_cast<char>(0x06));  // Length=6 bytes (ext + eid + change + alarm + cif)
+
+    // Extension field (1 byte) - Extension 0
+    uint8_t ext_byte = (0 << 3);  // Extension 0 in bits 7-3
+    fig.append(static_cast<char>(ext_byte));
+
+    // Padding byte
+    fig.append(static_cast<char>(0x00));
+
+    // Ensemble ID (2 bytes)
+    fig.append(static_cast<char>((ensemble_id >> 8) & 0xFF));
+    fig.append(static_cast<char>(ensemble_id & 0xFF));
+
+    // Change flags (1 byte)
+    fig.append(static_cast<char>(0x00));
+
+    // Alarm flag (1 byte)
+    fig.append(static_cast<char>(0x00));
+
+    return fig;
 }
 
 // Register test class
