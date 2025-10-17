@@ -181,12 +181,12 @@ void AdvancedFIGAnalyzer::analyzeFICData(const QByteArray& ficData)
                 break;
             default:
                 qDebug() << "Unsupported FIG type:" << figType;
-                m_totalFIGsProcessed++;
                 m_lastError = QString("Unsupported FIG type: %1").arg(figType);
+                // Note: Don't increment m_totalFIGsProcessed for unsupported types
                 break;
         }
 
-        // Note: m_totalFIGsProcessed is incremented in individual FIG processors
+        // Note: m_totalFIGsProcessed incremented only for successfully processed FIGs
         offset += 2 + figLength;
     }
 }
@@ -194,18 +194,16 @@ void AdvancedFIGAnalyzer::analyzeFICData(const QByteArray& ficData)
 void AdvancedFIGAnalyzer::processFIG0(const QByteArray& figData)
 {
     if (figData.size() < 1) {
-        m_totalFIGsProcessed++;
         m_lastError = "FIG 0: Insufficient data";
-        return;
+        return; // Don't count insufficient data as processed
     }
 
     uint8_t extension = (figData[0] >> 3) & 0x1F;
 
     QString figKey = QString("0.%1").arg(extension);
     if (!m_enabledFIGTypes.value(figKey, false)) {
-        m_totalFIGsProcessed++;
         m_lastError = QString("FIG 0/%1: Disabled").arg(extension);
-        return; // FIG type disabled
+        return; // Don't count disabled FIGs as processed
     }
 
     // Process based on extension
@@ -230,8 +228,8 @@ void AdvancedFIGAnalyzer::processFIG0(const QByteArray& figData)
             break;
         default:
             qDebug() << "Unsupported FIG 0 extension:" << extension;
-            m_totalFIGsProcessed++;
             m_lastError = QString("FIG 0/%1: Unsupported extension").arg(extension);
+            // Don't count unsupported extensions as processed
             break;
     }
 }
@@ -239,18 +237,16 @@ void AdvancedFIGAnalyzer::processFIG0(const QByteArray& figData)
 void AdvancedFIGAnalyzer::processFIG1(const QByteArray& figData)
 {
     if (figData.size() < 1) {
-        m_totalFIGsProcessed++;
         m_lastError = "FIG 1: Insufficient data";
-        return;
+        return; // Don't count insufficient data as processed
     }
 
     uint8_t extension = (figData[0] >> 3) & 0x1F;
 
     QString figKey = QString("1.%1").arg(extension);
     if (!m_enabledFIGTypes.value(figKey, false)) {
-        m_totalFIGsProcessed++;
         m_lastError = QString("FIG 1/%1: Disabled").arg(extension);
-        return; // FIG type disabled
+        return; // Don't count disabled FIGs as processed
     }
 
     // Process based on extension
@@ -269,8 +265,8 @@ void AdvancedFIGAnalyzer::processFIG1(const QByteArray& figData)
             break;
         default:
             qDebug() << "Unsupported FIG 1 extension:" << extension;
-            m_totalFIGsProcessed++;
             m_lastError = QString("FIG 1/%1: Unsupported extension").arg(extension);
+            // Don't count unsupported extensions as processed
             break;
     }
 }
