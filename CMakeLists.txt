@@ -45,5 +45,5 @@ target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
 enable_testing()
 
 # Add tests subdirectory
-# Temporarily disabled during Phase 1 fixes
-# add_subdirectory(tests)
+# Re-enabled after Phase 1 fixes complete with A+ grade
+add_subdirectory(tests)
