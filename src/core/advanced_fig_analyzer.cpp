@@ -329,6 +329,7 @@ void AdvancedFIGAnalyzer::processFIG0_0(const QByteArray& data)
     emit ensembleInfoUpdated(m_currentEnsemble);  // Emit correct signal for Phase 1 tests
 
     m_validFIGsCount++;
+    m_totalFIGsProcessed++;  // Count successfully processed FIG
 }
 
 /**
@@ -433,6 +434,7 @@ void AdvancedFIGAnalyzer::processFIG0_1(const QByteArray& data)
     }
 
     m_validFIGsCount++;
+    m_totalFIGsProcessed++;  // Count successfully processed FIG
 }
 
 /**
@@ -593,6 +595,7 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
     }
 
     m_validFIGsCount++;
+    m_totalFIGsProcessed++;  // Count successfully processed FIG
 }
 
 // ============================================================================
@@ -654,6 +657,7 @@ void AdvancedFIGAnalyzer::processFIG1_0(const QByteArray& data)
     emit ensembleLabelUpdated(m_currentEnsemble);
 
     m_validFIGsCount++;
+    m_totalFIGsProcessed++;  // Count successfully processed FIG
 }
 
 /**
@@ -754,6 +758,7 @@ void AdvancedFIGAnalyzer::processFIG1_1(const QByteArray& data)
     emit figProcessed(figData);
 
     m_validFIGsCount++;
+    m_totalFIGsProcessed++;  // Count successfully processed FIG
 }
 
 /**
@@ -832,6 +837,7 @@ void AdvancedFIGAnalyzer::processFIG1_4(const QByteArray& data)
     emit componentLabelUpdated(service_id, component_id);
 
     m_validFIGsCount++;
+    m_totalFIGsProcessed++;  // Count successfully processed FIG
 }
 
 // ============================================================================

@@ -234,27 +234,35 @@ void TestFIG0Processor::testFIG0_1_MultipleSubChannels()
     // Create FIG 0/1 with multiple sub-channels
     QByteArray fig;
 
-    // FIG header: Type 0, Extension 1
-    fig.append(static_cast<char>(0x01));  // Type=0, Extension=1
-    fig.append(static_cast<char>(0x10));  // Length=16 bytes
+    // FIC header (2 bytes per ETSI EN 300 401 Section 5.2)
+    uint8_t type_byte = (0 << 5);  // FIG type 0 in bits 7-5
+    fig.append(static_cast<char>(type_byte));
+    fig.append(static_cast<char>(0x0C));  // Length=12 bytes (extension + padding + 3*3 sub-channels)
 
-    // Sub-channel 0: Start 0, Table Index 5
-    fig.append(static_cast<char>(0x00));  // SubChId=0
-    fig.append(static_cast<char>(0x00));  // Start Addr MSB
-    fig.append(static_cast<char>(0x00));  // Start Addr LSB
-    fig.append(static_cast<char>(0x05));  // Table Index
+    // Extension field (1 byte) - Extension 1 for sub-channel organization
+    uint8_t ext_byte = (1 << 3);  // Extension 1 in bits 7-3
+    fig.append(static_cast<char>(ext_byte));
 
-    // Sub-channel 1: Start 84, Table Index 7
-    fig.append(static_cast<char>(0x01));  // SubChId=1
-    fig.append(static_cast<char>(0x00));  // Start Addr MSB
-    fig.append(static_cast<char>(0x54));  // Start Addr LSB (84)
-    fig.append(static_cast<char>(0x07));  // Table Index
+    // Padding byte (processFIG0_1 uses offset=2)
+    fig.append(static_cast<char>(0x00));
 
-    // Sub-channel 2: Start 168, Table Index 9
-    fig.append(static_cast<char>(0x02));  // SubChId=2
-    fig.append(static_cast<char>(0x00));  // Start Addr MSB
-    fig.append(static_cast<char>(0xA8));  // Start Addr LSB (168)
-    fig.append(static_cast<char>(0x09));  // Table Index
+    // Sub-channel 0: SubChId=0, Start=0, Table Index=5
+    uint8_t subch0_byte = (0 << 2) | 0x00;  // SubChId=0, Start[9:8]=0
+    fig.append(static_cast<char>(subch0_byte));
+    fig.append(static_cast<char>(0x00));  // Start[7:0]=0
+    fig.append(static_cast<char>(0x80 | 5));  // Short form (0x80) + Table Index 5
+
+    // Sub-channel 1: SubChId=1, Start=84, Table Index=7
+    uint8_t subch1_byte = (1 << 2) | 0x00;  // SubChId=1, Start[9:8]=0
+    fig.append(static_cast<char>(subch1_byte));
+    fig.append(static_cast<char>(84));  // Start[7:0]=84
+    fig.append(static_cast<char>(0x80 | 7));  // Short form (0x80) + Table Index 7
+
+    // Sub-channel 2: SubChId=2, Start=168, Table Index=9
+    uint8_t subch2_byte = (2 << 2) | 0x00;  // SubChId=2, Start[9:8]=0
+    fig.append(static_cast<char>(subch2_byte));
+    fig.append(static_cast<char>(168));  // Start[7:0]=168
+    fig.append(static_cast<char>(0x80 | 9));  // Short form (0x80) + Table Index 9
 
     m_analyzer->analyzeFICData(fig);
 
@@ -393,21 +401,36 @@ void TestFIG0Processor::testFIG0_2_MultipleComponents()
     m_analyzer->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
     m_analyzer->analyzeFICData(createFIG0_1_ShortForm(1, 84, 7));
 
-    // Create FIG 0/2 with multiple components
+    // Create FIG 0/2 with multiple components (2 components)
     QByteArray fig;
-    fig.append(static_cast<char>(0x02));  // Type=0, Extension=2
-    fig.append(static_cast<char>(0x0C));  // Length
 
-    // Service ID (16-bit)
-    fig.append(static_cast<char>(0xE0));
-    fig.append(static_cast<char>(0xD0));
+    // FIC header (2 bytes)
+    uint8_t type_byte = (0 << 5);  // FIG type 0
+    fig.append(static_cast<char>(type_byte));
+    fig.append(static_cast<char>(0x08));  // Length=8 bytes (extension + 7 data bytes)
+
+    // Extension field (1 byte) - Extension 2
+    uint8_t ext_byte = (2 << 3);  // Extension 2 in bits 7-3
+    fig.append(static_cast<char>(ext_byte));
+
+    // Service descriptor
+    // Byte 0: P/D flag (bit 7) + Service ID MSB (programme service)
+    uint16_t service_id = 0xE0D0;
+    uint8_t pd_byte = 0x80 | ((service_id >> 8) & 0x7F);  // P/D=1 (programme)
+    fig.append(static_cast<char>(pd_byte));
+
+    // Byte 1: Service ID LSB
+    fig.append(static_cast<char>(service_id & 0xFF));
+
+    // Byte 2: Number of components (2) in high nibble
+    fig.append(static_cast<char>(0x20));  // 2 components
 
     // Component 1: SubChId=0
-    fig.append(static_cast<char>(0x00));  // TMId=0, ASCTy/DSCTy=0
+    fig.append(static_cast<char>(0x00));  // TMId=0 (MSC stream), ASCTy=0 (DAB)
     fig.append(static_cast<char>(0x00));  // SubChId=0
 
     // Component 2: SubChId=1
-    fig.append(static_cast<char>(0x00));
+    fig.append(static_cast<char>(0x00));  // TMId=0 (MSC stream), ASCTy=0 (DAB)
     fig.append(static_cast<char>(0x01));  // SubChId=1
 
     m_analyzer->analyzeFICData(fig);
@@ -547,15 +570,25 @@ void TestFIG0Processor::testFIGHeaderValidation()
     // Test FIG header structure validation
     QByteArray fig;
 
-    // Valid header: Type=0, Extension=0
-    fig.append(static_cast<char>(0x00));  // Type=0, Extension=0
-    fig.append(static_cast<char>(0x06));  // Length=6
+    // FIC header (2 bytes per ETSI EN 300 401 Section 5.2)
+    uint8_t type_byte = (0 << 5);  // FIG type 0 in bits 7-5
+    fig.append(static_cast<char>(type_byte));
+    fig.append(static_cast<char>(0x08));  // Length=8 bytes
 
-    // Ensemble data
+    // Extension field (1 byte) - Extension 0
+    uint8_t ext_byte = (0 << 3);  // Extension 0 in bits 7-3
+    fig.append(static_cast<char>(ext_byte));
+
+    // Padding byte
+    fig.append(static_cast<char>(0x00));
+
+    // Ensemble data (processFIG0_0 reads from data[2-7])
     fig.append(static_cast<char>(0x12));  // EId MSB
     fig.append(static_cast<char>(0x34));  // EId LSB
+    fig.append(static_cast<char>(0x00));  // Change flags
+    fig.append(static_cast<char>(0x00));  // Alarm flags
     fig.append(static_cast<char>(0x0E));  // Country code
-    fig.append(static_cast<char>(0x00));  // Flags
+    fig.append(static_cast<char>(0x00));  // ECC
 
     m_analyzer->analyzeFICData(fig);
 
@@ -567,14 +600,19 @@ void TestFIG0Processor::testDataLengthValidation()
     // Test length field validation
     QByteArray fig;
 
-    fig.append(static_cast<char>(0x00));
-    fig.append(static_cast<char>(0x04));  // Length=4
+    // FIC header (2 bytes)
+    uint8_t type_byte = (0 << 5);  // FIG type 0
+    fig.append(static_cast<char>(type_byte));
+    fig.append(static_cast<char>(0x04));  // Length=4 bytes (extension + 3 data bytes)
 
-    // Add 4 bytes of data
+    // Extension field (1 byte)
+    uint8_t ext_byte = (0 << 3);  // Extension 0
+    fig.append(static_cast<char>(ext_byte));
+
+    // Add 3 bytes of data (to match length=4)
     fig.append(static_cast<char>(0x12));
     fig.append(static_cast<char>(0x34));
     fig.append(static_cast<char>(0x0E));
-    fig.append(static_cast<char>(0x00));
 
     m_analyzer->analyzeFICData(fig);
 
@@ -600,8 +638,20 @@ void TestFIG0Processor::testInvalidFIGType()
 void TestFIG0Processor::testInvalidFIGExtension()
 {
     QByteArray fig;
-    fig.append(static_cast<char>(0x1F));  // Type=0, Invalid extension=31
-    fig.append(static_cast<char>(0x04));
+
+    // FIC header with valid FIG type 0
+    uint8_t type_byte = (0 << 5);  // FIG type 0
+    fig.append(static_cast<char>(type_byte));
+    fig.append(static_cast<char>(0x04));  // Length=4
+
+    // Extension field with invalid extension 31
+    uint8_t ext_byte = (31 << 3);  // Invalid extension 31 in bits 7-3
+    fig.append(static_cast<char>(ext_byte));
+
+    // Add some data
+    fig.append(static_cast<char>(0x00));
+    fig.append(static_cast<char>(0x00));
+    fig.append(static_cast<char>(0x00));
 
     m_analyzer->analyzeFICData(fig);
 
@@ -612,10 +662,13 @@ void TestFIG0Processor::testInvalidFIGExtension()
 void TestFIG0Processor::testTruncatedFIGData()
 {
     QByteArray fig;
-    fig.append(static_cast<char>(0x00));
+
+    // FIC header claiming 16 bytes
+    uint8_t type_byte = (0 << 5);  // FIG type 0
+    fig.append(static_cast<char>(type_byte));
     fig.append(static_cast<char>(0x10));  // Claims 16 bytes
 
-    // Only add 2 bytes (truncated)
+    // Only add 2 bytes (truncated - should have 16)
     fig.append(static_cast<char>(0x12));
     fig.append(static_cast<char>(0x34));
 
@@ -644,19 +697,34 @@ QByteArray TestFIG0Processor::createFIG0_0(uint16_t ensemble_id, uint8_t country
 {
     QByteArray fig;
 
-    // FIG header
-    fig.append(static_cast<char>(0x00));  // Type=0, Extension=0
-    fig.append(static_cast<char>(0x06));  // Length=6 bytes
+    // FIC header (2 bytes per ETSI EN 300 401 Section 5.2)
+    uint8_t type_byte = (0 << 5);  // FIG type 0 in bits 7-5
+    fig.append(static_cast<char>(type_byte));
+    fig.append(static_cast<char>(0x08));  // Length=8 bytes (extension + 7 data bytes)
 
-    // Ensemble ID (16-bit)
+    // Extension field (1 byte) - CRITICAL: Must be after FIC header
+    // Bits 7-3: Extension (0), Bit 2: C/N, Bit 1: OE, Bit 0: PD
+    uint8_t ext_byte = (0 << 3);  // Extension 0
+    fig.append(static_cast<char>(ext_byte));
+
+    // Padding byte (processFIG0_0 expects data to start at offset 2)
+    fig.append(static_cast<char>(0x00));
+
+    // Ensemble ID (16-bit) - processFIG0_0 reads from data[2-3]
     fig.append(static_cast<char>((ensemble_id >> 8) & 0xFF));
     fig.append(static_cast<char>(ensemble_id & 0xFF));
 
-    // Change flags + Country code
-    fig.append(static_cast<char>(country_code));  // Country code (Thailand = 0x0E)
+    // Change flags - processFIG0_0 reads from data[4]
+    fig.append(static_cast<char>(0x00));
 
-    // Extended Country Code (ECC)
-    fig.append(static_cast<char>(0x00));  // No ECC
+    // Alarm flag - processFIG0_0 reads from data[5]
+    fig.append(static_cast<char>(0x00));
+
+    // Country code - processFIG0_0 reads from data[6] if size >= 8
+    fig.append(static_cast<char>(country_code));  // Thailand = 0x0E
+
+    // Extended Country Code (ECC) - Optional data[7]
+    fig.append(static_cast<char>(0x00));
 
     return fig;
 }
@@ -665,20 +733,31 @@ QByteArray TestFIG0Processor::createFIG0_1_ShortForm(uint8_t subch_id, uint16_t 
 {
     QByteArray fig;
 
-    // FIG header
-    fig.append(static_cast<char>(0x01));  // Type=0, Extension=1
-    fig.append(static_cast<char>(0x04));  // Length=4 bytes (one sub-channel)
+    // FIC header (2 bytes per ETSI EN 300 401 Section 5.2)
+    uint8_t type_byte = (0 << 5);  // FIG type 0 in bits 7-5
+    fig.append(static_cast<char>(type_byte));
+    fig.append(static_cast<char>(0x06));  // Length=6 bytes (extension + padding + 4 data bytes)
 
-    // Sub-channel ID (6 bits)
-    fig.append(static_cast<char>(subch_id & 0x3F));
+    // Extension field (1 byte) - Extension 1 for sub-channel organization
+    uint8_t ext_byte = (1 << 3);  // Extension 1 in bits 7-3
+    fig.append(static_cast<char>(ext_byte));
 
-    // Start Address (10 bits) + Short/Long form flag (1 bit)
-    uint16_t addr_bits = (start_addr & 0x3FF) << 6;  // Bits 15-6
-    fig.append(static_cast<char>((addr_bits >> 8) & 0xFF));
-    fig.append(static_cast<char>(addr_bits & 0xFF));
+    // Padding byte (processFIG0_1 uses offset=2 to skip extension+padding)
+    fig.append(static_cast<char>(0x00));
 
-    // Table Index (6 bits)
-    fig.append(static_cast<char>(table_idx & 0x3F));
+    // Sub-channel descriptor (short form - 3 bytes)
+    // Byte 0: SubChId (6 bits in bits 7-2) + Start Address MSB (2 bits in bits 1-0)
+    uint8_t subch_byte = (subch_id & 0x3F) << 2;
+    subch_byte |= (start_addr >> 8) & 0x03;  // Start address bits 9-8
+    fig.append(static_cast<char>(subch_byte));
+
+    // Byte 1: Start Address LSB (8 bits)
+    fig.append(static_cast<char>(start_addr & 0xFF));
+
+    // Byte 2: Short form flag (1) + Table switch (0=A) + Table index (6 bits)
+    uint8_t form_byte = 0x80;  // Short form flag (bit 7 = 1)
+    form_byte |= (table_idx & 0x3F);  // Table index in bits 5-0
+    fig.append(static_cast<char>(form_byte));
 
     return fig;
 }
@@ -687,21 +766,35 @@ QByteArray TestFIG0Processor::createFIG0_1_LongForm(uint8_t subch_id, uint16_t s
 {
     QByteArray fig;
 
-    // FIG header
-    fig.append(static_cast<char>(0x01));  // Type=0, Extension=1
-    fig.append(static_cast<char>(0x05));  // Length=5 bytes
+    // FIC header (2 bytes per ETSI EN 300 401 Section 5.2)
+    uint8_t type_byte = (0 << 5);  // FIG type 0 in bits 7-5
+    fig.append(static_cast<char>(type_byte));
+    fig.append(static_cast<char>(0x07));  // Length=7 bytes (extension + padding + 5 data bytes)
 
-    // Sub-channel ID
-    fig.append(static_cast<char>(subch_id & 0x3F));
+    // Extension field (1 byte) - Extension 1 for sub-channel organization
+    uint8_t ext_byte = (1 << 3);  // Extension 1 in bits 7-3
+    fig.append(static_cast<char>(ext_byte));
 
-    // Start Address + Long form flag (bit 0 = 1)
-    uint16_t addr_bits = ((start_addr & 0x3FF) << 6) | 0x01;
-    fig.append(static_cast<char>((addr_bits >> 8) & 0xFF));
-    fig.append(static_cast<char>(addr_bits & 0xFF));
+    // Padding byte (processFIG0_1 uses offset=2)
+    fig.append(static_cast<char>(0x00));
 
-    // Protection level (2 bits) + Sub-channel size
-    fig.append(static_cast<char>((protection & 0x03) << 6));
-    fig.append(static_cast<char>(0x54));  // Size = 84 CUs
+    // Sub-channel descriptor (long form - 4 bytes)
+    // Byte 0: SubChId (6 bits in bits 7-2) + Start Address MSB (2 bits in bits 1-0)
+    uint8_t subch_byte = (subch_id & 0x3F) << 2;
+    subch_byte |= (start_addr >> 8) & 0x03;
+    fig.append(static_cast<char>(subch_byte));
+
+    // Byte 1: Start Address LSB (8 bits)
+    fig.append(static_cast<char>(start_addr & 0xFF));
+
+    // Byte 2: Long form flag (0) + Option (3 bits) + Protection (2 bits) + Size MSB (2 bits)
+    uint8_t form_byte = 0x00;  // Long form flag (bit 7 = 0)
+    form_byte |= (protection & 0x03) << 2;  // Protection level in bits 3-2
+    form_byte |= 0x00;  // Size MSB (84 CUs = 0x0054, MSB=0x00)
+    fig.append(static_cast<char>(form_byte));
+
+    // Byte 3: Sub-channel size LSB (84 CUs)
+    fig.append(static_cast<char>(0x54));
 
     return fig;
 }
@@ -710,23 +803,57 @@ QByteArray TestFIG0Processor::createFIG0_2(uint32_t service_id, uint8_t subch_id
 {
     QByteArray fig;
 
-    // FIG header
-    fig.append(static_cast<char>(0x02));  // Type=0, Extension=2
-    fig.append(static_cast<char>(0x06));  // Length
+    // Determine if programme (16-bit) or data (32-bit) service
+    // Programme services have IDs < 0x10000, data services use full 32-bit
+    bool is_programme = (service_id < 0x10000);
 
-    // Country ID + Service reference (16-bit for programme service)
-    fig.append(static_cast<char>((service_id >> 8) & 0xFF));
-    fig.append(static_cast<char>(service_id & 0xFF));
+    // FIC header (2 bytes per ETSI EN 300 401 Section 5.2)
+    uint8_t type_byte = (0 << 5);  // FIG type 0 in bits 7-5
+    fig.append(static_cast<char>(type_byte));
 
-    // Local flag + CAId + Number of components
-    fig.append(static_cast<char>(0x01));  // 1 component
+    if (is_programme) {
+        fig.append(static_cast<char>(0x06));  // Length=6 bytes (ext + 5 data)
+    } else {
+        fig.append(static_cast<char>(0x08));  // Length=8 bytes (ext + 7 data, 32-bit SId)
+    }
 
-    // TMId (Transport Mechanism ID) + ASCTy/DSCTy
-    uint8_t tmid = is_audio ? 0x00 : 0x60;  // 0x00=MSC stream audio, 0x60=MSC stream data
-    fig.append(static_cast<char>(tmid));
+    // Extension field (1 byte) - Extension 2 for service organization
+    uint8_t ext_byte = (2 << 3);  // Extension 2 in bits 7-3
+    fig.append(static_cast<char>(ext_byte));
 
-    // SubChId
-    fig.append(static_cast<char>(subch_id & 0x3F));
+    // Service descriptor (processFIG0_2 reads from offset=1, which is data[1])
+    if (is_programme) {
+        // Programme service: 16-bit Service ID with P/D=1
+        // Byte 0 (data[1]): P/D flag (bit 7=1) + Service ID bits 15-8
+        uint8_t pd_byte = 0x80 | ((service_id >> 8) & 0x7F);
+        fig.append(static_cast<char>(pd_byte));
+
+        // Byte 1 (data[2]): Service ID bits 7-0
+        fig.append(static_cast<char>(service_id & 0xFF));
+    } else {
+        // Data service: 32-bit Service ID with P/D=0
+        // Bytes 0-3: Full 32-bit service ID
+        fig.append(static_cast<char>((service_id >> 24) & 0xFF));
+        fig.append(static_cast<char>((service_id >> 16) & 0xFF));
+        fig.append(static_cast<char>((service_id >> 8) & 0xFF));
+        fig.append(static_cast<char>(service_id & 0xFF));
+    }
+
+    // Number of components (high nibble) + Local flag + CAId
+    uint8_t num_comp_byte = (1 << 4);  // 1 component in high nibble
+    fig.append(static_cast<char>(num_comp_byte));
+
+    // Component descriptor (2 bytes per component)
+    // Byte 0: TMId (2 bits in bits 7-6) + ASCTy/DSCTy (6 bits in bits 5-0)
+    uint8_t tmid = 0x00;  // MSC stream audio (0x00)
+    uint8_t ascty = is_audio ? 0x00 : 0x3F;  // 0x00=DAB, 0x3F=DAB+
+    uint8_t tmid_byte = (tmid << 6) | (ascty & 0x3F);
+    fig.append(static_cast<char>(tmid_byte));
+
+    // Byte 1: P/S flag (bit 7) + CA flag (bit 6) + SubChId (bits 5-0)
+    uint8_t subch_byte = 0x00;  // P/S=0 (primary), CA=0 (not CA)
+    subch_byte |= (subch_id & 0x3F);  // SubChId in bits 5-0
+    fig.append(static_cast<char>(subch_byte));
 
     return fig;
 }
