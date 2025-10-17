@@ -62,6 +62,8 @@ public:
         // applyTheme();
     }
 
+    ~DABAnalyzerWindow() override;
+
 private slots:
     void openFile()
     {
@@ -1969,22 +1971,25 @@ private:
         
         layout->addWidget(analysisGroup);
         
-        // PHASE 1 RE-ENABLE: Multi-stream signals with delayed connection for safety
-        QTimer::singleShot(500, this, [this]() {
-            if (m_multiStreamProcessor) {
-                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamAdded,
-                        this, &DABAnalyzerWindow::onStreamAdded);
-                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamRemoved,
-                        this, &DABAnalyzerWindow::onStreamRemoved);
-                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamProcessingProgress,
-                        this, &DABAnalyzerWindow::onStreamProcessingProgress);
-                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamProcessingCompleted,
-                        this, &DABAnalyzerWindow::onStreamProcessingCompleted);
-                connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::comparativeAnalysisCompleted,
-                        this, &DABAnalyzerWindow::onComparativeAnalysisCompleted);
-                qDebug() << "Multi-stream processor signals connected after delay";
-            }
-        });
+        // Multi-stream processor signal connections (immediate, no timer)
+        if (m_multiStreamProcessor) {
+            connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamAdded,
+                    this, &DABAnalyzerWindow::onStreamAdded,
+                    Qt::QueuedConnection);
+            connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamRemoved,
+                    this, &DABAnalyzerWindow::onStreamRemoved,
+                    Qt::QueuedConnection);
+            connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamProcessingProgress,
+                    this, &DABAnalyzerWindow::onStreamProcessingProgress,
+                    Qt::QueuedConnection);
+            connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamProcessingCompleted,
+                    this, &DABAnalyzerWindow::onStreamProcessingCompleted,
+                    Qt::QueuedConnection);
+            connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::comparativeAnalysisCompleted,
+                    this, &DABAnalyzerWindow::onComparativeAnalysisCompleted,
+                    Qt::QueuedConnection);
+            qDebug() << "Multi-stream processor signals connected immediately";
+        }
         
         // Connect button signals
         connect(addStreamBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onAddStreamClicked);
@@ -2263,16 +2268,16 @@ private:
         connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceDiscovered,
                 this, &DABAnalyzerWindow::onServiceDiscovered);
 
-        // PHASE 2 RE-ENABLE: Error Detection signals with delayed connection for safety
-        QTimer::singleShot(1000, this, [this]() {
-            if (m_errorDetector) {
-                connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::errorDetected,
-                        this, &DABAnalyzerWindow::onErrorDetected);
-                connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::systemHealthChanged,
-                        this, &DABAnalyzerWindow::onSystemHealthChanged);
-                qDebug() << "Error Detection signals connected after delay";
-            }
-        });
+        // Error Detection signal connections (immediate, no timer)
+        if (m_errorDetector) {
+            connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::errorDetected,
+                    this, &DABAnalyzerWindow::onErrorDetected,
+                    Qt::QueuedConnection);
+            connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::systemHealthChanged,
+                    this, &DABAnalyzerWindow::onSystemHealthChanged,
+                    Qt::QueuedConnection);
+            qDebug() << "Error Detection signals connected immediately";
+        }
         
         // IDENTIFIED PROBLEM: Professional Logging signals cause file dialog freeze
         // QTimer::singleShot(2000, this, [this]() {
@@ -2444,6 +2449,26 @@ private:
     QString m_currentFilePath;
 };
 
+DABAnalyzerWindow::~DABAnalyzerWindow()
+{
+    // Stop all processing before destruction
+    if (m_etiProcessor) {
+        m_etiProcessor->stopProcessing();
+    }
+
+    if (m_multiStreamProcessor) {
+        m_multiStreamProcessor->stopParallelProcessing();
+    }
+
+    // Disconnect all signals to prevent race conditions during destruction
+    disconnect();
+
+    // Brief wait for any pending queued signals to complete
+    QThread::msleep(100);
+
+    qDebug() << "DABAnalyzerWindow: Clean shutdown complete";
+}
+
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
@@ -2455,14 +2480,8 @@ int main(int argc, char *argv[])
     if (argc > 1) {
         // Command line file specified
     } else {
-        // Try to auto-load Bangkok file
-        QTimer::singleShot(1000, [&window]() {
-            QFileInfo bangkokFile("eti/bkk_20062022_141637.eti");
-            if (bangkokFile.exists()) {
-                // This would be called through a proper slot
-                // window.loadETIFile(bangkokFile.absoluteFilePath());
-            }
-        });
+        // Auto-load disabled to prevent race conditions
+        // Use File > Open to load ETI files
     }
 
     return app.exec();

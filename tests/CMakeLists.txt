@@ -62,6 +62,98 @@ include(tdd_workflow.cmake)
 # TDD MANDATE: 80% minimum coverage enforcement
 set(COVERAGE_MINIMUM_PERCENTAGE 80)
 message(STATUS "TDD: Minimum coverage requirement: ${COVERAGE_MINIMUM_PERCENTAGE}%")
+
+# ============================================================================
+# PHASE 1: ETI FRAME PARSING AND FIG PROCESSING TESTS (NEW)
+# ============================================================================
+message(STATUS "")
+message(STATUS "=== Phase 1: ETI Processing Unit Tests ===")
+
+# Source files from main project for Phase 1 tests
+set(PHASE1_CORE_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_eti_processor_qt.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_compliance_engine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+
+# Phase 1 test executables (Qt Test framework)
+set(PHASE1_TESTS
+    test_eti_frame_parser
+    test_fig0_processor
+    test_fig1_processor
+)
+
+# Create Phase 1 test executables
+foreach(test_name ${PHASE1_TESTS})
+    add_executable(${test_name}
+        ${test_name}.cpp
+        ${PHASE1_CORE_SOURCES}
+    )
+
+    # Set C++ standard
+    set_property(TARGET ${test_name} PROPERTY CXX_STANDARD 20)
+    set_property(TARGET ${test_name} PROPERTY CXX_STANDARD_REQUIRED ON)
+
+    # Enable automatic MOC for Qt
+    set_property(TARGET ${test_name} PROPERTY AUTOMOC ON)
+
+    # Link libraries
+    target_link_libraries(${test_name}
+        PRIVATE
+        Qt6::Core
+        Qt6::Test
+        pthread
+    )
+
+    # Include directories
+    target_include_directories(${test_name} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/core
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils
+    )
+
+    # Add test to CTest
+    add_test(NAME ${test_name} COMMAND ${test_name})
+
+    # Set test properties
+    set_tests_properties(${test_name} PROPERTIES
+        TIMEOUT 300
+        LABELS "Phase1;Unit;ETI"
+    )
+
+    # Coverage flags
+    if(ENABLE_COVERAGE)
+        target_compile_options(${test_name} PRIVATE --coverage)
+        target_link_options(${test_name} PRIVATE --coverage)
+    endif()
+
+    message(STATUS "Configured Phase 1 test: ${test_name}")
+endforeach()
+
+# Phase 1 test targets
+add_custom_target(run_phase1_tests
+    COMMAND ${CMAKE_CTEST_COMMAND} -L "Phase1" --output-on-failure --verbose
+    DEPENDS ${PHASE1_TESTS}
+    COMMENT "Running Phase 1: ETI Processing Unit Tests"
+)
+
+add_custom_target(run_phase1_tests_quick
+    COMMAND ${CMAKE_CTEST_COMMAND} -L "Phase1" --output-on-failure
+    DEPENDS ${PHASE1_TESTS}
+    COMMENT "Running Phase 1 tests (quick mode)"
+)
+
+message(STATUS "Phase 1 test targets created:")
+message(STATUS "  - run_phase1_tests: Run all Phase 1 ETI tests (verbose)")
+message(STATUS "  - run_phase1_tests_quick: Run Phase 1 tests (quiet mode)")
+message(STATUS "==========================================")
+message(STATUS "")
+
+# ============================================================================
+# EXISTING TDD FRAMEWORK TESTS
+# ============================================================================
+
 # TDD FRAMEWORK: Organize tests by type and priority
 set(GTEST_UNIT_SOURCES
     test_main.cpp
@@ -356,23 +448,23 @@ endif()
 add_custom_target(tdd_red_phase
     COMMAND echo "🔴 TDD RED Phase: Running failing tests to verify test correctness"
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --verbose || true
-    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests
+    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests ${PHASE1_TESTS}
     COMMENT "TDD RED: Expecting test failures (this is correct!)"
 )
 add_custom_target(tdd_green_phase
     COMMAND echo "🟢 TDD GREEN Phase: Running tests expecting all to pass"
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --verbose
-    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests
+    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests ${PHASE1_TESTS}
     COMMENT "TDD GREEN: All tests must pass"
 )
 add_custom_target(run_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --verbose
-    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests
-    COMMENT "Running all TDD test suites"
+    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests ${PHASE1_TESTS}
+    COMMENT "Running all TDD test suites (including Phase 1)"
 )
 add_custom_target(run_tests_quiet
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests
+    DEPENDS eti_analyzer_unit_tests eti_analyzer_gui_tests eti_analyzer_e2e_tests ${PHASE1_TESTS}
     COMMENT "Running all tests (quiet mode)"
 )
 
@@ -596,6 +688,12 @@ message(STATUS "Qt Test Framework: ENABLED")
 message(STATUS "Google Mock Framework: ENABLED")
 message(STATUS "Code Coverage: ${ENABLE_COVERAGE}")
 message(STATUS "Minimum Coverage: ${COVERAGE_MINIMUM_PERCENTAGE}%")
+message(STATUS "")
+message(STATUS "PHASE 1 ETI PROCESSING TESTS:")
+message(STATUS "  - test_eti_frame_parser: ETI frame parsing")
+message(STATUS "  - test_fig0_processor: FIG Type 0 decoding")
+message(STATUS "  - test_fig1_processor: FIG Type 1 labels")
+message(STATUS "  - run_phase1_tests: Run all Phase 1 tests")
 message(STATUS "")
 message(STATUS "TDD WORKFLOW TARGETS:")
 message(STATUS "  🔴 tdd_red_phase: Verify tests fail correctly")
