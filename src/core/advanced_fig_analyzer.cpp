@@ -461,25 +461,75 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
     int services_found = 0;
 
     while (offset + 3 <= data.size()) {  // Fixed: Include services at exact boundary
-        // Byte 0: P/D flag (bit 7) + ...
-        bool is_programme = (bytes[offset] & 0x80) != 0;
+        // CRITICAL FIX: Cannot determine 16-bit vs 32-bit by checking bit 7 of first byte!
+        // For 32-bit Service IDs like 0xE0D00001, first byte 0xE0 has bit 7 set, but it's NOT a P/D flag.
+        //
+        // ETSI EN 300 401 approach: Try 16-bit first (P/D flag in bit 7 + 15-bit SId),
+        // but if the resulting Service ID suggests data service (check heuristics), try 32-bit.
+        //
+        // BETTER APPROACH: Check if we have enough bytes for 32-bit, and use length heuristics.
 
         uint32_t service_id;
+        bool is_programme;
+        int sid_bytes;
 
-        if (is_programme) {
-            // Programme service: 16-bit SId
-            if (offset + 2 > data.size()) break;
-            service_id = (static_cast<uint32_t>(bytes[offset]) << 8) | bytes[offset + 1];
-            service_id &= 0xFFFF;  // Ensure 16-bit
-            offset += 2;
-        } else {
-            // Data service: 32-bit SId
+        // Try to determine encoding by checking if P/D flag indicates programme service
+        // P/D flag only exists in 16-bit encoding (bit 7 of first byte)
+        // For 32-bit encoding, first byte is part of Service ID (no P/D flag)
+
+        // Heuristic: Check if bytes suggest 16-bit or 32-bit encoding
+        // - 16-bit: P/D flag (bit 7) + SId[14:8] (bits 6-0) + SId[7:0]
+        // - 32-bit: Full 4-byte Service ID (first byte can be 0xE0-0xEF for data services)
+
+        // CRITICAL: We need to peek ahead at the structure to determine encoding
+        // Look at potential "Number of components" byte position for both encodings
+
+        bool try_32bit = false;
+
+        if (offset + 4 < data.size()) {
+            // Check if 32-bit encoding makes sense
+            // For 32-bit: offset+4 should be NumComp byte (reasonable value: 1-15)
+            uint8_t potential_numcomp_32 = (bytes[offset + 4] >> 4) & 0x0F;
+
+            // Check if 16-bit encoding makes sense
+            // For 16-bit: offset+2 should be NumComp byte
+            uint8_t potential_numcomp_16 = (bytes[offset + 2] >> 4) & 0x0F;
+
+            // Heuristic: If first byte has high bits set (0xE0-0xFF) and 32-bit NumComp looks reasonable
+            if ((bytes[offset] & 0xE0) == 0xE0 && potential_numcomp_32 > 0 && potential_numcomp_32 <= 15) {
+                try_32bit = true;
+            }
+        }
+
+        if (try_32bit) {
+            // 32-bit Service ID (data service)
             if (offset + 4 > data.size()) break;
             service_id = (static_cast<uint32_t>(bytes[offset]) << 24) |
                         (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
                         (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
                         static_cast<uint32_t>(bytes[offset + 3]);
+            is_programme = false;
+            sid_bytes = 4;
             offset += 4;
+
+            qDebug() << "FIG 0/2: [32-bit encoding detected] Service ID ="
+                     << Qt::hex << Qt::showbase << service_id
+                     << "bytes:" << Qt::hex
+                     << bytes[offset-4] << bytes[offset-3] << bytes[offset-2] << bytes[offset-1];
+        } else {
+            // 16-bit Service ID (programme service with P/D flag)
+            if (offset + 2 > data.size()) break;
+
+            // P/D flag in bit 7, SId[14:8] in bits 6-0
+            is_programme = (bytes[offset] & 0x80) != 0;
+            service_id = ((static_cast<uint32_t>(bytes[offset]) & 0x7F) << 8) | bytes[offset + 1];
+            sid_bytes = 2;
+            offset += 2;
+
+            qDebug() << "FIG 0/2: [16-bit encoding] Service ID ="
+                     << Qt::hex << Qt::showbase << service_id
+                     << "P/D=" << (is_programme ? "Programme" : "Data")
+                     << "bytes:" << Qt::hex << bytes[offset-2] << bytes[offset-1];
         }
 
         // Number of service components (4 bits, byte after SId, high nibble)
@@ -500,9 +550,9 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
         dab_service.service_type = is_programme ? 0 : 1;  // 0=audio, 1=data
         dab_service.is_dab_plus = false;  // Will be set by FIG 0/8 if needed
 
-        qDebug() << "FIG 0/2: Service" << Qt::hex << service_id
-                 << (is_programme ? "Programme" : "Data")
-                 << "with" << num_components << "components";
+        qDebug() << "FIG 0/2: Storing service" << Qt::hex << Qt::showbase << service_id
+                 << "type=" << (is_programme ? "Programme" : "Data")
+                 << "components=" << num_components;
 
         // Parse service components
         for (uint8_t i = 0; i < num_components; ++i) {

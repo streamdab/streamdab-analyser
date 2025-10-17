@@ -1050,8 +1050,15 @@ void TestFIG1Processor::setupServiceForLabeling(uint32_t service_id)
 
     // Step 1: Create sub-channel (FIG 0/1) - Required by FIG 0/2
     QByteArray fig0_1;
-    fig0_1.append(static_cast<char>(0x01));  // Extension 1
-    fig0_1.append(static_cast<char>(0x04));  // Length=4
+
+    // CRITICAL FIX: Must include Type + Length bytes!
+    uint8_t type_byte = (0 << 5);  // FIG type 0, C/N=0, OE=0
+    fig0_1.append(static_cast<char>(type_byte));
+    fig0_1.append(static_cast<char>(0x05));  // Length=5 bytes (ext + subchannel data)
+
+    // Extension byte: Extension 1 in bits 7-3
+    uint8_t ext_byte = (1 << 3);  // Extension 1
+    fig0_1.append(static_cast<char>(ext_byte));
     fig0_1.append(static_cast<char>(0x00));  // SubChId=0 (bits 7-2) + Start[9:8]=0 (bits 1-0)
     fig0_1.append(static_cast<char>(0x00));  // Start Address[7:0]=0
     fig0_1.append(static_cast<char>(0x00));  // Padding
@@ -1060,11 +1067,19 @@ void TestFIG1Processor::setupServiceForLabeling(uint32_t service_id)
 
     // Step 2: Create service (FIG 0/2) with correct SId encoding per ETSI EN 300 401
     QByteArray fig0_2;
-    fig0_2.append(static_cast<char>(0x02));  // Extension 2
+
+    // CRITICAL FIX: Must include Type + Length bytes!
+    type_byte = (0 << 5);  // FIG type 0, C/N=0, OE=0
+    fig0_2.append(static_cast<char>(type_byte));
 
     if (is_programme) {
         // Programme service: 16-bit Service ID
-        fig0_2.append(static_cast<char>(0x06));  // Length=6 (ext + pd/sid16 + numcomp + component)
+        // Length = ext(1) + pd/sid(2) + numcomp(1) + component(2) = 6
+        fig0_2.append(static_cast<char>(0x06));  // Length=6
+
+        // Extension byte: Extension 2 in bits 7-3
+        uint8_t ext_byte = (2 << 3);  // Extension 2
+        fig0_2.append(static_cast<char>(ext_byte));
 
         // P/D byte + Service ID MSB
         // ETSI EN 300 401: P/D flag in bit 7, SId[14:8] in bits 6-0
@@ -1075,7 +1090,12 @@ void TestFIG1Processor::setupServiceForLabeling(uint32_t service_id)
         fig0_2.append(static_cast<char>(service_id & 0xFF));
     } else {
         // Data service: 32-bit Service ID
-        fig0_2.append(static_cast<char>(0x08));  // Length=8 (ext + sid32 + numcomp + component)
+        // Length = ext(1) + sid32(4) + numcomp(1) + component(2) = 8
+        fig0_2.append(static_cast<char>(0x08));  // Length=8
+
+        // Extension byte: Extension 2 in bits 7-3
+        uint8_t ext_byte = (2 << 3);  // Extension 2
+        fig0_2.append(static_cast<char>(ext_byte));
 
         // Full 32-bit Service ID (no P/D flag for 32-bit encoding)
         fig0_2.append(static_cast<char>((service_id >> 24) & 0xFF));
