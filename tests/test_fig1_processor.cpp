@@ -875,6 +875,12 @@ QByteArray TestFIG1Processor::createFIG1_1(uint32_t service_id, const QString& l
 {
     QByteArray fig;
 
+    // Auto-detect data service if not explicitly specified
+    // Match the logic in setupServiceForLabeling for consistency
+    if (!is_data_service && service_id > 0xFFFF) {
+        is_data_service = true;  // Auto-detect as data service
+    }
+
     // Determine Service ID encoding based on value and service type
     // Programme services can use either 16-bit or 32-bit encoding
     // Data services always use 32-bit encoding
@@ -1037,28 +1043,61 @@ QByteArray TestFIG1Processor::createLabelData(const QString& label, uint16_t cha
 
 void TestFIG1Processor::setupServiceForLabeling(uint32_t service_id)
 {
-    // Create FIG 0/1 (sub-channel)
-    QByteArray fig0_1;
-    fig0_1.append(static_cast<char>(0x01));
-    fig0_1.append(static_cast<char>(0x04));
-    fig0_1.append(static_cast<char>(0x00));
-    fig0_1.append(static_cast<char>(0x00));
-    fig0_1.append(static_cast<char>(0x00));
-    fig0_1.append(static_cast<char>(0x05));
+    // Determine service type based on Service ID value
+    // Programme services: 16-bit (0x0000-0xFFFF)
+    // Data services: 32-bit (typically 0xE0000000-0xEFFFFFFF per ETSI)
+    bool is_programme = (service_id <= 0xFFFF);
 
+    // Step 1: Create sub-channel (FIG 0/1) - Required by FIG 0/2
+    QByteArray fig0_1;
+    fig0_1.append(static_cast<char>(0x01));  // Extension 1
+    fig0_1.append(static_cast<char>(0x04));  // Length=4
+    fig0_1.append(static_cast<char>(0x00));  // SubChId=0 (bits 7-2) + Start[9:8]=0 (bits 1-0)
+    fig0_1.append(static_cast<char>(0x00));  // Start Address[7:0]=0
+    fig0_1.append(static_cast<char>(0x00));  // Padding
+    fig0_1.append(static_cast<char>(0x80 | 0x05));  // Short form (0x80) + Table Index 5
     m_analyzer->analyzeFICData(fig0_1);
 
-    // Create FIG 0/2 (service)
+    // Step 2: Create service (FIG 0/2) with correct SId encoding per ETSI EN 300 401
     QByteArray fig0_2;
-    fig0_2.append(static_cast<char>(0x02));
-    fig0_2.append(static_cast<char>(0x06));
-    fig0_2.append(static_cast<char>((service_id >> 8) & 0xFF));
-    fig0_2.append(static_cast<char>(service_id & 0xFF));
-    fig0_2.append(static_cast<char>(0x01));
-    fig0_2.append(static_cast<char>(0x00));
-    fig0_2.append(static_cast<char>(0x00));
+    fig0_2.append(static_cast<char>(0x02));  // Extension 2
+
+    if (is_programme) {
+        // Programme service: 16-bit Service ID
+        fig0_2.append(static_cast<char>(0x06));  // Length=6 (ext + pd/sid16 + numcomp + component)
+
+        // P/D byte + Service ID MSB
+        // ETSI EN 300 401: P/D flag in bit 7, SId[14:8] in bits 6-0
+        uint8_t pd_byte = 0x80 | ((service_id >> 8) & 0x7F);  // P/D=1 (programme)
+        fig0_2.append(static_cast<char>(pd_byte));
+
+        // Service ID LSB
+        fig0_2.append(static_cast<char>(service_id & 0xFF));
+    } else {
+        // Data service: 32-bit Service ID
+        fig0_2.append(static_cast<char>(0x08));  // Length=8 (ext + sid32 + numcomp + component)
+
+        // Full 32-bit Service ID (no P/D flag for 32-bit encoding)
+        fig0_2.append(static_cast<char>((service_id >> 24) & 0xFF));
+        fig0_2.append(static_cast<char>((service_id >> 16) & 0xFF));
+        fig0_2.append(static_cast<char>((service_id >> 8) & 0xFF));
+        fig0_2.append(static_cast<char>(service_id & 0xFF));
+    }
+
+    // Number of components (1) in high nibble + Local flag + CAId
+    fig0_2.append(static_cast<char>(0x10));  // NumComp=1, Local=0, CAId=0
+
+    // Component descriptor (2 bytes)
+    // Byte 0: TMId (2 bits) + ASCTy/DSCTy (6 bits)
+    fig0_2.append(static_cast<char>(0x00));  // TMId=0 (MSC stream), ASCTy=0 (DAB audio)
+
+    // Byte 1: P/S flag + CA flag + SubChId
+    fig0_2.append(static_cast<char>(0x00));  // P/S=0 (primary), CA=0, SubChId=0
 
     m_analyzer->analyzeFICData(fig0_2);
+
+    qDebug() << "setupServiceForLabeling: Created service" << Qt::hex << service_id
+             << (is_programme ? "(programme)" : "(data)");
 }
 
 /**

@@ -460,7 +460,7 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
 
     int services_found = 0;
 
-    while (offset + 3 < data.size()) {
+    while (offset + 3 <= data.size()) {  // Fixed: Include services at exact boundary
         // Byte 0: P/D flag (bit 7) + ...
         bool is_programme = (bytes[offset] & 0x80) != 0;
 
@@ -896,16 +896,16 @@ void AdvancedFIGAnalyzer::processFIG0_3(const QByteArray& data)
 {
     Q_UNUSED(data)
     // FIG 0/3: Service component - to be implemented in future phases
-    m_totalFIGsProcessed++;
     m_lastError = "FIG 0/3 not yet implemented";
+    // Do NOT increment m_totalFIGsProcessed for unimplemented FIGs
 }
 
 void AdvancedFIGAnalyzer::processFIG0_8(const QByteArray& data)
 {
     Q_UNUSED(data)
     // FIG 0/8: Service component global definition - to be implemented
-    m_totalFIGsProcessed++;
     m_lastError = "FIG 0/8 not yet implemented";
+    // Do NOT increment m_totalFIGsProcessed for unimplemented FIGs
 }
 
 /**
@@ -922,16 +922,16 @@ void AdvancedFIGAnalyzer::processFIG0_13(const QByteArray& data)
 {
     Q_UNUSED(data)
     // FIG 0/13: User application information - to be implemented
-    m_totalFIGsProcessed++;
     m_lastError = "FIG 0/13 not yet implemented";
+    // Do NOT increment m_totalFIGsProcessed for unimplemented FIGs
 }
 
 void AdvancedFIGAnalyzer::processFIG1_5(const QByteArray& data)
 {
     Q_UNUSED(data)
     // FIG 1/5: Data service labels - to be implemented
-    m_totalFIGsProcessed++;
     m_lastError = "FIG 1/5 not yet implemented";
+    // Do NOT increment m_totalFIGsProcessed for unimplemented FIGs
 }
 
 // ============================================================================
