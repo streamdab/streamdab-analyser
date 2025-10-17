@@ -7,7 +7,7 @@
  *
  * Test Coverage:
  * - FIG 0/0: Ensemble information
- * - FIG 0/1: Sub-channel organization
+ * - FIG 0/1: Sub-channel organization with comprehensive storage verification
  * - FIG 0/2: Service organization
  * - Service discovery integration
  * - ETSI compliance validation
@@ -215,22 +215,37 @@ void TestFIG0Processor::testFIG0_0_EnsembleReference()
 }
 
 // ============================================================================
-// FIG 0/1 Tests (Sub-channel Organization)
+// FIG 0/1 Tests (Sub-channel Organization) - ENHANCED WITH STORAGE VERIFICATION
 // ============================================================================
 
 void TestFIG0Processor::testFIG0_1_SingleSubChannel()
 {
-    // Sub-channel 0, Start Address 0, Table Index 5
+    // Test: Sub-channel 0, Start Address 0, Table Index 5
     QByteArray fig = createFIG0_1_ShortForm(0, 0, 5);
 
     m_analyzer->analyzeFICData(fig);
 
+    // Verify FIG processed successfully
     QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
     qInfo() << "FIG 0/1: Single sub-channel processed";
+
+    // *** ENHANCED: Verify sub-channel storage ***
+    auto subchannels = m_analyzer->getAllSubChannels();
+    QCOMPARE(static_cast<int>(subchannels.size()), 1);  // Should have exactly 1 sub-channel
+    qInfo() << "FIG 0/1: Storage verified - 1 sub-channel stored";
+
+    // Verify sub-channel details using getSubChannelInfo
+    SubChannelInfo subch = m_analyzer->getSubChannelInfo(0);
+    QCOMPARE(subch.sub_channel_id, static_cast<uint8_t>(0));
+    QCOMPARE(subch.start_address, static_cast<uint16_t>(0));
+    QCOMPARE(subch.table_index, static_cast<uint8_t>(5));
+    QVERIFY(subch.short_form == true);  // Short form (EEP)
+    qInfo() << "FIG 0/1: Sub-channel details verified - SubCh=0, Start=0, Table=5, Form=Short(EEP)";
 }
 
 void TestFIG0Processor::testFIG0_1_MultipleSubChannels()
 {
+    // Test: Process 3 different sub-channels
     // Create FIG 0/1 with multiple sub-channels
     QByteArray fig;
 
@@ -266,85 +281,183 @@ void TestFIG0Processor::testFIG0_1_MultipleSubChannels()
 
     m_analyzer->analyzeFICData(fig);
 
+    // Verify FIG processing count
     QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
     qInfo() << "FIG 0/1: Multiple sub-channels processed";
+
+    // *** ENHANCED: Verify all sub-channels stored ***
+    auto subchannels = m_analyzer->getAllSubChannels();
+    QCOMPARE(static_cast<int>(subchannels.size()), 3);  // Should have exactly 3 sub-channels
+    qInfo() << "FIG 0/1: Storage verified - 3 sub-channels stored";
+
+    // Verify each sub-channel exists and has correct data
+    SubChannelInfo subch0 = m_analyzer->getSubChannelInfo(0);
+    SubChannelInfo subch1 = m_analyzer->getSubChannelInfo(1);
+    SubChannelInfo subch2 = m_analyzer->getSubChannelInfo(2);
+
+    // Verify sub-channel IDs
+    QCOMPARE(subch0.sub_channel_id, static_cast<uint8_t>(0));
+    QCOMPARE(subch1.sub_channel_id, static_cast<uint8_t>(1));
+    QCOMPARE(subch2.sub_channel_id, static_cast<uint8_t>(2));
+
+    // Verify start addresses
+    QCOMPARE(subch0.start_address, static_cast<uint16_t>(0));
+    QCOMPARE(subch1.start_address, static_cast<uint16_t>(84));
+    QCOMPARE(subch2.start_address, static_cast<uint16_t>(168));
+    qInfo() << "FIG 0/1: Start addresses verified - 0, 84, 168";
+
+    // Verify table indices
+    QCOMPARE(subch0.table_index, static_cast<uint8_t>(5));
+    QCOMPARE(subch1.table_index, static_cast<uint8_t>(7));
+    QCOMPARE(subch2.table_index, static_cast<uint8_t>(9));
+    qInfo() << "FIG 0/1: Table indices verified - 5, 7, 9";
+
+    // Verify all are short form
+    QVERIFY(subch0.short_form == true);
+    QVERIFY(subch1.short_form == true);
+    QVERIFY(subch2.short_form == true);
 }
 
 void TestFIG0Processor::testFIG0_1_ShortForm()
 {
-    // Short form: Table-based protection
+    // Test: Short form (EEP - Equal Error Protection) with table-based protection
     QByteArray fig = createFIG0_1_ShortForm(5, 100, 12);
 
     m_analyzer->analyzeFICData(fig);
 
     QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+
+    // *** ENHANCED: Verify short form storage ***
+    SubChannelInfo subch = m_analyzer->getSubChannelInfo(5);
+    QCOMPARE(subch.sub_channel_id, static_cast<uint8_t>(5));
+    QCOMPARE(subch.start_address, static_cast<uint16_t>(100));
+    QCOMPARE(subch.table_index, static_cast<uint8_t>(12));
+    QVERIFY(subch.short_form == true);  // Must be short form
+    qInfo() << "FIG 0/1: Short form verified - SubCh=5, Start=100, Table=12, Form=Short(EEP)";
 }
 
 void TestFIG0Processor::testFIG0_1_LongForm()
 {
-    // Long form: EEP protection
+    // Test: Long form (UEP - Unequal Error Protection)
     QByteArray fig = createFIG0_1_LongForm(5, 100, 2);
 
     m_analyzer->analyzeFICData(fig);
 
     QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+
+    // *** ENHANCED: Verify long form storage ***
+    SubChannelInfo subch = m_analyzer->getSubChannelInfo(5);
+    QCOMPARE(subch.sub_channel_id, static_cast<uint8_t>(5));
+    QCOMPARE(subch.start_address, static_cast<uint16_t>(100));
+    QCOMPARE(subch.protection_level, static_cast<uint8_t>(2));
+    QVERIFY(subch.short_form == false);  // Must be long form
+    QCOMPARE(subch.sub_channel_size, static_cast<uint16_t>(0x54));  // 84 CUs
+    qInfo() << "FIG 0/1: Long form verified - SubCh=5, Start=100, Protection=2, Form=Long(UEP), Size=84CU";
 }
 
 void TestFIG0Processor::testFIG0_1_StartAddressExtraction()
 {
-    // Test various start addresses
+    // Test: Various start addresses (CU addresses in MSC)
     uint16_t test_addresses[] = {0, 84, 168, 252, 336, 420, 504, 588, 672, 756};
 
-    for (uint16_t addr : test_addresses) {
-        QByteArray fig = createFIG0_1_ShortForm(0, addr, 5);
+    for (size_t i = 0; i < 10; ++i) {
+        QByteArray fig = createFIG0_1_ShortForm(0, test_addresses[i], 5);
         m_analyzer->analyzeFICData(fig);
     }
 
+    // Verify processing count
     QVERIFY(m_analyzer->getTotalFIGsProcessed() == 10);
+    qInfo() << "FIG 0/1: Processed 10 FIGs with different start addresses";
+
+    // *** ENHANCED: Verify start address progression ***
+    // Note: Since all use SubCh ID 0, only the last one is stored
+    auto subchannels = m_analyzer->getAllSubChannels();
+    QCOMPARE(static_cast<int>(subchannels.size()), 1);  // Only 1 sub-channel (overwritten)
+
+    // Verify last processed start address (756)
+    SubChannelInfo subch = m_analyzer->getSubChannelInfo(0);
+    QCOMPARE(subch.start_address, static_cast<uint16_t>(756));
+    qInfo() << "FIG 0/1: Start address progression verified - Last address=756";
 }
 
 void TestFIG0Processor::testFIG0_1_TableIndexExtraction()
 {
-    // Test table indices 0-15
+    // Test: Table indices 0-15 (protection table selection)
     for (uint8_t table_idx = 0; table_idx < 16; ++table_idx) {
+        m_analyzer->reset();  // Clear previous data to test each independently
         QByteArray fig = createFIG0_1_ShortForm(0, 0, table_idx);
         m_analyzer->analyzeFICData(fig);
+
+        // *** ENHANCED: Verify table index stored correctly ***
+        SubChannelInfo subch = m_analyzer->getSubChannelInfo(0);
+        QCOMPARE(subch.sub_channel_id, static_cast<uint8_t>(0));
+        QCOMPARE(subch.table_index, table_idx);
+        QVERIFY(subch.short_form == true);
     }
 
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() == 16);
+    qInfo() << "FIG 0/1: All 16 table indices verified (0-15)";
 }
 
 void TestFIG0Processor::testFIG0_1_BitrateCalculation()
 {
-    // Table index 5 -> 64 kbps (typical)
+    // Test: Table index 5 -> 64 kbps (typical DAB bitrate)
     QByteArray fig = createFIG0_1_ShortForm(0, 0, 5);
 
     m_analyzer->analyzeFICData(fig);
 
     // Bitrate calculation depends on protection table
     QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+
+    // *** ENHANCED: Verify bitrate calculation via SubChannelInfo ***
+    SubChannelInfo subch = m_analyzer->getSubChannelInfo(0);
+    QCOMPARE(subch.table_index, static_cast<uint8_t>(5));
+
+    // Verify bitrate can be retrieved (implementation-dependent)
+    uint16_t bitrate = subch.getBitrate();
+    QVERIFY(bitrate > 0);  // Should return valid bitrate
+    qInfo() << "FIG 0/1: Bitrate calculation verified - Table Index 5 -> Bitrate" << bitrate << "kbps";
 }
 
 void TestFIG0Processor::testFIG0_1_ProtectionLevel()
 {
-    // Long form with protection level 2 (EEP-A)
+    // Test: Long form with protection level 2 (EEP-A)
     QByteArray fig = createFIG0_1_LongForm(0, 0, 2);
 
     m_analyzer->analyzeFICData(fig);
 
     QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+
+    // *** ENHANCED: Verify protection level storage ***
+    SubChannelInfo subch = m_analyzer->getSubChannelInfo(0);
+    QCOMPARE(subch.protection_level, static_cast<uint8_t>(2));
+    QVERIFY(subch.short_form == false);  // Long form uses protection_level
+
+    // Verify protection level string
+    QString protection = subch.getProtectionLevel();
+    QVERIFY(!protection.isEmpty());
+    qInfo() << "FIG 0/1: Protection level verified - Level 2:" << protection;
 }
 
 void TestFIG0Processor::testFIG0_1_InvalidSubChannelID()
 {
-    // Sub-channel ID must be 0-63
-    QByteArray fig = createFIG0_1_ShortForm(64, 0, 5);  // Invalid: 64
+    // Test: Sub-channel ID must be 0-63 (6 bits)
+    QByteArray fig = createFIG0_1_ShortForm(64, 0, 5);  // Invalid: 64 (exceeds 6-bit limit)
 
     m_analyzer->analyzeFICData(fig);
 
-    // Should detect error
+    // Should detect error or reject invalid sub-channel
     QVERIFY(!m_analyzer->getLastError().isEmpty() ||
             m_analyzer->getValidFIGsCount() == 0);
+
+    // *** ENHANCED: Verify invalid sub-channel NOT stored ***
+    auto subchannels = m_analyzer->getAllSubChannels();
+    // Should either have 0 sub-channels or error reported
+    if (subchannels.size() > 0) {
+        // If stored, should not be ID 64
+        SubChannelInfo subch = m_analyzer->getSubChannelInfo(64);
+        QVERIFY(subch.sub_channel_id != 64);  // Should not store invalid ID
+    }
+    qInfo() << "FIG 0/1: Invalid sub-channel ID rejected - ID 64 not stored";
 }
 
 // ============================================================================
