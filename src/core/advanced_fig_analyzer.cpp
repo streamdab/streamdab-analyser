@@ -351,7 +351,7 @@ void AdvancedFIGAnalyzer::processFIG0_1(const QByteArray& data)
     }
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
-    int offset = 2;  // Skip FIG type/length header
+    int offset = 4;  // Skip FIC header (2) + extension byte (1) + padding (1)
 
     int sub_channels_found = 0;
 
