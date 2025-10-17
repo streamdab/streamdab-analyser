@@ -38,32 +38,42 @@ QString DABLabel::getFullLabel() const {
 /**
  * Extract short label using character flag per ETSI EN 300 401 Section 8.1.13
  *
- * Character Flag Bit Mapping:
- * - Bit 15 (MSB) = character position 0 (leftmost character)
- * - Bit 14 = character position 1
+ * Character Flag Bit Mapping (LSB-first, per ETSI EN 300 401):
+ * - Bit 0 (LSB) = character position 0 (leftmost character)
+ * - Bit 1 = character position 1
  * - ...
- * - Bit 1 = character position 14
- * - Bit 0 (LSB) = character position 15 (rightmost character)
+ * - Bit 14 = character position 14
+ * - Bit 15 (MSB) = character position 15 (rightmost character)
  *
  * When a bit is SET (1), the corresponding character is included in the short label.
+ * Maximum 8 characters in short label per ETSI standard.
  *
- * Example:
+ * Examples:
  *   Full label: "BBC Radio 1     " (16 characters)
- *   Char flag:  0xE007 = 0b1110000000000111
- *   Bits set:   15,14,13,2,1,0
- *   Positions:  0,1,2,13,14,15
- *   Short label: "BBC 1" (positions 0,1,2 = "BBC", 13,14,15 = " 1 ")
+ *   Char flag:  0xE000 = 0b1110000000000000
+ *   Bits set:   15,14,13
+ *   Positions:  15,14,13
+ *   Result: positions 13,14,15 = "   " (trailing spaces, trimmed to empty)
  *
- * @return Short label as QString, trimmed of whitespace
+ *   Full label: "BBC Radio 1     " (16 characters)
+ *   Char flag:  0x0007 = 0b0000000000000111
+ *   Bits set:   2,1,0
+ *   Positions:  0,1,2
+ *   Result: "BBC" ✓
+ *
+ * @return Short label as QString, trimmed of whitespace, maximum 8 characters
  */
 QString DABLabel::getShortLabel() const {
     QString short_label;
 
     // Extract short label using character flag
-    // Bit 15 = position 0, bit 0 = position 15
-    for (int i = 0; i < 16; ++i) {
-        if (character_flag & (1 << (15 - i))) {
-            short_label.append(full_label[i]);
+    // ETSI EN 300 401: Bit 0 (LSB) = position 0, Bit 15 (MSB) = position 15
+    for (int pos = 0; pos < 16 && pos < 16; ++pos) {
+        // Check if bit 'pos' is set (LSB-first mapping)
+        if (character_flag & (1 << pos)) {
+            short_label.append(full_label[pos]);
+            // ETSI EN 300 401: Maximum 8 characters in short label
+            if (short_label.length() >= 8) break;
         }
     }
 
@@ -171,22 +181,30 @@ void AdvancedFIGAnalyzer::analyzeFICData(const QByteArray& ficData)
                 break;
             default:
                 qDebug() << "Unsupported FIG type:" << figType;
+                m_totalFIGsProcessed++;
+                m_lastError = QString("Unsupported FIG type: %1").arg(figType);
                 break;
         }
 
-        m_totalFIGsProcessed++;
+        // Note: m_totalFIGsProcessed is incremented in individual FIG processors
         offset += 2 + figLength;
     }
 }
 
 void AdvancedFIGAnalyzer::processFIG0(const QByteArray& figData)
 {
-    if (figData.size() < 1) return;
+    if (figData.size() < 1) {
+        m_totalFIGsProcessed++;
+        m_lastError = "FIG 0: Insufficient data";
+        return;
+    }
 
     uint8_t extension = (figData[0] >> 3) & 0x1F;
 
     QString figKey = QString("0.%1").arg(extension);
     if (!m_enabledFIGTypes.value(figKey, false)) {
+        m_totalFIGsProcessed++;
+        m_lastError = QString("FIG 0/%1: Disabled").arg(extension);
         return; // FIG type disabled
     }
 
@@ -212,18 +230,26 @@ void AdvancedFIGAnalyzer::processFIG0(const QByteArray& figData)
             break;
         default:
             qDebug() << "Unsupported FIG 0 extension:" << extension;
+            m_totalFIGsProcessed++;
+            m_lastError = QString("FIG 0/%1: Unsupported extension").arg(extension);
             break;
     }
 }
 
 void AdvancedFIGAnalyzer::processFIG1(const QByteArray& figData)
 {
-    if (figData.size() < 1) return;
+    if (figData.size() < 1) {
+        m_totalFIGsProcessed++;
+        m_lastError = "FIG 1: Insufficient data";
+        return;
+    }
 
     uint8_t extension = (figData[0] >> 3) & 0x1F;
 
     QString figKey = QString("1.%1").arg(extension);
     if (!m_enabledFIGTypes.value(figKey, false)) {
+        m_totalFIGsProcessed++;
+        m_lastError = QString("FIG 1/%1: Disabled").arg(extension);
         return; // FIG type disabled
     }
 
@@ -243,6 +269,8 @@ void AdvancedFIGAnalyzer::processFIG1(const QByteArray& figData)
             break;
         default:
             qDebug() << "Unsupported FIG 1 extension:" << extension;
+            m_totalFIGsProcessed++;
+            m_lastError = QString("FIG 1/%1: Unsupported extension").arg(extension);
             break;
     }
 }
@@ -282,6 +310,8 @@ void AdvancedFIGAnalyzer::processFIG0_0(const QByteArray& data)
     if (data.size() >= 8) {
         uint8_t countryCode = static_cast<uint8_t>(data[6]);
         m_currentEnsemble.countryCode = FIGParsingUtils::countryCodeToString(countryCode);
+        // Note: ECC (Extended Country Code) extraction could be added here if needed
+        // It would be in data[7] if the structure is extended to support it
     }
 
     // Create FIG data for signal emission
@@ -300,6 +330,7 @@ void AdvancedFIGAnalyzer::processFIG0_0(const QByteArray& data)
 
     emit figProcessed(figData);
     emit ensembleUpdated(m_currentEnsemble);
+    emit ensembleInfoUpdated(m_currentEnsemble);  // Emit correct signal for Phase 1 tests
 
     m_validFIGsCount++;
 }
@@ -832,9 +863,11 @@ QString AdvancedFIGAnalyzer::extractShortLabel(const std::array<char, 16>& full_
     QString short_label;
 
     // Character flag: bit set = include character in short label
+    // ETSI EN 300 401: Bit 0 (LSB) = position 0, maximum 8 characters
     for (int i = 0; i < 16; ++i) {
         if (isCharacterIncluded(char_flag, i)) {
             short_label.append(full_label[i]);
+            if (short_label.length() >= 8) break;  // ETSI: max 8 chars
         }
     }
 
@@ -843,8 +876,9 @@ QString AdvancedFIGAnalyzer::extractShortLabel(const std::array<char, 16>& full_
 
 bool AdvancedFIGAnalyzer::isCharacterIncluded(uint16_t char_flag, int position) const
 {
-    // Bit 15 = position 0, bit 0 = position 15
-    return (char_flag & (1 << (15 - position))) != 0;
+    // ETSI EN 300 401: Bit 0 (LSB) = position 0, Bit 15 (MSB) = position 15
+    // LSB-first mapping
+    return (char_flag & (1 << position)) != 0;
 }
 
 bool AdvancedFIGAnalyzer::isBitSet(uint8_t byte, int bit_position) const
@@ -860,12 +894,16 @@ void AdvancedFIGAnalyzer::processFIG0_3(const QByteArray& data)
 {
     Q_UNUSED(data)
     // FIG 0/3: Service component - to be implemented in future phases
+    m_totalFIGsProcessed++;
+    m_lastError = "FIG 0/3 not yet implemented";
 }
 
 void AdvancedFIGAnalyzer::processFIG0_8(const QByteArray& data)
 {
     Q_UNUSED(data)
     // FIG 0/8: Service component global definition - to be implemented
+    m_totalFIGsProcessed++;
+    m_lastError = "FIG 0/8 not yet implemented";
 }
 
 /**
@@ -882,12 +920,16 @@ void AdvancedFIGAnalyzer::processFIG0_13(const QByteArray& data)
 {
     Q_UNUSED(data)
     // FIG 0/13: User application information - to be implemented
+    m_totalFIGsProcessed++;
+    m_lastError = "FIG 0/13 not yet implemented";
 }
 
 void AdvancedFIGAnalyzer::processFIG1_5(const QByteArray& data)
 {
     Q_UNUSED(data)
     // FIG 1/5: Data service labels - to be implemented
+    m_totalFIGsProcessed++;
+    m_lastError = "FIG 1/5 not yet implemented";
 }
 
 // ============================================================================
@@ -930,7 +972,32 @@ void AdvancedFIGAnalyzer::reset()
 
 QList<ServiceInfo> AdvancedFIGAnalyzer::getDiscoveredServices() const
 {
-    return m_discoveredServices;
+    // Convert m_services map to legacy QList<ServiceInfo> format
+    QList<ServiceInfo> services;
+
+    for (auto it = m_services.begin(); it != m_services.end(); ++it) {
+        const DABService& dab_service = it->second;
+
+        ServiceInfo info;
+        info.serviceId = dab_service.service_id;
+        info.label = dab_service.service_label;
+        info.isAudio = (dab_service.service_type == 0);  // 0=audio, 1=data
+
+        // Get subchannel ID from primary component
+        if (!dab_service.components.empty()) {
+            ServiceComponent primary = dab_service.getPrimaryComponent();
+            info.subchannelId = primary.sub_channel_id;
+        } else {
+            info.subchannelId = 0;
+        }
+
+        services.append(info);
+    }
+
+    qDebug() << "getDiscoveredServices: Returning" << services.size()
+             << "services from m_services map (total in map:" << m_services.size() << ")";
+
+    return services;
 }
 // ============================================================================
 
