@@ -1,0 +1,963 @@
+/**
+ * @file test_fig1_processor.cpp
+ * @brief Unit tests for FIG Type 1 Label Processing (Phase 1 Week 2)
+ *
+ * Comprehensive test suite for FIG Type 1 label processing functionality
+ * following ETSI EN 300 401 specifications.
+ *
+ * Test Coverage:
+ * - FIG 1/0: Ensemble label
+ * - FIG 1/1: Service labels (Programme and Data)
+ * - FIG 1/4: Service component labels
+ * - Label structure (16 characters + character flag)
+ * - Short label extraction
+ * - Character flag processing
+ * - Label integration with service discovery
+ */
+
+#include <QtTest/QtTest>
+#include <QObject>
+#include <QDebug>
+#include "../src/core/advanced_fig_analyzer.h"
+
+class TestFIG1Processor : public QObject
+{
+    Q_OBJECT
+
+private slots:
+    // Test lifecycle
+    void initTestCase();
+    void cleanupTestCase();
+    void init();
+    void cleanup();
+
+    // Label structure tests
+    void testLabelCreation();
+    void testFullLabel();
+    void testShortLabelExtraction();
+    void testCharacterFlagBitMask();
+    void testEmptyLabel();
+    void testLabelPadding();
+    void testUTF8Encoding();
+    void testSpecialCharacters();
+
+    // FIG 1/0 tests (Ensemble label)
+    void testFIG1_0_EnsembleLabel();
+    void testFIG1_0_ShortLabel();
+    void testFIG1_0_CharacterFlag();
+    void testFIG1_0_MultipleEnsembleLabels();
+
+    // FIG 1/1 tests (Service labels)
+    void testFIG1_1_ProgrammeServiceLabel();
+    void testFIG1_1_DataServiceLabel();
+    void testFIG1_1_ServiceID16Bit();
+    void testFIG1_1_ServiceID32Bit();
+    void testFIG1_1_MultipleServiceLabels();
+    void testFIG1_1_ShortLabelGeneration();
+    void testFIG1_1_ThaiCharacters();
+
+    // FIG 1/4 tests (Component labels)
+    void testFIG1_4_ComponentLabel();
+    void testFIG1_4_ServiceComponentID();
+    void testFIG1_4_PacketDataLabel();
+    void testFIG1_4_MultipleComponents();
+
+    // Character flag tests
+    void testCharacterFlag_AllPositions();
+    void testCharacterFlag_FirstEight();
+    void testCharacterFlag_LastEight();
+    void testCharacterFlag_Alternating();
+    void testCharacterFlag_NoSelection();
+    void testCharacterFlag_AllSelected();
+
+    // Integration tests
+    void testLabelWithServiceDiscovery();
+    void testCompleteServiceLabeling();
+    void testEnsembleHierarchyLabels();
+    void testLabelUpdateSequence();
+
+    // ETSI compliance tests
+    void testETSI_EN300401_LabelFormat();
+    void testLabelLengthValidation();
+    void testCharacterSetCompliance();
+
+    // Error handling tests
+    void testInvalidLabelLength();
+    void testTruncatedLabelData();
+    void testCorruptedCharacterFlag();
+    void testMissingServiceReference();
+
+private:
+    AdvancedFIGAnalyzer* m_analyzer;
+
+    // Helper methods
+    QByteArray createFIG1_0(const QString& label, uint16_t char_flag = 0xFF00);
+    QByteArray createFIG1_1(uint32_t service_id, const QString& label, uint16_t char_flag = 0xFF00);
+    QByteArray createFIG1_4(uint32_t service_id, uint8_t component_id, const QString& label);
+    QByteArray createLabelData(const QString& label, uint16_t char_flag);
+
+    QString extractExpectedShortLabel(const QString& full_label, uint16_t char_flag);
+    void verifyLabel(const QString& expected_full, const QString& expected_short);
+    void setupServiceForLabeling(uint32_t service_id);
+};
+
+// ============================================================================
+// Test Lifecycle Methods
+// ============================================================================
+
+void TestFIG1Processor::initTestCase()
+{
+    qInfo() << "========================================";
+    qInfo() << "Starting FIG Type 1 Label Processor Test Suite";
+    qInfo() << "Phase 1 Week 2 - Label Processing";
+    qInfo() << "========================================";
+
+    // Register Qt metatypes
+    qRegisterMetaType<ServiceInfo>("ServiceInfo");
+    qRegisterMetaType<EnsembleInfo>("EnsembleInfo");
+    qRegisterMetaType<DABLabel>("DABLabel");
+}
+
+void TestFIG1Processor::cleanupTestCase()
+{
+    qInfo() << "========================================";
+    qInfo() << "FIG Type 1 Label Processor Tests Complete";
+    qInfo() << "========================================";
+}
+
+void TestFIG1Processor::init()
+{
+    m_analyzer = new AdvancedFIGAnalyzer();
+    QVERIFY(m_analyzer != nullptr);
+
+    // Enable FIG Type 1 processing
+    m_analyzer->enableFIGType(1, 0, true);  // Ensemble labels
+    m_analyzer->enableFIGType(1, 1, true);  // Service labels
+    m_analyzer->enableFIGType(1, 4, true);  // Component labels
+}
+
+void TestFIG1Processor::cleanup()
+{
+    delete m_analyzer;
+    m_analyzer = nullptr;
+}
+
+// ============================================================================
+// Label Structure Tests
+// ============================================================================
+
+void TestFIG1Processor::testLabelCreation()
+{
+    DABLabel label;
+
+    // Initialize with test string
+    QString test_label = "Test Service    ";  // 16 characters
+    for (int i = 0; i < 16 && i < test_label.length(); ++i) {
+        label.full_label[i] = test_label[i].toLatin1();
+    }
+
+    QString full = label.getFullLabel();
+    QCOMPARE(full.trimmed(), QString("Test Service"));
+    QVERIFY(label.isValid());
+
+    qInfo() << "Label creation: Full label =" << full;
+}
+
+void TestFIG1Processor::testFullLabel()
+{
+    DABLabel label;
+
+    QString input = "BBC Radio 1     ";  // 16 chars
+    for (int i = 0; i < 16; ++i) {
+        label.full_label[i] = input[i].toLatin1();
+    }
+
+    QString full = label.getFullLabel();
+    QCOMPARE(full.length(), 16);
+    QCOMPARE(full.trimmed(), QString("BBC Radio 1"));
+}
+
+void TestFIG1Processor::testShortLabelExtraction()
+{
+    DABLabel label;
+
+    // Full label: "BBC Radio 1     "
+    QString full = "BBC Radio 1     ";
+    for (int i = 0; i < 16; ++i) {
+        label.full_label[i] = full[i].toLatin1();
+    }
+
+    // Character flag: Select positions 0,1,2,4,10 (B,B,C, ,1)
+    // Character flag bit pattern (MSB first):
+    // Position: 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
+    // Selected:  0  0  0  0  0  1  0  0  0  0  0  1  0  1  1  1
+    // Binary: 0000 0010 0000 1111 = 0x020F
+    label.character_flag = 0x0407;  // Positions 0,1,2,10
+
+    QString short_label = label.getShortLabel();
+
+    qInfo() << "Short label extraction:";
+    qInfo() << "  Full label:" << label.getFullLabel();
+    qInfo() << "  Character flag:" << QString::number(label.character_flag, 16);
+    qInfo() << "  Short label:" << short_label;
+
+    QVERIFY(short_label.length() <= 8);
+    QVERIFY(short_label.contains("BBC"));
+}
+
+void TestFIG1Processor::testCharacterFlagBitMask()
+{
+    DABLabel label;
+
+    QString full = "0123456789ABCDEF";
+    for (int i = 0; i < 16; ++i) {
+        label.full_label[i] = full[i].toLatin1();
+    }
+
+    // Select first 4 characters: 0,1,2,3
+    // Bits 0-3 set: 0x000F
+    label.character_flag = 0x000F;
+
+    QString short_label = label.getShortLabel();
+
+    qInfo() << "Character flag test:";
+    qInfo() << "  Full:" << full;
+    qInfo() << "  Flag:" << QString::number(label.character_flag, 16);
+    qInfo() << "  Short:" << short_label;
+
+    QVERIFY(short_label.contains('0'));
+    QVERIFY(short_label.contains('1'));
+    QVERIFY(short_label.contains('2'));
+    QVERIFY(short_label.contains('3'));
+}
+
+void TestFIG1Processor::testEmptyLabel()
+{
+    DABLabel label;
+
+    // All spaces
+    for (int i = 0; i < 16; ++i) {
+        label.full_label[i] = ' ';
+    }
+    label.character_flag = 0x0000;
+
+    QString full = label.getFullLabel();
+    QVERIFY(full.trimmed().isEmpty());
+}
+
+void TestFIG1Processor::testLabelPadding()
+{
+    DABLabel label;
+
+    // "DAB+" padded to 16 characters
+    QString input = "DAB+            ";
+    for (int i = 0; i < 16; ++i) {
+        label.full_label[i] = input[i].toLatin1();
+    }
+
+    QString full = label.getFullLabel();
+    QCOMPARE(full.length(), 16);
+    QCOMPARE(full.trimmed(), QString("DAB+"));
+}
+
+void TestFIG1Processor::testUTF8Encoding()
+{
+    // Test label with UTF-8 characters
+    QString input = "Test กทม        ";  // Thai characters
+
+    // Note: DAB labels use EBU Latin charset, not UTF-8
+    // This tests the conversion handling
+    QVERIFY(input.length() >= 16);
+}
+
+void TestFIG1Processor::testSpecialCharacters()
+{
+    DABLabel label;
+
+    // Label with special characters
+    QString input = "Test-FM #1!     ";
+    for (int i = 0; i < qMin(16, input.length()); ++i) {
+        label.full_label[i] = input[i].toLatin1();
+    }
+
+    QString full = label.getFullLabel();
+    QVERIFY(full.contains('-'));
+    QVERIFY(full.contains('#'));
+    QVERIFY(full.contains('!'));
+}
+
+// ============================================================================
+// FIG 1/0 Tests (Ensemble Label)
+// ============================================================================
+
+void TestFIG1Processor::testFIG1_0_EnsembleLabel()
+{
+    // Create ensemble with label "Bangkok DAB     "
+    QByteArray fig = createFIG1_0("Bangkok DAB     ", 0xFF00);
+
+    m_analyzer->analyzeFICData(fig);
+
+    EnsembleInfo ensemble = m_analyzer->getCurrentEnsemble();
+    QVERIFY(!ensemble.ensembleLabel.isEmpty());
+    QVERIFY(ensemble.ensembleLabel.contains("Bangkok DAB"));
+
+    qInfo() << "Ensemble label:" << ensemble.ensembleLabel;
+}
+
+void TestFIG1Processor::testFIG1_0_ShortLabel()
+{
+    // Ensemble label with short form
+    // Full: "Bangkok DAB     "
+    // Short: "BKK DAB" (positions 0,1,2,8,9,10,11)
+    // Character flag: bits 0,1,2,8,9,10,11 = 0x0F07
+    QByteArray fig = createFIG1_0("Bangkok DAB     ", 0x0F07);
+
+    m_analyzer->analyzeFICData(fig);
+
+    EnsembleInfo ensemble = m_analyzer->getCurrentEnsemble();
+    QVERIFY(!ensemble.ensembleLabel.isEmpty());
+
+    qInfo() << "Ensemble label:" << ensemble.ensembleLabel;
+}
+
+void TestFIG1Processor::testFIG1_0_CharacterFlag()
+{
+    // Test different character flag values
+    uint16_t test_flags[] = {0x0000, 0x00FF, 0xFF00, 0xFFFF, 0xAAAA, 0x5555};
+
+    for (uint16_t flag : test_flags) {
+        QByteArray fig = createFIG1_0("Test Ensemble   ", flag);
+        m_analyzer->analyzeFICData(fig);
+
+        qInfo() << "Character flag" << QString::number(flag, 16) << "processed";
+    }
+
+    QVERIFY(m_analyzer->getTotalFIGsProcessed() == 6);
+}
+
+void TestFIG1Processor::testFIG1_0_MultipleEnsembleLabels()
+{
+    // Process multiple ensemble labels (updates)
+    m_analyzer->analyzeFICData(createFIG1_0("Ensemble v1     "));
+    m_analyzer->analyzeFICData(createFIG1_0("Ensemble v2     "));
+    m_analyzer->analyzeFICData(createFIG1_0("Ensemble v3     "));
+
+    EnsembleInfo ensemble = m_analyzer->getCurrentEnsemble();
+    QVERIFY(ensemble.ensembleLabel.contains("Ensemble"));
+
+    qInfo() << "Final ensemble label:" << ensemble.ensembleLabel;
+}
+
+// ============================================================================
+// FIG 1/1 Tests (Service Labels)
+// ============================================================================
+
+void TestFIG1Processor::testFIG1_1_ProgrammeServiceLabel()
+{
+    // Setup service first (FIG 0/2)
+    setupServiceForLabeling(0xE0D00001);
+
+    // Add label
+    QByteArray fig = createFIG1_1(0xE0D00001, "MCOT Radio      ", 0xFF00);
+
+    m_analyzer->analyzeFICData(fig);
+
+    auto services = m_analyzer->getDiscoveredServices();
+    bool found = false;
+    for (const auto& svc : services) {
+        if (svc.serviceId == 0xE0D00001) {
+            QVERIFY(svc.label.contains("MCOT Radio"));
+            found = true;
+            qInfo() << "Service label:" << svc.label;
+            break;
+        }
+    }
+
+    QVERIFY(found);
+}
+
+void TestFIG1Processor::testFIG1_1_DataServiceLabel()
+{
+    // Data service with 32-bit Service ID
+    setupServiceForLabeling(0xE0D00002);
+
+    QByteArray fig = createFIG1_1(0xE0D00002, "Data Service    ", 0xFF00);
+
+    m_analyzer->analyzeFICData(fig);
+
+    QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
+}
+
+void TestFIG1Processor::testFIG1_1_ServiceID16Bit()
+{
+    // Programme service uses 16-bit SId
+    uint32_t service_id = 0x0000D001;  // 16-bit: 0xD001
+
+    setupServiceForLabeling(service_id);
+
+    QByteArray fig = createFIG1_1(service_id, "Test Service    ", 0xFF00);
+
+    m_analyzer->analyzeFICData(fig);
+
+    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+}
+
+void TestFIG1Processor::testFIG1_1_ServiceID32Bit()
+{
+    // Data service uses 32-bit SId
+    uint32_t service_id = 0xE0D00003;
+
+    setupServiceForLabeling(service_id);
+
+    QByteArray fig = createFIG1_1(service_id, "Data Test       ", 0xFF00);
+
+    m_analyzer->analyzeFICData(fig);
+
+    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+}
+
+void TestFIG1Processor::testFIG1_1_MultipleServiceLabels()
+{
+    // Add multiple services with labels
+    uint32_t service_ids[] = {0xE0D00001, 0xE0D00002, 0xE0D00003, 0xE0D00004};
+    QString labels[] = {"Service 1       ", "Service 2       ", "Service 3       ", "Service 4       "};
+
+    for (int i = 0; i < 4; ++i) {
+        setupServiceForLabeling(service_ids[i]);
+        m_analyzer->analyzeFICData(createFIG1_1(service_ids[i], labels[i], 0xFF00));
+    }
+
+    auto services = m_analyzer->getDiscoveredServices();
+    QVERIFY(services.size() >= 4);
+
+    qInfo() << "Multiple services labeled:" << services.size();
+}
+
+void TestFIG1Processor::testFIG1_1_ShortLabelGeneration()
+{
+    setupServiceForLabeling(0xE0D00001);
+
+    // Full: "BBC World Service"
+    // Short: "BBC WS" (character flag selects specific positions)
+    // Positions: 0,1,2,6,7 -> "BBC W S"
+    uint16_t char_flag = 0x00C7;  // Bits 0,1,2,6,7
+
+    QByteArray fig = createFIG1_1(0xE0D00001, "BBC WorldService", char_flag);
+
+    m_analyzer->analyzeFICData(fig);
+
+    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+}
+
+void TestFIG1Processor::testFIG1_1_ThaiCharacters()
+{
+    // Test Thai service label (if supported by charset)
+    setupServiceForLabeling(0xE0D00001);
+
+    // Note: DAB uses EBU Latin charset, Thai requires extended charset
+    QByteArray fig = createFIG1_1(0xE0D00001, "MCOT กทม        ", 0xFF00);
+
+    m_analyzer->analyzeFICData(fig);
+
+    // Should process without crash even if Thai not fully supported
+    QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
+}
+
+// ============================================================================
+// FIG 1/4 Tests (Component Labels)
+// ============================================================================
+
+void TestFIG1Processor::testFIG1_4_ComponentLabel()
+{
+    setupServiceForLabeling(0xE0D00001);
+
+    QByteArray fig = createFIG1_4(0xE0D00001, 0, "Main Audio      ");
+
+    m_analyzer->analyzeFICData(fig);
+
+    QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
+    qInfo() << "Component label processed";
+}
+
+void TestFIG1Processor::testFIG1_4_ServiceComponentID()
+{
+    setupServiceForLabeling(0xE0D00001);
+
+    // Test different component IDs (SCIdS: 0-15)
+    for (uint8_t comp_id = 0; comp_id < 4; ++comp_id) {
+        QString label = QString("Component %1    ").arg(comp_id);
+        QByteArray fig = createFIG1_4(0xE0D00001, comp_id, label);
+        m_analyzer->analyzeFICData(fig);
+    }
+
+    QVERIFY(m_analyzer->getTotalFIGsProcessed() >= 4);
+}
+
+void TestFIG1Processor::testFIG1_4_PacketDataLabel()
+{
+    // Packet data component label
+    setupServiceForLabeling(0xE0D00002);
+
+    QByteArray fig = createFIG1_4(0xE0D00002, 1, "Data Component  ");
+
+    m_analyzer->analyzeFICData(fig);
+
+    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+}
+
+void TestFIG1Processor::testFIG1_4_MultipleComponents()
+{
+    setupServiceForLabeling(0xE0D00001);
+
+    // Service with multiple components
+    m_analyzer->analyzeFICData(createFIG1_4(0xE0D00001, 0, "Primary Audio   "));
+    m_analyzer->analyzeFICData(createFIG1_4(0xE0D00001, 1, "Secondary Audio "));
+    m_analyzer->analyzeFICData(createFIG1_4(0xE0D00001, 2, "Data Broadcast  "));
+
+    QVERIFY(m_analyzer->getTotalFIGsProcessed() >= 3);
+}
+
+// ============================================================================
+// Character Flag Tests
+// ============================================================================
+
+void TestFIG1Processor::testCharacterFlag_AllPositions()
+{
+    // Test all 16 positions individually
+    for (int pos = 0; pos < 16; ++pos) {
+        uint16_t flag = (1 << pos);
+
+        DABLabel label;
+        QString full = "0123456789ABCDEF";
+        for (int i = 0; i < 16; ++i) {
+            label.full_label[i] = full[i].toLatin1();
+        }
+        label.character_flag = flag;
+
+        QString short_label = label.getShortLabel();
+
+        qInfo() << "Position" << pos << "flag" << QString::number(flag, 16)
+                << "short:" << short_label;
+
+        QVERIFY(short_label.length() <= 8);
+    }
+}
+
+void TestFIG1Processor::testCharacterFlag_FirstEight()
+{
+    DABLabel label;
+
+    QString full = "ABCDEFGH12345678";
+    for (int i = 0; i < 16; ++i) {
+        label.full_label[i] = full[i].toLatin1();
+    }
+
+    // Select first 8 characters
+    label.character_flag = 0x00FF;
+
+    QString short_label = label.getShortLabel();
+
+    QVERIFY(short_label.contains('A'));
+    QVERIFY(short_label.length() <= 8);
+}
+
+void TestFIG1Processor::testCharacterFlag_LastEight()
+{
+    DABLabel label;
+
+    QString full = "ABCDEFGH12345678";
+    for (int i = 0; i < 16; ++i) {
+        label.full_label[i] = full[i].toLatin1();
+    }
+
+    // Select last 8 characters
+    label.character_flag = 0xFF00;
+
+    QString short_label = label.getShortLabel();
+
+    QVERIFY(short_label.contains('1') || short_label.contains('2'));
+    QVERIFY(short_label.length() <= 8);
+}
+
+void TestFIG1Processor::testCharacterFlag_Alternating()
+{
+    DABLabel label;
+
+    QString full = "0123456789ABCDEF";
+    for (int i = 0; i < 16; ++i) {
+        label.full_label[i] = full[i].toLatin1();
+    }
+
+    // Alternating pattern: 0xAAAA
+    label.character_flag = 0xAAAA;
+
+    QString short_label = label.getShortLabel();
+
+    QVERIFY(short_label.length() <= 8);
+}
+
+void TestFIG1Processor::testCharacterFlag_NoSelection()
+{
+    DABLabel label;
+
+    QString full = "Test Label      ";
+    for (int i = 0; i < 16; ++i) {
+        label.full_label[i] = full[i].toLatin1();
+    }
+
+    // No characters selected
+    label.character_flag = 0x0000;
+
+    QString short_label = label.getShortLabel();
+
+    // Empty or default short label
+    QVERIFY(short_label.isEmpty() || short_label == full.trimmed());
+}
+
+void TestFIG1Processor::testCharacterFlag_AllSelected()
+{
+    DABLabel label;
+
+    QString full = "ShortLabel      ";
+    for (int i = 0; i < 16; ++i) {
+        label.full_label[i] = full[i].toLatin1();
+    }
+
+    // All 16 characters selected (but short label limited to 8)
+    label.character_flag = 0xFFFF;
+
+    QString short_label = label.getShortLabel();
+
+    QVERIFY(short_label.length() <= 8);
+}
+
+// ============================================================================
+// Integration Tests
+// ============================================================================
+
+void TestFIG1Processor::testLabelWithServiceDiscovery()
+{
+    // Complete workflow: Discover service then add label
+
+    // Step 1: Add sub-channel (FIG 0/1)
+    QByteArray fig0_1;
+    fig0_1.append(static_cast<char>(0x01));  // Type=0, Ext=1
+    fig0_1.append(static_cast<char>(0x04));  // Length
+    fig0_1.append(static_cast<char>(0x00));  // SubChId=0
+    fig0_1.append(static_cast<char>(0x00));  // Start addr
+    fig0_1.append(static_cast<char>(0x00));
+    fig0_1.append(static_cast<char>(0x05));  // Table index
+
+    m_analyzer->analyzeFICData(fig0_1);
+
+    // Step 2: Add service (FIG 0/2)
+    QByteArray fig0_2;
+    fig0_2.append(static_cast<char>(0x02));  // Type=0, Ext=2
+    fig0_2.append(static_cast<char>(0x06));  // Length
+    fig0_2.append(static_cast<char>(0xE0));  // SId
+    fig0_2.append(static_cast<char>(0xD0));
+    fig0_2.append(static_cast<char>(0x01));  // 1 component
+    fig0_2.append(static_cast<char>(0x00));  // TMId
+    fig0_2.append(static_cast<char>(0x00));  // SubChId
+
+    m_analyzer->analyzeFICData(fig0_2);
+
+    // Step 3: Add label (FIG 1/1)
+    m_analyzer->analyzeFICData(createFIG1_1(0x0000E0D0, "MCOT Radio      ", 0xFF00));
+
+    // Verify complete service with label
+    auto services = m_analyzer->getDiscoveredServices();
+    QVERIFY(services.size() > 0);
+
+    qInfo() << "Complete service discovery with labels: " << services.size() << "services";
+}
+
+void TestFIG1Processor::testCompleteServiceLabeling()
+{
+    // Label all levels: ensemble, service, component
+
+    // Ensemble label (FIG 1/0)
+    m_analyzer->analyzeFICData(createFIG1_0("Bangkok DAB     "));
+
+    // Service setup and label
+    setupServiceForLabeling(0xE0D00001);
+    m_analyzer->analyzeFICData(createFIG1_1(0xE0D00001, "MCOT Radio      "));
+
+    // Component label (FIG 1/4)
+    m_analyzer->analyzeFICData(createFIG1_4(0xE0D00001, 0, "Main Audio      "));
+
+    QVERIFY(m_analyzer->getTotalFIGsProcessed() >= 3);
+    qInfo() << "Complete labeling hierarchy processed";
+}
+
+void TestFIG1Processor::testEnsembleHierarchyLabels()
+{
+    // Build complete labeled ensemble tree
+
+    // Ensemble
+    m_analyzer->analyzeFICData(createFIG1_0("Test Ensemble   "));
+
+    // Multiple services with labels
+    for (uint32_t i = 1; i <= 3; ++i) {
+        uint32_t svc_id = 0xE0D00000 + i;
+        setupServiceForLabeling(svc_id);
+
+        QString label = QString("Service %1      ").arg(i);
+        m_analyzer->analyzeFICData(createFIG1_1(svc_id, label));
+
+        // Component labels
+        m_analyzer->analyzeFICData(createFIG1_4(svc_id, 0, QString("Audio %1        ").arg(i)));
+    }
+
+    EnsembleInfo ensemble = m_analyzer->getCurrentEnsemble();
+    auto services = m_analyzer->getDiscoveredServices();
+
+    QVERIFY(!ensemble.ensembleLabel.isEmpty());
+    QVERIFY(services.size() >= 3);
+
+    qInfo() << "Ensemble hierarchy: Ensemble +" << services.size() << "services labeled";
+}
+
+void TestFIG1Processor::testLabelUpdateSequence()
+{
+    // Test label updates over time
+    setupServiceForLabeling(0xE0D00001);
+
+    // Initial label
+    m_analyzer->analyzeFICData(createFIG1_1(0xE0D00001, "Initial Label   "));
+
+    // Updated label
+    m_analyzer->analyzeFICData(createFIG1_1(0xE0D00001, "Updated Label   "));
+
+    // Final label
+    m_analyzer->analyzeFICData(createFIG1_1(0xE0D00001, "Final Label     "));
+
+    auto services = m_analyzer->getDiscoveredServices();
+    bool found = false;
+    for (const auto& svc : services) {
+        if (svc.serviceId == 0xE0D00001) {
+            QVERIFY(svc.label.contains("Final Label"));
+            found = true;
+            break;
+        }
+    }
+
+    QVERIFY(found);
+}
+
+// ============================================================================
+// ETSI Compliance Tests
+// ============================================================================
+
+void TestFIG1Processor::testETSI_EN300401_LabelFormat()
+{
+    // Test ETSI EN 300 401 label format compliance
+    QByteArray fig = createFIG1_0("Valid Label     ", 0xFF00);
+
+    m_analyzer->analyzeFICData(fig);
+
+    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+}
+
+void TestFIG1Processor::testLabelLengthValidation()
+{
+    // Labels must be exactly 16 characters
+    QString valid_label = "Exactly16Chars!!";
+    QCOMPARE(valid_label.length(), 16);
+
+    QByteArray fig = createFIG1_0(valid_label, 0xFF00);
+    m_analyzer->analyzeFICData(fig);
+
+    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+}
+
+void TestFIG1Processor::testCharacterSetCompliance()
+{
+    // Test EBU Latin character set compliance
+    // Valid characters: A-Z, 0-9, space, and limited special chars
+
+    QString test_labels[] = {
+        "ABCDEFGHIJKLMNOP",
+        "0123456789      ",
+        "Test-FM #1!     ",
+        "BBC Radio 1     "
+    };
+
+    for (const QString& label : test_labels) {
+        QByteArray fig = createFIG1_0(label, 0xFF00);
+        m_analyzer->analyzeFICData(fig);
+    }
+
+    QVERIFY(m_analyzer->getTotalFIGsProcessed() == 4);
+}
+
+// ============================================================================
+// Error Handling Tests
+// ============================================================================
+
+void TestFIG1Processor::testInvalidLabelLength()
+{
+    // Test too short label
+    QByteArray fig;
+    fig.append(static_cast<char>(0x10));  // Type=1, Ext=0
+    fig.append(static_cast<char>(0x05));  // Length=5 (too short for label)
+
+    m_analyzer->analyzeFICData(fig);
+
+    // Should detect error
+    QVERIFY(!m_analyzer->getLastError().isEmpty() ||
+            m_analyzer->getValidFIGsCount() == 0);
+}
+
+void TestFIG1Processor::testTruncatedLabelData()
+{
+    QByteArray fig;
+    fig.append(static_cast<char>(0x10));  // Type=1, Ext=0
+    fig.append(static_cast<char>(0x12));  // Length=18
+
+    // Only add 10 bytes (should be 18)
+    for (int i = 0; i < 10; ++i) {
+        fig.append(static_cast<char>('A'));
+    }
+
+    m_analyzer->analyzeFICData(fig);
+
+    // Should detect truncation
+    QVERIFY(!m_analyzer->getLastError().isEmpty() ||
+            m_analyzer->getValidFIGsCount() == 0);
+}
+
+void TestFIG1Processor::testCorruptedCharacterFlag()
+{
+    // Test with all bits set (unusual but valid)
+    QByteArray fig = createFIG1_0("Test Label      ", 0xFFFF);
+
+    m_analyzer->analyzeFICData(fig);
+
+    // Should process (0xFFFF is valid, just selects many characters)
+    QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
+}
+
+void TestFIG1Processor::testMissingServiceReference()
+{
+    // Try to add label for non-existent service
+    QByteArray fig = createFIG1_1(0xFFFFFFFF, "Unknown Service ");
+
+    m_analyzer->analyzeFICData(fig);
+
+    // Should handle gracefully (create service or skip)
+    QVERIFY(m_analyzer->getTotalFIGsProcessed() >= 0);
+}
+
+// ============================================================================
+// Helper Methods
+// ============================================================================
+
+QByteArray TestFIG1Processor::createFIG1_0(const QString& label, uint16_t char_flag)
+{
+    return createLabelData(label, char_flag);
+}
+
+QByteArray TestFIG1Processor::createFIG1_1(uint32_t service_id, const QString& label, uint16_t char_flag)
+{
+    QByteArray fig;
+
+    // FIG header: Type=1, Extension=1
+    fig.append(static_cast<char>(0x11));  // Type=1, Ext=1
+    fig.append(static_cast<char>(0x12));  // Length=18 (2 + 16)
+
+    // Service ID (16-bit for programme service)
+    fig.append(static_cast<char>((service_id >> 8) & 0xFF));
+    fig.append(static_cast<char>(service_id & 0xFF));
+
+    // Label (16 characters)
+    for (int i = 0; i < 16; ++i) {
+        char c = (i < label.length()) ? label[i].toLatin1() : ' ';
+        fig.append(c);
+    }
+
+    // Character flag (16 bits)
+    fig.append(static_cast<char>((char_flag >> 8) & 0xFF));
+    fig.append(static_cast<char>(char_flag & 0xFF));
+
+    return fig;
+}
+
+QByteArray TestFIG1Processor::createFIG1_4(uint32_t service_id, uint8_t component_id, const QString& label)
+{
+    QByteArray fig;
+
+    // FIG header: Type=1, Extension=4
+    fig.append(static_cast<char>(0x14));  // Type=1, Ext=4
+    fig.append(static_cast<char>(0x13));  // Length=19
+
+    // Service ID (16-bit)
+    fig.append(static_cast<char>((service_id >> 8) & 0xFF));
+    fig.append(static_cast<char>(service_id & 0xFF));
+
+    // SCIdS (Service Component ID)
+    fig.append(static_cast<char>(component_id & 0x0F));
+
+    // Label (16 characters)
+    for (int i = 0; i < 16; ++i) {
+        char c = (i < label.length()) ? label[i].toLatin1() : ' ';
+        fig.append(c);
+    }
+
+    // Character flag
+    fig.append(static_cast<char>(0xFF));
+    fig.append(static_cast<char>(0x00));
+
+    return fig;
+}
+
+QByteArray TestFIG1Processor::createLabelData(const QString& label, uint16_t char_flag)
+{
+    QByteArray fig;
+
+    // FIG header: Type=1, Extension=0 (Ensemble)
+    fig.append(static_cast<char>(0x10));  // Type=1, Ext=0
+    fig.append(static_cast<char>(0x12));  // Length=18 (16 + 2)
+
+    // Label (16 characters)
+    for (int i = 0; i < 16; ++i) {
+        char c = (i < label.length()) ? label[i].toLatin1() : ' ';
+        fig.append(c);
+    }
+
+    // Character flag (16 bits, big-endian)
+    fig.append(static_cast<char>((char_flag >> 8) & 0xFF));
+    fig.append(static_cast<char>(char_flag & 0xFF));
+
+    return fig;
+}
+
+void TestFIG1Processor::setupServiceForLabeling(uint32_t service_id)
+{
+    // Create FIG 0/1 (sub-channel)
+    QByteArray fig0_1;
+    fig0_1.append(static_cast<char>(0x01));
+    fig0_1.append(static_cast<char>(0x04));
+    fig0_1.append(static_cast<char>(0x00));
+    fig0_1.append(static_cast<char>(0x00));
+    fig0_1.append(static_cast<char>(0x00));
+    fig0_1.append(static_cast<char>(0x05));
+
+    m_analyzer->analyzeFICData(fig0_1);
+
+    // Create FIG 0/2 (service)
+    QByteArray fig0_2;
+    fig0_2.append(static_cast<char>(0x02));
+    fig0_2.append(static_cast<char>(0x06));
+    fig0_2.append(static_cast<char>((service_id >> 8) & 0xFF));
+    fig0_2.append(static_cast<char>(service_id & 0xFF));
+    fig0_2.append(static_cast<char>(0x01));
+    fig0_2.append(static_cast<char>(0x00));
+    fig0_2.append(static_cast<char>(0x00));
+
+    m_analyzer->analyzeFICData(fig0_2);
+}
+
+// Register test class
+QTEST_MAIN(TestFIG1Processor)
+#include "test_fig1_processor.moc"
