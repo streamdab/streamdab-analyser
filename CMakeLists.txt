@@ -40,3 +40,10 @@ target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
     Qt6::Test
     pthread
 )
+
+# Enable testing
+enable_testing()
+
+# Add tests subdirectory
+# Temporarily disabled during Phase 1 fixes
+# add_subdirectory(tests)
