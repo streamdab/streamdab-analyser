@@ -201,11 +201,8 @@ void AdvancedFIGAnalyzer::processFIG0(const QByteArray& figData)
     uint8_t extension = (figData[0] >> 3) & 0x1F;
 
     QString figKey = QString("0.%1").arg(extension);
-    bool isEnabled = m_enabledFIGTypes.value(figKey, false);
-    qDebug() << "FIG 0:" << extension << "key:" << figKey << "enabled:" << isEnabled;
-    if (!isEnabled) {
+    if (!m_enabledFIGTypes.value(figKey, false)) {
         m_lastError = QString("FIG 0/%1: Disabled").arg(extension);
-        qDebug() << "FIG 0/" << extension << "is DISABLED, skipping";
         return; // Don't count disabled FIGs as processed
     }
 
@@ -352,11 +349,6 @@ void AdvancedFIGAnalyzer::processFIG0_1(const QByteArray& data)
         qWarning() << "FIG 0/1: Insufficient data";
         return;
     }
-
-    qDebug() << "FIG 0/1: Processing" << data.size() << "bytes, first bytes:"
-             << QString("0x%1 0x%2 0x%3").arg(data[0] & 0xFF, 2, 16, QChar('0'))
-                                         .arg(data[1] & 0xFF, 2, 16, QChar('0'))
-                                         .arg(data[2] & 0xFF, 2, 16, QChar('0'));
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
     int offset = 2;  // Skip extension byte (1) + padding byte (1) added by test helpers
@@ -1105,10 +1097,11 @@ QString FIGParsingUtils::convertDABCharset(const QByteArray& data, int offset, i
 
 QString FIGParsingUtils::countryCodeToString(uint8_t countryCode)
 {
-    // ECC country codes - partial implementation
+    // ECC country codes per ETSI EN 300 401 Table 10
     switch (countryCode) {
-        case 0xE1: return "TH"; // Thailand
+        case 0x0E: return "TH"; // Thailand (correct code)
         case 0xE0: return "DE"; // Germany
+        case 0xE1: return "GR"; // Greece
         case 0xE2: return "UK"; // United Kingdom
         case 0xE3: return "FR"; // France
         default: return QString("0x%1").arg(countryCode, 2, 16, QChar('0'));

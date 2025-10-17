@@ -736,7 +736,7 @@ QByteArray TestFIG0Processor::createFIG0_1_ShortForm(uint8_t subch_id, uint16_t 
     // FIC header (2 bytes per ETSI EN 300 401 Section 5.2)
     uint8_t type_byte = (0 << 5);  // FIG type 0 in bits 7-5
     fig.append(static_cast<char>(type_byte));
-    fig.append(static_cast<char>(0x06));  // Length=6 bytes (extension + padding + 4 data bytes)
+    fig.append(static_cast<char>(0x05));  // Length=5 bytes (extension + padding + 3 data bytes)
 
     // Extension field (1 byte) - Extension 1 for sub-channel organization
     uint8_t ext_byte = (1 << 3);  // Extension 1 in bits 7-3
@@ -769,7 +769,7 @@ QByteArray TestFIG0Processor::createFIG0_1_LongForm(uint8_t subch_id, uint16_t s
     // FIC header (2 bytes per ETSI EN 300 401 Section 5.2)
     uint8_t type_byte = (0 << 5);  // FIG type 0 in bits 7-5
     fig.append(static_cast<char>(type_byte));
-    fig.append(static_cast<char>(0x07));  // Length=7 bytes (extension + padding + 5 data bytes)
+    fig.append(static_cast<char>(0x06));  // Length=6 bytes (extension + padding + 4 data bytes)
 
     // Extension field (1 byte) - Extension 1 for sub-channel organization
     uint8_t ext_byte = (1 << 3);  // Extension 1 in bits 7-3
