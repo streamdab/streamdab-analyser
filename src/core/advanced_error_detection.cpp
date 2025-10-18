@@ -180,21 +180,31 @@ bool AdvancedErrorDetector::detectETISyncErrors(const std::vector<uint8_t>& fram
     
     auto start_time = std::chrono::steady_clock::now();
     
-    // Check ETI sync pattern: 0x68 0x1A 0x4B 0x1C
-    bool sync_error = !(frame_data[0] == 0x68 && frame_data[1] == 0x1A && 
-                       frame_data[2] == 0x4B && frame_data[3] == 0x1C);
-    
+    // Check ETI sync pattern per ETSI EN 300 799
+    // Extract SYNC pattern (big-endian)
+    uint32_t sync = (static_cast<uint32_t>(frame_data[0]) << 24) |
+                    (static_cast<uint32_t>(frame_data[1]) << 16) |
+                    (static_cast<uint32_t>(frame_data[2]) << 8) |
+                    static_cast<uint32_t>(frame_data[3]);
+
+    // Valid SYNC patterns: ETI-NI and ETI-LI
+    bool is_eti_ni = (sync == 0xFF1F491F || sync == 0x491F1FFF ||
+                      sync == 0xFF1FC4FF || sync == 0xC4FF1FFF ||
+                      sync == 0x491FC4FF || sync == 0xC4FF491F ||
+                      sync == 0x49931E03);
+    bool is_eti_li = (sync == 0xFFF8C549 || sync == 0x49C5F8FF ||
+                      sync == 0xFF073AB6 || sync == 0xB63A07FF);
+
+    bool sync_error = !is_eti_ni && !is_eti_li;
+
     if (sync_error) {
         ErrorReport error;
         error.error_id = generateErrorId();
         error.severity = ErrorSeverity::CRITICAL;
         error.category = ErrorCategory::ETI_SYNC;
         error.description = "ETI synchronization pattern not found";
-        error.technical_details = QString("Expected: 0x681A4B1C, Found: 0x%1%2%3%4")
-            .arg(frame_data[0], 2, 16, QChar('0'))
-            .arg(frame_data[1], 2, 16, QChar('0'))
-            .arg(frame_data[2], 2, 16, QChar('0'))
-            .arg(frame_data[3], 2, 16, QChar('0'));
+        error.technical_details = QString("Invalid SYNC: 0x%1 (Expected ETI-NI or ETI-LI pattern)")
+            .arg(sync, 8, 16, QChar('0')).toUpper();
         error.timestamp = QDateTime::currentDateTime();
         error.frame_number = frame_number;
         error.suggested_recovery = RecoveryStrategy::SKIP_FRAME;
@@ -802,17 +812,37 @@ bool AdvancedErrorDetector::isFrameCorrupted(const std::vector<uint8_t>& frame_d
 
 bool AdvancedErrorDetector::validateETIFrameStructure(const std::vector<uint8_t>& frame_data) const
 {
-    // ETI frame validation logic
+    // ETI frame validation logic per ETSI EN 300 799
     if (frame_data.size() != 6144) {
         return false;
     }
-    
-    // Check sync pattern
-    if (!(frame_data[0] == 0x68 && frame_data[1] == 0x1A && 
-          frame_data[2] == 0x4B && frame_data[3] == 0x1C)) {
+
+    // Extract SYNC pattern (first 4 bytes, big-endian)
+    uint32_t sync = (static_cast<uint32_t>(frame_data[0]) << 24) |
+                    (static_cast<uint32_t>(frame_data[1]) << 16) |
+                    (static_cast<uint32_t>(frame_data[2]) << 8) |
+                    static_cast<uint32_t>(frame_data[3]);
+
+    // Valid SYNC patterns per ETSI EN 300 799
+    // ETI(NI): 0x49 0x93 0x1E 0x03 - Standard Non-Interleaved format
+    // ETI(LI): 0xFF 0xF8 0xC5 0x49 and 0xFF 0x07 0x3A 0xB6 - Linear Interleaved formats
+
+    // ETI-NI patterns (various byte order interpretations)
+    bool is_eti_ni = (sync == 0xFF1F491F || sync == 0x491F1FFF ||
+                      sync == 0xFF1FC4FF || sync == 0xC4FF1FFF ||
+                      sync == 0x491FC4FF || sync == 0xC4FF491F ||
+                      sync == 0x49931E03);  // Direct ETI-NI pattern
+
+    // ETI-LI patterns (from real ETI file analysis)
+    bool is_eti_li = (sync == 0xFFF8C549 || sync == 0x49C5F8FF ||  // Pattern A (bkk_20062022_141637.eti)
+                      sync == 0xFF073AB6 || sync == 0xB63A07FF);    // Pattern B
+
+    if (!is_eti_ni && !is_eti_li) {
+        qWarning() << "[ERROR DETECTOR] Invalid SYNC pattern:"
+                   << QString("0x%1").arg(sync, 8, 16, QChar('0')).toUpper();
         return false;
     }
-    
+
     // Additional structure validation can be added here
     return true;
 }

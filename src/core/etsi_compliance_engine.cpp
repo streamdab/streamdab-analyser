@@ -60,26 +60,37 @@ ValidationResult ETSIComplianceEngine::validateETIFrame(const ETIFrame& frame)
 
 ValidationResult ETSIComplianceEngine::validateETISync(const ETIFrame& frame)
 {
-    // ETSI EN 300 799 defines ETI sync pattern: 0x681A4B1C
-    const uint32_t EXPECTED_SYNC = 0x681A4B1C;
-    
-    if (frame.sync_bytes != EXPECTED_SYNC) {
+    // ETSI EN 300 799 Section 5.1.1 - ETI synchronization patterns
+    // ETI-NI (Non-Interleaved): 0x49 0x93 0x1E 0x03
+    // ETI-LI (Linear Interleaved): 0xFF 0xF8 0xC5 0x49 (Pattern A), 0xFF 0x07 0x3A 0xB6 (Pattern B)
+
+    // ETI-NI patterns (various byte order interpretations)
+    bool is_eti_ni = (frame.sync_bytes == 0xFF1F491F || frame.sync_bytes == 0x491F1FFF ||
+                      frame.sync_bytes == 0xFF1FC4FF || frame.sync_bytes == 0xC4FF1FFF ||
+                      frame.sync_bytes == 0x491FC4FF || frame.sync_bytes == 0xC4FF491F ||
+                      frame.sync_bytes == 0x49931E03);  // Direct ETI-NI pattern
+
+    // ETI-LI patterns (from real ETI file analysis)
+    bool is_eti_li = (frame.sync_bytes == 0xFFF8C549 || frame.sync_bytes == 0x49C5F8FF ||  // Pattern A
+                      frame.sync_bytes == 0xFF073AB6 || frame.sync_bytes == 0xB63A07FF);    // Pattern B
+
+    if (!is_eti_ni && !is_eti_li) {
         return ValidationResult(
             ValidationErrorType::ETI_SYNC_ERROR,
             ComplianceLevel::CRITICAL,
-            QString("Invalid ETI sync bytes: 0x%1 (expected: 0x681A4B1C)")
+            QString("Invalid ETI sync bytes: 0x%1 (expected ETI-NI or ETI-LI pattern)")
                 .arg(frame.sync_bytes, 8, 16, QChar('0')).toUpper(),
-            "ETSI EN 300 799 Section 5.3.1",
+            "ETSI EN 300 799 Section 5.1.1",
             frame.frame_number,
             0
         );
     }
-    
+
     return ValidationResult(
         ValidationErrorType::ETI_SYNC_ERROR,
         ComplianceLevel::PASS,
-        "ETI sync bytes valid",
-        "ETSI EN 300 799 Section 5.3.1",
+        QString("ETI sync bytes valid (%1)").arg(is_eti_ni ? "ETI-NI" : "ETI-LI"),
+        "ETSI EN 300 799 Section 5.1.1",
         frame.frame_number,
         0
     );
