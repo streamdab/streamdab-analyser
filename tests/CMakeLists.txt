@@ -82,6 +82,7 @@ set(PHASE1_TESTS
     test_eti_frame_parser
     test_fig0_processor
     test_fig1_processor
+    test_eti_li_crc_validation
 )
 
 # Create Phase 1 test executables
@@ -247,7 +248,7 @@ add_executable(eti_analyzer_gui_tests
     ${GUI_MOCK_SOURCES}
     ${TEST_FIXTURE_SOURCES}
     # Add main project GUI sources that tests depend on
-    ../src/gui/main_window.cpp
+    # ../src/gui/main_window.cpp  # Embedded in main.cpp
     ../src/gui/analyzer_widget.cpp
     ../src/gui/service_browser.cpp
     ../src/gui/constellation_widget.cpp
@@ -342,7 +343,7 @@ set(MAIN_PROJECT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/signal_processing.cpp
 )
 set(MAIN_PROJECT_GUI_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/main_window.cpp
+#     ${CMAKE_CURRENT_SOURCE_DIR}/# ../src/gui/main_window.cpp  # Embedded in main.cpp  # Embedded in main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/analyzer_widget.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/constellation_widget.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/service_browser.cpp
@@ -693,6 +694,7 @@ message(STATUS "PHASE 1 ETI PROCESSING TESTS:")
 message(STATUS "  - test_eti_frame_parser: ETI frame parsing")
 message(STATUS "  - test_fig0_processor: FIG Type 0 decoding")
 message(STATUS "  - test_fig1_processor: FIG Type 1 labels")
+message(STATUS "  - test_eti_li_crc_validation: ETI-LI CRC validation (CRITICAL-003 fix)")
 message(STATUS "  - run_phase1_tests: Run all Phase 1 tests")
 message(STATUS "")
 message(STATUS "TDD WORKFLOW TARGETS:")
