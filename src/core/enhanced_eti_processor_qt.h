@@ -152,6 +152,9 @@ class EnhancedETIProcessorQt : public QObject
 {
     Q_OBJECT
 
+    // Friend class for unit testing (CRITICAL-003 test access)
+    friend class TestETILICRCValidation;
+
 public:
     explicit EnhancedETIProcessorQt(QObject *parent = nullptr);
 
