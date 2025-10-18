@@ -188,12 +188,20 @@ ETIHeader ETIFrameParser::parseHeader(const uint8_t* data)
 bool ETIFrameParser::validateSyncPattern(uint32_t sync)
 {
     // Valid SYNC patterns per ETSI EN 300 799
-    // ETI(NI): 0x49 0x93 0x1E 0x03 reversed = 0xFF1F491F
-    // Note: Different byte ordering interpretations exist
-    return (sync == 0xFF1F491F || sync == 0x491F1FFF ||
-            sync == 0xFF1FC4FF || sync == 0xC4FF1FFF ||
-            sync == 0x491FC4FF || sync == 0xC4FF491F ||
-            sync == 0x49931E03);  // Direct ETI-NI pattern
+    // ETI(NI): 0x49 0x93 0x1E 0x03 - Standard Non-Interleaved format
+    // ETI(LI): 0xFF 0xF8 0xC5 0x49 and 0xFF 0x07 0x3A 0xB6 - Linear Interleaved formats
+
+    // ETI-NI patterns (various byte order interpretations)
+    bool is_eti_ni = (sync == 0xFF1F491F || sync == 0x491F1FFF ||
+                      sync == 0xFF1FC4FF || sync == 0xC4FF1FFF ||
+                      sync == 0x491FC4FF || sync == 0xC4FF491F ||
+                      sync == 0x49931E03);  // Direct ETI-NI pattern
+
+    // ETI-LI patterns (from bkk_20062022_141637.eti real file analysis)
+    bool is_eti_li = (sync == 0xFFF8C549 || sync == 0x49C5F8FF ||  // Pattern A
+                      sync == 0xFF073AB6 || sync == 0xB63A07FF);    // Pattern B
+
+    return is_eti_ni || is_eti_li;
 }
 
 // Validate frame counter (FCT: 0-249, cycles every 5 seconds)

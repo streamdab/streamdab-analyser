@@ -511,11 +511,22 @@ bool MultiStreamProcessor::isValidETIFile(const QString& file_path)
         return false;
     }
 
-    // ETI sync pattern: 0x68, 0x1A, 0x4B, 0x1C
-    return (static_cast<uint8_t>(header[0]) == 0x68 &&
-            static_cast<uint8_t>(header[1]) == 0x1A &&
-            static_cast<uint8_t>(header[2]) == 0x4B &&
-            static_cast<uint8_t>(header[3]) == 0x1C);
+    // ETI sync pattern validation (ETSI EN 300 799)
+    // Extract SYNC pattern (big-endian)
+    uint32_t sync = (static_cast<uint32_t>(static_cast<uint8_t>(header[0])) << 24) |
+                    (static_cast<uint32_t>(static_cast<uint8_t>(header[1])) << 16) |
+                    (static_cast<uint32_t>(static_cast<uint8_t>(header[2])) << 8) |
+                    static_cast<uint32_t>(static_cast<uint8_t>(header[3]));
+
+    // Valid SYNC patterns: ETI-NI and ETI-LI
+    bool is_eti_ni = (sync == 0xFF1F491F || sync == 0x491F1FFF ||
+                      sync == 0xFF1FC4FF || sync == 0xC4FF1FFF ||
+                      sync == 0x491FC4FF || sync == 0xC4FF491F ||
+                      sync == 0x49931E03);
+    bool is_eti_li = (sync == 0xFFF8C549 || sync == 0x49C5F8FF ||
+                      sync == 0xFF073AB6 || sync == 0xB63A07FF);
+
+    return is_eti_ni || is_eti_li;
 }
 
 bool MultiStreamProcessor::analyzeFrameSequences(const std::vector<QString>& stream_ids, ComparativeAnalysisResult& result)

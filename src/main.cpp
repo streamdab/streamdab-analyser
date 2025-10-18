@@ -428,9 +428,9 @@ private slots:
         frame.frame_number = static_cast<uint32_t>(frameIndex);
         
         // Simulate ETI frame structure (in real implementation, this would come from actual ETI data)
-        
-        // ETI Sync bytes (ETSI EN 300 799 compliant: 0x681A4B1C)
-        frame.sync_bytes = 0x681A4B1C;
+
+        // ETI Sync bytes (ETSI EN 300 799 Section 5.1.1 - Real ETI-LI Pattern A)
+        frame.sync_bytes = 0xFFF8C549;  // From real Thai DAB file (bkk_20062022_141637.eti)
         
         // Frame Counter (sequential)
         frame.frame_counter = static_cast<uint32_t>(frameIndex);
