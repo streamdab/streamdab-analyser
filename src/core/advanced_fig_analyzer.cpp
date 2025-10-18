@@ -32,7 +32,9 @@ QString DABLabel::getFullLabel() const {
     for (char c : full_label) {
         label.append(c);
     }
-    return label.trimmed();
+    // Return full 16-character label WITHOUT trimming
+    // Per ETSI EN 300 401: Labels are fixed 16-character strings
+    return label;
 }
 
 /**
@@ -451,7 +453,8 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
 {
     // FIG 0/2: Service organization
     if (data.size() < 5) {
-        qWarning() << "FIG 0/2: Insufficient data";
+        m_lastError = QString("FIG 0/2: Insufficient data (need at least 5 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
         return;
     }
 
@@ -547,8 +550,8 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
         }
 
         dab_service.service_id = service_id;
-        dab_service.service_type = is_programme ? 0 : 1;  // 0=audio, 1=data
-        dab_service.is_dab_plus = false;  // Will be set by FIG 0/8 if needed
+        dab_service.service_type = 1;  // Default to data, will be updated based on components
+        dab_service.is_dab_plus = false;  // Will be set by component analysis
 
         qDebug() << "FIG 0/2: Storing service" << Qt::hex << Qt::showbase << service_id
                  << "type=" << (is_programme ? "Programme" : "Data")
@@ -557,7 +560,8 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
         // Parse service components
         for (uint8_t i = 0; i < num_components; ++i) {
             if (offset + 2 > data.size()) {
-                qWarning() << "FIG 0/2: Incomplete component descriptor";
+                m_lastError = QString("FIG 0/2: Incomplete component descriptor at offset %1").arg(offset);
+                qWarning() << m_lastError;
                 break;
             }
 
@@ -577,7 +581,8 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
                 component.sub_channel_id = bytes[offset + 1] & 0x3F;
 
                 // For audio: ASCTy = 0x00 (DAB), 0x3F (DAB+)
-                if (is_programme && component.service_component_type == 0x3F) {
+                // DAB+ detection works for ALL Service ID encodings (16-bit and 32-bit)
+                if (component.service_component_type == 0x3F) {
                     dab_service.is_dab_plus = true;
                 }
 
@@ -598,6 +603,15 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
             dab_service.components.push_back(component);
         }
 
+        // Determine actual service type from components
+        if (!dab_service.components.empty()) {
+            const auto& first_comp = dab_service.components[0];
+            if (first_comp.transport_mode == 0 &&
+                (first_comp.service_component_type == 0x00 || first_comp.service_component_type == 0x3F)) {
+                dab_service.service_type = 0;  // Audio service
+            }
+        }
+
         // STORE in map (FIX FOR HIGH-002)
         m_services[service_id] = dab_service;
         services_found++;
@@ -606,7 +620,18 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
         ServiceInfo legacy_service;
         legacy_service.serviceId = service_id;
         legacy_service.label = "";  // Will be filled by FIG 1/1
-        legacy_service.isAudio = is_programme;
+
+        // CRITICAL FIX: Determine isAudio from component type, NOT from Service ID encoding
+        // Service ID encoding (16-bit vs 32-bit) does NOT indicate audio vs data!
+        // Must check TMId and ASCTy fields per ETSI EN 300 401
+        legacy_service.isAudio = false;
+        if (!dab_service.components.empty()) {
+            const auto& first_comp = dab_service.components[0];
+            // TMId=0 (MSC stream audio) with ASCTy=0x00 (DAB) or 0x3F (DAB+) = Audio
+            legacy_service.isAudio = (first_comp.transport_mode == 0 &&
+                                     (first_comp.service_component_type == 0x00 ||
+                                      first_comp.service_component_type == 0x3F));
+        }
 
         // Check if already in legacy list
         bool found_legacy = false;
