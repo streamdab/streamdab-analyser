@@ -384,11 +384,20 @@ uint32_t ETIFrameParser::extractUInt32(const uint8_t* data, size_t offset) const
 
 bool ETIHeader::isValid() const
 {
-    // Check sync pattern
-    if (sync != 0xFF1F491F && sync != 0x491F1FFF &&
-        sync != 0xFF1FC4FF && sync != 0xC4FF1FFF &&
-        sync != 0x491FC4FF && sync != 0xC4FF491F &&
-        sync != 0x49931E03) {
+    // Check sync pattern (ETSI EN 300 799 Section 5.1.1 & 6.1)
+    // ETI-NI patterns
+    bool is_eti_ni = (sync == 0xFF1F491F || sync == 0x491F1FFF ||
+                      sync == 0xFF1FC4FF || sync == 0xC4FF1FFF ||
+                      sync == 0x491FC4FF || sync == 0xC4FF491F ||
+                      sync == 0x49931E03);
+
+    // ETI-LI patterns (CRITICAL FIX: Add ETI-LI SYNC support)
+    bool is_eti_li = (sync == 0xFFF8C549 || sync == 0x49C5F8FF ||  // Pattern A
+                      sync == 0xFF073AB6 || sync == 0xB63A07FF);    // Pattern B
+
+    if (!is_eti_ni && !is_eti_li) {
+        qWarning() << "ETIHeader::isValid(): Invalid SYNC pattern:"
+                   << QString("0x%1").arg(sync, 8, 16, QChar('0')).toUpper();
         return false;
     }
 
