@@ -30,6 +30,7 @@
 
 #include "core/enhanced_eti_processor_qt.h"
 #include "core/advanced_fig_analyzer.h"
+#include "core/hex_viewer_formatter.h"
 #include "core/etsi_compliance_engine.hpp"
 #include "core/multi_stream_processor.hpp"
 #include "core/advanced_error_detection.hpp"
@@ -49,6 +50,13 @@ public:
         // Initialize core components
         m_etiProcessor = std::make_unique<EnhancedETIProcessorQt>();
         m_figAnalyzer = std::make_unique<AdvancedFIGAnalyzer>();
+
+        // Initialize hex viewer formatter with ETSI-compliant settings
+        m_hexFormatter = std::make_unique<HexViewerFormatter>();
+        m_hexFormatter->setColorCoding(true);        // Enable ETSI structure colors
+        m_hexFormatter->setAsciiColumn(true);        // Enable ASCII representation
+        m_hexFormatter->setBytesPerLine(16);         // 16 bytes per line standard
+
         m_etsiComplianceEngine = std::make_unique<etsi::ETSIComplianceEngine>();
         // WORKING COMBINATION: Multi-stream + Error Detection (Logging causes file dialog freeze)
         m_multiStreamProcessor = std::make_unique<multistream::MultiStreamProcessor>();
@@ -1371,101 +1379,52 @@ private slots:
         }
     }
     
+    // PHASE 3 AGENT 3: Real ETI Frame Data Retrieval
     QByteArray getETIFrameData(int frameIndex)
     {
-        // Get frame data from ETI processor
-        // Each ETI frame is 6144 bytes
-        const int FRAME_SIZE = 6144;
-        
-        // For demo purposes, create sample ETI frame structure
-        // In real implementation, this would come from the loaded ETI file
-        QByteArray frameData;
-        frameData.resize(FRAME_SIZE);
-        
-        // ETI frame header (simulate real data)
-        frameData[0] = 0x68; // ETI sync byte 1
-        frameData[1] = 0x1A; // ETI sync byte 2  
-        frameData[2] = 0x4B; // ETI sync byte 3
-        frameData[3] = 0x1C; // ETI sync byte 4
-        
-        // Frame Counter (FC) - 3 bytes
-        frameData[4] = (frameIndex >> 16) & 0xFF;
-        frameData[5] = (frameIndex >> 8) & 0xFF;
-        frameData[6] = frameIndex & 0xFF;
-        
-        // Fill remaining with pattern for demo
-        for (int i = 7; i < FRAME_SIZE; i++) {
-            frameData[i] = static_cast<char>((i + frameIndex) % 256);
+        if (!m_etiProcessor || !m_fileLoaded) {
+            qWarning() << "[HEX VIEWER] ETI processor not ready or file not loaded";
+            return QByteArray();
         }
-        
+
+        if (frameIndex < 0 || static_cast<size_t>(frameIndex) >= m_totalFrames) {
+            qWarning() << "[HEX VIEWER] Invalid frame index:" << frameIndex;
+            return QByteArray();
+        }
+
+        // Thread-safe access to real frame data
+        QByteArray frameData = m_etiProcessor->getRawFrameData(frameIndex);
+
+        if (frameData.isEmpty()) {
+            qWarning() << "[HEX VIEWER] Frame" << frameIndex << "returned empty data";
+        } else {
+            qDebug() << "[HEX VIEWER] Retrieved frame" << frameIndex << "size:" << frameData.size() << "bytes";
+        }
+
         return frameData;
     }
     
+    // PHASE 3 AGENT 3: Professional ETSI-Compliant Hex Display
     QString generateHexDisplay(const QByteArray& data, int frameIndex)
     {
-        QString html = "<html><head><style>"
-                      "body { font-family: 'Consolas', 'Monaco', monospace; font-size: 10px; }"
-                      ".header { background-color: #e6f3ff; color: #0066cc; font-weight: bold; }"
-                      ".sync { background-color: #ffe6e6; color: #cc0000; font-weight: bold; }"
-                      ".fc { background-color: #e6ffe6; color: #006600; font-weight: bold; }"
-                      ".fic { background-color: #fff2e6; color: #cc6600; }"
-                      ".msc { background-color: #f0f0f0; color: #333333; }"
-                      ".address { color: #666666; font-weight: bold; }"
-                      ".ascii { color: #888888; margin-left: 20px; }"
-                      "</style></head><body>";
-        
-        html += QString("<div class='header'>ETI Frame %1 - Hex Viewer (6144 bytes)</div><br>").arg(frameIndex + 1);
-        
-        const int bytesPerLine = 16;
-        for (int i = 0; i < data.size(); i += bytesPerLine) {
-            // Address column
-            html += QString("<span class='address'>%1:</span> ").arg(i, 4, 16, QChar('0')).toUpper();
-            
-            // Hex bytes with highlighting
-            QString hexLine;
-            QString asciiLine;
-            
-            for (int j = 0; j < bytesPerLine && (i + j) < data.size(); j++) {
-                unsigned char byte = static_cast<unsigned char>(data[i + j]);
-                QString hexByte = QString("%1").arg(byte, 2, 16, QChar('0')).toUpper();
-                
-                // Apply highlighting based on ETI frame structure
-                QString cssClass = "msc"; // default
-                if (i + j < 4) {
-                    cssClass = "sync"; // ETI sync bytes
-                } else if (i + j < 7) {
-                    cssClass = "fc"; // Frame Counter
-                } else if (i + j < 32) {
-                    cssClass = "header"; // ETI header
-                } else if (i + j < 128) {
-                    cssClass = "fic"; // FIC data
-                }
-                
-                hexLine += QString("<span class='%1'>%2</span> ").arg(cssClass, hexByte);
-                
-                // ASCII representation
-                char asciiChar = (byte >= 32 && byte <= 126) ? static_cast<char>(byte) : '.';
-                asciiLine += asciiChar;
-            }
-            
-            // Pad hex line if needed
-            while (hexLine.split(" ").count() - 1 < bytesPerLine) {
-                hexLine += "   ";
-            }
-            
-            html += hexLine + QString("<span class='ascii'>| %1</span>").arg(asciiLine);
-            html += "<br>";
+        if (!m_hexFormatter) {
+            return "<html><body><p style='color:#ff0000;'>Hex formatter not initialized</p></body></html>";
         }
-        
-        // Add ETI frame structure legend
-        html += "<br><div class='header'>ETI Frame Structure Legend:</div>";
-        html += "<span class='sync'>■ ETI Sync (bytes 0-3)</span> | ";
-        html += "<span class='fc'>■ Frame Counter (bytes 4-6)</span> | ";
-        html += "<span class='header'>■ ETI Header (bytes 7-31)</span> | ";
-        html += "<span class='fic'>■ FIC Data (bytes 32-127)</span> | ";
-        html += "<span class='msc'>■ MSC Data (bytes 128+)</span>";
-        
-        html += "</body></html>";
+
+        if (data.isEmpty()) {
+            return "<html><body style='background:#1e1e1e;color:#d4d4d4;font-family:monospace;'>"
+                   "<div style='padding:20px;'>"
+                   "<p>No frame data available for frame " + QString::number(frameIndex) + "</p>"
+                   "<p style='color:#888;'>Ensure ETI file is loaded and frame index is valid.</p>"
+                   "</div></body></html>";
+        }
+
+        // Use HexViewerFormatter for professional ETSI-compliant display
+        QString html = m_hexFormatter->formatFrameHex(data, frameIndex);
+
+        qDebug() << "[HEX VIEWER] Generated hex display for frame" << frameIndex
+                 << "(" << data.size() << "bytes," << html.length() << "chars HTML)";
+
         return html;
     }
 
@@ -2414,28 +2373,176 @@ private:
         m_frameDetails->setText(details);
     }
 
-    // SIMULATION - TO BE REMOVED BY AGENT 2
+    // PHASE 3 AGENT 2: Real FIG Data Service Tree Implementation
     void updateEnsembleTree()
     {
-        // Add sample ensemble structure for Bangkok
-        QTreeWidgetItem* ensembleItem = new QTreeWidgetItem();
-        ensembleItem->setText(0, "Bangkok Ensemble");
-        ensembleItem->setText(1, "NBT DAB+");
-        ensembleItem->setText(2, "Ensemble");
-        m_ensembleTree->addTopLevelItem(ensembleItem);
+        if (!m_figAnalyzer) {
+            qWarning() << "[SERVICE TREE] FIG analyzer not initialized";
+            return;
+        }
 
-        // Add sample services
-        QTreeWidgetItem* service1 = new QTreeWidgetItem(ensembleItem);
-        service1->setText(0, "Service 1");
-        service1->setText(1, "NBT Radio");
-        service1->setText(2, "Audio");
+        // Save current expansion state
+        QSet<QString> expandedServices = saveExpansionState();
 
-        QTreeWidgetItem* service2 = new QTreeWidgetItem(ensembleItem);
-        service2->setText(0, "Service 2");
-        service2->setText(1, "Data Service");
-        service2->setText(2, "Data");
+        // Clear existing tree
+        m_ensembleTree->clear();
 
-        m_ensembleTree->expandAll();
+        // Get REAL data from FIG analyzer
+        EnsembleInfo ensemble = m_figAnalyzer->getCurrentEnsemble();
+        std::vector<DABService> services = m_figAnalyzer->getDABServices();
+
+        // Handle no services discovered yet
+        if (services.empty()) {
+            QTreeWidgetItem* placeholderItem = new QTreeWidgetItem(m_ensembleTree);
+            placeholderItem->setText(0, "No services discovered yet...");
+            placeholderItem->setText(1, "Load an ETI file to see DAB services");
+            placeholderItem->setForeground(0, QColor(150, 150, 150));
+            return;
+        }
+
+        // Create ensemble root with REAL data
+        QTreeWidgetItem* ensembleItem = new QTreeWidgetItem(m_ensembleTree);
+
+        QString ensembleLabel = ensemble.ensembleLabel;
+        if (ensembleLabel.isEmpty()) {
+            ensembleLabel = "Unnamed Ensemble";
+        }
+
+        // Format: "Ensemble Label [EID: 0xFFFF]"
+        QString ensembleDisplay = QString("%1 [EID: 0x%2]")
+                                  .arg(ensembleLabel)
+                                  .arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper();
+
+        ensembleItem->setText(0, ensembleDisplay);
+        ensembleItem->setText(1, QString::number(services.size()) + " services");
+
+        // Make ensemble bold
+        QFont ensembleFont = ensembleItem->font(0);
+        ensembleFont.setBold(true);
+        ensembleItem->setFont(0, ensembleFont);
+
+        // Add all discovered services
+        for (const auto& service : services) {
+            addServiceToTree(ensembleItem, service);
+        }
+
+        // Restore expansion state
+        restoreExpansionState(expandedServices);
+        ensembleItem->setExpanded(true);
+
+        qDebug() << "[SERVICE TREE] Updated with" << services.size() << "real DAB services";
+    }
+
+    void addServiceToTree(QTreeWidgetItem* parent, const DABService& service)
+    {
+        QTreeWidgetItem* serviceItem = new QTreeWidgetItem(parent);
+
+        QString serviceLabel = service.service_label;  // Already a QString
+        if (serviceLabel.isEmpty()) {
+            serviceLabel = "Unnamed Service";
+        }
+
+        // Detect DAB+ (transport_mode=0, service_component_type=0x3F)
+        bool isDABPlus = false;
+        for (const auto& comp : service.components) {
+            if (comp.transport_mode == 0 && comp.service_component_type == 0x3F) {
+                isDABPlus = true;
+                break;
+            }
+        }
+
+        // Format: "Service Label [SID: 0xFFFF] (DAB+)"
+        QString displayText;
+        displayText.reserve(serviceLabel.length() + 30);
+        displayText = QString("%1 [SID: 0x%2]")
+                      .arg(serviceLabel)
+                      .arg(service.service_id, 4, 16, QChar('0')).toUpper();
+
+        if (isDABPlus) {
+            displayText += " (DAB+)";
+        }
+
+        serviceItem->setText(0, displayText);
+        serviceItem->setText(1, QString::number(service.components.size()) + " component(s)");
+
+        // Highlight DAB+ in bold blue
+        if (isDABPlus) {
+            QFont dabPlusFont = serviceItem->font(0);
+            dabPlusFont.setBold(true);
+            serviceItem->setFont(0, dabPlusFont);
+            serviceItem->setForeground(0, QColor(0, 100, 200));
+        }
+
+        // Add components
+        for (const auto& component : service.components) {
+            addComponentToTree(serviceItem, component, service.service_id);
+        }
+    }
+
+    void addComponentToTree(QTreeWidgetItem* parent, const ServiceComponent& component, uint32_t serviceId)
+    {
+        QTreeWidgetItem* compItem = new QTreeWidgetItem(parent);
+
+        // ServiceComponent doesn't have a label field, use component_id
+        QString componentLabel = QString("Component %1").arg(component.component_id);
+
+        // Determine component type
+        QString typeDesc;
+        if (component.transport_mode == 0) {
+            if (component.service_component_type == 0x3F) {
+                typeDesc = "DAB+ Audio";
+            } else if (component.service_component_type == 0x00) {
+                typeDesc = "DAB Audio";
+            } else {
+                typeDesc = QString("Type 0x%1").arg(component.service_component_type, 2, 16, QChar('0')).toUpper();
+            }
+        } else {
+            typeDesc = QString("TM %1").arg(component.transport_mode);
+        }
+
+        QString displayText = QString("%1 [SubChId: %2, %3]")
+                              .arg(componentLabel)
+                              .arg(component.sub_channel_id)
+                              .arg(typeDesc);
+
+        compItem->setText(0, displayText);
+        compItem->setForeground(0, QColor(100, 100, 100));
+    }
+
+    QSet<QString> saveExpansionState()
+    {
+        QSet<QString> expanded;
+        for (int i = 0; i < m_ensembleTree->topLevelItemCount(); ++i) {
+            saveExpansionStateRecursive(m_ensembleTree->topLevelItem(i), expanded);
+        }
+        return expanded;
+    }
+
+    void saveExpansionStateRecursive(QTreeWidgetItem* item, QSet<QString>& expanded)
+    {
+        if (item->isExpanded()) {
+            expanded.insert(item->text(0));
+        }
+        for (int i = 0; i < item->childCount(); ++i) {
+            saveExpansionStateRecursive(item->child(i), expanded);
+        }
+    }
+
+    void restoreExpansionState(const QSet<QString>& expanded)
+    {
+        for (int i = 0; i < m_ensembleTree->topLevelItemCount(); ++i) {
+            restoreExpansionStateRecursive(m_ensembleTree->topLevelItem(i), expanded);
+        }
+    }
+
+    void restoreExpansionStateRecursive(QTreeWidgetItem* item, const QSet<QString>& expanded)
+    {
+        if (expanded.contains(item->text(0))) {
+            item->setExpanded(true);
+        }
+        for (int i = 0; i < item->childCount(); ++i) {
+            restoreExpansionStateRecursive(item->child(i), expanded);
+        }
     }
 
 
@@ -2594,6 +2701,7 @@ private:
     // Core components
     std::unique_ptr<EnhancedETIProcessorQt> m_etiProcessor;
     std::unique_ptr<AdvancedFIGAnalyzer> m_figAnalyzer;
+    std::unique_ptr<HexViewerFormatter> m_hexFormatter;
     std::unique_ptr<etsi::ETSIComplianceEngine> m_etsiComplianceEngine;
     std::unique_ptr<multistream::MultiStreamProcessor> m_multiStreamProcessor;
     std::unique_ptr<error_detection::AdvancedErrorDetector> m_errorDetector;
