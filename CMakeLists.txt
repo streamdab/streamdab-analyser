@@ -23,6 +23,7 @@ set(SOURCES
     src/core/multi_stream_processor.cpp
     src/core/advanced_error_detection.cpp
     src/core/professional_logging_system.cpp
+    src/core/hex_viewer_formatter.cpp
     src/utils/logger.cpp
 )
 
