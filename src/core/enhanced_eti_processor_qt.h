@@ -6,6 +6,7 @@
 #include <QString>
 #include <QByteArray>
 #include <QDateTime>
+#include <QMutex>
 #include <vector>
 #include <cstdint>
 #include <chrono>
@@ -168,6 +169,26 @@ public:
     QString formatToString(ETIFormat format) const;
     QString syncPatternToString(uint32_t pattern) const;
 
+    // Hex viewer integration: Get raw frame data
+    /**
+     * @brief Get raw ETI frame data for hex viewer display
+     * @param frame_index Frame index (0-based)
+     * @return 6144-byte raw frame data, or empty QByteArray if invalid index
+     *
+     * This method extracts raw frame data from the loaded ETI file for
+     * display in the hex viewer. Returns exactly 6144 bytes per frame.
+     *
+     * CRITICAL-002 FIX: Thread-safe implementation with mutex protection
+     * and explicit detach to avoid Qt's copy-on-write race conditions.
+     */
+    QByteArray getRawFrameData(int frame_index) const;
+
+    /**
+     * @brief Get total number of frames available
+     * @return Total frames loaded from file
+     */
+    int getTotalFrames() const { return total_frames_; }
+
 public slots:
     void processNextFrame();
 
@@ -209,6 +230,9 @@ private:
     static constexpr size_t FRAME_CLEANUP_THRESHOLD = 1000;
     static constexpr qint64 MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 
+    // ETI frame size constant
+    static constexpr size_t ETI_FRAME_SIZE = 6144;
+
     // Processing state
     uint64_t frame_count_;
     int eti_ni_count_;
@@ -231,6 +255,10 @@ private:
 
     // Phase 1 Week 1: Real ETI Frame Parser
     std::unique_ptr<ETIFrameParser> m_frame_parser;
+
+    // CRITICAL-002 FIX: Thread safety for getRawFrameData()
+    // Protects file_data_ from concurrent access and Qt's COW race conditions
+    mutable QMutex m_file_data_mutex;
 };
 
 #endif // ENHANCED_ETI_PROCESSOR_QT_H

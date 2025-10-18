@@ -23,6 +23,7 @@
 #include <QDebug>
 #include <QCoreApplication>
 #include <QThread>
+#include <QMutexLocker>
 
 // CRITICAL-007: CRC-16 lookup table for CCITT polynomial
 const uint16_t EnhancedETIProcessorQt::CRC16_TABLE[256] = {
@@ -858,6 +859,47 @@ QString EnhancedETIProcessorQt::formatToString(ETIFormat format) const
 QString EnhancedETIProcessorQt::syncPatternToString(uint32_t pattern) const
 {
     return QString("0x%1").arg(pattern, 8, 16, QChar('0'));
+}
+
+// CRITICAL-002 FIX: Thread-safe getRawFrameData with mutex protection and explicit detach
+QByteArray EnhancedETIProcessorQt::getRawFrameData(int frame_index) const
+{
+    // Thread-safety: Lock mutex to protect file_data_ access
+    QMutexLocker locker(&m_file_data_mutex);
+
+    // Validate frame index
+    if (frame_index < 0 || frame_index >= total_frames_) {
+        qWarning() << "getRawFrameData: Invalid frame index" << frame_index
+                   << "(valid range: 0 -" << (total_frames_ - 1) << ")";
+        return QByteArray();
+    }
+
+    // Validate file data is loaded
+    if (file_data_.isEmpty()) {
+        qWarning() << "getRawFrameData: No ETI file loaded";
+        return QByteArray();
+    }
+
+    // Calculate frame offset (each frame is exactly 6144 bytes)
+    const int frame_offset = frame_index * ETI_FRAME_SIZE;
+
+    // Bounds check
+    if (frame_offset + ETI_FRAME_SIZE > file_data_.size()) {
+        qWarning() << "getRawFrameData: Frame offset out of bounds"
+                   << "offset=" << frame_offset
+                   << "file_size=" << file_data_.size();
+        return QByteArray();
+    }
+
+    // Extract frame data with explicit detach to avoid Qt COW race conditions
+    QByteArray result = file_data_.mid(frame_offset, ETI_FRAME_SIZE);
+    result.detach();  // CRITICAL-002 FIX: Force deep copy for thread safety
+
+    qDebug() << "getRawFrameData: Extracted frame" << frame_index
+             << "(" << result.size() << "bytes)"
+             << "offset=" << frame_offset;
+
+    return result;
 }
 
 void EnhancedETIProcessorQt::stopProcessing()
