@@ -111,6 +111,7 @@ QString DABLabel::toString() const {
     , m_ensembleId(0)
     , m_changeFlags(0)
     , m_timeValid(false)
+    , m_date_time_valid(false)
 {
     initializeDefaultFIGTypes();
 }
@@ -121,8 +122,13 @@ void AdvancedFIGAnalyzer::initializeDefaultFIGTypes()
     m_enabledFIGTypes["0.0"] = true;   // Ensemble organization
     m_enabledFIGTypes["0.1"] = true;   // Subchannel organization
     m_enabledFIGTypes["0.2"] = true;   // Service organization
-    m_enabledFIGTypes["0.3"] = false;  // Service component (optional)
+    m_enabledFIGTypes["0.3"] = false;  // Service component in packet mode (optional)
+    m_enabledFIGTypes["0.5"] = false;  // Service component language (optional)
+    m_enabledFIGTypes["0.6"] = false;  // Service linking (optional)
+    m_enabledFIGTypes["0.7"] = false;  // Configuration information (optional)
     m_enabledFIGTypes["0.8"] = false;  // Service component global (optional)
+    m_enabledFIGTypes["0.9"] = true;   // Country, LTO, international table
+    m_enabledFIGTypes["0.10"] = true;  // Date and time
     m_enabledFIGTypes["0.13"] = false; // User application (optional)
     m_enabledFIGTypes["1.0"] = true;   // Ensemble labels
     m_enabledFIGTypes["1.1"] = true;   // Service labels
@@ -224,8 +230,23 @@ void AdvancedFIGAnalyzer::processFIG0(const QByteArray& figData)
         case 3:
             processFIG0_3(figData);
             break;
+        case 5:
+            processFIG0_5(figData);
+            break;
+        case 6:
+            processFIG0_6(figData);
+            break;
+        case 7:
+            processFIG0_7(figData);
+            break;
         case 8:
             processFIG0_8(figData);
+            break;
+        case 9:
+            processFIG0_9(figData);
+            break;
+        case 10:
+            processFIG0_10(figData);
             break;
         case 13:
             processFIG0_13(figData);
@@ -1043,39 +1064,569 @@ bool AdvancedFIGAnalyzer::isBitSet(uint8_t byte, int bit_position) const
 // Placeholder implementations for other FIG processors
 // ============================================================================
 
-void AdvancedFIGAnalyzer::processFIG0_3(const QByteArray& data)
-{
-    Q_UNUSED(data)
-    // FIG 0/3: Service component - to be implemented in future phases
-    m_lastError = "FIG 0/3 not yet implemented";
-    // Do NOT increment m_totalFIGsProcessed for unimplemented FIGs
-}
-
-void AdvancedFIGAnalyzer::processFIG0_8(const QByteArray& data)
-{
-    Q_UNUSED(data)
-    // FIG 0/8: Service component global definition - to be implemented
-    m_lastError = "FIG 0/8 not yet implemented";
-    // Do NOT increment m_totalFIGsProcessed for unimplemented FIGs
-}
+// ============================================================================
+// FIG 0/3 - Service Component in Packet Mode
+// ETSI EN 300 401 Section 6.3.1
+// ============================================================================
 
 /**
- * Process FIG Type 0 Extension 1: Sub-channel Organization
- * ETSI EN 300 401 Section 6.2.1
- *
- * Defines the organization of sub-channels in the MSC, including:
- * - Sub-channel ID
- * - Start address in CUs
- * - Protection profile (EEP or UEP)
- * - Bitrate
+ * Process FIG Type 0 Extension 3: Service Component in Packet Mode
+ * 
+ * Reverse parser from ODR-DabMux FIG0_3.cpp
+ * Structure (5 bytes per component + optional 2-byte SCCA):
+ *  - Byte 0: SCId[11:4]
+ *  - Byte 1: SCCA_flag(1) + rfa(3) + SCId[3:0]
+ *  - Byte 2: DSCTy(6) + rfu(1) + DG_flag(1)
+ *  - Byte 3: Packet_address[9:8](2) + SubChId(6)
+ *  - Byte 4: Packet_address[7:0]
+ *  - [Optional] Bytes 5-6: SCCA (if SCCA_flag=1)
  */
+void AdvancedFIGAnalyzer::processFIG0_3(const QByteArray& data)
+{
+    if (data.size() < 6) {  // Minimum: header(1) + one component(5)
+        m_lastError = QString("FIG 0/3: Insufficient data (need at least 6 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+    int offset = 1;  // Skip extension/header byte
+
+    int components_found = 0;
+
+    while (offset + 5 <= data.size()) {
+        FIG0_3_ServiceComponent component;
+
+        // Byte 0: SCId[11:4]
+        uint8_t scid_high = bytes[offset];
+
+        // Byte 1: SCCA_flag(1) + rfa(3) + SCId[3:0]
+        bool scca_flag = (bytes[offset + 1] & 0x80) != 0;
+        uint8_t scid_low = bytes[offset + 1] & 0x0F;
+
+        // Reconstruct 12-bit SCId
+        component.service_component_id = (static_cast<uint16_t>(scid_high) << 4) | scid_low;
+
+        // Byte 2: DSCTy(6) + rfu(1) + DG_flag(1)
+        component.data_service_component_type = (bytes[offset + 2] >> 2) & 0x3F;
+        // DG_flag: 0=packets (no datagroups), 1=datagroups used (ETSI EN 300 401 Section 6.3.1)
+        component.datagroup_flag = (bytes[offset + 2] & 0x01) != 0;
+
+        // Byte 3: Packet_address[9:8](2) + SubChId(6)
+        uint8_t packet_addr_high = (bytes[offset + 3] >> 6) & 0x03;
+        component.subchannel_id = bytes[offset + 3] & 0x3F;
+
+        // Byte 4: Packet_address[7:0]
+        uint8_t packet_addr_low = bytes[offset + 4];
+
+        // Reconstruct 10-bit packet address
+        component.packet_address = (static_cast<uint16_t>(packet_addr_high) << 8) | packet_addr_low;
+
+        component.ca_flag = scca_flag;
+
+        qDebug() << "FIG 0/3: SCId=" << component.service_component_id
+                 << "SubChId=" << component.subchannel_id
+                 << "Packet addr=" << component.packet_address
+                 << "DSCTy=" << component.data_service_component_type
+                 << "DG=" << (component.datagroup_flag ? "datagroups" : "packets");
+
+        m_packet_components.push_back(component);
+        components_found++;
+
+        offset += 5;
+
+        // Skip SCCA field if present (2 bytes)
+        if (scca_flag) {
+            if (offset + 2 > data.size()) {
+                m_lastError = "FIG 0/3: SCCA flag set but insufficient data for SCCA field";
+                qWarning() << m_lastError;
+                break;  // Stop parsing this FIG
+            }
+            offset += 2;
+        }
+    }
+
+    if (components_found > 0) {
+        qInfo() << "FIG 0/3: Parsed" << components_found << "packet mode components";
+        m_validFIGsCount++;
+        m_totalFIGsProcessed++;
+    }
+}
+
+// ============================================================================
+// FIG 0/5 - Service Component Language
+// ETSI EN 300 401 Section 6.3.2
+// ============================================================================
+
+/**
+ * Process FIG Type 0 Extension 5: Service Component Language
+ * 
+ * Reverse parser from ODR-DabMux FIG0_5.cpp
+ * Structure (2 bytes per component):
+ *  - Byte 0: SubChId(6) + rfu(1) + LS(1)
+ *  - Byte 1: language code (ISO 639-2, 8 bits)
+ */
+void AdvancedFIGAnalyzer::processFIG0_5(const QByteArray& data)
+{
+    if (data.size() < 3) {  // Minimum: header(1) + one component(2)
+        m_lastError = QString("FIG 0/5: Insufficient data (need at least 3 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+    int offset = 1;  // Skip extension/header byte
+
+    int languages_found = 0;
+
+    while (offset + 2 <= data.size()) {
+        FIG0_5_Language lang;
+
+        // Byte 0: SubChId(6) + rfu(1) + LS(1)
+        lang.subchannel_id = (bytes[offset] >> 2) & 0x3F;
+        lang.short_form = (bytes[offset] & 0x01) == 0;  // LS=0 for short form (SubChId)
+
+        // Byte 1: Language code
+        lang.language_code = bytes[offset + 1];
+
+        qDebug() << "FIG 0/5: SubChId=" << lang.subchannel_id
+                 << "Language=" << FIGParsingUtils::languageCodeToString(lang.language_code)
+                 << "(" << Qt::hex << lang.language_code << Qt::dec << ")"
+                 << "Form=" << (lang.short_form ? "short" : "long");
+
+        m_component_languages[lang.subchannel_id] = lang;
+
+        // Update service language if we can find the service
+        for (auto& service_pair : m_services) {
+            DABService& service = service_pair.second;
+            for (const auto& comp : service.components) {
+                if (comp.sub_channel_id == lang.subchannel_id) {
+                    service.language = lang.language_code;
+                    qDebug() << "  -> Updated service" << Qt::hex << service.service_id
+                             << "language to" << FIGParsingUtils::languageCodeToString(lang.language_code);
+                }
+            }
+        }
+
+        languages_found++;
+        offset += 2;
+    }
+
+    if (languages_found > 0) {
+        qInfo() << "FIG 0/5: Parsed" << languages_found << "component languages";
+        m_validFIGsCount++;
+        m_totalFIGsProcessed++;
+    }
+}
+
+// ============================================================================
+// FIG 0/6 - Service Linking
+// ETSI EN 300 401 Section 8.1.9
+// ============================================================================
+
+/**
+ * Process FIG Type 0 Extension 6: Service Linking
+ * 
+ * Reverse parser from ODR-DabMux FIG0_6.cpp
+ * Complex structure with variable-length ID lists
+ * Structure:
+ *  - Byte 0: LSN[11:8](4) + ILS(1) + SH(1) + LA(1) + IdListFlag(1)
+ *  - Byte 1: LSN[7:0]
+ *  - [If IdListFlag=1] Header: num_ids(4) + rfa(1) + IdLQ(2) + rfu(1)
+ *  - [If IdListFlag=1] Service IDs (2 or 3 or 4 bytes each depending on PD and ILS)
+ */
+void AdvancedFIGAnalyzer::processFIG0_6(const QByteArray& data)
+{
+    if (data.size() < 3) {  // Minimum: header(1) + LSN(2)
+        m_lastError = QString("FIG 0/6: Insufficient data (need at least 3 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+
+    // Extract P/D flag from FIG header (byte 0, bit 2)
+    bool pd_flag = (bytes[0] & 0x04) != 0;
+    int offset = 1;  // Skip extension/header byte
+
+    FIG0_6_ServiceLink link;
+
+    // Byte 0: LSN[11:8](4) + ILS(1) + SH(1) + LA(1) + IdListFlag(1)
+    uint8_t lsn_high = (bytes[offset] >> 4) & 0x0F;
+    link.international = (bytes[offset] & 0x08) != 0;
+    link.hard_link = (bytes[offset] & 0x04) != 0;
+    link.link_actuator = (bytes[offset] & 0x02) != 0;
+    bool id_list_flag = (bytes[offset] & 0x01) != 0;
+
+    // Byte 1: LSN[7:0]
+    uint8_t lsn_low = bytes[offset + 1];
+    link.linkage_set_number = (static_cast<uint16_t>(lsn_high) << 8) | lsn_low;
+
+    offset += 2;
+
+    qDebug() << "FIG 0/6: LSN=" << Qt::hex << link.linkage_set_number
+             << "ILS=" << link.international
+             << "SH=" << (link.hard_link ? "hard" : "soft")
+             << "LA=" << link.link_actuator
+             << "IdListFlag=" << id_list_flag;
+
+    if (id_list_flag && offset + 1 <= data.size()) {
+        // Parse header byte
+        uint8_t num_ids = (bytes[offset] >> 4) & 0x0F;
+        link.id_list_qualifier = (bytes[offset] >> 1) & 0x03;  // IdLQ
+
+        offset++;
+
+        qDebug() << "  NumIds=" << num_ids << "IdLQ=" << link.id_list_qualifier
+                 << (link.id_list_qualifier == 0 ? "(DAB)" :
+                     link.id_list_qualifier == 1 ? "(RDS)" : "(DRM/AMSS)");
+
+        // Parse service IDs using P/D flag and ILS flag
+        // P/D flag: 0=programme service (16-bit SId), 1=data service (32-bit SId)
+        // ILS flag: 0=national, 1=international (adds ECC byte)
+        int bytes_per_id;
+        if (!pd_flag && !link.international) {
+            bytes_per_id = 2;  // Programme service, national: 16-bit SId
+        } else if (!pd_flag && link.international) {
+            bytes_per_id = 3;  // Programme service, international: ECC + 16-bit SId
+        } else if (pd_flag && !link.international) {
+            bytes_per_id = 4;  // Data service, national: 32-bit SId
+        } else {
+            bytes_per_id = 5;  // Data service, international: ECC + 32-bit SId (rare case)
+        }
+
+        for (int i = 0; i < num_ids && offset + bytes_per_id <= data.size(); ++i) {
+            uint32_t service_id;
+
+            if (bytes_per_id == 2) {
+                // Programme service, national: 16-bit SId
+                service_id = (static_cast<uint32_t>(bytes[offset]) << 8) | bytes[offset + 1];
+            } else if (bytes_per_id == 3) {
+                // Programme service, international: ECC + 16-bit SId (skip ECC for now)
+                service_id = (static_cast<uint32_t>(bytes[offset + 1]) << 8) | bytes[offset + 2];
+            } else if (bytes_per_id == 4) {
+                // Data service, national: 32-bit SId
+                service_id = (static_cast<uint32_t>(bytes[offset]) << 24) |
+                            (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
+                            (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
+                            bytes[offset + 3];
+            } else {
+                // Data service, international: ECC + 32-bit SId (skip ECC for now)
+                service_id = (static_cast<uint32_t>(bytes[offset + 1]) << 24) |
+                            (static_cast<uint32_t>(bytes[offset + 2]) << 16) |
+                            (static_cast<uint32_t>(bytes[offset + 3]) << 8) |
+                            bytes[offset + 4];
+            }
+
+            link.linked_service_ids.push_back(service_id);
+            qDebug() << "    Service ID" << i << "=" << Qt::hex << service_id;
+
+            offset += bytes_per_id;
+        }
+    }
+
+    m_service_links.push_back(link);
+    qInfo() << "FIG 0/6: Parsed service linkage set" << Qt::hex << link.linkage_set_number
+            << "with" << link.linked_service_ids.size() << "linked services";
+
+    m_validFIGsCount++;
+    m_totalFIGsProcessed++;
+}
+
+// ============================================================================
+// FIG 0/7 - Configuration Information
+// ETSI EN 300 401 Section 8.1.10
+// ============================================================================
+
+/**
+ * Process FIG Type 0 Extension 7: Configuration Information
+ * 
+ * Reverse parser from ODR-DabMux FIG0_7.cpp
+ * Fixed 4-byte structure:
+ *  - Byte 0-1: FIG header
+ *  - Byte 2: ReconfigCounter[9:8](2) + ServiceCount(6)
+ *  - Byte 3: ReconfigCounter[7:0]
+ */
+void AdvancedFIGAnalyzer::processFIG0_7(const QByteArray& data)
+{
+    if (data.size() < 4) {
+        m_lastError = QString("FIG 0/7: Insufficient data (need 4 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+
+    // Byte 2: ReconfigCounter[9:8](2) + ServiceCount(6)
+    uint8_t reconfig_high = (bytes[2] >> 6) & 0x03;
+    m_config_info.service_count = bytes[2] & 0x3F;
+
+    // Byte 3: ReconfigCounter[7:0]
+    uint8_t reconfig_low = bytes[3];
+
+    // Reconstruct 10-bit reconfiguration counter
+    m_config_info.reconfiguration_count = (static_cast<uint16_t>(reconfig_high) << 8) | reconfig_low;
+
+    qInfo() << "FIG 0/7: Service count=" << m_config_info.service_count
+            << "Reconfiguration counter=" << m_config_info.reconfiguration_count;
+
+    m_validFIGsCount++;
+    m_totalFIGsProcessed++;
+}
+
+// ============================================================================
+// FIG 0/8 - Service Component Global Definition  
+// ETSI EN 300 401 Section 6.3.5
+// ============================================================================
+
+/**
+ * Process FIG Type 0 Extension 8: Service Component Global Definition
+ * 
+ * Reverse parser from ODR-DabMux FIG0_8.cpp
+ * Variable structure depending on P/D flag and LS flag:
+ *  Programme service (P/D=0):
+ *   - Bytes 0-1: SId (16-bit)
+ *   - Short form (LS=0): Byte 2-3: SCIdS(4) + rfa(3) + ext(1), Id(6) + MscFic(1) + LS(1), rfa
+ *   - Long form (LS=1): Byte 2-4: SCIdS(4) + rfa(3) + ext(1), SCId[11:4](4) + rfa(3) + LS(1), SCId[3:0], rfa
+ *  Data service (P/D=1):
+ *   - Bytes 0-3: SId (32-bit)
+ *   - Similar short/long form follows
+ */
+void AdvancedFIGAnalyzer::processFIG0_8(const QByteArray& data)
+{
+    if (data.size() < 5) {  // Minimum: header(1) + SId(2) + definition(2)
+        m_lastError = QString("FIG 0/8: Insufficient data (need at least 5 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+    
+    // Check P/D flag from FIG header (byte 0, bit 2)
+    bool pd_flag = (bytes[0] & 0x04) != 0;
+    int offset = 1;  // Skip extension/header byte
+
+    int definitions_found = 0;
+
+    while (offset + 4 <= data.size()) {
+        FIG0_8_GlobalDefinition def;
+        def.is_programme_service = !pd_flag;
+
+        // Parse Service ID (16-bit or 32-bit)
+        if (pd_flag) {
+            // Data service: 32-bit SId
+            if (offset + 6 > data.size()) break;
+            def.service_id = (static_cast<uint32_t>(bytes[offset]) << 24) |
+                            (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
+                            (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
+                            bytes[offset + 3];
+            offset += 4;
+        } else {
+            // Programme service: 16-bit SId
+            if (offset + 4 > data.size()) break;
+            def.service_id = (static_cast<uint32_t>(bytes[offset]) << 8) | bytes[offset + 1];
+            offset += 2;
+        }
+
+        // Parse definition bytes
+        // Byte 0: SCIdS(4) + rfa(3) + ext(1)
+        def.service_component_id = (bytes[offset] >> 4) & 0x0F;
+
+        // Byte 1: For short form: Id(6) + MscFic(1) + LS(1)
+        //         For long form: SCId[11:4](4) + rfa(3) + LS(1)
+        def.long_form = (bytes[offset + 1] & 0x01) != 0;
+
+        if (def.long_form) {
+            // Long form: 3 bytes total
+            if (offset + 3 > data.size()) break;
+
+            uint8_t scid_high = (bytes[offset + 1] >> 4) & 0x0F;
+            uint8_t scid_low = bytes[offset + 2];
+            def.service_component_global_id = (static_cast<uint16_t>(scid_high) << 8) | scid_low;
+            def.subchannel_id = 0;  // Not applicable for long form
+
+            qDebug() << "FIG 0/8: [Long form] SId=" << Qt::hex << def.service_id
+                     << "SCIdS=" << def.service_component_id
+                     << "SCId=" << def.service_component_global_id;
+
+            offset += 3;
+        } else {
+            // Short form: 2 bytes total
+            if (offset + 2 > data.size()) break;
+
+            def.subchannel_id = (bytes[offset + 1] >> 2) & 0x3F;
+            def.service_component_global_id = 0;  // Not applicable for short form
+
+            qDebug() << "FIG 0/8: [Short form] SId=" << Qt::hex << def.service_id
+                     << "SCIdS=" << def.service_component_id
+                     << "SubChId=" << def.subchannel_id;
+
+            offset += 2;
+        }
+
+        m_global_definitions[def.service_id] = def;
+        definitions_found++;
+
+        // No additional offset increment - rfa byte is already included in short/long form sizes
+    }
+
+    if (definitions_found > 0) {
+        qInfo() << "FIG 0/8: Parsed" << definitions_found << "global definitions";
+        m_validFIGsCount++;
+        m_totalFIGsProcessed++;
+    }
+}
+
+// ============================================================================
+// FIG 0/9 - Country, LTO, International Table
+// ETSI EN 300 401 Section 5.2.2
+// ============================================================================
+
+/**
+ * Process FIG Type 0 Extension 9: Country, LTO, International Table
+ * 
+ * Reverse parser from ODR-DabMux FIG0_9.cpp
+ * Structure:
+ *  - Byte 0-1: FIG header
+ *  - Byte 2: ensembleLto(6) + rfa(1) + ext(1)
+ *  - Byte 3: ensembleEcc
+ *  - Byte 4: tableId
+ *  - [Optional] Extended fields with additional service ECCs
+ */
+void AdvancedFIGAnalyzer::processFIG0_9(const QByteArray& data)
+{
+    if (data.size() < 5) {
+        m_lastError = QString("FIG 0/9: Insufficient data (need at least 5 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+
+    // Byte 2: ensembleLto(6) + rfa(1) + ext(1)
+    uint8_t lto_field = (bytes[2] >> 2) & 0x3F;
+    m_country_lto.has_extended_fields = (bytes[2] & 0x01) != 0;
+
+    // Convert LTO from 1-complement representation if negative
+    if (lto_field & 0x20) {
+        // Negative: 1-complement representation
+        m_country_lto.ensemble_lto = -(lto_field & 0x1F);
+    } else {
+        m_country_lto.ensemble_lto = lto_field;
+    }
+
+    // Byte 3: ensembleEcc
+    m_country_lto.ensemble_ecc = bytes[3];
+
+    // Byte 4: tableId
+    m_country_lto.international_table_id = bytes[4];
+
+    qInfo() << "FIG 0/9: LTO=" << (m_country_lto.ensemble_lto / 2.0) << "hours"
+            << "ECC=" << Qt::hex << Qt::showbase << m_country_lto.ensemble_ecc
+            << "(" << FIGParsingUtils::countryCodeToString(m_country_lto.ensemble_ecc) << ")"
+            << "Table ID=" << m_country_lto.international_table_id
+            << "Extended fields=" << (m_country_lto.has_extended_fields ? "yes" : "no");
+
+    // Update ensemble info
+    m_currentEnsemble.countryCode = FIGParsingUtils::countryCodeToString(m_country_lto.ensemble_ecc);
+
+    m_validFIGsCount++;
+    m_totalFIGsProcessed++;
+}
+
+// ============================================================================
+// FIG 0/10 - Date and Time
+// ETSI EN 300 401 Section 8.1.3.2
+// ============================================================================
+
+/**
+ * Process FIG Type 0 Extension 10: Date and Time
+ * 
+ * Reverse parser from ODR-DabMux FIG0_10.cpp
+ * Fixed 8-byte structure (long form):
+ *  - Byte 0-1: FIG header
+ *  - Byte 2: MJD[16:10](7) + RFU(1)
+ *  - Byte 3: MJD[9:2]
+ *  - Byte 4: Hours[4:2](3) + UTC(1) + ConfInd(1) + LSI(1) + MJD[1:0](2)
+ *  - Byte 5: Minutes(6) + Hours[1:0](2)
+ *  - Byte 6: Milliseconds[9:8](2) + Seconds(6)
+ *  - Byte 7: Milliseconds[7:0]
+ */
+void AdvancedFIGAnalyzer::processFIG0_10(const QByteArray& data)
+{
+    if (data.size() < 8) {
+        m_lastError = QString("FIG 0/10: Insufficient data (need 8 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+
+    // Byte 2: MJD[16:10](7) + RFU(1)
+    uint32_t mjd_high = (bytes[2] >> 1) & 0x7F;
+
+    // Byte 3: MJD[9:2]
+    uint32_t mjd_med = bytes[3];
+
+    // Byte 4: Hours[4:2](3) + UTC(1) + ConfInd(1) + LSI(1) + MJD[1:0](2)
+    uint32_t mjd_low = bytes[4] & 0x03;
+    m_date_time.lsi_flag = (bytes[4] & 0x04) != 0;
+    m_date_time.conf_flag = (bytes[4] & 0x08) != 0;
+    m_date_time.utc_flag = (bytes[4] & 0x10) != 0;
+    uint8_t hours_high = (bytes[4] >> 5) & 0x07;
+
+    // Reconstruct 17-bit MJD
+    m_date_time.mjd = (mjd_high << 10) | (mjd_med << 2) | mjd_low;
+
+    // Byte 5: Minutes(6) + Hours[1:0](2)
+    uint8_t hours_low = bytes[5] & 0x03;
+    m_date_time.hours = (hours_high << 2) | hours_low;
+    m_date_time.minutes = (bytes[5] >> 2) & 0x3F;
+
+    // Byte 6: Milliseconds[9:8](2) + Seconds(6)
+    m_date_time.seconds = bytes[6] & 0x3F;
+    uint16_t ms_high = (bytes[6] >> 6) & 0x03;
+
+    // Byte 7: Milliseconds[7:0]
+    uint16_t ms_low = bytes[7];
+    m_date_time.milliseconds = (ms_high << 8) | ms_low;
+
+    // Convert to QDateTime
+    m_currentDABTime = FIGParsingUtils::mjdToDateTime(
+        m_date_time.mjd,
+        m_date_time.hours,
+        m_date_time.minutes,
+        m_date_time.seconds
+    );
+    m_timeValid = true;
+    m_date_time_valid = true;
+
+    qInfo() << "FIG 0/10: MJD=" << m_date_time.mjd
+            << "Time=" << QString("%1:%2:%3.%4")
+                .arg(m_date_time.hours, 2, 10, QChar('0'))
+                .arg(m_date_time.minutes, 2, 10, QChar('0'))
+                .arg(m_date_time.seconds, 2, 10, QChar('0'))
+                .arg(m_date_time.milliseconds, 3, 10, QChar('0'))
+            << "UTC=" << m_date_time.utc_flag
+            << "LSI=" << m_date_time.lsi_flag
+            << "ConfInd=" << m_date_time.conf_flag
+            << "DateTime=" << m_currentDABTime.toString(Qt::ISODate);
+
+    emit timeInfoUpdated(m_currentDABTime);
+
+    m_validFIGsCount++;
+    m_totalFIGsProcessed++;
+}
+
+
 void AdvancedFIGAnalyzer::processFIG0_13(const QByteArray& data)
 {
     Q_UNUSED(data)
-    // FIG 0/13: User application information - to be implemented
+    // FIG 0/13: User application information - to be implemented in future phases
     m_lastError = "FIG 0/13 not yet implemented";
     // Do NOT increment m_totalFIGsProcessed for unimplemented FIGs
 }
+
 
 void AdvancedFIGAnalyzer::processFIG1_5(const QByteArray& data)
 {
@@ -1113,11 +1664,16 @@ void AdvancedFIGAnalyzer::reset()
     m_ensembleLabel = DABLabel();
     m_sub_channels.clear();
     m_services.clear();
+    m_packet_components.clear();
+    m_component_languages.clear();
+    m_service_links.clear();
+    m_global_definitions.clear();
     m_totalFIGsProcessed = 0;
     m_validFIGsCount = 0;
     m_lastError.clear();
     m_ensembleValid = false;
     m_timeValid = false;
+    m_date_time_valid = false;
 }
 
 // ============================================================================
@@ -1536,4 +2092,141 @@ int FIGParsingUtils::protectionLevelToBitrate(uint8_t protectionLevel)
         case 3: return 128;
         default: return 64;
     }
+
 }
+// ============================================================================
+// FIG 0/3 - 0/10 Data Accessor Methods
+// ============================================================================
+
+std::vector<FIG0_3_ServiceComponent> AdvancedFIGAnalyzer::getPacketModeComponents() const
+{
+    return m_packet_components;
+}
+
+std::vector<FIG0_5_Language> AdvancedFIGAnalyzer::getComponentLanguages() const
+{
+    std::vector<FIG0_5_Language> result;
+    for (const auto& pair : m_component_languages) {
+        result.push_back(pair.second);
+    }
+    return result;
+}
+
+std::vector<FIG0_6_ServiceLink> AdvancedFIGAnalyzer::getServiceLinks() const
+{
+    return m_service_links;
+}
+
+FIG0_7_ConfigInfo AdvancedFIGAnalyzer::getConfigurationInfo() const
+{
+    return m_config_info;
+}
+
+std::vector<FIG0_8_GlobalDefinition> AdvancedFIGAnalyzer::getGlobalDefinitions() const
+{
+    std::vector<FIG0_8_GlobalDefinition> result;
+    for (const auto& pair : m_global_definitions) {
+        result.push_back(pair.second);
+    }
+    return result;
+}
+
+FIG0_9_CountryLTO AdvancedFIGAnalyzer::getCountryLTO() const
+{
+    return m_country_lto;
+}
+
+FIG0_10_DateTime AdvancedFIGAnalyzer::getDateTime() const
+{
+    return m_date_time;
+}
+
+QString FIGParsingUtils::languageCodeToString(uint8_t languageCode)
+{
+    // ISO 639-2 language codes (subset)
+    switch (languageCode) {
+        case 0x00: return "Unknown";
+        case 0x01: return "Albanian";
+        case 0x02: return "Breton";
+        case 0x03: return "Catalan";
+        case 0x04: return "Croatian";
+        case 0x05: return "Welsh";
+        case 0x06: return "Czech";
+        case 0x07: return "Danish";
+        case 0x08: return "German";
+        case 0x09: return "English";
+        case 0x0A: return "Spanish";
+        case 0x0B: return "Esperanto";
+        case 0x0C: return "Estonian";
+        case 0x0D: return "Basque";
+        case 0x0E: return "Faroese";
+        case 0x0F: return "French";
+        case 0x10: return "Frisian";
+        case 0x11: return "Irish";
+        case 0x12: return "Gaelic";
+        case 0x13: return "Galician";
+        case 0x14: return "Icelandic";
+        case 0x15: return "Italian";
+        case 0x16: return "Lappish";
+        case 0x17: return "Latin";
+        case 0x18: return "Latvian";
+        case 0x19: return "Luxembourgian";
+        case 0x1A: return "Lithuanian";
+        case 0x1B: return "Hungarian";
+        case 0x1C: return "Maltese";
+        case 0x1D: return "Dutch";
+        case 0x1E: return "Norwegian";
+        case 0x1F: return "Occitan";
+        case 0x20: return "Polish";
+        case 0x21: return "Portuguese";
+        case 0x22: return "Romanian";
+        case 0x23: return "Romansh";
+        case 0x24: return "Serbian";
+        case 0x25: return "Slovak";
+        case 0x26: return "Slovene";
+        case 0x27: return "Finnish";
+        case 0x28: return "Swedish";
+        case 0x29: return "Turkish";
+        case 0x2A: return "Flemish";
+        case 0x2B: return "Walloon";
+        case 0x45: return "Thai";
+        default: return QString("Lang 0x%1").arg(languageCode, 2, 16, QChar('0'));
+    }
+}
+
+QString FIGParsingUtils::programmeTypeToDescription(uint8_t ptyCode)
+{
+    // Same as programmeTypeToString for now
+    return programmeTypeToString(ptyCode);
+}
+
+QDateTime FIGParsingUtils::mjdToDateTime(uint32_t mjd, uint8_t hours, uint8_t minutes, uint8_t seconds)
+{
+    // Modified Julian Date conversion
+    // MJD 0 = November 17, 1858
+    // MJD starts from JD 2400000.5
+    
+    // Convert MJD to Gregorian calendar
+    int a = mjd + 2400001;
+    int b = a + 1537;
+    int c = (b - 122.1) / 365.25;
+    int d = 365.25 * c;
+    int e = (b - d) / 30.6001;
+    
+    int day = b - d - int(30.6001 * e);
+    int month = e - 1 - 12 * (e / 14);
+    int year = c - 4715 - ((7 + month) / 10);
+    
+    QDate date(year, month, day);
+    QTime time(hours, minutes, seconds);
+    
+    return QDateTime(date, time, Qt::UTC);
+}
+
+
+
+
+// ============================================================================
+// FIG 0/13 - User Application Information (Placeholder)
+// ============================================================================
+

@@ -135,7 +135,7 @@ struct DABService {
     bool is_dab_plus;              // DAB vs DAB+ (from FIG 0/8)
     std::vector<ServiceComponent> components;  // Service components
     uint8_t programme_type;        // PTy - Programme Type code
-    uint8_t language;              // Language code
+    uint8_t language;              // Language code (ISO 639-2)
     bool ca_flag;                  // Conditional Access flag
 
     DABService()
@@ -155,15 +155,107 @@ struct DABService {
 };
 
 /**
+ * @brief FIG 0/3: Service Component in Packet Mode
+ * ETSI EN 300 401 Section 6.3.1
+ */
+struct FIG0_3_ServiceComponent {
+    uint16_t service_component_id;  // SCId - 12 bits
+    uint8_t subchannel_id;          // SubChId - 6 bits
+    uint16_t packet_address;        // 10 bits
+    uint8_t data_service_component_type; // DSCTy - 6 bits
+    bool ca_flag;                   // SCCA flag
+    bool datagroup_flag;            // DG flag (0=datagroups, 1=packets)
+};
+
+/**
+ * @brief FIG 0/5: Service Component Language
+ * ETSI EN 300 401 Section 6.3.2
+ */
+struct FIG0_5_Language {
+    uint8_t subchannel_id;          // SubChId - 6 bits
+    uint8_t language_code;          // ISO 639-2 language code
+    bool short_form;                // LS flag (0=short form with SubChId, 1=long form with SCId)
+};
+
+/**
+ * @brief FIG 0/6: Service Linking
+ * ETSI EN 300 401 Section 8.1.9
+ */
+struct FIG0_6_ServiceLink {
+    uint16_t linkage_set_number;    // LSN - 12 bits
+    bool hard_link;                 // SH flag (0=soft, 1=hard)
+    bool international;             // ILS flag (0=national, 1=international)
+    bool link_actuator;             // LA flag
+    std::vector<uint32_t> linked_service_ids;  // List of linked service IDs
+    uint8_t id_list_qualifier;      // IdLQ (0=DAB, 1=RDS, 3=DRM/AMSS)
+};
+
+/**
+ * @brief FIG 0/7: Configuration Information
+ * ETSI EN 300 401 Section 8.1.10
+ */
+struct FIG0_7_ConfigInfo {
+    uint8_t service_count;          // Number of services in ensemble
+    uint16_t reconfiguration_count; // 10-bit reconfiguration counter
+};
+
+/**
+ * @brief FIG 0/8: Service Component Global Definition
+ * ETSI EN 300 401 Section 6.3.5
+ */
+struct FIG0_8_GlobalDefinition {
+    uint32_t service_id;            // SId (16-bit or 32-bit)
+    uint8_t service_component_id;   // SCIdS - 4 bits
+    bool long_form;                 // LS flag (0=short with SubChId, 1=long with SCId)
+    uint8_t subchannel_id;          // SubChId (short form) or SCId (long form)
+    uint16_t service_component_global_id; // SCId for long form (12 bits)
+    bool is_programme_service;      // Derived from P/D flag
+};
+
+/**
+ * @brief FIG 0/9: Country, LTO, International Table
+ * ETSI EN 300 401 Section 5.2.2
+ */
+struct FIG0_9_CountryLTO {
+    int8_t ensemble_lto;            // Local Time Offset in half-hours (-11.5 to +12)
+    uint8_t ensemble_ecc;           // Extended Country Code
+    uint8_t international_table_id; // International table ID
+    bool has_extended_fields;       // ext flag
+};
+
+/**
+ * @brief FIG 0/10: Date and Time
+ * ETSI EN 300 401 Section 8.1.3.2
+ */
+struct FIG0_10_DateTime {
+    uint32_t mjd;                   // Modified Julian Date (17 bits)
+    uint8_t hours;                  // 0-23 (5 bits)
+    uint8_t minutes;                // 0-59 (6 bits)
+    uint8_t seconds;                // 0-59 (6 bits)
+    uint16_t milliseconds;          // 0-999 (10 bits)
+    bool lsi_flag;                  // Leap Second Indicator
+    bool conf_flag;                 // Confidence flag
+    bool utc_flag;                  // UTC flag
+};
+
+/**
  * @brief Advanced FIG (Fast Information Group) Analyzer
  *
  * Phase 1 Week 2: Complete FIG Type 0 processing (0/0, 0/1, 0/2)
  * Phase 1 Week 2: Complete FIG Type 1 processing (1/0, 1/1, 1/4)
+ * Extended: FIG Type 0 extensions (0/3, 0/5, 0/6, 0/7, 0/8, 0/9, 0/10)
  *
  * Supports complete ETSI EN 300 799 FIG processing:
  * - FIG 0/0: Ensemble Organization
  * - FIG 0/1: Subchannel Organization
  * - FIG 0/2: Service Organization
+ * - FIG 0/3: Service Component in Packet Mode
+ * - FIG 0/5: Service Component Language
+ * - FIG 0/6: Service Linking
+ * - FIG 0/7: Configuration Information
+ * - FIG 0/8: Service Component Global Definition
+ * - FIG 0/9: Country, LTO, International Table
+ * - FIG 0/10: Date and Time
  * - FIG 1/0: Ensemble Labels
  * - FIG 1/1: Service Labels
  * - FIG 1/4: Service Component Labels
@@ -194,6 +286,15 @@ public:
     std::vector<SubChannelInfo> getAllSubChannels() const;
     std::vector<DABService> getDABServices() const;
     DABService getService(uint32_t service_id) const;
+
+    // FIG 0/3 - 0/10 data accessors
+    std::vector<FIG0_3_ServiceComponent> getPacketModeComponents() const;
+    std::vector<FIG0_5_Language> getComponentLanguages() const;
+    std::vector<FIG0_6_ServiceLink> getServiceLinks() const;
+    FIG0_7_ConfigInfo getConfigurationInfo() const;
+    std::vector<FIG0_8_GlobalDefinition> getGlobalDefinitions() const;
+    FIG0_9_CountryLTO getCountryLTO() const;
+    FIG0_10_DateTime getDateTime() const;
 
     // Analysis results
     int getTotalFIGsProcessed() const { return m_totalFIGsProcessed; }
@@ -231,11 +332,16 @@ private:
     void processFIG1(const QByteArray& figData);
 
     // FIG 0 extension processors
-    void processFIG0_0(const QByteArray& data); // Ensemble organization
-    void processFIG0_1(const QByteArray& data); // Subchannel organization
-    void processFIG0_2(const QByteArray& data); // Service organization
-    void processFIG0_3(const QByteArray& data); // Service component
-    void processFIG0_8(const QByteArray& data); // Service component global definition
+    void processFIG0_0(const QByteArray& data);  // Ensemble organization
+    void processFIG0_1(const QByteArray& data);  // Subchannel organization
+    void processFIG0_2(const QByteArray& data);  // Service organization
+    void processFIG0_3(const QByteArray& data);  // Service component in packet mode
+    void processFIG0_5(const QByteArray& data);  // Service component language
+    void processFIG0_6(const QByteArray& data);  // Service linking
+    void processFIG0_7(const QByteArray& data);  // Configuration information
+    void processFIG0_8(const QByteArray& data);  // Service component global definition
+    void processFIG0_9(const QByteArray& data);  // Country, LTO, international table
+    void processFIG0_10(const QByteArray& data); // Date and time
     void processFIG0_13(const QByteArray& data); // User application information
 
     // FIG 1 extension processors
@@ -284,6 +390,16 @@ private:
     // New FIG Type 0 data storage
     std::map<uint8_t, SubChannelInfo> m_sub_channels;  // Key: sub_channel_id
     std::map<uint32_t, DABService> m_services;         // Key: service_id
+
+    // FIG 0/3 - 0/10 data storage
+    std::vector<FIG0_3_ServiceComponent> m_packet_components;
+    std::map<uint8_t, FIG0_5_Language> m_component_languages;  // Key: subchannel_id
+    std::vector<FIG0_6_ServiceLink> m_service_links;
+    FIG0_7_ConfigInfo m_config_info;
+    std::map<uint32_t, FIG0_8_GlobalDefinition> m_global_definitions;  // Key: service_id
+    FIG0_9_CountryLTO m_country_lto;
+    FIG0_10_DateTime m_date_time;
+    bool m_date_time_valid;
 
     // FIG processing control
     QMap<QString, bool> m_enabledFIGTypes; // "type.extension" -> enabled
@@ -339,6 +455,7 @@ public:
     // Time and date utilities
     static QDateTime convertDABTime(uint32_t dabTime);
     static QString formatDABTime(const QDateTime& time);
+    static QDateTime mjdToDateTime(uint32_t mjd, uint8_t hours, uint8_t minutes, uint8_t seconds);
 
     // CRC validation
     static bool validateFIGCRC(const QByteArray& figData);
