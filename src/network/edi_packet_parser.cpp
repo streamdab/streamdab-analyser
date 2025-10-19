@@ -115,8 +115,8 @@ std::optional<AFPacket> EDIPacketParser::parseAFPacket(std::span<const uint8_t> 
     packet.sync_pattern = read_be16(data, 0);
     if (packet.sync_pattern != AF_SYNC_BYTES) {
         std::ostringstream oss;
-        oss << "Invalid AF sync bytes: expected 0x" << std::hex << AF_SYNC_BYTES
-            << ", got 0x" << packet.sync_pattern;
+        oss << "Invalid AF sync bytes: expected 0x" << std::hex << std::setw(4) << std::setfill('0') << AF_SYNC_BYTES
+            << ", got 0x" << std::setw(4) << std::setfill('0') << packet.sync_pattern;
         reportError(oss.str(), 2);
         m_statistics.af_sync_errors++;
         return std::nullopt;
@@ -161,8 +161,8 @@ std::optional<AFPacket> EDIPacketParser::parseAFPacket(std::span<const uint8_t> 
 
         if (calculated_crc != packet.crc) {
             std::ostringstream oss;
-            oss << "AF packet CRC mismatch: expected 0x" << std::hex << packet.crc
-                << ", calculated 0x" << calculated_crc;
+            oss << "AF packet CRC mismatch: expected 0x" << std::hex << std::setw(8) << std::setfill('0') << packet.crc
+                << ", calculated 0x" << std::setw(8) << std::setfill('0') << calculated_crc;
             reportError(oss.str(), 2); // Error level - CRC failures are always errors
             m_statistics.crc_errors++;
             return std::nullopt; // Always fail on CRC mismatch when validation is enabled
@@ -173,7 +173,10 @@ std::optional<AFPacket> EDIPacketParser::parseAFPacket(std::span<const uint8_t> 
     packet.payload.assign(tag_data.begin(), tag_data.end());
     packet.received_time = std::chrono::system_clock::now();
 
-    m_statistics.af_packets_parsed++;
+    // Extract TAG items from payload for statistics tracking
+    auto tag_items = extractTAGItems(tag_data);
+
+    m_statistics.total_af_packets_received++;
     return packet;
 }
 
@@ -233,7 +236,7 @@ std::vector<TAGItem> EDIPacketParser::extractTAGItems(std::span<const uint8_t> t
         }
 
         items.push_back(std::move(*tag_item));
-        m_statistics.tag_errors++;  // Count processed items
+        m_statistics.total_tag_items_parsed++;
 
         offset += bytes_consumed;
     }

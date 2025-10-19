@@ -54,6 +54,7 @@ private:
 
     /**
      * @brief Create TAG item for testing
+     * @note Uses ETSI TS 102 693 format: 4-byte name + 3-byte length + value
      */
     std::vector<uint8_t> createTAGItem(const std::string& name,
                                        const std::vector<uint8_t>& value) {
@@ -62,9 +63,8 @@ private:
         // TAG name (4 bytes)
         tag_item.insert(tag_item.end(), name.begin(), name.begin() + 4);
 
-        // TAG length (big endian, 4 bytes)
+        // TAG length (big endian, 3 bytes) - ETSI TS 102 693 uses 24-bit length
         uint32_t length = static_cast<uint32_t>(value.size());
-        tag_item.push_back((length >> 24) & 0xFF);
         tag_item.push_back((length >> 16) & 0xFF);
         tag_item.push_back((length >> 8) & 0xFF);
         tag_item.push_back(length & 0xFF);
@@ -105,7 +105,7 @@ private slots:
             0xFF, 0xFF,  // Invalid sync bytes
             0x00, 0x00, 0x00, 0x08,  // Length
             0x74, 0x65, 0x73, 0x74,  // TAG name "test"
-            0x00, 0x00, 0x00, 0x00,  // TAG length 0
+            0x00, 0x00, 0x00,        // TAG length 0 (3 bytes)
             0x00, 0x00, 0x00, 0x00   // CRC
         };
 
@@ -392,10 +392,10 @@ private slots:
      * @brief Test incomplete TAG header handling
      */
     void testIncompleteTAGHeader() {
-        // TAG header requires 8 bytes minimum, provide only 7
+        // TAG header requires 7 bytes minimum (4 name + 3 length), provide only 6
         std::vector<uint8_t> incomplete_data = {
             0x74, 0x65, 0x73, 0x74,  // TAG name "test"
-            0x00, 0x00, 0x00         // Incomplete length field
+            0x00, 0x00               // Incomplete length field (only 2 bytes)
         };
 
         edi::EDIPacketParser parser;

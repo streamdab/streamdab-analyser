@@ -296,7 +296,7 @@ void AdvancedFIGAnalyzer::processFIG0_0(const QByteArray& data)
     }
 
     // Extract ensemble information using safe helpers
-    uint16_t ensembleId = extractUInt16(data, 2);
+    uint16_t ensembleId = extractUInt16(data, 1);
     if (ensembleId == 0 && data.size() < 4) {
         // extractUInt16 returned 0 due to bounds error
         m_lastError = "FIG 0/0: Failed to extract ensemble ID (bounds error)";
@@ -314,8 +314,8 @@ void AdvancedFIGAnalyzer::processFIG0_0(const QByteArray& data)
     m_ensembleValid = true;
 
     // Extract country code and ECC if available
-    if (data.size() >= 8) {
-        uint8_t countryCode = static_cast<uint8_t>(data[6]);
+    if (data.size() >= 6) {
+        uint8_t countryCode = static_cast<uint8_t>(data[5]) & 0x0F;
         m_currentEnsemble.countryCode = FIGParsingUtils::countryCodeToString(countryCode);
         // Note: ECC (Extended Country Code) extraction could be added here if needed
         // It would be in data[7] if the structure is extended to support it
