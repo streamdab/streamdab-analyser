@@ -130,6 +130,10 @@ void AdvancedFIGAnalyzer::initializeDefaultFIGTypes()
     m_enabledFIGTypes["0.9"] = true;   // Country, LTO, international table
     m_enabledFIGTypes["0.10"] = true;  // Date and time
     m_enabledFIGTypes["0.13"] = false; // User application (optional)
+    m_enabledFIGTypes["0.14"] = false; // FEC sub-channel organization (optional)
+    m_enabledFIGTypes["0.17"] = true;  // Programme type (recommended)
+    m_enabledFIGTypes["0.18"] = true;  // Announcement support (EWS CRITICAL)
+    m_enabledFIGTypes["0.19"] = true;  // Announcement switching (EWS CRITICAL)
     m_enabledFIGTypes["1.0"] = true;   // Ensemble labels
     m_enabledFIGTypes["1.1"] = true;   // Service labels
     m_enabledFIGTypes["1.4"] = true;   // Service component labels
@@ -250,6 +254,18 @@ void AdvancedFIGAnalyzer::processFIG0(const QByteArray& figData)
             break;
         case 13:
             processFIG0_13(figData);
+            break;
+        case 14:
+            processFIG0_14(figData);
+            break;
+        case 17:
+            processFIG0_17(figData);
+            break;
+        case 18:
+            processFIG0_18(figData);
+            break;
+        case 19:
+            processFIG0_19(figData);
             break;
         default:
             qDebug() << "Unsupported FIG 0 extension:" << extension;
@@ -1619,13 +1635,452 @@ void AdvancedFIGAnalyzer::processFIG0_10(const QByteArray& data)
 }
 
 
+// ============================================================================
+// FIG 0/13 - User Application Information
+// ETSI EN 300 401 Section 6.3.6 (Phase 2A Week 6)
+// ============================================================================
+
+/**
+ * Process FIG Type 0 Extension 13: User Application Information
+ * 
+ * Reverse-engineered from ODR-DabMux FIG0_13.cpp
+ * Indicates user applications carried by service components (MOT Slideshow, EPG, etc.)
+ * 
+ * Structure per service component:
+ * - Service ID: 16-bit (P/D=0) or 32-bit (P/D=1)
+ * - SCIdS: 4-bit service component identifier
+ * - No: 4-bit number of user applications
+ * For each user application:
+ *   - User app type: 11-bit (typeHigh 8 bits + typeLow 3 bits)
+ *   - User app data length: 5-bit
+ *   - User app data: variable length (application-specific)
+ */
 void AdvancedFIGAnalyzer::processFIG0_13(const QByteArray& data)
 {
-    Q_UNUSED(data)
-    // FIG 0/13: User application information - to be implemented in future phases
-    m_lastError = "FIG 0/13 not yet implemented";
-    // Do NOT increment m_totalFIGsProcessed for unimplemented FIGs
+    if (data.size() < 4) {  // Minimum: header(1) + SId(2) + SCIdS+No(1)
+        m_lastError = QString("FIG 0/13: Insufficient data (need at least 4 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+    
+    // Extract P/D flag from FIG header (byte 0, bit 2)
+    bool pd_flag = (bytes[0] & 0x04) != 0;
+    int offset = 1;  // Skip extension/header byte
+
+    int applications_found = 0;
+
+    while (offset + 3 <= data.size()) {
+        FIG0_13_UserApp app;
+
+        // Parse Service ID (16-bit or 32-bit based on P/D flag)
+        if (pd_flag) {
+            // Data service: 32-bit SId
+            if (offset + 4 > data.size()) break;
+            app.service_id = (static_cast<uint32_t>(bytes[offset]) << 24) |
+                            (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
+                            (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
+                            bytes[offset + 3];
+            offset += 4;
+        } else {
+            // Programme service: 16-bit SId
+            if (offset + 2 > data.size()) break;
+            app.service_id = (static_cast<uint32_t>(bytes[offset]) << 8) | bytes[offset + 1];
+            offset += 2;
+        }
+
+        // Parse SCIdS (4 bits, high nibble) and No (4 bits, low nibble)
+        if (offset >= data.size()) break;
+        app.component_id = (bytes[offset] >> 4) & 0x0F;
+        uint8_t num_apps = bytes[offset] & 0x0F;
+        offset++;
+
+        qDebug() << "FIG 0/13: Service ID=" << Qt::hex << app.service_id
+                 << "SCIdS=" << app.component_id
+                 << "NumApps=" << Qt::dec << num_apps;
+
+        // Parse each user application
+        for (uint8_t i = 0; i < num_apps && offset + 2 <= data.size(); ++i) {
+            // Byte 0: User app type high byte (bits 10-3 of 11-bit type)
+            uint8_t type_high = bytes[offset];
+
+            // Byte 1: Length(5 bits, bits 7-3) + Type low(3 bits, bits 2-0)
+            uint8_t length = (bytes[offset + 1] >> 3) & 0x1F;
+            uint8_t type_low = bytes[offset + 1] & 0x07;
+
+            // Reconstruct 11-bit user application type
+            app.user_app_type = (static_cast<uint16_t>(type_high) << 3) | type_low;
+
+            offset += 2;
+
+            // Read user application data
+            if (offset + length > data.size()) {
+                m_lastError = "FIG 0/13: User app data length exceeds buffer";
+                qWarning() << m_lastError;
+                return;  // Exit entire function - nested loop requires early return
+            }
+
+            app.user_app_data.clear();
+            for (uint8_t j = 0; j < length; ++j) {
+                app.user_app_data.push_back(bytes[offset + j]);
+            }
+            offset += length;
+
+            // Log application type
+            QString app_type_name;
+            switch (app.user_app_type) {
+                case USER_APP_SPI: app_type_name = "SPI"; break;
+                case USER_APP_MOT_SLIDESHOW: app_type_name = "MOT Slideshow"; break;
+                case USER_APP_MOT_BWS: app_type_name = "MOT BWS"; break;
+                case USER_APP_TPEG: app_type_name = "TPEG"; break;
+                case USER_APP_EPG: app_type_name = "EPG"; break;
+                case USER_APP_JOURNALINE: app_type_name = "Journaline"; break;
+                default: app_type_name = QString("Type 0x%1").arg(app.user_app_type, 3, 16, QChar('0'));
+            }
+
+            qInfo() << "  User app" << i << ":" << app_type_name
+                    << "(" << Qt::hex << Qt::showbase << app.user_app_type << Qt::dec << ")"
+                    << "data length=" << length;
+
+            m_user_applications.push_back(app);
+            applications_found++;
+        }
+    }
+
+    if (applications_found > 0) {
+        qInfo() << "FIG 0/13: Parsed" << applications_found << "user applications";
+        m_validFIGsCount++;
+        m_totalFIGsProcessed++;
+    }
 }
+
+// ============================================================================
+// FIG 0/14 - FEC Sub-channel Organization
+// ETSI EN 300 401 Section 6.2.2 (Phase 2A Week 6)
+// ============================================================================
+
+/**
+ * Process FIG Type 0 Extension 14: FEC Sub-channel Organization
+ * 
+ * Reverse-engineered from ODR-DabMux FIG0_14.cpp
+ * Defines Forward Error Correction (FEC) scheme for enhanced packet mode sub-channels
+ * 
+ * Structure (1 byte per sub-channel):
+ * - SubChId: 6 bits (bits 7-2)
+ * - FEC scheme: 2 bits (bits 1-0)
+ */
+void AdvancedFIGAnalyzer::processFIG0_14(const QByteArray& data)
+{
+    if (data.size() < 2) {  // Minimum: header(1) + one subchannel(1)
+        m_lastError = QString("FIG 0/14: Insufficient data (need at least 2 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+    int offset = 1;  // Skip extension/header byte
+
+    int fec_schemes_found = 0;
+
+    while (offset < data.size()) {
+        FIG0_14_FECScheme fec;
+
+        // Byte format: SubChId(6 bits, bits 7-2) + FEC scheme(2 bits, bits 1-0)
+        fec.subchannel_id = (bytes[offset] >> 2) & 0x3F;
+        fec.fec_scheme = bytes[offset] & 0x03;
+
+        QString fec_name;
+        switch (fec.fec_scheme) {
+            case FEC_SCHEME_NO_FEC: fec_name = "No FEC"; break;
+            case FEC_SCHEME_RS: fec_name = "Reed-Solomon"; break;
+            case FEC_SCHEME_RS_2: fec_name = "Reed-Solomon variant"; break;
+            case FEC_SCHEME_RESERVED: fec_name = "Reserved"; break;
+            default: fec_name = QString("Unknown(%1)").arg(fec.fec_scheme);
+        }
+
+        qDebug() << "FIG 0/14: SubChId=" << fec.subchannel_id
+                 << "FEC scheme=" << fec_name;
+
+        m_fec_schemes[fec.subchannel_id] = fec;
+        fec_schemes_found++;
+
+        offset++;
+    }
+
+    if (fec_schemes_found > 0) {
+        qInfo() << "FIG 0/14: Parsed" << fec_schemes_found << "FEC scheme definitions";
+        m_validFIGsCount++;
+        m_totalFIGsProcessed++;
+    }
+}
+
+// ============================================================================
+// FIG 0/17 - Programme Type
+// ETSI EN 300 401 Section 8.1.5 (Phase 2A Week 6)
+// ============================================================================
+
+/**
+ * Process FIG Type 0 Extension 17: Programme Type
+ * 
+ * Reverse-engineered from ODR-DabMux FIG0_17.cpp
+ * Classifies programmes by genre for EPG and service filtering
+ * 
+ * Structure (4 bytes per service):
+ * - Bytes 0-1: SId (16-bit, programme services only)
+ * - Byte 2: rfa2_high(4) + rfu1(2) + rfa1(1) + SD(1)
+ * - Byte 3: IntCode(5) + rfu2(1) + rfa2_low(2)
+ */
+void AdvancedFIGAnalyzer::processFIG0_17(const QByteArray& data)
+{
+    if (data.size() < 5) {  // Minimum: header(1) + one service(4)
+        m_lastError = QString("FIG 0/17: Insufficient data (need at least 5 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+    int offset = 1;  // Skip extension/header byte
+
+    int programme_types_found = 0;
+
+    while (offset + 4 <= data.size()) {
+        FIG0_17_ProgrammeType pty;
+
+        // Bytes 0-1: Service ID (16-bit, only for programme services)
+        pty.service_id = (static_cast<uint16_t>(bytes[offset]) << 8) | bytes[offset + 1];
+
+        // Byte 2: SD flag (bit 0) - Static/Dynamic PTy flag
+        pty.is_static = (bytes[offset + 2] & 0x01) == 0;  // SD=0 means static
+
+        // Byte 3: IntCode (5 bits, bits 7-3) - Programme Type code
+        pty.programme_type = (bytes[offset + 3] >> 3) & 0x1F;
+
+        qInfo() << "FIG 0/17: Service ID=" << Qt::hex << Qt::showbase << pty.service_id
+                << "PTy=" << Qt::dec << pty.programme_type
+                << "(" << FIGParsingUtils::programmeTypeToString(pty.programme_type) << ")"
+                << "SD=" << (pty.is_static ? "static" : "dynamic");
+
+        m_programme_type_info[pty.service_id] = pty;
+
+        // Update service in m_services map
+        if (m_services.count(pty.service_id)) {
+            m_services[pty.service_id].programme_type = pty.programme_type;
+        }
+
+        // Update legacy programme types map
+        m_programmeTypes[pty.service_id] = pty.programme_type;
+
+        emit programmeTypeUpdated(pty.service_id, pty.programme_type);
+
+        programme_types_found++;
+        offset += 4;
+    }
+
+    if (programme_types_found > 0) {
+        qInfo() << "FIG 0/17: Parsed" << programme_types_found << "programme type definitions";
+        m_validFIGsCount++;
+        m_totalFIGsProcessed++;
+    }
+}
+
+// ============================================================================
+// FIG 0/18 - Announcement Support
+// ETSI EN 300 401 Section 8.1.6.1 (Phase 2A Week 6)
+// ============================================================================
+
+/**
+ * Process FIG Type 0 Extension 18: Announcement Support
+ * 
+ * Reverse-engineered from ODR-DabMux FIG0_18.cpp
+ * Indicates which announcement types a service can carry (including EWS)
+ * 
+ * Structure per service:
+ * - Bytes 0-1: SId (16-bit)
+ * - Bytes 2-3: ASu flags (16-bit announcement support flags)
+ * - Byte 4: NumClusters(5 bits, bits 7-3) + Rfa(3 bits)
+ * - Followed by cluster IDs (1 byte each)
+ * 
+ * Note: Per ETSI EN 300 401, bit 0 of ASu (Alarm) and cluster 0xFF are handled specially
+ */
+void AdvancedFIGAnalyzer::processFIG0_18(const QByteArray& data)
+{
+    if (data.size() < 6) {  // Minimum: header(1) + SId(2) + ASu(2) + NumClusters(1)
+        m_lastError = QString("FIG 0/18: Insufficient data (need at least 6 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+    int offset = 1;  // Skip extension/header byte
+
+    int announcements_found = 0;
+
+    while (offset + 5 <= data.size()) {
+        FIG0_18_AnnouncementSupport support;
+
+        // Bytes 0-1: Service ID (16-bit)
+        support.service_id = (static_cast<uint16_t>(bytes[offset]) << 8) | bytes[offset + 1];
+
+        // Bytes 2-3: ASu flags (16-bit)
+        // Note: Per ETSI EN 300 401 Section 8.1.6, bit 0 must be 0 (Alarm declared via FIG 0/0)
+        support.announcement_support_flags = (static_cast<uint16_t>(bytes[offset + 2]) << 8) | bytes[offset + 3];
+
+        // Byte 4: NumClusters (5 bits, bits 7-3)
+        uint8_t num_clusters = (bytes[offset + 4] >> 3) & 0x1F;
+
+        offset += 5;
+
+        // Read cluster IDs
+        support.cluster_ids.clear();
+        for (uint8_t i = 0; i < num_clusters && offset < data.size(); ++i) {
+            uint8_t cluster_id = bytes[offset];
+            // Per ETSI EN 300 401, cluster 0xFF must not be sent in FIG 0/18
+            if (cluster_id != 0xFF) {
+                support.cluster_ids.push_back(cluster_id);
+            }
+            offset++;
+        }
+
+        qInfo() << "FIG 0/18: Service ID=" << Qt::hex << Qt::showbase << support.service_id
+                << "ASu flags=" << Qt::hex << support.announcement_support_flags
+                << "Clusters=" << Qt::dec << support.cluster_ids.size();
+
+        // Log supported announcement types
+        if (support.announcement_support_flags & ANNOUNCEMENT_ALARM) {
+            qInfo() << "  -> Supports EMERGENCY ALARMS (EWS capable)";
+        }
+        if (support.announcement_support_flags & ANNOUNCEMENT_ROAD_TRAFFIC) {
+            qInfo() << "  -> Supports Road Traffic Flash";
+        }
+        if (support.announcement_support_flags & ANNOUNCEMENT_NEWS_FLASH) {
+            qInfo() << "  -> Supports News Flash";
+        }
+
+        m_announcement_support.push_back(support);
+        announcements_found++;
+    }
+
+    if (announcements_found > 0) {
+        qInfo() << "FIG 0/18: Parsed" << announcements_found << "announcement support definitions";
+        m_validFIGsCount++;
+        m_totalFIGsProcessed++;
+    }
+}
+
+// ============================================================================
+// FIG 0/19 - Announcement Switching (EWS CRITICAL)
+// ETSI EN 300 401 Section 8.1.6.2 (Phase 2A Week 6)
+// ============================================================================
+
+/**
+ * Process FIG Type 0 Extension 19: Announcement Switching
+ * 
+ * **CRITICAL FOR THAI NBTC EMERGENCY WARNING SYSTEM (EWS)**
+ * 
+ * Reverse-engineered from ODR-DabMux FIG0_19.cpp
+ * Real-time announcement activation/deactivation including EMERGENCY ALARMS
+ * 
+ * Structure per cluster (4 bytes minimum):
+ * - Byte 0: ClusterId (8 bits)
+ * - Bytes 1-2: ASw flags (16-bit, active announcement types RIGHT NOW)
+ * - Byte 3: SubChId(6 bits, bits 5-0) + RegionFlag(1 bit, bit 6) + NewFlag(1 bit, bit 7)
+ * - [Optional] Byte 4: regionId_lower (6 bits) if RegionFlag=1
+ * 
+ * **EWS CRITICAL**: When ASw bit 0 (ANNOUNCEMENT_ALARM) is set, EMERGENCY ALARM IS ACTIVE!
+ */
+void AdvancedFIGAnalyzer::processFIG0_19(const QByteArray& data)
+{
+    if (data.size() < 5) {  // Minimum: header(1) + one cluster(4)
+        m_lastError = QString("FIG 0/19: Insufficient data (need at least 5 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+    int offset = 1;  // Skip extension/header byte
+
+    // Clear previous active announcements (real-time status)
+    m_active_announcements.clear();
+
+    int announcements_active = 0;
+
+    while (offset + 4 <= data.size()) {
+        FIG0_19_AnnouncementSwitching switching;
+
+        // Byte 0: Cluster ID
+        switching.cluster_id = bytes[offset];
+
+        // Bytes 1-2: ASw flags (16-bit, ACTIVE announcement types)
+        switching.announcement_flags = (static_cast<uint16_t>(bytes[offset + 1]) << 8) | bytes[offset + 2];
+
+        // Byte 3: NewFlag(1) + RegionFlag(1) + SubChId(6)
+        switching.new_flag = (bytes[offset + 3] & 0x80) != 0;
+        switching.region_flag = (bytes[offset + 3] & 0x40) != 0;
+        switching.subchannel_id = bytes[offset + 3] & 0x3F;
+
+        offset += 4;
+
+        // Read region ID if present (ETSI EN 300 401 Section 8.1.6.2)
+        if (switching.region_flag) {
+            if (offset >= data.size()) {
+                m_lastError = "FIG 0/19: Missing region ID byte when RegionFlag=1";
+                qWarning() << m_lastError;
+                break;  // Exit loop - incomplete announcement data
+            }
+            switching.region_id = bytes[offset] & 0x3F;
+            offset++;
+        } else {
+            switching.region_id = 0;
+        }
+
+        qInfo() << "FIG 0/19: Cluster ID=" << switching.cluster_id
+                << "ASw flags=" << Qt::hex << Qt::showbase << switching.announcement_flags
+                << "SubChId=" << Qt::dec << switching.subchannel_id
+                << "New=" << switching.new_flag
+                << "Region=" << (switching.region_flag ? QString::number(switching.region_id) : "none");
+
+        // **EWS CRITICAL DETECTION**
+        if (switching.announcement_flags & ANNOUNCEMENT_ALARM) {
+            qCritical() << "*** EMERGENCY ALARM ACTIVE *** Cluster" << switching.cluster_id
+                        << "SubChannel" << switching.subchannel_id
+                        << (switching.region_flag ? QString("Region %1").arg(switching.region_id) : "All regions");
+
+            // Emit EWS signal for UI and logging
+            emit emergencyAlarmActivated(switching);
+        }
+
+        // Detect other announcement types
+        if (switching.announcement_flags & ANNOUNCEMENT_ROAD_TRAFFIC) {
+            qWarning() << "Road Traffic Flash ACTIVE on cluster" << switching.cluster_id;
+        }
+        if (switching.announcement_flags & ANNOUNCEMENT_NEWS_FLASH) {
+            qInfo() << "News Flash ACTIVE on cluster" << switching.cluster_id;
+        }
+
+        // New announcement detection for immediate UI updates
+        if (switching.new_flag) {
+            qInfo() << "NEW announcement started on cluster" << switching.cluster_id;
+            emit announcementActivated(switching.cluster_id, switching.announcement_flags);
+        }
+
+        // Deactivation detection (ASw = 0 means announcement ended)
+        if (switching.announcement_flags == 0) {
+            qInfo() << "Announcement DEACTIVATED on cluster" << switching.cluster_id;
+            emit announcementDeactivated(switching.cluster_id);
+        }
+
+        m_active_announcements.push_back(switching);
+        announcements_active++;
+    }
+
+    if (announcements_active > 0) {
+        qInfo() << "FIG 0/19: Parsed" << announcements_active << "announcement switching states";
+        m_validFIGsCount++;
+        m_totalFIGsProcessed++;
+    }
+}
+
 
 
 void AdvancedFIGAnalyzer::processFIG1_5(const QByteArray& data)
@@ -1668,6 +2123,11 @@ void AdvancedFIGAnalyzer::reset()
     m_component_languages.clear();
     m_service_links.clear();
     m_global_definitions.clear();
+    m_user_applications.clear();
+    m_fec_schemes.clear();
+    m_programme_type_info.clear();
+    m_announcement_support.clear();
+    m_active_announcements.clear();
     m_totalFIGsProcessed = 0;
     m_validFIGsCount = 0;
     m_lastError.clear();
@@ -2230,3 +2690,41 @@ QDateTime FIGParsingUtils::mjdToDateTime(uint32_t mjd, uint8_t hours, uint8_t mi
 // FIG 0/13 - User Application Information (Placeholder)
 // ============================================================================
 
+
+
+// ============================================================================
+// FIG 0/13 - 0/19 Data Accessor Methods (Phase 2A Week 6)
+// ============================================================================
+
+std::vector<FIG0_13_UserApp> AdvancedFIGAnalyzer::getUserApplications() const
+{
+    return m_user_applications;
+}
+
+std::vector<FIG0_14_FECScheme> AdvancedFIGAnalyzer::getFECSchemes() const
+{
+    std::vector<FIG0_14_FECScheme> result;
+    for (const auto& pair : m_fec_schemes) {
+        result.push_back(pair.second);
+    }
+    return result;
+}
+
+std::vector<FIG0_17_ProgrammeType> AdvancedFIGAnalyzer::getProgrammeTypes() const
+{
+    std::vector<FIG0_17_ProgrammeType> result;
+    for (const auto& pair : m_programme_type_info) {
+        result.push_back(pair.second);
+    }
+    return result;
+}
+
+std::vector<FIG0_18_AnnouncementSupport> AdvancedFIGAnalyzer::getAnnouncementSupport() const
+{
+    return m_announcement_support;
+}
+
+std::vector<FIG0_19_AnnouncementSwitching> AdvancedFIGAnalyzer::getActiveAnnouncements() const
+{
+    return m_active_announcements;
+}

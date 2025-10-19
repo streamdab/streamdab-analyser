@@ -239,13 +239,132 @@ struct FIG0_10_DateTime {
 };
 
 /**
+ * @brief FIG 0/13: User Application Information
+ * ETSI EN 300 401 Section 6.3.6 (Phase 2A Week 6)
+ */
+struct FIG0_13_UserApp {
+    uint32_t service_id;           // Service carrying the application (16 or 32-bit)
+    uint8_t component_id;          // SCIdS - Service component identifier (4 bits)
+    uint16_t user_app_type;        // Application type code (11 bits)
+    std::vector<uint8_t> user_app_data;  // Application-specific data
+};
+
+// User Application Type Constants - ETSI EN 300 401 Table 18
+constexpr uint16_t USER_APP_NOT_USED = 0x000;
+constexpr uint16_t USER_APP_SPI = 0x001;           // Service Programme Information
+constexpr uint16_t USER_APP_MOT_SLIDESHOW = 0x002; // MOT Slideshow
+constexpr uint16_t USER_APP_MOT_BWS = 0x003;       // MOT Broadcast Web Site
+constexpr uint16_t USER_APP_TPEG = 0x004;          // TPEG (Traffic & Travel)
+constexpr uint16_t USER_APP_DGPS = 0x005;          // DGPS
+constexpr uint16_t USER_APP_TMC = 0x006;           // TMC (Traffic Message Channel)
+constexpr uint16_t USER_APP_EPG = 0x007;           // Electronic Programme Guide
+constexpr uint16_t USER_APP_DAB_JAVA = 0x008;      // DAB Java
+constexpr uint16_t USER_APP_JOURNALINE = 0x044;    // Journaline
+
+/**
+ * @brief FIG 0/14: FEC Sub-channel Organization
+ * ETSI EN 300 401 Section 6.2.2 (Phase 2A Week 6)
+ */
+struct FIG0_14_FECScheme {
+    uint8_t subchannel_id;         // Sub-channel identifier (6 bits)
+    uint8_t fec_scheme;            // FEC scheme identifier (2 bits)
+};
+
+// FEC Scheme Values - ETSI EN 300 401 Table 33
+constexpr uint8_t FEC_SCHEME_NO_FEC = 0;
+constexpr uint8_t FEC_SCHEME_RS = 1;     // Reed-Solomon
+constexpr uint8_t FEC_SCHEME_RS_2 = 2;   // Reed-Solomon variant
+constexpr uint8_t FEC_SCHEME_RESERVED = 3;
+
+/**
+ * @brief FIG 0/17: Programme Type
+ * ETSI EN 300 401 Section 8.1.5 (Phase 2A Week 6)
+ */
+struct FIG0_17_ProgrammeType {
+    uint16_t service_id;           // Service identifier (16-bit for programme services)
+    bool is_static;                // SD flag: 0=static/dynamic PTy, 1=static PTy
+    uint8_t programme_type;        // PTy code (5 bits)
+};
+
+// Programme Type Codes - ETSI EN 300 401 Table 10
+constexpr uint8_t PTY_NO_PROGRAMME = 0;
+constexpr uint8_t PTY_NEWS = 1;
+constexpr uint8_t PTY_CURRENT_AFFAIRS = 2;
+constexpr uint8_t PTY_INFORMATION = 3;
+constexpr uint8_t PTY_SPORT = 4;
+constexpr uint8_t PTY_EDUCATION = 5;
+constexpr uint8_t PTY_DRAMA = 6;
+constexpr uint8_t PTY_CULTURE = 7;
+constexpr uint8_t PTY_SCIENCE = 8;
+constexpr uint8_t PTY_VARIED = 9;
+constexpr uint8_t PTY_POP_MUSIC = 10;
+constexpr uint8_t PTY_ROCK_MUSIC = 11;
+constexpr uint8_t PTY_EASY_LISTENING = 12;
+constexpr uint8_t PTY_LIGHT_CLASSICAL = 13;
+constexpr uint8_t PTY_SERIOUS_CLASSICAL = 14;
+constexpr uint8_t PTY_OTHER_MUSIC = 15;
+constexpr uint8_t PTY_WEATHER = 16;
+constexpr uint8_t PTY_FINANCE = 17;
+constexpr uint8_t PTY_CHILDREN = 18;
+constexpr uint8_t PTY_SOCIAL_AFFAIRS = 19;
+constexpr uint8_t PTY_RELIGION = 20;
+constexpr uint8_t PTY_PHONE_IN = 21;
+constexpr uint8_t PTY_TRAVEL = 22;
+constexpr uint8_t PTY_LEISURE = 23;
+constexpr uint8_t PTY_JAZZ_MUSIC = 24;
+constexpr uint8_t PTY_COUNTRY_MUSIC = 25;
+constexpr uint8_t PTY_NATIONAL_MUSIC = 26;
+constexpr uint8_t PTY_OLDIES_MUSIC = 27;
+constexpr uint8_t PTY_FOLK_MUSIC = 28;
+constexpr uint8_t PTY_DOCUMENTARY = 29;
+constexpr uint8_t PTY_ALARM_TEST = 30;
+constexpr uint8_t PTY_ALARM = 31;
+
+/**
+ * @brief FIG 0/18: Announcement Support
+ * ETSI EN 300 401 Section 8.1.6.1 (Phase 2A Week 6)
+ */
+struct FIG0_18_AnnouncementSupport {
+    uint16_t service_id;           // Service identifier (16-bit)
+    uint16_t announcement_support_flags;  // 16-bit flags (ASu field)
+    std::vector<uint8_t> cluster_ids;     // List of cluster identifiers
+};
+
+// Announcement Type Flags - ETSI EN 300 401 Table 14
+constexpr uint16_t ANNOUNCEMENT_ALARM = 0x0001;           // Emergency alarm (EWS)
+constexpr uint16_t ANNOUNCEMENT_ROAD_TRAFFIC = 0x0002;    // Road traffic flash
+constexpr uint16_t ANNOUNCEMENT_TRANSPORT_FLASH = 0x0004; // Transport flash
+constexpr uint16_t ANNOUNCEMENT_WARNING = 0x0008;         // Warning/Service
+constexpr uint16_t ANNOUNCEMENT_NEWS_FLASH = 0x0010;      // News flash
+constexpr uint16_t ANNOUNCEMENT_AREA_WEATHER = 0x0020;    // Area weather flash
+constexpr uint16_t ANNOUNCEMENT_EVENT = 0x0040;           // Event announcement
+constexpr uint16_t ANNOUNCEMENT_SPECIAL_EVENT = 0x0080;   // Special event
+constexpr uint16_t ANNOUNCEMENT_PROGRAMME_INFO = 0x0100;  // Programme information
+constexpr uint16_t ANNOUNCEMENT_SPORT_REPORT = 0x0200;    // Sport report
+constexpr uint16_t ANNOUNCEMENT_FINANCIAL_REPORT = 0x0400; // Financial report
+
+/**
+ * @brief FIG 0/19: Announcement Switching (EWS CRITICAL)
+ * ETSI EN 300 401 Section 8.1.6.2 (Phase 2A Week 6)
+ */
+struct FIG0_19_AnnouncementSwitching {
+    uint8_t cluster_id;            // Cluster identifier
+    uint16_t announcement_flags;    // Active announcement types (16-bit flags - ASw field)
+    uint8_t subchannel_id;         // Sub-channel carrying announcement (6 bits)
+    bool new_flag;                 // New announcement indicator
+    bool region_flag;              // Region flag (indicates regionId_lower present)
+    uint8_t region_id;             // Geographic region (optional, 6 bits)
+};
+
+/**
  * @brief Advanced FIG (Fast Information Group) Analyzer
  *
  * Phase 1 Week 2: Complete FIG Type 0 processing (0/0, 0/1, 0/2)
  * Phase 1 Week 2: Complete FIG Type 1 processing (1/0, 1/1, 1/4)
- * Extended: FIG Type 0 extensions (0/3, 0/5, 0/6, 0/7, 0/8, 0/9, 0/10)
+ * Phase 2A Week 5: FIG Type 0 extensions (0/3, 0/5, 0/6, 0/7, 0/8, 0/9, 0/10)
+ * Phase 2A Week 6: FIG Type 0 advanced (0/13, 0/14, 0/17, 0/18, 0/19)
  *
- * Supports complete ETSI EN 300 799 FIG processing:
+ * Supports complete ETSI EN 300 401 FIG processing:
  * - FIG 0/0: Ensemble Organization
  * - FIG 0/1: Subchannel Organization
  * - FIG 0/2: Service Organization
@@ -256,6 +375,11 @@ struct FIG0_10_DateTime {
  * - FIG 0/8: Service Component Global Definition
  * - FIG 0/9: Country, LTO, International Table
  * - FIG 0/10: Date and Time
+ * - FIG 0/13: User Application Information
+ * - FIG 0/14: FEC Sub-channel Organization
+ * - FIG 0/17: Programme Type
+ * - FIG 0/18: Announcement Support
+ * - FIG 0/19: Announcement Switching (EWS)
  * - FIG 1/0: Ensemble Labels
  * - FIG 1/1: Service Labels
  * - FIG 1/4: Service Component Labels
@@ -296,6 +420,13 @@ public:
     FIG0_9_CountryLTO getCountryLTO() const;
     FIG0_10_DateTime getDateTime() const;
 
+    // FIG 0/13 - 0/19 data accessors (Phase 2A Week 6)
+    std::vector<FIG0_13_UserApp> getUserApplications() const;
+    std::vector<FIG0_14_FECScheme> getFECSchemes() const;
+    std::vector<FIG0_17_ProgrammeType> getProgrammeTypes() const;
+    std::vector<FIG0_18_AnnouncementSupport> getAnnouncementSupport() const;
+    std::vector<FIG0_19_AnnouncementSwitching> getActiveAnnouncements() const;
+
     // Analysis results
     int getTotalFIGsProcessed() const { return m_totalFIGsProcessed; }
     int getValidFIGsCount() const { return m_validFIGsCount; }
@@ -326,6 +457,11 @@ signals:
     void subChannelsUpdated();
     void servicesUpdated();
 
+    // Phase 2A Week 6: EWS and announcement signals
+    void emergencyAlarmActivated(const FIG0_19_AnnouncementSwitching& announcement);
+    void announcementActivated(uint8_t cluster_id, uint16_t announcement_flags);
+    void announcementDeactivated(uint8_t cluster_id);
+
 private:
     // FIG type processors
     void processFIG0(const QByteArray& figData);
@@ -343,6 +479,10 @@ private:
     void processFIG0_9(const QByteArray& data);  // Country, LTO, international table
     void processFIG0_10(const QByteArray& data); // Date and time
     void processFIG0_13(const QByteArray& data); // User application information
+    void processFIG0_14(const QByteArray& data); // FEC sub-channel organization
+    void processFIG0_17(const QByteArray& data); // Programme type
+    void processFIG0_18(const QByteArray& data); // Announcement support
+    void processFIG0_19(const QByteArray& data); // Announcement switching (EWS)
 
     // FIG 1 extension processors
     void processFIG1_0(const QByteArray& data); // Ensemble labels
@@ -400,6 +540,13 @@ private:
     FIG0_9_CountryLTO m_country_lto;
     FIG0_10_DateTime m_date_time;
     bool m_date_time_valid;
+
+    // FIG 0/13 - 0/19 data storage (Phase 2A Week 6)
+    std::vector<FIG0_13_UserApp> m_user_applications;
+    std::map<uint8_t, FIG0_14_FECScheme> m_fec_schemes;  // Key: subchannel_id
+    std::map<uint16_t, FIG0_17_ProgrammeType> m_programme_type_info;  // Key: service_id
+    std::vector<FIG0_18_AnnouncementSupport> m_announcement_support;
+    std::vector<FIG0_19_AnnouncementSwitching> m_active_announcements;
 
     // FIG processing control
     QMap<QString, bool> m_enabledFIGTypes; // "type.extension" -> enabled
