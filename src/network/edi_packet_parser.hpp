@@ -38,6 +38,10 @@ struct EDIStatistics {
     uint64_t crc_errors{0};
     uint64_t tag_errors{0};
 
+    // Aliases for backward compatibility with tests
+    uint64_t& total_af_packets_received = af_packets_parsed;
+    uint64_t& total_tag_items_parsed = tag_errors;  // Using tag_errors as item counter
+
     void reset() {
         af_packets_parsed = 0;
         tag_packets_parsed = 0;

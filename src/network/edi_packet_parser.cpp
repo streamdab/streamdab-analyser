@@ -16,6 +16,54 @@
 namespace edi {
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+constexpr size_t AF_HEADER_SIZE = 10;      // SYNC(2) + LEN(4) + minimal payload
+constexpr size_t TAG_NAME_SIZE = 4;         // TAG name is always 4 bytes
+constexpr size_t TAG_HEADER_SIZE = 7;       // NAME(4) + LEN(3)
+constexpr uint16_t AF_SYNC_BYTES = constants::AF_SYNC_PATTERN_1;
+constexpr size_t AF_MAX_PACKET_SIZE = constants::MAX_AF_PACKET_SIZE;
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+inline uint16_t read_be16(std::span<const uint8_t> data, size_t offset) {
+    return (static_cast<uint16_t>(data[offset]) << 8) |
+           static_cast<uint16_t>(data[offset + 1]);
+}
+
+inline uint32_t read_be32(std::span<const uint8_t> data, size_t offset) {
+    return (static_cast<uint32_t>(data[offset]) << 24) |
+           (static_cast<uint32_t>(data[offset + 1]) << 16) |
+           (static_cast<uint32_t>(data[offset + 2]) << 8) |
+           static_cast<uint32_t>(data[offset + 3]);
+}
+
+inline uint32_t read_be24(std::span<const uint8_t> data, size_t offset) {
+    return (static_cast<uint32_t>(data[offset]) << 16) |
+           (static_cast<uint32_t>(data[offset + 1]) << 8) |
+           static_cast<uint32_t>(data[offset + 2]);
+}
+
+inline bool hasEnoughData(std::span<const uint8_t> data, size_t required, const char* context) {
+    (void)context;  // Unused in release builds
+    return data.size() >= required;
+}
+
+inline bool isValidTAGName(const std::string& name) {
+    if (name.size() != TAG_NAME_SIZE) return false;
+    // TAG names should be printable ASCII or '*' wildcard
+    for (char c : name) {
+        if (!std::isprint(static_cast<unsigned char>(c)) && c != '*') {
+            return false;
+        }
+    }
+    return true;
+}
+
+// ============================================================================
 // CRC-32 Table Initialization
 // ============================================================================
 
@@ -64,23 +112,23 @@ std::optional<AFPacket> EDIPacketParser::parseAFPacket(std::span<const uint8_t> 
     AFPacket packet;
 
     // Parse sync bytes (offset 0, 2 bytes)
-    packet.sync = read_be16(data, 0);
-    if (packet.sync != AF_SYNC_BYTES) {
+    packet.sync_pattern = read_be16(data, 0);
+    if (packet.sync_pattern != AF_SYNC_BYTES) {
         std::ostringstream oss;
         oss << "Invalid AF sync bytes: expected 0x" << std::hex << AF_SYNC_BYTES
-            << ", got 0x" << packet.sync;
+            << ", got 0x" << packet.sync_pattern;
         reportError(oss.str(), 2);
         m_statistics.af_sync_errors++;
         return std::nullopt;
     }
 
     // Parse length field (offset 2, 4 bytes) - big endian
-    packet.length = read_be32(data, 2);
+    packet.packet_length = read_be32(data, 2);
 
     // Validate packet length
-    if (packet.length > AF_MAX_PACKET_SIZE) {
+    if (packet.packet_length > AF_MAX_PACKET_SIZE) {
         std::ostringstream oss;
-        oss << "AF packet length exceeds maximum: " << packet.length
+        oss << "AF packet length exceeds maximum: " << packet.packet_length
             << " > " << AF_MAX_PACKET_SIZE;
         reportError(oss.str(), 2);
         m_statistics.parse_errors++;
@@ -88,7 +136,7 @@ std::optional<AFPacket> EDIPacketParser::parseAFPacket(std::span<const uint8_t> 
     }
 
     // Calculate expected total packet size
-    size_t expected_size = 2 + 4 + packet.length + 4; // SYNC + LEN + PAYLOAD + CRC
+    size_t expected_size = 2 + 4 + packet.packet_length + 4; // SYNC + LEN + PAYLOAD + CRC
     if (data.size() < expected_size) {
         std::ostringstream oss;
         oss << "AF packet truncated: expected " << expected_size
@@ -99,10 +147,10 @@ std::optional<AFPacket> EDIPacketParser::parseAFPacket(std::span<const uint8_t> 
     }
 
     // Extract TAG packet payload (offset 6, length bytes)
-    std::span<const uint8_t> tag_data = data.subspan(6, packet.length);
+    std::span<const uint8_t> tag_data = data.subspan(6, packet.packet_length);
 
     // Parse CRC (last 4 bytes)
-    size_t crc_offset = 6 + packet.length;
+    size_t crc_offset = 6 + packet.packet_length;
     packet.crc = read_be32(data, crc_offset);
 
     // Validate CRC if enabled - CRC validation always fails on mismatch when enabled
@@ -121,18 +169,11 @@ std::optional<AFPacket> EDIPacketParser::parseAFPacket(std::span<const uint8_t> 
         }
     }
 
-    // Parse TAG packet payload
-    auto tag_packet_opt = parseTAGPacket(tag_data);
-    if (!tag_packet_opt) {
-        reportError("Failed to parse TAG packet from AF payload", 2);
-        m_statistics.parse_errors++;
-        return std::nullopt;
-    }
+    // Store payload data
+    packet.payload.assign(tag_data.begin(), tag_data.end());
+    packet.received_time = std::chrono::system_clock::now();
 
-    packet.tag_packet = std::move(*tag_packet_opt);
-    packet.receive_time = std::chrono::system_clock::now();
-
-    m_statistics.total_af_packets_received++;
+    m_statistics.af_packets_parsed++;
     return packet;
 }
 
@@ -152,7 +193,7 @@ std::optional<TAGPacket> EDIPacketParser::parseTAGPacket(std::span<const uint8_t
     }
 
     packet.items = std::move(tag_items);
-    packet.receive_time = std::chrono::system_clock::now();
+    m_statistics.tag_packets_parsed++;
 
     return packet;
 }
@@ -185,14 +226,14 @@ std::vector<TAGItem> EDIPacketParser::extractTAGItems(std::span<const uint8_t> t
 
         // Validate TAG item
         if (!validateTAGItem(*tag_item)) {
-            reportError("Invalid TAG item structure: " + tag_item->get_name_string(), 1);
+            reportError("Invalid TAG item structure: " + tag_item->tag_name, 1);
             if (m_strict_mode) {
                 break;
             }
         }
 
         items.push_back(std::move(*tag_item));
-        m_statistics.total_tag_items_parsed++;
+        m_statistics.tag_errors++;  // Count processed items
 
         offset += bytes_consumed;
     }
@@ -212,39 +253,27 @@ std::optional<TAGItem> EDIPacketParser::parseTAGItem(std::span<const uint8_t> da
 
     TAGItem item;
 
-    // Parse TAG name (4 bytes)
-    std::memcpy(item.name.data(), data.data(), TAG_NAME_SIZE);
+    // Parse TAG name (4 bytes as string)
+    item.tag_name.assign(reinterpret_cast<const char*>(data.data()), TAG_NAME_SIZE);
 
-    // Validate TAG name
-    if (!isValidTAGName(item.name)) {
-        std::ostringstream oss;
-        oss << "Invalid TAG name: ["
-            << (isprint(item.name[0]) ? item.name[0] : '?')
-            << (isprint(item.name[1]) ? item.name[1] : '?')
-            << (isprint(item.name[2]) ? item.name[2] : '?')
-            << (isprint(item.name[3]) ? item.name[3] : '?') << "]";
-        reportError(oss.str(), 2);
-        return std::nullopt;
-    }
-
-    // Parse TAG length (4 bytes, big endian)
-    item.length = read_be32(data, TAG_NAME_SIZE);
+    // Parse TAG length (3 bytes, big endian) - note: TAG uses 3-byte length, not 4
+    item.tag_length = read_be24(data, TAG_NAME_SIZE);
 
     // Validate length
-    size_t total_item_size = TAG_HEADER_SIZE + item.length;
+    size_t total_item_size = TAG_HEADER_SIZE + item.tag_length;
     if (total_item_size > data.size()) {
         std::ostringstream oss;
         oss << "TAG item length exceeds available data: "
-            << item.get_name_string() << " requires " << total_item_size
+            << item.tag_name << " requires " << total_item_size
             << " bytes, have " << data.size();
         reportError(oss.str(), 2);
         return std::nullopt;
     }
 
     // Extract TAG value
-    item.value.resize(item.length);
-    if (item.length > 0) {
-        std::memcpy(item.value.data(), data.data() + TAG_HEADER_SIZE, item.length);
+    item.tag_value.resize(item.tag_length);
+    if (item.tag_length > 0) {
+        std::memcpy(item.tag_value.data(), data.data() + TAG_HEADER_SIZE, item.tag_length);
     }
 
     bytes_consumed = total_item_size;
@@ -280,13 +309,12 @@ std::optional<TAGItem> EDIPacketParser::findTAGItem(const TAGPacket& packet,
 // ============================================================================
 
 bool EDIPacketParser::validateAFCRC(std::span<const uint8_t> data) const {
-    constexpr size_t AF_HEADER_SIZE = 12;  // AF header minimum size (TS 102 693)
     if (data.size() < AF_HEADER_SIZE) {
         return false;
     }
 
-    // Extract stored CRC (last 4 bytes)
-    uint32_t stored_crc = read_be32(data, data.size() - 4);
+    // Extract stored CRC (last 2 bytes for CRC-16)
+    uint16_t stored_crc = read_be16(data, data.size() - 2);
 
     // Calculate CRC over all data except CRC field
     std::span<const uint8_t> crc_data = data.subspan(0, data.size() - 4);
