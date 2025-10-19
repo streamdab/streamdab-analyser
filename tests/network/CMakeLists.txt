@@ -20,6 +20,12 @@ message(STATUS "Configuring Network Component TDD Test Suite v${NETWORK_TDD_TEST
 # Test Suite Components
 # ==============================================================================
 
+# EDI Packet Parser TDD Tests (NEW)
+set(EDI_PACKET_PARSER_TDD_SOURCES
+    test_edi_packet_parser.cpp
+    ${CMAKE_SOURCE_DIR}/src/network/edi_packet_parser.cpp
+)
+
 # ETI-over-IP Receiver TDD Tests
 set(ETI_OVER_IP_RECEIVER_TDD_SOURCES
     test_eti_over_ip_receiver_tdd.cpp
@@ -64,6 +70,45 @@ set(NETWORK_MOCK_SOURCES
 # ==============================================================================
 # Test Target Definitions
 # ==============================================================================
+
+# EDI Packet Parser TDD Test Executable (NEW)
+add_executable(test_edi_packet_parser
+    test_edi_packet_parser.cpp
+    ${CMAKE_SOURCE_DIR}/src/network/edi_packet_parser.cpp
+)
+
+target_link_libraries(test_edi_packet_parser
+    PRIVATE
+        Qt6::Core
+        Qt6::Test
+)
+
+target_compile_features(test_edi_packet_parser PRIVATE cxx_std_20)
+
+target_include_directories(test_edi_packet_parser PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+set_target_properties(test_edi_packet_parser PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests/network
+    FOLDER "Tests/Network"
+    AUTOMOC ON
+)
+
+# Register EDI Packet Parser test with CTest
+add_test(
+    NAME NetworkTDD_EDIPacketParser
+    COMMAND test_edi_packet_parser
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests/network
+)
+
+set_tests_properties(
+    NetworkTDD_EDIPacketParser
+    PROPERTIES
+        LABELS "Network;TDD;Unit;EDI"
+        TIMEOUT 60  # 1 minute for unit tests
+)
 
 # ETI-over-IP Receiver TDD Test Executable
 add_executable(test_eti_over_ip_receiver_tdd
@@ -230,6 +275,7 @@ target_compile_definitions(test_professional_workflow_integration_tdd
 
 # Set test properties for all network TDD tests
 set(NETWORK_TDD_TESTS
+    test_edi_packet_parser
     test_eti_over_ip_receiver_tdd
     test_streaming_processor_tdd
     test_broadcast_equipment_integration_tdd
@@ -238,8 +284,12 @@ set(NETWORK_TDD_TESTS
 )
 
 foreach(test_target ${NETWORK_TDD_TESTS})
-    # Set C++ standard and compiler features
-    target_compile_features(${test_target} PRIVATE cxx_std_17)
+    # Set C++ standard and compiler features (use C++20 for newer tests)
+    if(test_target STREQUAL "test_edi_packet_parser")
+        target_compile_features(${test_target} PRIVATE cxx_std_20)
+    else()
+        target_compile_features(${test_target} PRIVATE cxx_std_17)
+    endif()
 
     # Compiler-specific optimizations
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
@@ -259,13 +309,15 @@ foreach(test_target ${NETWORK_TDD_TESTS})
         )
     endif()
 
-    # Include directories
-    target_include_directories(${test_target} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
-        ${CMAKE_CURRENT_SOURCE_DIR}/../mocks
-        ${CMAKE_SOURCE_DIR}/src
-    )
+    # Include directories (skip for standalone test_edi_packet_parser which sets its own)
+    if(NOT test_target STREQUAL "test_edi_packet_parser")
+        target_include_directories(${test_target} PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
+            ${CMAKE_CURRENT_SOURCE_DIR}/../mocks
+            ${CMAKE_SOURCE_DIR}/src
+        )
+    endif()
 
     # Test-specific properties
     set_target_properties(${test_target} PROPERTIES
@@ -527,6 +579,7 @@ endif()
 # ==============================================================================
 
 message(STATUS "Network Component TDD Test Suite Configuration Summary:")
+message(STATUS "  - EDI Packet Parser TDD Tests: test_edi_packet_parser.cpp")
 message(STATUS "  - ETI-over-IP Receiver TDD Tests: ${ETI_OVER_IP_RECEIVER_TDD_SOURCES}")
 message(STATUS "  - Streaming Processor TDD Tests: ${STREAMING_PROCESSOR_TDD_SOURCES}")
 message(STATUS "  - Broadcast Equipment Integration Tests: ${BROADCAST_EQUIPMENT_TDD_SOURCES}")
@@ -555,3 +608,41 @@ endif()
 message(STATUS "Network Component TDD Test Suite ready for execution")
 message(STATUS "Run 'make run_network_tdd_tests' to execute all network TDD tests")
 message(STATUS "Run 'make run_network_performance_tests' to execute performance validation tests")
+
+# PFT Reassembler Unit Test Executable (NEW)
+add_executable(test_pft_reassembler
+    test_pft_reassembler.cpp
+    ${CMAKE_SOURCE_DIR}/src/network/pft_reassembler.cpp
+)
+
+target_link_libraries(test_pft_reassembler
+    PRIVATE
+        ${GTEST_LIBS}
+        $<$<PLATFORM_ID:Linux>:pthread>
+)
+
+target_compile_features(test_pft_reassembler PRIVATE cxx_std_17)
+
+target_include_directories(test_pft_reassembler PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+set_target_properties(test_pft_reassembler PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests/network
+    FOLDER "Tests/Network"
+)
+
+# Register PFT Reassembler test with CTest
+add_test(
+    NAME NetworkTDD_PFTReassembler
+    COMMAND test_pft_reassembler
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests/network
+)
+
+set_tests_properties(
+    NetworkTDD_PFTReassembler
+    PROPERTIES
+        LABELS "Network;Unit;PFT;EDI"
+        TIMEOUT 60  # 1 minute for unit tests
+)

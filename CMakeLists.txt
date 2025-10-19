@@ -27,11 +27,17 @@ set(SOURCES
     src/utils/logger.cpp
 )
 
+# EDI Protocol sources (ETSI TS 102 693)
+set(EDI_SOURCES
+    src/network/edi_packet_parser.cpp
+    src/network/pft_reassembler.cpp
+)
+
 # Include directories
-include_directories(src)
+include_directories(src include)
 
 # Create executable
-add_executable(DABAnalyzer_Enhanced_FilteringBuild ${SOURCES})
+add_executable(DABAnalyzer_Enhanced_FilteringBuild ${SOURCES} ${EDI_SOURCES})
 
 # Link Qt6 libraries
 target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
