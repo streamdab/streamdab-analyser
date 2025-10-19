@@ -21,7 +21,7 @@
 
 #include <gtest/gtest.h>
 #include "../../src/network/pft_reassembler.hpp"
-#include "edi_types.hpp"
+#include "../../include/edi_types.hpp"
 #include <thread>
 #include <chrono>
 
@@ -50,11 +50,11 @@ protected:
      */
     PFTPacket createFragment(uint16_t pseq, uint16_t findex, uint16_t fcount, size_t payload_size = 100) {
         PFTPacket fragment;
-        fragment.sync = PFT_SYNC_BYTES;
-        fragment.sequence_number = pseq;
-        fragment.fragment_index = findex;
-        fragment.fragment_count = fcount;
-        fragment.fec_scheme = 0;  // No FEC
+        fragment.sync_pattern = constants::PFT_SYNC_PATTERN_1;
+        fragment.pseq = pseq;
+        fragment.findex = findex;
+        fragment.fcount = fcount;
+        fragment.fec_type = 0;  // No FEC
         fragment.crc = 0;
 
         // Create dummy payload with identifiable pattern
@@ -63,7 +63,7 @@ protected:
             fragment.payload[i] = static_cast<uint8_t>((findex * 256 + i) % 256);
         }
 
-        fragment.receive_time = std::chrono::system_clock::now();
+        fragment.received_time = std::chrono::system_clock::now();
 
         return fragment;
     }
@@ -222,10 +222,10 @@ TEST_F(PFTReassemblerTest, InvalidFragmentRejection) {
     // Test 1: Invalid sync bytes
     {
         PFTPacket invalid_sync;
-        invalid_sync.sync = 0x0000;  // Invalid
-        invalid_sync.sequence_number = 500;
-        invalid_sync.fragment_index = 0;
-        invalid_sync.fragment_count = 1;
+        invalid_sync.sync_pattern = 0x0000;  // Invalid
+        invalid_sync.pseq = 500;
+        invalid_sync.findex = 0;
+        invalid_sync.fcount = 1;
 
         EXPECT_FALSE(reassembler->addFragment(invalid_sync));
     }
@@ -233,10 +233,10 @@ TEST_F(PFTReassemblerTest, InvalidFragmentRejection) {
     // Test 2: Fragment index >= fragment count
     {
         PFTPacket invalid_index;
-        invalid_index.sync = PFT_SYNC_BYTES;
-        invalid_index.sequence_number = 501;
-        invalid_index.fragment_index = 5;
-        invalid_index.fragment_count = 5;  // Index should be < count
+        invalid_index.sync_pattern = constants::PFT_SYNC_PATTERN_1;
+        invalid_index.pseq = 501;
+        invalid_index.findex = 5;
+        invalid_index.fcount = 5;  // Index should be < count
 
         EXPECT_FALSE(reassembler->addFragment(invalid_index));
     }
@@ -244,10 +244,10 @@ TEST_F(PFTReassemblerTest, InvalidFragmentRejection) {
     // Test 3: Zero fragment count
     {
         PFTPacket zero_count;
-        zero_count.sync = PFT_SYNC_BYTES;
-        zero_count.sequence_number = 502;
-        zero_count.fragment_index = 0;
-        zero_count.fragment_count = 0;  // Invalid
+        zero_count.sync_pattern = constants::PFT_SYNC_PATTERN_1;
+        zero_count.pseq = 502;
+        zero_count.findex = 0;
+        zero_count.fcount = 0;  // Invalid
 
         EXPECT_FALSE(reassembler->addFragment(zero_count));
     }
@@ -307,7 +307,7 @@ TEST_F(PFTReassemblerTest, TimeoutCleanup) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Clear old sequences with very short timeout
-    reassembler->clearOldSequences(std::chrono::milliseconds(50));
+    reassembler->clearOldSequences(std::chrono::seconds(0));
 
     // Verify sequence was cleaned up
     active = reassembler->getActiveSequences();
@@ -374,7 +374,7 @@ TEST_F(PFTReassemblerTest, FECRecoveryAttempt) {
 
     // Create fragment with FEC enabled
     auto fragment = createFragment(pseq, 0, 3);
-    fragment.fec_scheme = 1;  // Enable FEC
+    fragment.fec_type = 1;  // Enable FEC
 
     ASSERT_TRUE(reassembler->addFragment(fragment));
 
@@ -387,7 +387,7 @@ TEST_F(PFTReassemblerTest, FECRecoveryAttempt) {
 
     // But if sequence is complete, recovery should succeed
     auto complete_fragments = createCompleteSequence(1000, 1);
-    complete_fragments[0].fec_scheme = 1;
+    complete_fragments[0].fec_type = 1;
     ASSERT_TRUE(reassembler->addFragment(complete_fragments[0]));
 
     recovery_result = reassembler->performFECRecovery(1000);

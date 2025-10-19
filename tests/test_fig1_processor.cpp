@@ -342,7 +342,7 @@ void TestFIG1Processor::testFIG1_0_CharacterFlag()
         qInfo() << "Character flag" << QString::number(flag, 16) << "processed";
     }
 
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() == 6);
+    QVERIFY(m_analyzer->getTotalFIGsProcessed() == 7);  // 1 FIG 0/0 + 6 FIG 1/0
 }
 
 void TestFIG1Processor::testFIG1_0_MultipleEnsembleLabels()

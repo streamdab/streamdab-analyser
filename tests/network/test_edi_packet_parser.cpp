@@ -91,10 +91,10 @@ private slots:
 
         // Verify parsing succeeded
         QVERIFY(result.has_value());
-        QVERIFY(result->is_valid());
-        QCOMPARE(result->sync, static_cast<uint16_t>(0x4146));
-        QCOMPARE(result->length, static_cast<uint32_t>(tag_item.size()));
-        QCOMPARE(result->tag_packet.tag_count(), static_cast<size_t>(1));
+        QVERIFY(result->isValid());
+        QCOMPARE(result->sync_pattern, static_cast<uint16_t>(0x4146));
+        QCOMPARE(result->packet_length, static_cast<uint32_t>(tag_item.size()));
+        QCOMPARE(result->payload.size(), tag_item.size());
     }
 
     /**
@@ -159,10 +159,10 @@ private slots:
         auto tag_items = parser.extractTAGItems(std::span<const uint8_t>(tag_data));
 
         QCOMPARE(tag_items.size(), static_cast<size_t>(1));
-        QVERIFY(tag_items[0].is_valid());
-        QCOMPARE(tag_items[0].get_name_string(), std::string("est*"));
-        QCOMPARE(tag_items[0].length, static_cast<uint32_t>(4));
-        QVERIFY(std::equal(tag_items[0].value.begin(), tag_items[0].value.end(),
+        QVERIFY(tag_items[0].isValid());
+        QCOMPARE(tag_items[0].tag_name, std::string("est*"));
+        QCOMPARE(tag_items[0].tag_length, static_cast<uint32_t>(4));
+        QVERIFY(std::equal(tag_items[0].tag_value.begin(), tag_items[0].tag_value.end(),
                           test_value.begin()));
     }
 
@@ -187,9 +187,9 @@ private slots:
         auto tag_items = parser.extractTAGItems(std::span<const uint8_t>(tag_packet));
 
         QCOMPARE(tag_items.size(), static_cast<size_t>(3));
-        QCOMPARE(tag_items[0].get_name_string(), std::string("est*"));
-        QCOMPARE(tag_items[1].get_name_string(), std::string("deti"));
-        QCOMPARE(tag_items[2].get_name_string(), std::string("sst*"));
+        QCOMPARE(tag_items[0].tag_name, std::string("est*"));
+        QCOMPARE(tag_items[1].tag_name, std::string("deti"));
+        QCOMPARE(tag_items[2].tag_name, std::string("sst*"));
     }
 
     /**
@@ -203,9 +203,9 @@ private slots:
         auto tag_items = parser.extractTAGItems(std::span<const uint8_t>(tag_data));
 
         QCOMPARE(tag_items.size(), static_cast<size_t>(1));
-        QCOMPARE(tag_items[0].length, static_cast<uint32_t>(0));
-        QVERIFY(tag_items[0].value.empty());
-        QVERIFY(tag_items[0].is_valid());
+        QCOMPARE(tag_items[0].tag_length, static_cast<uint32_t>(0));
+        QVERIFY(tag_items[0].tag_value.empty());
+        QVERIFY(tag_items[0].isValid());
     }
 
     /**
@@ -216,16 +216,16 @@ private slots:
 
         // Valid TAG item
         edi::TAGItem valid_item;
-        valid_item.name = {'t', 'e', 's', 't'};
-        valid_item.length = 4;
-        valid_item.value = {0x01, 0x02, 0x03, 0x04};
+        valid_item.tag_name = "test";
+        valid_item.tag_length = 4;
+        valid_item.tag_value = {0x01, 0x02, 0x03, 0x04};
         QVERIFY(parser.validateTAGItem(valid_item));
 
         // Invalid: length mismatch
         edi::TAGItem invalid_item;
-        invalid_item.name = {'t', 'e', 's', 't'};
-        invalid_item.length = 10;  // Says 10 bytes
-        invalid_item.value = {0x01, 0x02};  // But only 2 bytes
+        invalid_item.tag_name = "test";
+        invalid_item.tag_length = 10;  // Says 10 bytes
+        invalid_item.tag_value = {0x01, 0x02};  // But only 2 bytes
         QVERIFY(!parser.validateTAGItem(invalid_item));
     }
 
@@ -237,14 +237,14 @@ private slots:
 
         // Add multiple TAG items
         edi::TAGItem item1;
-        item1.name = {'e', 's', 't', '*'};
-        item1.length = 4;
-        item1.value = {0x01, 0x02, 0x03, 0x04};
+        item1.tag_name = "est*";
+        item1.tag_length = 4;
+        item1.tag_value = {0x01, 0x02, 0x03, 0x04};
 
         edi::TAGItem item2;
-        item2.name = {'d', 'e', 't', 'i'};
-        item2.length = 2;
-        item2.value = {0xAA, 0xBB};
+        item2.tag_name = "deti";
+        item2.tag_length = 2;
+        item2.tag_value = {0xAA, 0xBB};
 
         packet.items.push_back(item1);
         packet.items.push_back(item2);
