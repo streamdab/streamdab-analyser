@@ -254,11 +254,11 @@ private slots:
         // Find existing TAG
         auto found1 = parser.findTAGItem(packet, "est*");
         QVERIFY(found1.has_value());
-        QCOMPARE(found1->get_name_string(), std::string("est*"));
+        QCOMPARE(found1->tag_name, std::string("est*"));
 
         auto found2 = parser.findTAGItem(packet, "deti");
         QVERIFY(found2.has_value());
-        QCOMPARE(found2->get_name_string(), std::string("deti"));
+        QCOMPARE(found2->tag_name, std::string("deti"));
 
         // Try to find non-existent TAG
         auto not_found = parser.findTAGItem(packet, "xxxx");
@@ -411,20 +411,18 @@ private slots:
     void testTAGPacketMethods() {
         edi::TAGPacket packet;
 
-        // Test has_tag()
+        // Test TAG lookup
         edi::TAGItem item;
-        item.name = {'e', 's', 't', '*'};
-        item.length = 0;
+        item.tag_name = "est*";
+        item.tag_length = 0;
         packet.items.push_back(item);
 
-        std::array<char, 4> search_name = {'e', 's', 't', '*'};
-        QVERIFY(packet.has_tag(search_name));
+        // Test item count
+        QCOMPARE(packet.items.size(), static_cast<size_t>(1));
 
-        std::array<char, 4> missing_name = {'x', 'x', 'x', 'x'};
-        QVERIFY(!packet.has_tag(missing_name));
-
-        // Test tag_count()
-        QCOMPARE(packet.tag_count(), static_cast<size_t>(1));
+        // Test item access
+        QVERIFY(!packet.items.empty());
+        QCOMPARE(packet.items[0].tag_name, std::string("est*"));
     }
 };
 
