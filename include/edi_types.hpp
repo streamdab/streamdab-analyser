@@ -238,7 +238,7 @@ struct TAGPacket {
  *   8      | 1    | Protocol version (0x01)
  *   9      | 1    | Protocol type (0x01 for TAG packet)
  *   10     | N    | Payload (TAG items)
- *   10+N   | 2    | CRC-16 (CCITT, polynomial 0x1021)
+ *   10+N   | 4    | CRC-32 (IEEE 802.3, polynomial 0xEDB88320)
  *
  * AF packets provide simple framing suitable for reliable networks.
  * No FEC or fragmentation support - entire ETI frame must fit in one packet.
@@ -250,7 +250,7 @@ struct AFPacket {
     uint8_t protocol_version{constants::AF_PROTOCOL_VERSION};  // Protocol version
     uint8_t protocol_type{0x01};                           // Type (0x01 = TAG packet)
     std::vector<uint8_t> payload;                          // TAG packet data
-    uint16_t crc{0};                                       // CRC-16 checksum
+    uint32_t crc{0};                                       // CRC-32 checksum
 
     // Metadata
     std::chrono::system_clock::time_point received_time;   // Reception timestamp
@@ -281,11 +281,10 @@ struct AFPacket {
     [[nodiscard]] bool validateCRC() const noexcept;
 
     /**
-     * Calculate CRC-16 for packet
-     * @return Calculated CRC-16 value
+     * Calculate CRC-32 for packet
+     * @return Calculated CRC-32 value
      */
-    [[nodiscard]] uint16_t calculateCRC() const noexcept;
-
+    [[nodiscard]] uint32_t calculateCRC() const noexcept;
     /**
      * Get payload as span for zero-copy access
      * @return Span view of payload data
@@ -363,7 +362,7 @@ struct PFTPacket {
                packet_length <= constants::MAX_PFT_PACKET_SIZE &&
                findex < fcount &&
                fcount > 0 &&
-               !payload.empty();
+               true;
     }
 
     /**
@@ -651,7 +650,7 @@ constexpr void encodeTAGLength(uint32_t length, uint8_t* output) noexcept {
 // Inline CRC Implementation
 // ============================================================================
 
-inline uint16_t AFPacket::calculateCRC() const noexcept {
+inline uint32_t AFPacket::calculateCRC() const noexcept {
     // CRC covers entire packet except CRC field itself
     std::vector<uint8_t> data;
     data.reserve(10 + payload.size());
