@@ -357,12 +357,66 @@ struct FIG0_19_AnnouncementSwitching {
 };
 
 /**
+ * @brief FIG 1/5: Data Service Label
+ * ETSI EN 300 401 Section 5.2.2.6 (Phase 2A Week 7)
+ *
+ * Provides 16-character labels for data services with 32-bit Service IDs
+ */
+struct FIG1_5_DataServiceLabel {
+    uint32_t service_id;           // 32-bit data service ID
+    char label[17];                // 16 characters + null terminator
+    uint16_t character_flag;       // Character field definition (16 bits)
+};
+
+/**
+ * @brief FIG Type 2: Extended Label Segment
+ * ETSI EN 300 401 Section 8.1.13.1 (Phase 2A Week 7)
+ *
+ * Reusable structure for FIG Type 2 extended labels
+ * Segments are reassembled to form complete UTF-8 labels (up to 128 bytes)
+ */
+struct ExtendedLabelSegment {
+    uint8_t toggle_flag;            // Toggle bit (0 or 1) - indicates label version
+    uint8_t segment_index;          // Segment index (0-7)
+    std::vector<uint8_t> text_segment;  // UTF-8 text segment (variable length, typically 16 bytes)
+};
+
+/**
+ * @brief FIG 2/0: Ensemble Extended Label
+ * ETSI EN 300 401 Section 8.1.13.1 (Phase 2A Week 7)
+ */
+struct FIG2_0_EnsembleExtLabel {
+    uint16_t ensemble_id;          // EId - Ensemble identifier
+    std::map<uint8_t, ExtendedLabelSegment> segments;  // segment_index → segment
+};
+
+/**
+ * @brief FIG 2/1: Service Extended Label
+ * ETSI EN 300 401 Section 8.1.13.1 (Phase 2A Week 7)
+ */
+struct FIG2_1_ServiceExtLabel {
+    uint32_t service_id;           // SId - Service identifier (16 or 32-bit)
+    std::map<uint8_t, ExtendedLabelSegment> segments;  // segment_index → segment
+};
+
+/**
+ * @brief FIG 2/4: Service Component Extended Label
+ * ETSI EN 300 401 Section 8.1.13.1 (Phase 2A Week 7)
+ */
+struct FIG2_4_ComponentExtLabel {
+    uint32_t service_id;           // Service identifier
+    uint8_t component_id;          // SCIdS (4 bits)
+    std::map<uint8_t, ExtendedLabelSegment> segments;  // segment_index → segment
+};
+
+/**
  * @brief Advanced FIG (Fast Information Group) Analyzer
  *
  * Phase 1 Week 2: Complete FIG Type 0 processing (0/0, 0/1, 0/2)
  * Phase 1 Week 2: Complete FIG Type 1 processing (1/0, 1/1, 1/4)
  * Phase 2A Week 5: FIG Type 0 extensions (0/3, 0/5, 0/6, 0/7, 0/8, 0/9, 0/10)
  * Phase 2A Week 6: FIG Type 0 advanced (0/13, 0/14, 0/17, 0/18, 0/19)
+ * Phase 2A Week 7: FIG Type 1/5 and FIG Type 2 (Extended Labels)
  *
  * Supports complete ETSI EN 300 401 FIG processing:
  * - FIG 0/0: Ensemble Organization
@@ -383,6 +437,11 @@ struct FIG0_19_AnnouncementSwitching {
  * - FIG 1/0: Ensemble Labels
  * - FIG 1/1: Service Labels
  * - FIG 1/4: Service Component Labels
+ * - FIG 1/5: Data Service Labels
+ * - FIG 2/0: Ensemble Extended Labels
+ * - FIG 2/1: Service Extended Labels
+ * - FIG 2/4: Component Extended Labels
+ * - FIG 2/5: Data Service Extended Labels
  */
 class AdvancedFIGAnalyzer : public QObject
 {
@@ -427,6 +486,12 @@ public:
     std::vector<FIG0_18_AnnouncementSupport> getAnnouncementSupport() const;
     std::vector<FIG0_19_AnnouncementSwitching> getActiveAnnouncements() const;
 
+    // FIG 1/5 and FIG Type 2 data accessors (Phase 2A Week 7)
+    std::vector<FIG1_5_DataServiceLabel> getDataServiceLabels() const;
+    QString getEnsembleExtendedLabel(uint16_t ensemble_id);
+    QString getServiceExtendedLabel(uint32_t service_id);
+    QString getComponentExtendedLabel(uint32_t service_id, uint8_t component_id);
+
     // Analysis results
     int getTotalFIGsProcessed() const { return m_totalFIGsProcessed; }
     int getValidFIGsCount() const { return m_validFIGsCount; }
@@ -462,10 +527,14 @@ signals:
     void announcementActivated(uint8_t cluster_id, uint16_t announcement_flags);
     void announcementDeactivated(uint8_t cluster_id);
 
+    // Phase 2A Week 7: Extended label signals
+    void extendedLabelUpdated(uint32_t entity_id, const QString& label);
+
 private:
     // FIG type processors
     void processFIG0(const QByteArray& figData);
     void processFIG1(const QByteArray& figData);
+    void processFIG2(const QByteArray& figData);  // NEW: FIG Type 2 dispatcher
 
     // FIG 0 extension processors
     void processFIG0_0(const QByteArray& data);  // Ensemble organization
@@ -488,7 +557,13 @@ private:
     void processFIG1_0(const QByteArray& data); // Ensemble labels
     void processFIG1_1(const QByteArray& data); // Service labels
     void processFIG1_4(const QByteArray& data); // Service component labels
-    void processFIG1_5(const QByteArray& data); // Data service labels
+    void processFIG1_5(const QByteArray& data); // Data service labels (NEW)
+
+    // FIG 2 extension processors (NEW - Phase 2A Week 7)
+    void processFIG2_0(const QByteArray& data); // Ensemble extended labels
+    void processFIG2_1(const QByteArray& data); // Service extended labels
+    void processFIG2_4(const QByteArray& data); // Component extended labels
+    void processFIG2_5(const QByteArray& data); // Data service extended labels
 
     // Helper methods
     bool validateFIGHeader(const QByteArray& data, uint8_t& type, uint8_t& length);
@@ -547,6 +622,12 @@ private:
     std::map<uint16_t, FIG0_17_ProgrammeType> m_programme_type_info;  // Key: service_id
     std::vector<FIG0_18_AnnouncementSupport> m_announcement_support;
     std::vector<FIG0_19_AnnouncementSwitching> m_active_announcements;
+
+    // FIG 1/5 and FIG Type 2 data storage (Phase 2A Week 7)
+    std::map<uint32_t, FIG1_5_DataServiceLabel> m_data_service_labels;  // Key: service_id
+    std::map<uint16_t, FIG2_0_EnsembleExtLabel> m_ensemble_extended_labels;  // Key: ensemble_id
+    std::map<uint32_t, FIG2_1_ServiceExtLabel> m_service_extended_labels;  // Key: service_id
+    std::map<uint64_t, FIG2_4_ComponentExtLabel> m_component_extended_labels;  // Key: (service_id << 8) | component_id
 
     // FIG processing control
     QMap<QString, bool> m_enabledFIGTypes; // "type.extension" -> enabled

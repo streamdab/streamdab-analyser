@@ -138,6 +138,10 @@ void AdvancedFIGAnalyzer::initializeDefaultFIGTypes()
     m_enabledFIGTypes["1.1"] = true;   // Service labels
     m_enabledFIGTypes["1.4"] = true;   // Service component labels
     m_enabledFIGTypes["1.5"] = false;  // Data service labels (optional)
+    m_enabledFIGTypes["2.0"] = false;  // Ensemble extended labels (optional)
+    m_enabledFIGTypes["2.1"] = false;  // Service extended labels (optional)
+    m_enabledFIGTypes["2.4"] = false;  // Component extended labels (optional)
+    m_enabledFIGTypes["2.5"] = false;  // Data service extended labels (optional)
 }
 
 void AdvancedFIGAnalyzer::analyzeFICData(const QByteArray& ficData)
@@ -192,6 +196,9 @@ void AdvancedFIGAnalyzer::analyzeFICData(const QByteArray& ficData)
                 break;
             case 1:
                 processFIG1(figData);
+                break;
+            case 2:
+                processFIG2(figData);
                 break;
             default:
                 qDebug() << "Unsupported FIG type:" << figType;
@@ -2085,10 +2092,490 @@ void AdvancedFIGAnalyzer::processFIG0_19(const QByteArray& data)
 
 void AdvancedFIGAnalyzer::processFIG1_5(const QByteArray& data)
 {
-    Q_UNUSED(data)
-    // FIG 1/5: Data service labels - to be implemented
-    m_lastError = "FIG 1/5 not yet implemented";
-    // Do NOT increment m_totalFIGsProcessed for unimplemented FIGs
+    // ETSI EN 300 401 Section 5.2.2.6: FIG 1/5 Data Service Label
+    // Structure: FIG header (1) + [32-bit SId (4) + Label (16) + CharFlag (2)] * N
+    // Minimum size: 1 + 22 = 23 bytes for one data service label
+    
+    if (data.size() < 23) {
+        m_lastError = QString("FIG 1/5: Insufficient data (need at least 23 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+    int offset = 1;  // Skip FIG header byte
+
+    int labels_found = 0;
+
+    // Parse all data service labels in the FIG
+    while (offset + 22 <= data.size()) {
+        FIG1_5_DataServiceLabel label_info;
+
+        // Parse 32-bit service ID (big-endian)
+        label_info.service_id = (static_cast<uint32_t>(bytes[offset]) << 24) |
+                                (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
+                                (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
+                                bytes[offset + 3];
+        offset += 4;
+
+        // Extract 16-character label
+        std::memcpy(label_info.label, &bytes[offset], 16);
+        label_info.label[16] = '\0';  // Null-terminate
+        offset += 16;
+
+        // Parse character flag field (16 bits, big-endian)
+        label_info.character_flag = (static_cast<uint16_t>(bytes[offset]) << 8) |
+                                    bytes[offset + 1];
+        offset += 2;
+
+        // Store in data service labels map
+        m_data_service_labels[label_info.service_id] = label_info;
+        labels_found++;
+
+        qInfo() << "FIG 1/5: Data service 0x" << Qt::hex << label_info.service_id
+                << "label:" << label_info.label
+                << "char_flag: 0x" << label_info.character_flag;
+    }
+
+    if (labels_found > 0) {
+        m_validFIGsCount++;
+        m_totalFIGsProcessed++;
+        qDebug() << "FIG 1/5: Processed" << labels_found << "data service label(s)";
+    } else {
+        m_lastError = "FIG 1/5: No valid labels found";
+        qWarning() << m_lastError;
+    }
+}
+
+
+void AdvancedFIGAnalyzer::processFIG2(const QByteArray& figData)
+{
+    // ETSI EN 300 401 Section 8.1.13.1: FIG Type 2 Extended Labels
+    
+    if (figData.size() < 1) {
+        m_lastError = "FIG 2: Insufficient data";
+        return;
+    }
+
+    // Extract extension code from FIG header (bits 7-3)
+    uint8_t extension = (figData[0] >> 3) & 0x1F;
+
+    // Check if FIG type is enabled
+    QString figKey = QString("2.%1").arg(extension);
+    if (!m_enabledFIGTypes.value(figKey, false)) {
+        m_lastError = QString("FIG 2/%1: Disabled").arg(extension);
+        return;
+    }
+
+    // Dispatch to appropriate processor
+    switch (extension) {
+        case 0:
+            processFIG2_0(figData);
+            break;
+        case 1:
+            processFIG2_1(figData);
+            break;
+        case 4:
+            processFIG2_4(figData);
+            break;
+        case 5:
+            processFIG2_5(figData);
+            break;
+        default:
+            qDebug() << "Unsupported FIG 2 extension:" << extension;
+            m_lastError = QString("FIG 2/%1: Unsupported extension").arg(extension);
+            break;
+    }
+}
+
+/**
+ * Process FIG Type 2 Extension 0: Ensemble Extended Label
+ * ETSI EN 300 401 Section 8.1.13.1
+ *
+ * Provides UTF-8 extended labels for ensemble (up to 128 bytes in 8 segments)
+ * Structure: EId (16 bits) + Rfa (4 bits) + Toggle (1 bit) + SegmentIndex (3 bits) + Text (variable)
+ */
+void AdvancedFIGAnalyzer::processFIG2_0(const QByteArray& data)
+{
+    // ETSI EN 300 401 Section 8.1.13.1: FIG 2/0 Ensemble Extended Label
+    // Minimum: FIG header (1) + EId (2) + flags (1) = 4 bytes
+    
+    if (data.size() < 4) {
+        m_lastError = QString("FIG 2/0: Insufficient data (need at least 4 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+    int offset = 1;  // Skip FIG header
+
+    // Parse Ensemble ID (16 bits, big-endian)
+    uint16_t ensemble_id = (static_cast<uint16_t>(bytes[offset]) << 8) |
+                           bytes[offset + 1];
+    offset += 2;
+
+    // Parse flags byte: Rfa (4 bits) + Toggle (1 bit) + SegmentIndex (3 bits)
+    uint8_t toggle_flag = (bytes[offset] & 0x08) >> 3;  // Bit 3
+    uint8_t segment_index = bytes[offset] & 0x07;       // Bits 2-0
+    offset += 1;
+
+    // Remaining bytes are UTF-8 text segment
+    int text_length = data.size() - offset;
+    std::vector<uint8_t> text_segment;
+    for (int i = 0; i < text_length; ++i) {
+        text_segment.push_back(bytes[offset + i]);
+    }
+
+    // Store segment
+    ExtendedLabelSegment segment;
+    segment.toggle_flag = toggle_flag;
+    segment.segment_index = segment_index;
+    segment.text_segment = text_segment;
+
+    m_ensemble_extended_labels[ensemble_id].ensemble_id = ensemble_id;
+    m_ensemble_extended_labels[ensemble_id].segments[segment_index] = segment;
+
+    qInfo() << "FIG 2/0: Ensemble 0x" << Qt::hex << ensemble_id
+            << "segment" << segment_index
+            << "toggle" << toggle_flag
+            << "length" << text_length << "bytes";
+
+    m_validFIGsCount++;
+    m_totalFIGsProcessed++;
+}
+
+/**
+ * Process FIG Type 2 Extension 1: Service Extended Label
+ * ETSI EN 300 401 Section 8.1.13.1
+ *
+ * Provides UTF-8 extended labels for services (programme or data)
+ * Structure: SId (16 or 32 bits) + flags + Text (variable)
+ */
+void AdvancedFIGAnalyzer::processFIG2_1(const QByteArray& data)
+{
+    // ETSI EN 300 401 Section 8.1.13.1: FIG 2/1 Service Extended Label
+    
+    if (data.size() < 1) {
+        m_lastError = "FIG 2/1: Insufficient data";
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+
+    // Extract P/D flag from FIG header (byte 0, bit 2)
+    bool pd_flag = (bytes[0] & 0x04) != 0;
+    int offset = 1;  // Skip FIG header
+
+    // Service ID length depends on P/D flag
+    int sid_length = pd_flag ? 4 : 2;  // 32-bit (data) or 16-bit (programme)
+
+    // Check minimum size
+    if (offset + sid_length + 1 > data.size()) {
+        m_lastError = QString("FIG 2/1: Insufficient data for service ID and flags");
+        qWarning() << m_lastError;
+        return;
+    }
+
+    uint32_t service_id;
+
+    // Parse Service ID
+    if (pd_flag) {
+        // 32-bit data service ID (big-endian)
+        service_id = (static_cast<uint32_t>(bytes[offset]) << 24) |
+                     (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
+                     (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
+                     bytes[offset + 3];
+    } else {
+        // 16-bit programme service ID (big-endian)
+        service_id = (static_cast<uint32_t>(bytes[offset]) << 8) |
+                     bytes[offset + 1];
+    }
+    offset += sid_length;
+
+    // Parse flags byte: Rfa (4 bits) + Toggle (1 bit) + SegmentIndex (3 bits)
+    uint8_t toggle_flag = (bytes[offset] & 0x08) >> 3;  // Bit 3
+    uint8_t segment_index = bytes[offset] & 0x07;       // Bits 2-0
+    offset += 1;
+
+    // Remaining bytes are UTF-8 text segment
+    int text_length = data.size() - offset;
+    std::vector<uint8_t> text_segment;
+    for (int i = 0; i < text_length; ++i) {
+        text_segment.push_back(bytes[offset + i]);
+    }
+
+    // Store segment
+    ExtendedLabelSegment segment;
+    segment.toggle_flag = toggle_flag;
+    segment.segment_index = segment_index;
+    segment.text_segment = text_segment;
+
+    m_service_extended_labels[service_id].service_id = service_id;
+    m_service_extended_labels[service_id].segments[segment_index] = segment;
+
+    qInfo() << "FIG 2/1: Service 0x" << Qt::hex << service_id
+            << (pd_flag ? "(data)" : "(programme)")
+            << "segment" << segment_index
+            << "toggle" << toggle_flag
+            << "length" << text_length << "bytes";
+
+    m_validFIGsCount++;
+    m_totalFIGsProcessed++;
+}
+
+/**
+ * Process FIG Type 2 Extension 4: Service Component Extended Label
+ * ETSI EN 300 401 Section 8.1.13.1
+ *
+ * Provides UTF-8 extended labels for service components
+ * Structure: SId (16 or 32 bits) + SCIdS (4 bits) + flags + Text (variable)
+ */
+void AdvancedFIGAnalyzer::processFIG2_4(const QByteArray& data)
+{
+    // ETSI EN 300 401 Section 8.1.13.1: FIG 2/4 Component Extended Label
+    
+    if (data.size() < 1) {
+        m_lastError = "FIG 2/4: Insufficient data";
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+
+    // Extract P/D flag from FIG header (byte 0, bit 2)
+    bool pd_flag = (bytes[0] & 0x04) != 0;
+    int offset = 1;  // Skip FIG header
+
+    // Service ID length depends on P/D flag
+    int sid_length = pd_flag ? 4 : 2;
+
+    // Check minimum size
+    if (offset + sid_length + 1 > data.size()) {
+        m_lastError = QString("FIG 2/4: Insufficient data for service ID and flags");
+        qWarning() << m_lastError;
+        return;
+    }
+
+    uint32_t service_id;
+
+    // Parse Service ID
+    if (pd_flag) {
+        // 32-bit data service ID
+        service_id = (static_cast<uint32_t>(bytes[offset]) << 24) |
+                     (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
+                     (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
+                     bytes[offset + 3];
+    } else {
+        // 16-bit programme service ID
+        service_id = (static_cast<uint32_t>(bytes[offset]) << 8) |
+                     bytes[offset + 1];
+    }
+    offset += sid_length;
+
+    // Parse flags byte: SCIdS (4 bits) + Rfa (1 bit) + Toggle (1 bit) + SegmentIndex (3 bits) - Wait, let me check ETSI
+    // Actually per ETSI EN 300 401 Table 9: SCIdS (4 bits, bits 7-4) + Rfa (1 bit) + Toggle (1 bit) + SegmentIndex (3 bits)
+    uint8_t component_id = (bytes[offset] >> 4) & 0x0F;  // Bits 7-4
+    uint8_t toggle_flag = (bytes[offset] & 0x08) >> 3;    // Bit 3
+    uint8_t segment_index = bytes[offset] & 0x07;         // Bits 2-0
+    offset += 1;
+
+    // Remaining bytes are UTF-8 text segment
+    int text_length = data.size() - offset;
+    std::vector<uint8_t> text_segment;
+    for (int i = 0; i < text_length; ++i) {
+        text_segment.push_back(bytes[offset + i]);
+    }
+
+    // Store segment using composite key: (service_id << 8) | component_id
+    uint64_t key = (static_cast<uint64_t>(service_id) << 8) | component_id;
+
+    ExtendedLabelSegment segment;
+    segment.toggle_flag = toggle_flag;
+    segment.segment_index = segment_index;
+    segment.text_segment = text_segment;
+
+    m_component_extended_labels[key].service_id = service_id;
+    m_component_extended_labels[key].component_id = component_id;
+    m_component_extended_labels[key].segments[segment_index] = segment;
+
+    qInfo() << "FIG 2/4: Service 0x" << Qt::hex << service_id
+            << "component" << component_id
+            << "segment" << segment_index
+            << "toggle" << toggle_flag
+            << "length" << text_length << "bytes";
+
+    m_validFIGsCount++;
+    m_totalFIGsProcessed++;
+}
+
+/**
+ * Process FIG Type 2 Extension 5: Data Service Extended Label
+ * ETSI EN 300 401 Section 8.1.13.1
+ *
+ * Provides UTF-8 extended labels for data services (always 32-bit SId)
+ * Semantically identical to FIG 2/1 with P/D=1
+ */
+void AdvancedFIGAnalyzer::processFIG2_5(const QByteArray& data)
+{
+    // ETSI EN 300 401 Section 8.1.13.1: FIG 2/5 Data Service Extended Label
+    // Always uses 32-bit service ID (data services)
+    
+    if (data.size() < 6) {  // Minimum: header (1) + SId (4) + flags (1)
+        m_lastError = QString("FIG 2/5: Insufficient data (need at least 6 bytes, got %1)").arg(data.size());
+        qWarning() << m_lastError;
+        return;
+    }
+
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
+    int offset = 1;  // Skip FIG header
+
+    // Parse 32-bit service ID (always for data services)
+    uint32_t service_id = (static_cast<uint32_t>(bytes[offset]) << 24) |
+                          (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
+                          (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
+                          bytes[offset + 3];
+    offset += 4;
+
+    // Parse flags byte
+    uint8_t toggle_flag = (bytes[offset] & 0x08) >> 3;  // Bit 3
+    uint8_t segment_index = bytes[offset] & 0x07;       // Bits 2-0
+    offset += 1;
+
+    // Remaining bytes are UTF-8 text segment
+    int text_length = data.size() - offset;
+    std::vector<uint8_t> text_segment;
+    for (int i = 0; i < text_length; ++i) {
+        text_segment.push_back(bytes[offset + i]);
+    }
+
+    // Store segment (reuse FIG 2/1 storage since they're semantically identical)
+    ExtendedLabelSegment segment;
+    segment.toggle_flag = toggle_flag;
+    segment.segment_index = segment_index;
+    segment.text_segment = text_segment;
+
+    m_service_extended_labels[service_id].service_id = service_id;
+    m_service_extended_labels[service_id].segments[segment_index] = segment;
+
+    qInfo() << "FIG 2/5: Data service 0x" << Qt::hex << service_id
+            << "segment" << segment_index
+            << "toggle" << toggle_flag
+            << "length" << text_length << "bytes";
+
+    m_validFIGsCount++;
+    m_totalFIGsProcessed++;
+}
+
+// ============================================================================
+// Phase 2A Week 7: Segment Reassembly Helper Methods
+// ============================================================================
+
+/**
+ * Reassemble ensemble extended label from segments
+ * CRITICAL: UTF-8 multi-byte character support for Thai language
+ */
+QString AdvancedFIGAnalyzer::getEnsembleExtendedLabel(uint16_t ensemble_id)
+{
+    auto it = m_ensemble_extended_labels.find(ensemble_id);
+    if (it == m_ensemble_extended_labels.end()) {
+        return QString();  // No extended label found
+    }
+
+    auto& label_info = it->second;
+    QByteArray full_label;
+
+    // Concatenate segments 0-7 in order
+    for (int i = 0; i < 8; ++i) {
+        auto seg_it = label_info.segments.find(i);
+        if (seg_it != label_info.segments.end()) {
+            const auto& segment = seg_it->second;
+            for (uint8_t byte : segment.text_segment) {
+                full_label.append(byte);
+            }
+        }
+    }
+
+    // Convert UTF-8 to QString (supports Thai multi-byte characters)
+    // Thai characters use 3 bytes per character in UTF-8
+    // Example: "ภาษาไทย" = 27 bytes
+    return QString::fromUtf8(full_label);
+}
+
+/**
+ * Reassemble service extended label from segments
+ * CRITICAL: UTF-8 multi-byte character support for Thai language
+ */
+QString AdvancedFIGAnalyzer::getServiceExtendedLabel(uint32_t service_id)
+{
+    auto it = m_service_extended_labels.find(service_id);
+    if (it == m_service_extended_labels.end()) {
+        return QString();  // No extended label found
+    }
+
+    auto& label_info = it->second;
+    QByteArray full_label;
+
+    // Concatenate segments 0-7 in order
+    for (int i = 0; i < 8; ++i) {
+        auto seg_it = label_info.segments.find(i);
+        if (seg_it != label_info.segments.end()) {
+            const auto& segment = seg_it->second;
+            for (uint8_t byte : segment.text_segment) {
+                full_label.append(byte);
+            }
+        }
+    }
+
+    // Convert UTF-8 to QString (supports Thai multi-byte characters)
+    return QString::fromUtf8(full_label);
+}
+
+/**
+ * Reassemble component extended label from segments
+ * CRITICAL: UTF-8 multi-byte character support for Thai language
+ */
+QString AdvancedFIGAnalyzer::getComponentExtendedLabel(uint32_t service_id, uint8_t component_id)
+{
+    uint64_t key = (static_cast<uint64_t>(service_id) << 8) | component_id;
+    
+    auto it = m_component_extended_labels.find(key);
+    if (it == m_component_extended_labels.end()) {
+        return QString();  // No extended label found
+    }
+
+    auto& label_info = it->second;
+    QByteArray full_label;
+
+    // Concatenate segments 0-7 in order
+    for (int i = 0; i < 8; ++i) {
+        auto seg_it = label_info.segments.find(i);
+        if (seg_it != label_info.segments.end()) {
+            const auto& segment = seg_it->second;
+            for (uint8_t byte : segment.text_segment) {
+                full_label.append(byte);
+            }
+        }
+    }
+
+    // Convert UTF-8 to QString (supports Thai multi-byte characters)
+    return QString::fromUtf8(full_label);
+}
+
+// ============================================================================
+// Phase 2A Week 7: Data Accessor
+// ============================================================================
+
+/**
+ * Get all data service labels (FIG 1/5)
+ */
+std::vector<FIG1_5_DataServiceLabel> AdvancedFIGAnalyzer::getDataServiceLabels() const
+{
+    std::vector<FIG1_5_DataServiceLabel> labels;
+    for (const auto& pair : m_data_service_labels) {
+        labels.push_back(pair.second);
+    }
+    return labels;
 }
 
 // ============================================================================
@@ -2125,6 +2612,10 @@ void AdvancedFIGAnalyzer::reset()
     m_global_definitions.clear();
     m_user_applications.clear();
     m_fec_schemes.clear();
+    m_data_service_labels.clear();
+    m_ensemble_extended_labels.clear();
+    m_service_extended_labels.clear();
+    m_component_extended_labels.clear();
     m_programme_type_info.clear();
     m_announcement_support.clear();
     m_active_announcements.clear();
