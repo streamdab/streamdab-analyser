@@ -358,10 +358,12 @@ QByteArray TestETILICRCValidation::createETINI_Frame(bool withValidCRC)
     frame[6] = 0x01;
 
     if (withValidCRC) {
-        // Calculate real CRC-16 for ETI-NI
-        // (simplified - actual implementation would use CRC calculation)
-        frame[6142] = 0xAB;
-        frame[6143] = 0xCD;
+        // Calculate real CRC-16 for ETI-NI using processor's CRC function
+        const uint8_t* data = reinterpret_cast<const uint8_t*>(frame.constData());
+        uint16_t crc = m_processor->calculateCRC16(data, 6142);
+        
+        frame[6142] = static_cast<char>((crc >> 8) & 0xFF);
+        frame[6143] = static_cast<char>(crc & 0xFF);
     } else {
         // Invalid CRC
         frame[6142] = 0x00;

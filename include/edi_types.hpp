@@ -42,9 +42,9 @@ namespace edi {
 // ============================================================================
 
 namespace constants {
-    // AF Packet sync patterns (Section 5.1)
-    constexpr uint16_t AF_SYNC_PATTERN_1 = 0xAF01;  // 'AF' protocol sync
-    constexpr uint16_t AF_SYNC_PATTERN_2 = 0x4150;  // Alternative sync pattern
+    // AF Packet sync patterns (Section 5.1) - Big-endian 'AF' = 0x41 0x46
+    constexpr uint16_t AF_SYNC_PATTERN_1 = 0x4146;  // 'AF' = 0x41 0x46 (primary)
+    constexpr uint16_t AF_SYNC_PATTERN_2 = 0xAF01;  // Alternative pattern
 
     // PFT Packet sync patterns (Section 6)
     constexpr uint16_t PFT_SYNC_PATTERN_1 = 0x5046;  // 'PF' protocol sync
