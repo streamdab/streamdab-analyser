@@ -24,6 +24,7 @@ set(SOURCES
     src/core/advanced_error_detection.cpp
     src/core/professional_logging_system.cpp
     src/core/hex_viewer_formatter.cpp
+    src/core/dabplus_stream_validator.cpp
     src/utils/logger.cpp
 )
 
