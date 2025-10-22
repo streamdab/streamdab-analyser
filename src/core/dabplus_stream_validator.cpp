@@ -95,8 +95,18 @@ DABPlusStreamValidator::DABPlusStreamValidator(QObject* parent)
     // Initialize FireCode lookup table for fast CRC calculation
     initializeFireCodeTable();
 
+    // TODO: Phase 3B Week 2 - DLS+ Integration (Agent 1 dependency)
+    // Uncomment when dls_plus_decoder.hpp is available:
+    // m_dls_plus_decoder = new eti::dlsplus::DLSPlusDecoder(this);
+    //
+    // Connect PAD data extraction to DLS+ decoder:
+    // connect(this, &DABPlusStreamValidator::padDataExtracted,
+    //         m_dls_plus_decoder, &eti::dlsplus::DLSPlusDecoder::processPADData);
+
     qInfo() << "DABPlusStreamValidator: Initialized ETSI TS 102 563 validator";
     qInfo() << "DABPlusStreamValidator: FireCode CRC table initialized (256 entries)";
+    // TODO: Phase 3B - Add log when DLS+ decoder integrated:
+    // qInfo() << "DABPlusStreamValidator: DLS+ decoder integrated for PAD processing";
 }
 
 DABPlusStreamValidator::~DABPlusStreamValidator()
@@ -153,6 +163,15 @@ bool DABPlusStreamValidator::processAudioData(uint32_t service_id,
         QString warning = QString("Low audio quality detected: %1%")
             .arg(metrics.quality_estimate, 0, 'f', 1);
         emit audioQualityWarning(service_id, warning);
+    }
+
+    // TODO: Phase 3B Week 2 - Extract PAD data from superframe
+    // Extract Programme Associated Data (PAD) for DLS+ and MOT SlideShow
+    // PAD is embedded within audio superframe after AAC data
+    // ETSI TS 102 563 Section 7: Programme Associated Data
+    QByteArray pad_data = extractPADData(msc_data, superframe);
+    if (!pad_data.isEmpty()) {
+        emit padDataExtracted(service_id, pad_data);
     }
 
     qDebug() << "DABPlusStreamValidator: Validated superframe for SID"
@@ -638,6 +657,39 @@ double DABPlusStreamValidator::calculateQualityEstimate(
     quality = std::min(100.0, quality);
 
     return quality;
+}
+
+QByteArray DABPlusStreamValidator::extractPADData(
+    const QByteArray& msc_data,
+    const AudioSuperframe& superframe)
+{
+    // TODO: Phase 3B Week 2 - Implement PAD extraction
+    // ETSI TS 102 563 Section 7: Programme Associated Data (PAD)
+    //
+    // PAD structure in DAB+ superframe:
+    // 1. Audio Access Units (AAC frames)
+    // 2. PAD data field (X-PAD for DLS+/MOT SlideShow)
+    // 3. F-PAD (Fixed PAD) - 2 bytes at end
+    //
+    // Extraction algorithm:
+    // - Calculate total AU size from superframe.access_units
+    // - PAD starts after last AU
+    // - PAD length indicator in F-PAD (last 2 bytes)
+    // - Extract X-PAD based on length
+    //
+    // For now, return empty (will be implemented when DLS+ decoder is ready)
+    Q_UNUSED(msc_data);
+    Q_UNUSED(superframe);
+
+    // Placeholder: Extract last 128 bytes as potential PAD data
+    // Real implementation will parse F-PAD length indicator
+    if (msc_data.size() > 128) {
+        // Return last 128 bytes as PAD candidate
+        // This is a simplified extraction - real implementation needs F-PAD parsing
+        return msc_data.right(128);
+    }
+
+    return QByteArray();
 }
 
 } // namespace eti::audio

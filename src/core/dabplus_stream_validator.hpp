@@ -47,6 +47,9 @@
 #include <memory>
 #include <map>
 
+// TODO: Phase 3B Week 2 - Uncomment when Agent 1 completes dls_plus_decoder.hpp
+// #include "dls_plus_decoder.hpp"
+
 namespace eti::audio {
 
 /**
@@ -421,6 +424,16 @@ signals:
      */
     void audioStreamError(uint32_t service_id, const QString& error);
 
+    /**
+     * @brief Emitted when PAD data is extracted from audio superframe
+     * @param service_id Service ID
+     * @param pad_data Programme Associated Data for DLS+/MOT SlideShow
+     *
+     * Phase 3B Week 2: DLS+ Integration
+     * This signal connects DAB+ validator to DLS+ decoder for metadata extraction.
+     */
+    void padDataExtracted(uint32_t service_id, const QByteArray& pad_data);
+
 private:
     // ========================================================================
     // FireCode CRC Implementation
@@ -466,6 +479,18 @@ private:
                                     bool is_heaac_v2,
                                     bool sbr_flag);
 
+    /**
+     * @brief Extract Programme Associated Data (PAD) from MSC data
+     * @param msc_data MSC data containing audio superframe
+     * @param superframe Parsed audio superframe
+     * @return Extracted PAD data (X-PAD + F-PAD)
+     *
+     * Phase 3B Week 2: PAD extraction for DLS+ and MOT SlideShow
+     * ETSI TS 102 563 Section 7: Programme Associated Data structure
+     */
+    QByteArray extractPADData(const QByteArray& msc_data,
+                             const AudioSuperframe& superframe);
+
     // ========================================================================
     // Private Data Members
     // ========================================================================
@@ -486,6 +511,15 @@ private:
 
     // Mutex for thread-safe access
     mutable QMutex m_mutex;
+
+    // TODO: Phase 3B Week 2 - DLS+ Integration (Agent 1 dependency)
+    // Uncomment when dls_plus_decoder.hpp is available:
+    // eti::dlsplus::DLSPlusDecoder* m_dls_plus_decoder = nullptr;
+
+public:
+    // TODO: Phase 3B Week 2 - DLS+ Accessor (Agent 1 dependency)
+    // Uncomment when dls_plus_decoder.hpp is available:
+    // eti::dlsplus::DLSPlusDecoder* dlsPlusDecoder() const { return m_dls_plus_decoder; }
 };
 
 } // namespace eti::audio

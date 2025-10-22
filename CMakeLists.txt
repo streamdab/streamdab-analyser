@@ -10,8 +10,8 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# Enhanced build flags
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native -mtune=native -flto -ffast-math -funroll-loops -finline-functions -DRELEASE_BUILD")
+# Enhanced build flags (LTO disabled to avoid compiler internal error)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native -mtune=native -ffast-math -funroll-loops -finline-functions -DRELEASE_BUILD")
 set(CMAKE_BUILD_TYPE Release)
 
 # Source files
@@ -28,6 +28,7 @@ set(SOURCES
     src/core/mot_protocol.cpp
     src/core/epg_decoder.cpp
     src/core/journaline_decoder.cpp
+    src/core/dls_plus_decoder.cpp
     src/core/phase3a_integration.cpp
     src/utils/logger.cpp
 )

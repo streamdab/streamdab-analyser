@@ -59,6 +59,9 @@
 #include "epg_decoder.hpp"
 // TODO: Add journaline_decoder.hpp when available from parallel agent
 
+// TODO: Phase 3B Week 2 - Uncomment when Agent 1 completes dls_plus_decoder.hpp
+// #include "dls_plus_decoder.hpp"
+
 namespace eti::integration {
 
 /**
@@ -164,6 +167,9 @@ public:
     eti::mot::MOTProtocol* motProtocol() const { return m_motProtocol; }
     eti::epg::EPGDecoder* epgDecoder() const { return m_epgDecoder; }
     // TODO: Add journalineDecoder() getter when available
+    
+    // TODO: Phase 3B Week 2 - Uncomment when Agent 1 completes dls_plus_decoder.hpp
+    // eti::dlsplus::DLSPlusDecoder* dlsPlusDecoder() const { return m_dls_plus_decoder; }
 
     // ========================================================================
     // Processing Interface
@@ -351,6 +357,16 @@ signals:
      */
     void epgEventParsed(uint32_t service_id, const QString& program_name);
 
+    // TODO: Phase 3B Week 2 - DLS+ Signals (Agent 1 dependency)
+    // Uncomment when dls_plus_decoder.hpp is available:
+    /**
+     * @brief Emitted when DLS+ message is received
+     * @param service_id Service ID
+     * @param artist Artist name
+     * @param title Track title
+     */
+    // void dlsPlusMessageReceived(uint32_t service_id, const QString& artist, const QString& title);
+
     // ========================================================================
     // Error & Warning Signals (aggregated)
     // ========================================================================
@@ -468,6 +484,10 @@ private:
     eti::mot::MOTProtocol* m_motProtocol;
     eti::epg::EPGDecoder* m_epgDecoder;
     // TODO: Add JournalineDecoder* m_journalineDecoder when available
+    
+    // TODO: Phase 3B Week 2 - DLS+ Decoder (Agent 1 dependency)
+    // Uncomment when dls_plus_decoder.hpp is available:
+    // eti::dlsplus::DLSPlusDecoder* m_dls_plus_decoder;
 
     // ========================================================================
     // State Management

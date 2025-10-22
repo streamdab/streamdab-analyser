@@ -22,6 +22,8 @@
 #include <QComboBox>
 #include <QSpinBox>
 #include <QPushButton>
+#include <QFrame>
+#include <QDateTime>
 #include <chrono>
 #include <memory>
 #include <map>
@@ -261,6 +263,41 @@ private slots:
             } else {
                 // Use frame structure error detection for other frame errors
                 m_errorDetector->detectFrameStructureErrors(frame_data, frameNumber);
+            }
+        }
+    }
+    
+    // Phase 3B: DLS+ "Now Playing" update slot
+    void updateNowPlaying(const QString& track, const QString& artist, const QString& album)
+    {
+        // Update track label
+        if (m_trackLabel) {
+            m_trackLabel->setText(track.isEmpty() ? "--" : track);
+        }
+        
+        // Update artist label
+        if (m_artistLabel) {
+            m_artistLabel->setText(artist.isEmpty() ? "--" : artist);
+        }
+        
+        // Update album label
+        if (m_albumLabel) {
+            m_albumLabel->setText(album.isEmpty() ? "--" : album);
+        }
+        
+        // Update timestamp
+        if (m_lastUpdatedLabel) {
+            QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+            m_lastUpdatedLabel->setText(QString("Updated: %1").arg(timestamp));
+        }
+        
+        // Log to system messages
+        if (!track.isEmpty() || !artist.isEmpty()) {
+            QString message = QString("🎵 Now Playing: %1 - %2")
+                             .arg(artist.isEmpty() ? "Unknown Artist" : artist)
+                             .arg(track.isEmpty() ? "Unknown Track" : track);
+            if (m_systemMessages) {
+                m_systemMessages->append(message);
             }
         }
     }
@@ -1744,12 +1781,90 @@ private:
         qualityLayout->addWidget(new QLabel("Quality: Good"));
         qualityLayout->addWidget(m_qualityMeter);
         layout->addWidget(qualityGroup);
+        
+        // Phase 3B: DLS+ "Now Playing" Panel
+        QGroupBox* nowPlayingGroup = createNowPlayingPanel();
+        layout->addWidget(nowPlayingGroup);
 
         // FIG Analysis moved to professional FIC-Analyzer tab
         // (Obsolete controls removed - use FIC-Analyzer tab instead)
 
         layout->addStretch();
         parent->addWidget(detailsWidget);
+    }
+    
+    QGroupBox* createNowPlayingPanel()
+    {
+        QGroupBox* groupBox = new QGroupBox("Now Playing (DLS+)");
+        QVBoxLayout* layout = new QVBoxLayout(groupBox);
+        
+        // Professional styling
+        QString nowPlayingStyle = R"(
+            QGroupBox {
+                border: 2px solid #4CAF50;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding: 10px;
+                background-color: #f9f9f9;
+                font-weight: bold;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 5px;
+                color: #4CAF50;
+                font-weight: bold;
+            }
+        )";
+        groupBox->setStyleSheet(nowPlayingStyle);
+        
+        // Track title row
+        QHBoxLayout* trackRow = new QHBoxLayout();
+        QLabel* trackTitleLabel = new QLabel("Track:");
+        trackTitleLabel->setStyleSheet("font-weight: bold; color: #333;");
+        trackRow->addWidget(trackTitleLabel);
+        m_trackLabel = new QLabel("--");
+        m_trackLabel->setStyleSheet("font-weight: bold; font-size: 14px; color: #1976d2;");
+        m_trackLabel->setWordWrap(true);
+        trackRow->addWidget(m_trackLabel, 1);
+        layout->addLayout(trackRow);
+        
+        // Artist row
+        QHBoxLayout* artistRow = new QHBoxLayout();
+        QLabel* artistTitleLabel = new QLabel("Artist:");
+        artistTitleLabel->setStyleSheet("font-weight: bold; color: #333;");
+        artistRow->addWidget(artistTitleLabel);
+        m_artistLabel = new QLabel("--");
+        m_artistLabel->setStyleSheet("font-size: 12px; color: #555;");
+        m_artistLabel->setWordWrap(true);
+        artistRow->addWidget(m_artistLabel, 1);
+        layout->addLayout(artistRow);
+        
+        // Album row
+        QHBoxLayout* albumRow = new QHBoxLayout();
+        QLabel* albumTitleLabel = new QLabel("Album:");
+        albumTitleLabel->setStyleSheet("font-weight: bold; color: #333;");
+        albumRow->addWidget(albumTitleLabel);
+        m_albumLabel = new QLabel("--");
+        m_albumLabel->setStyleSheet("font-size: 11px; color: #777; font-style: italic;");
+        m_albumLabel->setWordWrap(true);
+        albumRow->addWidget(m_albumLabel, 1);
+        layout->addLayout(albumRow);
+        
+        // Separator line
+        QFrame* line = new QFrame();
+        line->setFrameShape(QFrame::HLine);
+        line->setFrameShadow(QFrame::Sunken);
+        line->setStyleSheet("background-color: #ddd;");
+        layout->addWidget(line);
+        
+        // Last updated timestamp
+        m_lastUpdatedLabel = new QLabel("No metadata received");
+        m_lastUpdatedLabel->setStyleSheet("font-size: 10px; color: #999; font-style: italic;");
+        m_lastUpdatedLabel->setAlignment(Qt::AlignRight);
+        layout->addWidget(m_lastUpdatedLabel);
+        
+        return groupBox;
     }
 
     void createEnhancedFICAnalysisPanel(QSplitter* parent)
@@ -2785,6 +2900,12 @@ private:
     QLabel* m_frameCountLabel;
     QProgressBar* m_progressBar;
     QProgressBar* m_qualityMeter;
+    
+    // Phase 3B: DLS+ "Now Playing" UI components
+    QLabel* m_trackLabel;
+    QLabel* m_artistLabel;
+    QLabel* m_albumLabel;
+    QLabel* m_lastUpdatedLabel;
 
     // State
     QString m_currentFilePath;

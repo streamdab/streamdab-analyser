@@ -157,6 +157,20 @@ target_link_libraries(test_journaline_pipeline
 )
 add_test(NAME test_journaline_pipeline COMMAND test_journaline_pipeline)
 
+# Test 10: DLS+ Decoder Unit Tests (Phase 3B Week 2)
+# Note: Currently stubbed - waiting for Agent 1 to complete dls_plus_decoder.hpp/cpp
+add_executable(test_dls_plus_decoder
+    test_dls_plus_decoder.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_dls_plus_decoder
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    pthread
+)
+add_test(NAME test_dls_plus_decoder COMMAND test_dls_plus_decoder)
+
 # ============================================================================
 # INTEGRATION TESTS - Phase 3A Wave 3.1
 # ============================================================================
@@ -224,10 +238,16 @@ endif()
 
 message(STATUS "")
 message(STATUS "===========================================")
-message(STATUS "Configured 10 validation tests (5 core + 5 Phase 3A)")
-message(STATUS "Integration tests: 3 (audio + EPG + Journaline)")
+message(STATUS "Configured 11 validation tests:")
+message(STATUS "  - 5 core tests (ETI, FIG 0/1, LI CRC)")
+message(STATUS "  - 5 Phase 3A tests (MOT, EPG, Journaline)")
+message(STATUS "  - 1 Phase 3B test (DLS+ decoder - STUBBED)")
+message(STATUS "Integration tests: 4 (audio + EPG + Journaline + DLS+)")
 message(STATUS "E2E tests: 1 (Phase 3A complete pipeline - 26 tests)")
 message(STATUS "Benchmark tools: 1 (performance_benchmark)")
+message(STATUS "")
+message(STATUS "NOTE: DLS+ tests are STUBBED pending Agent 1 completion")
+message(STATUS "      All DLS+ tests will SKIP until dls_plus_decoder ready")
 message(STATUS "")
 message(STATUS "Test execution: make && ctest")
 message(STATUS "Benchmark: make && ./tests/performance_benchmark")
