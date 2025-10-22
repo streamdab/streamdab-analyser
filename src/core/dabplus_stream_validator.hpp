@@ -47,8 +47,8 @@
 #include <memory>
 #include <map>
 
-// TODO: Phase 3B Week 2 - Uncomment when Agent 1 completes dls_plus_decoder.hpp
-// #include "dls_plus_decoder.hpp"
+// Phase 3B: DLS+ decoder integration (Agent 1 complete)
+#include "dls_plus_decoder.hpp"
 
 namespace eti::audio {
 
@@ -512,14 +512,12 @@ private:
     // Mutex for thread-safe access
     mutable QMutex m_mutex;
 
-    // TODO: Phase 3B Week 2 - DLS+ Integration (Agent 1 dependency)
-    // Uncomment when dls_plus_decoder.hpp is available:
-    // eti::dlsplus::DLSPlusDecoder* m_dls_plus_decoder = nullptr;
+    // Phase 3B: DLS+ decoder integration (activated)
+    eti::dlsplus::DLSPlusDecoder* m_dls_plus_decoder = nullptr;
 
 public:
-    // TODO: Phase 3B Week 2 - DLS+ Accessor (Agent 1 dependency)
-    // Uncomment when dls_plus_decoder.hpp is available:
-    // eti::dlsplus::DLSPlusDecoder* dlsPlusDecoder() const { return m_dls_plus_decoder; }
+    // Phase 3B: DLS+ decoder accessor
+    eti::dlsplus::DLSPlusDecoder* dlsPlusDecoder() const { return m_dls_plus_decoder; }
 };
 
 } // namespace eti::audio

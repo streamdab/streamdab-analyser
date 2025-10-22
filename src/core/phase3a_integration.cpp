@@ -100,14 +100,13 @@ bool Phase3AIntegrationManager::initializeComponents()
         // TODO: Create Journaline Decoder when available
         // m_journalineDecoder = new journaline::JournalineDecoder(this);
 
-        // TODO: Phase 3B Week 2 - Create DLS+ Decoder (Agent 1 dependency)
-        // Uncomment when dls_plus_decoder.hpp is available:
-        // m_dls_plus_decoder = new eti::dlsplus::DLSPlusDecoder(this);
-        // if (!m_dls_plus_decoder) {
-        //     emit initializationError("DLSPlusDecoder", "Failed to create instance");
-        //     return false;
-        // }
-        // qDebug() << "[Phase3A Integration] ✓ DLS+ Decoder created";
+        // Phase 3B: Create DLS+ decoder (activated)
+        m_dls_plus_decoder = new eti::dlsplus::DLSPlusDecoder(this);
+        if (!m_dls_plus_decoder) {
+            emit initializationError("DLSPlusDecoder", "Failed to create instance");
+            return false;
+        }
+        qDebug() << "[Phase3A Integration] ✓ DLS+ Decoder created";
 
         // Connect all signal/slot pipelines
         if (!connectSignals()) {
@@ -203,20 +202,22 @@ bool Phase3AIntegrationManager::connectSignals()
     qDebug() << "[Phase3A Integration] ✓ EPG Decoder → Integration Manager connected";
 
     // ========================================================================
-    // Pipeline 5: TODO - DLS+ Integration (Phase 3B Week 2 - Agent 1 dependency)
+    // Pipeline 5: DLS+ Integration (Phase 3B - activated)
     // ========================================================================
 
-    // TODO: Phase 3B Week 2 - Connect Audio Validator PAD → DLS+ Decoder
-    // Uncomment when dls_plus_decoder.hpp is available:
-    // connect(m_audioValidator, &eti::audio::DABPlusStreamValidator::padDataExtracted,
-    //         m_dls_plus_decoder, &eti::dlsplus::DLSPlusDecoder::processPADData);
-    //
-    // connect(m_dls_plus_decoder, &eti::dlsplus::DLSPlusDecoder::dlsPlusMessageReceived,
-    //         this, [this](const eti::dlsplus::DLSPlusMessage& msg) {
-    //             emit dlsPlusMessageReceived(msg.service_id, msg.getArtist(), msg.getTitle());
-    //         });
-    //
-    // qDebug() << "[Phase3A Integration] ✓ Audio Validator PAD → DLS+ Decoder connected";
+    // Connect Audio Validator PAD → DLS+ Decoder (lambda adapts parameters)
+    connect(m_audioValidator, &eti::audio::DABPlusStreamValidator::padDataExtracted,
+            this, [this](uint32_t service_id, const QByteArray& pad_data) {
+                Q_UNUSED(service_id); // processPADData doesn't need service_id
+                m_dls_plus_decoder->processPADData(pad_data);
+            });
+    
+    connect(m_dls_plus_decoder, &eti::dlsplus::DLSPlusDecoder::dlsPlusMessageReceived,
+            this, [this](uint32_t service_id, const eti::dlsplus::DLSPlusMessage& msg) {
+                emit dlsPlusMessageReceived(service_id, msg.getArtist(), msg.getItem());
+            });
+    
+    qDebug() << "[Phase3A Integration] ✓ Audio Validator PAD → DLS+ Decoder connected";
 
     // ========================================================================
     // Pipeline 6: MOT → EPG Cross-Component Connection
