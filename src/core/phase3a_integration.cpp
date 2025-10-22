@@ -100,6 +100,15 @@ bool Phase3AIntegrationManager::initializeComponents()
         // TODO: Create Journaline Decoder when available
         // m_journalineDecoder = new journaline::JournalineDecoder(this);
 
+        // TODO: Phase 3B Week 2 - Create DLS+ Decoder (Agent 1 dependency)
+        // Uncomment when dls_plus_decoder.hpp is available:
+        // m_dls_plus_decoder = new eti::dlsplus::DLSPlusDecoder(this);
+        // if (!m_dls_plus_decoder) {
+        //     emit initializationError("DLSPlusDecoder", "Failed to create instance");
+        //     return false;
+        // }
+        // qDebug() << "[Phase3A Integration] ✓ DLS+ Decoder created";
+
         // Connect all signal/slot pipelines
         if (!connectSignals()) {
             emit initializationError("SignalConnection", "Failed to connect signals");
@@ -194,7 +203,23 @@ bool Phase3AIntegrationManager::connectSignals()
     qDebug() << "[Phase3A Integration] ✓ EPG Decoder → Integration Manager connected";
 
     // ========================================================================
-    // Pipeline 5: MOT → EPG Cross-Component Connection
+    // Pipeline 5: TODO - DLS+ Integration (Phase 3B Week 2 - Agent 1 dependency)
+    // ========================================================================
+
+    // TODO: Phase 3B Week 2 - Connect Audio Validator PAD → DLS+ Decoder
+    // Uncomment when dls_plus_decoder.hpp is available:
+    // connect(m_audioValidator, &eti::audio::DABPlusStreamValidator::padDataExtracted,
+    //         m_dls_plus_decoder, &eti::dlsplus::DLSPlusDecoder::processPADData);
+    //
+    // connect(m_dls_plus_decoder, &eti::dlsplus::DLSPlusDecoder::dlsPlusMessageReceived,
+    //         this, [this](const eti::dlsplus::DLSPlusMessage& msg) {
+    //             emit dlsPlusMessageReceived(msg.service_id, msg.getArtist(), msg.getTitle());
+    //         });
+    //
+    // qDebug() << "[Phase3A Integration] ✓ Audio Validator PAD → DLS+ Decoder connected";
+
+    // ========================================================================
+    // Pipeline 6: MOT → EPG Cross-Component Connection
     // ========================================================================
 
     // When MOT object completes, check if it's EPG data and forward to EPG decoder
@@ -212,13 +237,14 @@ bool Phase3AIntegrationManager::connectSignals()
     qDebug() << "[Phase3A Integration] ✓ MOT → EPG cross-component connected";
 
     // ========================================================================
-    // Pipeline 6: TODO - MOT → Journaline (when available)
+    // Pipeline 7: TODO - MOT → Journaline (when available)
     // ========================================================================
     // TODO: Connect MOT objectComplete → Journaline decoder
     // connect(m_motProtocol, &eti::mot::MOTProtocol::objectComplete,
     //         m_journalineDecoder, &journaline::JournalineDecoder::processMOTObject);
 
     qInfo() << "[Phase3A Integration] All signal/slot pipelines connected successfully";
+    qInfo() << "[Phase3A Integration] Note: DLS+ pipeline will be enabled when Agent 1 completes decoder";
     return true;
 }
 
