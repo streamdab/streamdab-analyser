@@ -37,6 +37,7 @@
 #include "core/multi_stream_processor.hpp"
 #include "core/advanced_error_detection.hpp"
 #include "core/professional_logging_system.hpp"
+#include "core/dls_plus_decoder.hpp"  // Phase 3B: DLS+ decoder integration
 
 class DABAnalyzerWindow : public QMainWindow
 {
@@ -65,6 +66,15 @@ public:
         m_errorDetector = std::make_unique<error_detection::AdvancedErrorDetector>();
         // IDENTIFIED PROBLEM: Professional Logging System causes file dialog freeze
         // m_loggingSystem = std::make_unique<professional_logging::ProfessionalLoggingSystem>();
+
+        // Phase 3B: Initialize DLS+ decoder
+        m_dlsPlusDecoder = new eti::dlsplus::DLSPlusDecoder(this);
+        
+        // Phase 3B: Connect DLS+ signals to Now Playing UI
+        connect(m_dlsPlusDecoder, &eti::dlsplus::DLSPlusDecoder::nowPlayingUpdated,
+                this, [this](const QString& track, const QString& artist, const QString& album) {
+                    updateNowPlaying(track, artist, album);
+                });
 
         setupUI();
         setupMenuBar();
@@ -2906,6 +2916,9 @@ private:
     QLabel* m_artistLabel;
     QLabel* m_albumLabel;
     QLabel* m_lastUpdatedLabel;
+    
+    // Phase 3B: DLS+ decoder instance
+    eti::dlsplus::DLSPlusDecoder* m_dlsPlusDecoder{nullptr};
 
     // State
     QString m_currentFilePath;
