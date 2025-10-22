@@ -95,18 +95,19 @@ DABPlusStreamValidator::DABPlusStreamValidator(QObject* parent)
     // Initialize FireCode lookup table for fast CRC calculation
     initializeFireCodeTable();
 
-    // TODO: Phase 3B Week 2 - DLS+ Integration (Agent 1 dependency)
-    // Uncomment when dls_plus_decoder.hpp is available:
-    // m_dls_plus_decoder = new eti::dlsplus::DLSPlusDecoder(this);
-    //
-    // Connect PAD data extraction to DLS+ decoder:
-    // connect(this, &DABPlusStreamValidator::padDataExtracted,
-    //         m_dls_plus_decoder, &eti::dlsplus::DLSPlusDecoder::processPADData);
+    // Phase 3B: DLS+ decoder integration (activated)
+    m_dls_plus_decoder = new eti::dlsplus::DLSPlusDecoder(this);
+    
+    // Connect PAD data extraction to DLS+ decoder (lambda adapts signal parameters)
+    connect(this, &DABPlusStreamValidator::padDataExtracted,
+            this, [this](uint32_t service_id, const QByteArray& pad_data) {
+                Q_UNUSED(service_id); // DLS+ decoder doesn't need service_id in processPADData
+                m_dls_plus_decoder->processPADData(pad_data);
+            });
 
     qInfo() << "DABPlusStreamValidator: Initialized ETSI TS 102 563 validator";
     qInfo() << "DABPlusStreamValidator: FireCode CRC table initialized (256 entries)";
-    // TODO: Phase 3B - Add log when DLS+ decoder integrated:
-    // qInfo() << "DABPlusStreamValidator: DLS+ decoder integrated for PAD processing";
+    qInfo() << "DABPlusStreamValidator: DLS+ decoder integrated for PAD processing";
 }
 
 DABPlusStreamValidator::~DABPlusStreamValidator()

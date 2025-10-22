@@ -26,6 +26,7 @@ set(CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/mot_protocol.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/epg_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/phase3a_integration.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/dls_plus_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/etsi_compliance_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/utils/logger.cpp
 )
