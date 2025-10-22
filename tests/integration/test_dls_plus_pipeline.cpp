@@ -35,6 +35,7 @@
 #include <QSignalSpy>
 #include <QByteArray>
 #include <QString>
+#include <QCoreApplication>
 
 // Existing components (available)
 #include "../../src/core/dabplus_stream_validator.hpp"
@@ -134,19 +135,22 @@ void TestDLSPlusPipeline::cleanupTestCase()
 
 void TestDLSPlusPipeline::init()
 {
-    // Create components for each test
-    m_audioValidator = new DABPlusStreamValidator(this);
+    // Create components for each test (nullptr parent for safe manual deletion)
+    m_audioValidator = new DABPlusStreamValidator(nullptr);
     QVERIFY(m_audioValidator != nullptr);
 
-    m_integrationManager = new Phase3AIntegrationManager(this);
+    m_integrationManager = new Phase3AIntegrationManager(nullptr);
     QVERIFY(m_integrationManager != nullptr);
 
-    m_dlsPlusDecoder = new DLSPlusDecoder(this);
+    m_dlsPlusDecoder = new DLSPlusDecoder(nullptr);
     QVERIFY(m_dlsPlusDecoder != nullptr);
 }
 
 void TestDLSPlusPipeline::cleanup()
 {
+    // Process pending signals before deletion
+    QCoreApplication::processEvents();
+    
     // Clean up after each test
     delete m_audioValidator;
     m_audioValidator = nullptr;
@@ -497,10 +501,27 @@ QByteArray TestDLSPlusPipeline::createThaiDLSMessage()
 {
     // Thai text: "เพลงไทย - ศิลปินไทย"
     QString dls_text = "เพลงไทย - ศิลปินไทย";
+    QByteArray utf8_bytes = dls_text.toUtf8();
+    
+    // ETSI TS 102 980: DLS+ markers use UTF-8 BYTE offsets, not character positions
+    // Thai characters are 3 bytes each in UTF-8
+    
+    // "เพลงไทย" = 7 characters = 21 bytes
+    QString item_text = "เพลงไทย";
+    QByteArray item_bytes = item_text.toUtf8();
+    uint8_t item_start = 0;
+    uint8_t item_length = item_bytes.size(); // 21 bytes (7 chars × 3 bytes)
+    
+    // " - " = 3 characters = 3 bytes
+    // "ศิลปินไทย" = 9 characters = 27 bytes
+    QString artist_text = "ศิลปินไทย";
+    QByteArray artist_bytes = artist_text.toUtf8();
+    uint8_t artist_start = item_bytes.size() + 3; // 24 bytes (21 + 3)
+    uint8_t artist_length = artist_bytes.size(); // 27 bytes (9 chars × 3 bytes)
     
     QVector<QPair<DLSPlusTag, QPair<uint8_t, uint8_t>>> tags;
-    tags.append({DLSPlusTag::ITEM, {0, 7}});     // "เพลงไทย"
-    tags.append({DLSPlusTag::ARTIST, {10, 9}});  // "ศิลปินไทย"
+    tags.append({DLSPlusTag::ITEM, {item_start, item_length}});       // bytes 0-20
+    tags.append({DLSPlusTag::ARTIST, {artist_start, artist_length}}); // bytes 24-50
     
     return createTestPADData(dls_text, tags);
 }
