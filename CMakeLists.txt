@@ -25,6 +25,8 @@ set(SOURCES
     src/core/professional_logging_system.cpp
     src/core/hex_viewer_formatter.cpp
     src/core/dabplus_stream_validator.cpp
+    src/core/mot_protocol.cpp
+    src/core/epg_decoder.cpp
     src/utils/logger.cpp
 )
 
