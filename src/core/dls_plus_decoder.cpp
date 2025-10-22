@@ -144,15 +144,14 @@ DLSPlusDecoder::DLSPlusDecoder(QObject* parent)
     qRegisterMetaType<DLSPlusContentDescriptor>("DLSPlusContentDescriptor");
     qRegisterMetaType<DLSPlusTag>("DLSPlusTag");
     
-    qDebug() << "[DLS+] Decoder initialized - ETSI TS 102 980 compliant";
+    // Verbose logging removed for performance (causes test slowdown)
+    // Decoder initialization is silent - check statistics for activity
 }
 
 DLSPlusDecoder::~DLSPlusDecoder() {
     QMutexLocker locker(&m_mutex);
-    qDebug() << "[DLS+] Decoder shutdown - Statistics:"
-             << m_statistics.messages_processed << "messages,"
-             << m_statistics.tags_extracted << "tags,"
-             << m_statistics.parsing_errors << "errors";
+    // Verbose logging removed for performance (causes test slowdown)
+    // Statistics available via getStatistics() before destruction if needed
 }
 
 // ============================================================================
@@ -222,11 +221,8 @@ bool DLSPlusDecoder::processDLSPlusCommand(const QByteArray& dls_text,
             m_statistics.tags_extracted += message.descriptors.size();
             m_statistics.text_updates++;
             
-            qDebug() << "[DLS+] Message decoded:"
-                     << "Service=0x" + QString::number(message.service_id, 16)
-                     << "Tags=" << message.descriptors.size()
-                     << "Track=" << message.getItem()
-                     << "Artist=" << message.getArtist();
+            // Verbose message logging removed for performance
+            // Use nowPlayingUpdated() signal or getCurrentMessage() for content access
         } else {
             m_statistics.parsing_errors++;
         }
@@ -300,7 +296,7 @@ DLSPlusDecoder::Statistics DLSPlusDecoder::getStatistics() const {
 void DLSPlusDecoder::resetStatistics() {
     QMutexLocker locker(&m_mutex);
     m_statistics.reset();
-    qDebug() << "[DLS+] Statistics reset";
+    // Verbose logging removed for performance
 }
 
 void DLSPlusDecoder::clearCurrent() {
@@ -363,7 +359,7 @@ QVector<DLSPlusContentDescriptor> DLSPlusDecoder::parseContentDescriptors(
         } else if (descriptor.tag != DLSPlusTag::DUMMY) {
             QMutexLocker locker(&m_mutex);
             m_statistics.invalid_descriptors++;
-            qDebug() << "[DLS+] Invalid descriptor skipped at offset" << (offset - DESCRIPTOR_SIZE);
+            // Verbose logging removed - check m_statistics.invalid_descriptors for count
         }
     }
     
@@ -421,13 +417,8 @@ void DLSPlusDecoder::extractTagText(const QString& dls_text,
     // Calculate end position
     int end_pos = descriptor.start_marker + descriptor.length_marker;
     if (end_pos > dls_text.length()) {
-        // H2: Log boundary clamping with full details
-        QString warning = QString("Content descriptor length exceeds text: start=%1, len=%2, text_len=%3, clamping to %4")
-                         .arg(descriptor.start_marker)
-                         .arg(descriptor.length_marker)
-                         .arg(dls_text.length())
-                         .arg(dls_text.length());
-        qDebug() << "[DLS+]" << warning;
+        // H2: Boundary clamping (verbose logging removed for performance)
+        // Descriptor length exceeds text - automatically clamped
         end_pos = dls_text.length();
     }
     
@@ -464,9 +455,8 @@ DLSPlusTag DLSPlusDecoder::parseTagType(uint8_t tag_byte) const {
         case 0x21: return DLSPlusTag::DESCRIPTOR_APPOINTMENT;
         case 0x22: return DLSPlusTag::DESCRIPTOR_IDENTIFIER;
         default:
-            // Unknown tag - return UNKNOWN but log
-            qDebug() << "[DLS+] Unknown tag type:" 
-                     << QString("0x%1").arg(tag_byte, 2, 16, QChar('0'));
+            // Unknown tag - return UNKNOWN (logging removed for performance)
+            // Enable via qWarning() if debugging needed
             return DLSPlusTag::UNKNOWN;
     }
 }
@@ -544,9 +534,9 @@ bool DLSPlusDecoder::extractCommandFromPAD(const QByteArray& pad_data,
     // Simplified extraction for Phase 3B Week 1.
     // Real implementation would parse complete X-PAD structure.
     
-    // H2: Add minimum size validation with logging
+    // H2: Add minimum size validation (verbose logging removed for performance)
     if (pad_data.size() < 8) {
-        qDebug() << "[DLS+] PAD data too small for command extraction:" << pad_data.size() << "bytes (minimum 8)";
+        // PAD data too small - silent rejection
         return false;
     }
     
