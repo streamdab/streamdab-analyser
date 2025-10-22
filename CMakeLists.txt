@@ -27,6 +27,8 @@ set(SOURCES
     src/core/dabplus_stream_validator.cpp
     src/core/mot_protocol.cpp
     src/core/epg_decoder.cpp
+    src/core/journaline_decoder.cpp
+    src/core/phase3a_integration.cpp
     src/utils/logger.cpp
 )
 

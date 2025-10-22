@@ -24,6 +24,8 @@ set(CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/advanced_fig_analyzer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/dabplus_stream_validator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/mot_protocol.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/epg_decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/phase3a_integration.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/etsi_compliance_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/utils/logger.cpp
 )
@@ -58,7 +60,23 @@ target_link_libraries(test_mot_pipeline
 )
 add_test(NAME test_mot_pipeline COMMAND test_mot_pipeline)
 
+# ============================================================================
+# Integration Test 3: Phase 3A Complete Integration
+# ============================================================================
+add_executable(test_phase3a_integration
+    test_phase3a_integration.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_phase3a_integration
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    pthread
+)
+add_test(NAME test_phase3a_integration COMMAND test_phase3a_integration)
+
 message(STATUS "Integration tests configured:")
 message(STATUS "  - test_audio_pipeline: ETI → Audio validation")
 message(STATUS "  - test_mot_pipeline: ETI → MOT extraction")
+message(STATUS "  - test_phase3a_integration: Complete Phase 3A pipeline")
 message(STATUS "==========================================")
