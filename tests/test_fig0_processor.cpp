@@ -8,7 +8,7 @@
 
 #include <QtTest/QtTest>
 #include <QtCore/QDebug>
-#include "advanced_fig_analyzer.h"
+#include "../src/core/advanced_fig_analyzer.h"
 
 // ============================================================================
 // Test Class Declaration

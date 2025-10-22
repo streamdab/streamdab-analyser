@@ -1,4 +1,9 @@
+---
+model: claude-sonnet-4-5
+---
+
 # C++ Qt Developer Agent
+
 
 ## Agent Role
 

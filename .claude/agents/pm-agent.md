@@ -1,5 +1,10 @@
+---
+model: claude-sonnet-4-5
+---
+
 # PM Agent - StreamDAB Analyzer Project Manager
 ## Specialized Agent for Multi-Agent Coordination and Project Management
+
 
 ---
 
