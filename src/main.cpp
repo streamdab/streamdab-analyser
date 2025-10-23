@@ -6,6 +6,7 @@
 #include <QHBoxLayout>
 #include <QSplitter>
 #include <QTreeWidget>
+#include <QTableWidget>
 #include <QListWidget>
 #include <QTextEdit>
 #include <QLabel>
@@ -1688,29 +1689,521 @@ protected:
 private:
     void setupUI()
     {
-        // Create main splitter layout
-        QSplitter* mainSplitter = new QSplitter(Qt::Vertical, this);
-        setCentralWidget(mainSplitter);
+        // Create main vertical splitter (Tab area + Shared bottom panel)
+        QSplitter* mainVerticalSplitter = new QSplitter(Qt::Vertical, this);
+        setCentralWidget(mainVerticalSplitter);
 
-        // Top horizontal splitter
+        // Create main tab widget for 3 tabs
+        QTabWidget* mainTabs = new QTabWidget();
+        mainVerticalSplitter->addWidget(mainTabs);
+
+        // Tab 1: ETI DAB Ensemble Explorer (PRIMARY - most used)
+        QWidget* tab1 = createTab1_EnsembleExplorer();
+        mainTabs->addTab(tab1, "📡 ETI DAB Ensemble Explorer");
+
+        // Tab 2: FIC Analysis Tools (SECONDARY - specialized analysis)
+        QWidget* tab2 = createTab2_FICAnalysisTools();
+        mainTabs->addTab(tab2, "🔬 FIC Analysis Tools");
+
+        // Tab 3: Advanced Features (TERTIARY - advanced capabilities)
+        QWidget* tab3 = createTab3_AdvancedFeatures();
+        mainTabs->addTab(tab3, "⚙️ Advanced Features");
+
+        // Shared bottom panel (consistent across all tabs)
+        QTabWidget* sharedBottomPanel = createSharedBottomPanel();
+        mainVerticalSplitter->addWidget(sharedBottomPanel);
+
+        // Set vertical split: 70% tabs, 30% bottom panel (700px : 300px)
+        mainVerticalSplitter->setSizes({700, 300});
+    }
+
+    // ========================================================================
+    // TAB 1: ETI DAB ENSEMBLE EXPLORER (PRIMARY WORKSPACE)
+    // ========================================================================
+    QWidget* createTab1_EnsembleExplorer()
+    {
+        QWidget* tab = new QWidget();
+        QVBoxLayout* mainLayout = new QVBoxLayout(tab);
+        mainLayout->setContentsMargins(4, 4, 4, 4);
+        mainLayout->setSpacing(4);
+
+        // Top section: 3-column layout (Left 25% | Center 50% | Right 25%)
         QSplitter* topSplitter = new QSplitter(Qt::Horizontal);
-        mainSplitter->addWidget(topSplitter);
 
-        // Left Panel: Ensemble Tree
-        createEnsemblePanel(topSplitter);
+        // Left Panel (25%): DAB Tree + ETI Explorer Details
+        QWidget* leftPanel = createTab1_LeftPanel();
+        topSplitter->addWidget(leftPanel);
+
+        // Center Panel (50%): Frame Navigator + Hex Viewer
+        QWidget* centerPanel = createTab1_CenterPanel();
+        topSplitter->addWidget(centerPanel);
+
+        // Right Panel (25%): Service Details + Signal Quality + DLS+
+        QWidget* rightPanel = createTab1_RightPanel();
+        topSplitter->addWidget(rightPanel);
+
+        // Set horizontal proportions: 25% | 50% | 25% (300px | 600px | 300px out of 1200px)
+        topSplitter->setSizes({300, 600, 300});
+
+        mainLayout->addWidget(topSplitter);
+        return tab;
+    }
+
+    QWidget* createTab1_LeftPanel()
+    {
+        QWidget* panel = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(panel);
+        layout->setContentsMargins(2, 2, 2, 2);
+        layout->setSpacing(4);
+
+        // Top 50%: DAB Ensemble Tree
+        QLabel* treeLabel = new QLabel("DAB Ensemble Explorer");
+        treeLabel->setStyleSheet("font-weight: bold; font-size: 11pt;");
+        layout->addWidget(treeLabel);
+
+        m_ensembleTree = new QTreeWidget();
+        m_ensembleTree->setHeaderLabels({"Service", "Label", "Type"});
+        m_ensembleTree->setAlternatingRowColors(true);
+        m_ensembleTree->header()->setStretchLastSection(false);
+        m_ensembleTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+        m_ensembleTree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
+        m_ensembleTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+        layout->addWidget(m_ensembleTree, 50);  // 50% stretch
+
+        // Bottom 50%: ETI Explorer Details (converted from QLabel to QTableWidget)
+        QGroupBox* detailsGroup = new QGroupBox("ETI Explorer Details");
+        QVBoxLayout* detailsLayout = new QVBoxLayout(detailsGroup);
+        detailsLayout->setContentsMargins(4, 8, 4, 4);
         
-        // Center Panel: Frame Navigator
-        createFrameNavigatorPanel(topSplitter);
+        m_etiExplorerDetails = new QTableWidget(8, 2);
+        m_etiExplorerDetails->setHorizontalHeaderLabels({"Property", "Value"});
+        m_etiExplorerDetails->verticalHeader()->setVisible(false);
+        m_etiExplorerDetails->setAlternatingRowColors(true);
+        m_etiExplorerDetails->horizontalHeader()->setStretchLastSection(true);
+        m_etiExplorerDetails->setEditTriggers(QAbstractItemView::NoEditTriggers);
         
-        // Right Panel: Service Details
-        createServiceDetailsPanel(topSplitter);
+        // Initialize ETI Explorer properties
+        QStringList properties = {
+            "ETI Type", "Error Field", "DAB Mode", "STAT",
+            "Total Frames", "ETI-NI Count", "ETI-LI-A Count", "ETI-LI-B Count"
+        };
+        for (int i = 0; i < properties.size(); ++i) {
+            QTableWidgetItem* propItem = new QTableWidgetItem(properties[i]);
+            propItem->setFont(QFont("Segoe UI", 9, QFont::Bold));
+            m_etiExplorerDetails->setItem(i, 0, propItem);
+            
+            QTableWidgetItem* valItem = new QTableWidgetItem("--");
+            valItem->setFont(QFont("Consolas", 9));
+            m_etiExplorerDetails->setItem(i, 1, valItem);
+        }
+        
+        detailsLayout->addWidget(m_etiExplorerDetails);
+        layout->addWidget(detailsGroup, 50);  // 50% stretch
 
-        // Bottom Panel: Enhanced FIC Analysis Hub (DAB-XPlorer pattern)
-        createEnhancedFICAnalysisPanel(mainSplitter);
+        return panel;
+    }
 
-        // Set sizes (25%, 50%, 25% horizontal; 70%, 30% vertical)
-        topSplitter->setSizes({280, 600, 320});
-        mainSplitter->setSizes({700, 300});
+    QWidget* createTab1_CenterPanel()
+    {
+        QWidget* panel = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(panel);
+        layout->setContentsMargins(2, 2, 2, 2);
+        layout->setSpacing(4);
+
+        // Top 15%: Player/Decoder Status (new panels)
+        QWidget* statusPanels = createPlayerDecoderStatusPanels();
+        layout->addWidget(statusPanels, 15);
+
+        // Middle 30%: ETI Frame Navigator
+        QGroupBox* navigatorGroup = new QGroupBox("ETI Frame Navigator");
+        QVBoxLayout* navigatorLayout = new QVBoxLayout(navigatorGroup);
+        
+        m_progressBar = new QProgressBar();
+        m_progressBar->setTextVisible(true);
+        navigatorLayout->addWidget(m_progressBar);
+        
+        m_frameCountLabel = new QLabel("Frames: 0 / 0");
+        m_frameCountLabel->setStyleSheet("font-weight: bold;");
+        navigatorLayout->addWidget(m_frameCountLabel);
+        
+        m_frameList = new QListWidget();
+        navigatorLayout->addWidget(m_frameList);
+        
+        layout->addWidget(navigatorGroup, 30);
+
+        // Bottom 55%: Hex Viewer / ETSI Compliance tabs
+        QTabWidget* viewerTabs = new QTabWidget();
+        
+        m_hexViewer = new QTextEdit();
+        m_hexViewer->setFont(QFont("Consolas", 9));
+        m_hexViewer->setReadOnly(true);
+        m_hexViewer->setPlaceholderText("Select a frame to view hex data...");
+        viewerTabs->addTab(m_hexViewer, "Hex Viewer");
+        
+        m_complianceViewer = new QTextEdit();
+        m_complianceViewer->setFont(QFont("Consolas", 9));
+        m_complianceViewer->setReadOnly(true);
+        m_complianceViewer->setPlaceholderText("ETSI EN 300 799 compliance results...");
+        viewerTabs->addTab(m_complianceViewer, "ETSI Compliance");
+        
+        layout->addWidget(viewerTabs, 55);
+
+        return panel;
+    }
+
+    QWidget* createPlayerDecoderStatusPanels()
+    {
+        QWidget* widget = new QWidget();
+        QHBoxLayout* layout = new QHBoxLayout(widget);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(4);
+
+        // Player Panel
+        QGroupBox* playerGroup = new QGroupBox("Player");
+        QVBoxLayout* playerLayout = new QVBoxLayout(playerGroup);
+        QLabel* playerStatus = new QLabel("Status: Ready");
+        playerStatus->setStyleSheet("color: #107C10; font-weight: bold;");
+        playerLayout->addWidget(playerStatus);
+        layout->addWidget(playerGroup);
+
+        // Decoder Panel
+        QGroupBox* decoderGroup = new QGroupBox("Decoder");
+        QVBoxLayout* decoderLayout = new QVBoxLayout(decoderGroup);
+        QLabel* decoderStatus = new QLabel("Status: Idle");
+        decoderStatus->setStyleSheet("color: #666; font-weight: bold;");
+        decoderLayout->addWidget(decoderStatus);
+        layout->addWidget(decoderGroup);
+
+        return widget;
+    }
+
+    QWidget* createTab1_RightPanel()
+    {
+        QWidget* panel = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(panel);
+        layout->setContentsMargins(2, 2, 2, 2);
+        layout->setSpacing(4);
+
+        // Top 25%: Current Service
+        QGroupBox* serviceGroup = new QGroupBox("Current Service");
+        QVBoxLayout* serviceLayout = new QVBoxLayout(serviceGroup);
+        m_serviceInfo = new QLabel("No service selected");
+        m_serviceInfo->setWordWrap(true);
+        serviceLayout->addWidget(m_serviceInfo);
+        layout->addWidget(serviceGroup, 25);
+
+        // Middle 20%: Signal Quality
+        QGroupBox* qualityGroup = new QGroupBox("Signal Quality");
+        QVBoxLayout* qualityLayout = new QVBoxLayout(qualityGroup);
+        m_qualityMeter = new QProgressBar();
+        m_qualityMeter->setValue(85);
+        qualityLayout->addWidget(new QLabel("Quality: Good"));
+        qualityLayout->addWidget(m_qualityMeter);
+        layout->addWidget(qualityGroup, 20);
+
+        // Bottom 55%: Now Playing (DLS+)
+        QGroupBox* nowPlayingGroup = createNowPlayingPanel();
+        layout->addWidget(nowPlayingGroup, 55);
+
+        return panel;
+    }
+
+    // ========================================================================
+    // TAB 2: FIC ANALYSIS TOOLS (SPECIALIZED ANALYSIS)
+    // ========================================================================
+    QWidget* createTab2_FICAnalysisTools()
+    {
+        QWidget* tab = new QWidget();
+        QHBoxLayout* mainLayout = new QHBoxLayout(tab);
+        mainLayout->setContentsMargins(4, 4, 4, 4);
+        mainLayout->setSpacing(8);
+
+        // Left Panel (50%): FIC-Analyzer
+        QWidget* leftPanel = createTab2_FICAnalyzer();
+        mainLayout->addWidget(leftPanel, 50);
+
+        // Right Panel (50%): FIC-Extractor
+        QWidget* rightPanel = createTab2_FICExtractor();
+        mainLayout->addWidget(rightPanel, 50);
+
+        return tab;
+    }
+
+    QWidget* createTab2_FICAnalyzer()
+    {
+        QWidget* panel = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(panel);
+        layout->setContentsMargins(2, 2, 2, 2);
+
+        // FIG Type Controls
+        QGroupBox* controlsGroup = new QGroupBox("FIG Type Analysis");
+        QVBoxLayout* controlsLayout = new QVBoxLayout(controlsGroup);
+
+        m_figType00 = new QCheckBox("FIG 0/0 - Ensemble Organization");
+        m_figType01 = new QCheckBox("FIG 0/1 - Sub-channel Organization");
+        m_figType02 = new QCheckBox("FIG 0/2 - Service Organization");
+        m_figType03 = new QCheckBox("FIG 0/3 - Service Component");
+        m_figType10 = new QCheckBox("FIG 1/0 - Ensemble Label");
+        m_figType11 = new QCheckBox("FIG 1/1 - Service Label");
+        m_figType14 = new QCheckBox("FIG 1/4 - Service Component Label");
+
+        controlsLayout->addWidget(m_figType00);
+        controlsLayout->addWidget(m_figType01);
+        controlsLayout->addWidget(m_figType02);
+        controlsLayout->addWidget(m_figType03);
+        controlsLayout->addWidget(m_figType10);
+        controlsLayout->addWidget(m_figType11);
+        controlsLayout->addWidget(m_figType14);
+        controlsLayout->addStretch();
+
+        layout->addWidget(controlsGroup, 30);
+
+        // FIG Analysis Results
+        QGroupBox* resultsGroup = new QGroupBox("FIG Analysis Results");
+        QVBoxLayout* resultsLayout = new QVBoxLayout(resultsGroup);
+        
+        m_figAnalysisResults = new QTreeWidget();
+        m_figAnalysisResults->setHeaderLabels({"FIG Type", "Extension", "Content", "Status"});
+        m_figAnalysisResults->setAlternatingRowColors(true);
+        resultsLayout->addWidget(m_figAnalysisResults);
+
+        layout->addWidget(resultsGroup, 70);
+
+        return panel;
+    }
+
+    QWidget* createTab2_FICExtractor()
+    {
+        QWidget* panel = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(panel);
+        layout->setContentsMargins(2, 2, 2, 2);
+
+        // Hierarchical Service Tree
+        QGroupBox* treeGroup = new QGroupBox("Hierarchical Service Tree");
+        QVBoxLayout* treeLayout = new QVBoxLayout(treeGroup);
+        
+        m_hierarchicalServiceTree = new QTreeWidget();
+        m_hierarchicalServiceTree->setHeaderLabels({"Component", "Type", "Details"});
+        m_hierarchicalServiceTree->setAlternatingRowColors(true);
+        treeLayout->addWidget(m_hierarchicalServiceTree);
+        
+        layout->addWidget(treeGroup, 40);
+
+        // Extracted Information Tabs
+        QGroupBox* extractedGroup = new QGroupBox("Extracted Information");
+        QVBoxLayout* extractedLayout = new QVBoxLayout(extractedGroup);
+        
+        QTabWidget* extractedTabs = new QTabWidget();
+        
+        m_extractedServiceLabels = new QTextEdit();
+        m_extractedServiceLabels->setReadOnly(true);
+        extractedTabs->addTab(m_extractedServiceLabels, "Service Labels");
+        
+        m_extractedProgrammeInfo = new QTextEdit();
+        m_extractedProgrammeInfo->setReadOnly(true);
+        extractedTabs->addTab(m_extractedProgrammeInfo, "Programme Info");
+        
+        m_extractedTimeDate = new QTextEdit();
+        m_extractedTimeDate->setReadOnly(true);
+        extractedTabs->addTab(m_extractedTimeDate, "Date/Time");
+        
+        m_extractedFrequencies = new QListWidget();
+        extractedTabs->addTab(m_extractedFrequencies, "Frequencies");
+        
+        extractedLayout->addWidget(extractedTabs);
+        layout->addWidget(extractedGroup, 60);
+
+        return panel;
+    }
+
+    // ========================================================================
+    // TAB 3: ADVANCED FEATURES (MULTI-STREAM, ERROR DETECTION, LOGGING)
+    // ========================================================================
+    QWidget* createTab3_AdvancedFeatures()
+    {
+        QWidget* tab = new QWidget();
+        QVBoxLayout* mainLayout = new QVBoxLayout(tab);
+        mainLayout->setContentsMargins(4, 4, 4, 4);
+
+        QTabWidget* advancedTabs = new QTabWidget();
+
+        // Sub-Tab 1: Multi-stream Processing
+        QWidget* multiStreamTab = createTab3_MultiStream();
+        advancedTabs->addTab(multiStreamTab, "Multi-stream Processing");
+
+        // Sub-Tab 2: Advanced Error Detection
+        QWidget* errorDetectionTab = createTab3_ErrorDetection();
+        advancedTabs->addTab(errorDetectionTab, "Error Detection");
+
+        // Sub-Tab 3: Professional Logging
+        QWidget* loggingTab = createTab3_Logging();
+        advancedTabs->addTab(loggingTab, "Professional Logging");
+
+        mainLayout->addWidget(advancedTabs);
+        return tab;
+    }
+
+    QWidget* createTab3_MultiStream()
+    {
+        QWidget* widget = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(widget);
+
+        QGroupBox* controlsGroup = new QGroupBox("Multi-stream Controls");
+        QHBoxLayout* controlsLayout = new QHBoxLayout(controlsGroup);
+        QPushButton* addStreamBtn = new QPushButton("Add Stream");
+        QPushButton* compareBtn = new QPushButton("Compare Streams");
+        controlsLayout->addWidget(addStreamBtn);
+        controlsLayout->addWidget(compareBtn);
+        controlsLayout->addStretch();
+        layout->addWidget(controlsGroup);
+
+        QGroupBox* streamsGroup = new QGroupBox("Active ETI Streams");
+        QVBoxLayout* streamsLayout = new QVBoxLayout(streamsGroup);
+        m_activeStreamsTree = new QTreeWidget();
+        m_activeStreamsTree->setHeaderLabels({"Stream", "File", "Status"});
+        streamsLayout->addWidget(m_activeStreamsTree);
+        layout->addWidget(streamsGroup);
+
+        QGroupBox* resultsGroup = new QGroupBox("Comparative Analysis");
+        QVBoxLayout* resultsLayout = new QVBoxLayout(resultsGroup);
+        m_comparativeResults = new QTextEdit();
+        m_comparativeResults->setReadOnly(true);
+        resultsLayout->addWidget(m_comparativeResults);
+        layout->addWidget(resultsGroup);
+
+        return widget;
+    }
+
+    QWidget* createTab3_ErrorDetection()
+    {
+        QWidget* widget = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(widget);
+
+        QGroupBox* statusGroup = new QGroupBox("Error Detection Status");
+        QHBoxLayout* statusLayout = new QHBoxLayout(statusGroup);
+        m_errorDetectionStatus = new QLabel("Status: Active");
+        m_systemHealthScore = new QLabel("Health: 95%");
+        m_errorCountLabel = new QLabel("Errors: 0");
+        statusLayout->addWidget(m_errorDetectionStatus);
+        statusLayout->addWidget(m_systemHealthScore);
+        statusLayout->addWidget(m_errorCountLabel);
+        statusLayout->addStretch();
+        layout->addWidget(statusGroup);
+
+        QGroupBox* historyGroup = new QGroupBox("Error History");
+        QVBoxLayout* historyLayout = new QVBoxLayout(historyGroup);
+        m_errorHistoryTree = new QTreeWidget();
+        m_errorHistoryTree->setHeaderLabels({"Timestamp", "Severity", "Type", "Description"});
+        historyLayout->addWidget(m_errorHistoryTree);
+        layout->addWidget(historyGroup);
+
+        QGroupBox* patternsGroup = new QGroupBox("Error Patterns Analysis");
+        QVBoxLayout* patternsLayout = new QVBoxLayout(patternsGroup);
+        m_errorPatternsDisplay = new QTextEdit();
+        m_errorPatternsDisplay->setReadOnly(true);
+        patternsLayout->addWidget(m_errorPatternsDisplay);
+        layout->addWidget(patternsGroup);
+
+        return widget;
+    }
+
+    QWidget* createTab3_Logging()
+    {
+        QWidget* widget = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(widget);
+
+        QGroupBox* statusGroup = new QGroupBox("Logging System Status");
+        QHBoxLayout* statusLayout = new QHBoxLayout(statusGroup);
+        m_loggingStatus = new QLabel("Status: Active");
+        m_loggingLevel = new QLabel("Level: INFO");
+        m_logCountLabel = new QLabel("Entries: 0");
+        statusLayout->addWidget(m_loggingStatus);
+        statusLayout->addWidget(m_loggingLevel);
+        statusLayout->addWidget(m_logCountLabel);
+        statusLayout->addStretch();
+        layout->addWidget(statusGroup);
+
+        QGroupBox* entriesGroup = new QGroupBox("Recent Log Entries");
+        QVBoxLayout* entriesLayout = new QVBoxLayout(entriesGroup);
+        m_logEntriesTree = new QTreeWidget();
+        m_logEntriesTree->setHeaderLabels({"Timestamp", "Level", "Category", "Message"});
+        entriesLayout->addWidget(m_logEntriesTree);
+        layout->addWidget(entriesGroup);
+
+        QGroupBox* statsGroup = new QGroupBox("Logging Statistics");
+        QVBoxLayout* statsLayout = new QVBoxLayout(statsGroup);
+        m_loggingStatsDisplay = new QTextEdit();
+        m_loggingStatsDisplay->setReadOnly(true);
+        statsLayout->addWidget(m_loggingStatsDisplay);
+        layout->addWidget(statsGroup);
+
+        return widget;
+    }
+
+    // ========================================================================
+    // SHARED BOTTOM PANEL (CONSISTENT ACROSS ALL TABS)
+    // ========================================================================
+    QTabWidget* createSharedBottomPanel()
+    {
+        QTabWidget* bottomTabs = new QTabWidget();
+
+        // Tab 1: System Messages
+        m_systemMessages = new QTextEdit();
+        m_systemMessages->setFont(QFont("Consolas", 9));
+        m_systemMessages->setReadOnly(true);
+        bottomTabs->addTab(m_systemMessages, "System Messages");
+
+        // Tab 2: Performance Dashboard
+        QWidget* performanceTab = createPerformanceDashboardTab();
+        bottomTabs->addTab(performanceTab, "Performance");
+
+        // Tab 3: Error Detection Summary (reuse widgets from Tab 3)
+        QWidget* errorSummaryTab = createErrorDetectionSummaryTab();
+        bottomTabs->addTab(errorSummaryTab, "Error Detection");
+
+        // Tab 4: Logging Summary
+        QWidget* loggingSummaryTab = createLoggingSummaryTab();
+        bottomTabs->addTab(loggingSummaryTab, "Logging");
+
+        // Tab 5: Constellation Viewer
+        QWidget* constellationTab = createConstellationTab();
+        bottomTabs->addTab(constellationTab, "Constellation");
+
+        return bottomTabs;
+    }
+
+    QWidget* createErrorDetectionSummaryTab()
+    {
+        QWidget* widget = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(widget);
+        
+        QLabel* summaryLabel = new QLabel("Error Detection Summary (See Advanced Features → Error Detection for full details)");
+        summaryLabel->setStyleSheet("font-style: italic; color: #666;");
+        layout->addWidget(summaryLabel);
+        
+        QLabel* quickStats = new QLabel("Quick Stats: 0 errors detected, System Health: 100%");
+        quickStats->setStyleSheet("font-weight: bold; font-size: 11pt;");
+        layout->addWidget(quickStats);
+        
+        layout->addStretch();
+        return widget;
+    }
+
+    QWidget* createLoggingSummaryTab()
+    {
+        QWidget* widget = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(widget);
+        
+        QLabel* summaryLabel = new QLabel("Logging Summary (See Advanced Features → Professional Logging for full logs)");
+        summaryLabel->setStyleSheet("font-style: italic; color: #666;");
+        layout->addWidget(summaryLabel);
+        
+        QLabel* quickStats = new QLabel("Recent Activity: 0 log entries");
+        quickStats->setStyleSheet("font-weight: bold; font-size: 11pt;");
+        layout->addWidget(quickStats);
+        
+        layout->addStretch();
+        return widget;
     }
 
     void createEnsemblePanel(QSplitter* parent)
@@ -2862,7 +3355,8 @@ private:
     QComboBox* m_logCategoryFilter;
     QTreeWidget* m_logEntriesTree;
     QTextEdit* m_loggingStatsDisplay;
-    QLabel* m_frameDetails;
+    QLabel* m_frameDetails;  // OBSOLETE - replaced by m_etiExplorerDetails
+    QTableWidget* m_etiExplorerDetails;  // NEW: ETI Explorer Details table (Tab 1)
     
     // Professional FIC Analysis Hub widgets
     QTreeWidget* m_figAnalysisResults;
