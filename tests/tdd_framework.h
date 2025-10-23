@@ -30,7 +30,8 @@
 #else
 #define MOCK_METHOD_AVAILABLE 0
 // Provide basic mock functionality without GMock
-#define MOCK_METHOD(name, signature) virtual signature { return {}; }
+// Note: This is a simplified mock for compilation without GMock
+// The 4-argument MOCK_METHOD syntax is not used in tests
 #define EXPECT_CALL(obj, method) if(false)
 #define ON_CALL(obj, method) if(false)
 #define Return(value) 
@@ -195,15 +196,19 @@ public:
 /**
  * @class MockETIProcessor
  * @brief Mock implementation for ETI processor testing
+ * 
+ * Note: This is a simple stub mock without GMock dependency.
+ * For advanced mocking, enable HAVE_GMOCK and use GMock framework.
  */
 class MockETIProcessor : public QObject {
     Q_OBJECT
 
 public:
-    MOCK_METHOD(bool, initialize, (), ());
-    MOCK_METHOD(bool, processFile, (const QString& filename), ());
-    MOCK_METHOD(bool, processData, (const QByteArray& data), ());
-    MOCK_METHOD(void, reset, (), ());
+    // Simple stub methods (not using GMock macros to avoid compilation issues)
+    virtual bool initialize() { return true; }
+    virtual bool processFile(const QString& /*filename*/) { return true; }
+    virtual bool processData(const QByteArray& /*data*/) { return true; }
+    virtual void reset() {}
 
 signals:
     void frameProcessed(const QVariantMap& frameInfo);

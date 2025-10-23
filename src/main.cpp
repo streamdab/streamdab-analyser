@@ -39,6 +39,9 @@
 #include "core/professional_logging_system.hpp"
 #include "core/dls_plus_decoder.hpp"  // Phase 3B: DLS+ decoder integration
 
+// Note: gui/main_window.h exists for GUI testing purposes only
+// Do NOT include it here to avoid redefinition conflicts
+
 class DABAnalyzerWindow : public QMainWindow
 {
     Q_OBJECT
@@ -3001,6 +3004,8 @@ DABAnalyzerWindow::~DABAnalyzerWindow()
     qDebug() << "DABAnalyzerWindow: Clean shutdown complete";
 }
 
+// Only compile main() function when not in GUI test mode
+#ifndef GUI_TEST_MODE
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
@@ -3018,5 +3023,6 @@ int main(int argc, char *argv[])
 
     return app.exec();
 }
+#endif // GUI_TEST_MODE
 
 #include "main.moc"
