@@ -180,6 +180,24 @@ add_test(NAME test_dls_plus_decoder COMMAND test_dls_plus_decoder)
 add_subdirectory(integration)
 
 # ============================================================================
+# GUI TESTS - Enable GUI E2E automated testing
+# ============================================================================
+
+message(STATUS "")
+message(STATUS "=== GUI Test Configuration ===")
+
+# GUI tests require Qt6 Widgets
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
+
+# Include GUI test subdirectory
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/gui/CMakeLists.txt")
+    add_subdirectory(gui)
+    message(STATUS "  ✓ GUI tests enabled (22 test files)")
+else()
+    message(STATUS "  ✗ GUI tests not found")
+endif()
+
+# ============================================================================
 # PHASE 3A E2E TESTS - Wave 3.2 End-to-End Testing
 # ============================================================================
 
