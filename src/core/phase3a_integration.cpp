@@ -101,7 +101,7 @@ bool Phase3AIntegrationManager::initializeComponents()
         // m_journalineDecoder = new journaline::JournalineDecoder(this);
 
         // Phase 3B: Create DLS+ decoder (activated)
-        m_dls_plus_decoder = new eti::dlsplus::DLSPlusDecoder(this);
+        m_dls_plus_decoder = new eti::dls_plus::DLSPlusDecoder(this);
         if (!m_dls_plus_decoder) {
             emit initializationError("DLSPlusDecoder", "Failed to create instance");
             return false;
@@ -212,8 +212,10 @@ bool Phase3AIntegrationManager::connectSignals()
                 m_dls_plus_decoder->processPADData(pad_data);
             });
     
-    connect(m_dls_plus_decoder, &eti::dlsplus::DLSPlusDecoder::dlsPlusMessageReceived,
-            this, [this](uint32_t service_id, const eti::dlsplus::DLSPlusMessage& msg) {
+    connect(m_dls_plus_decoder, &eti::dls_plus::DLSPlusDecoder::dlsPlusMessageReceived,
+            this, [this](const eti::dls_plus::DLSPlusMessage& msg) {
+                // TODO: Get service_id from current context
+                uint32_t service_id = 0;  // Stub for now
                 emit dlsPlusMessageReceived(service_id, msg.getArtist(), msg.getItem());
             });
     

@@ -1,135 +1,189 @@
-/**
- * @file dls_plus_decoder.cpp
- * @brief DLS+ (Dynamic Label Plus) Decoder Implementation - ETSI TS 102 980
- *
- * Professional implementation of DLS+ structured metadata parsing.
- * Provides complete "now playing" information extraction from DAB/DAB+ streams.
- *
- * ETSI TS 102 980 Compliance:
- * - Section 3: Tag types and content classification
- * - Section 4: Content descriptor structure (4-byte encoding)
- * - Section 5: PAD integration and data extraction
- *
- * Implementation Features:
- * - Thread-safe operation with QMutex
- * - UTF-8 Thai support (international characters)
- * - Robust error handling (malformed data)
- * - Statistics tracking
- * - Qt signal/slot integration
- * - Professional logging
- *
- * @author StreamDAB Development Team
- * @date October 22, 2025
- * @version 1.0
- * @copyright Copyright (c) 2025 StreamDAB Technologies
- */
+// dls_plus_decoder.cpp - DLS+ (Dynamic Label Plus) Decoder Implementation
+// ETSI TS 102 980 - Dynamic Label Plus (DLS+) Specification
+//
+// This component implements DLS+ message parsing for structured "now playing"
+// metadata extraction from DAB/DAB+ Program Associated Data (PAD).
+//
+// Phase 3B: Week 1 - Core Parser Implementation
+// Timeline: October 23-29, 2025
+// Status: Implementation in progress
 
 #include "dls_plus_decoder.hpp"
+#include <QMutexLocker>
 #include <QDebug>
-#include <algorithm>
-#include <cstring>
 
-namespace eti::dlsplus {
+namespace eti {
+namespace dls_plus {
 
 // ============================================================================
-// Helper Functions
+// DLSPlusTag Implementation
 // ============================================================================
 
-QString dlsTagToString(DLSPlusTag tag) {
-    switch (tag) {
-        case DLSPlusTag::DUMMY: return "DUMMY";
-        case DLSPlusTag::ITEM: return "ITEM";
-        case DLSPlusTag::TITLE: return "TITLE";
-        case DLSPlusTag::ALBUM: return "ALBUM";
-        case DLSPlusTag::ARTIST: return "ARTIST";
-        case DLSPlusTag::COMPOSITION: return "COMPOSITION";
-        case DLSPlusTag::COMMENT: return "COMMENT";
-        case DLSPlusTag::GENRE: return "GENRE";
-        case DLSPlusTag::NEWS: return "NEWS";
-        case DLSPlusTag::STOCK_MARKET: return "STOCK_MARKET";
-        case DLSPlusTag::SPORT: return "SPORT";
-        case DLSPlusTag::WEATHER: return "WEATHER";
-        case DLSPlusTag::URL: return "URL";
-        case DLSPlusTag::PHONE_NUMBER: return "PHONE_NUMBER";
-        case DLSPlusTag::EMAIL: return "EMAIL";
-        case DLSPlusTag::SMS_NUMBER: return "SMS_NUMBER";
-        case DLSPlusTag::PURCHASE: return "PURCHASE";
-        case DLSPlusTag::GET_DATA: return "GET_DATA";
-        case DLSPlusTag::DESCRIPTOR_PLACE: return "DESCRIPTOR_PLACE";
-        case DLSPlusTag::DESCRIPTOR_APPOINTMENT: return "DESCRIPTOR_APPOINTMENT";
-        case DLSPlusTag::DESCRIPTOR_IDENTIFIER: return "DESCRIPTOR_IDENTIFIER";
-        case DLSPlusTag::UNKNOWN: return "UNKNOWN";
-        default: return QString("TAG_0x%1").arg(static_cast<uint8_t>(tag), 2, 16, QChar('0'));
+QString DLSPlusTag::getTypeString() const {
+    switch (static_cast<ContentType>(content_type)) {
+        case ContentType::DUMMY: return "DUMMY";
+        case ContentType::ITEM: return "ITEM";
+        case ContentType::INFO: return "INFO";
+        case ContentType::PROGRAMME: return "PROGRAMME";
+        case ContentType::INTERACTIVITY: return "INTERACTIVITY";
+        case ContentType::DESCRIPTOR: return "DESCRIPTOR";
+        case ContentType::STATIONNAME: return "STATIONNAME";
+        case ContentType::PROGRAMME_TYPE: return "PROGRAMME_TYPE";
+        case ContentType::VALIDITY: return "VALIDITY";
+        default: return QString("RESERVED_%1").arg(content_type);
     }
 }
 
-// ============================================================================
-// DLSPlusContentDescriptor Implementation
-// ============================================================================
+QString DLSPlusTag::getSubtypeString() const {
+    // Subtype interpretation depends on content_type
+    // Full implementation based on ETSI TS 102 980 Table 2
+    
+    switch (static_cast<ContentType>(content_type)) {
+        case ContentType::ITEM:
+            switch (content_subtype) {
+                case 0: return "TITLE";
+                case 1: return "ALBUM";
+                case 2: return "TRACKNUMBER";
+                case 3: return "ARTIST";
+                case 4: return "COMPOSITION";
+                case 5: return "MOVEMENT";
+                case 6: return "CONDUCTOR";
+                case 7: return "COMPOSER";
+                case 8: return "BAND";
+                case 9: return "COMMENT";
+                case 10: return "GENRE";
+                default: return QString("SUBTYPE_%1").arg(content_subtype);
+            }
+        
+        case ContentType::INFO:
+            switch (content_subtype) {
+                case 0: return "NEWS";
+                case 1: return "NEWS_LOCAL";
+                case 2: return "STOCKMARKET";
+                case 3: return "SPORT";
+                case 4: return "LOTTERY";
+                case 5: return "HOROSCOPE";
+                case 6: return "DAILY_DIVERSION";
+                case 7: return "HEALTH";
+                case 8: return "EVENT";
+                case 9: return "SCENE";
+                case 10: return "CINEMA";
+                case 11: return "TV";
+                case 12: return "DATE_TIME";
+                case 13: return "WEATHER";
+                case 14: return "TRAFFIC";
+                case 15: return "ALARM";
+                default: return QString("SUBTYPE_%1").arg(content_subtype);
+            }
+        
+        case ContentType::PROGRAMME:
+            switch (content_subtype) {
+                case 0: return "NOW";
+                case 1: return "NEXT";
+                case 2: return "PART";
+                case 3: return "HOST";
+                case 4: return "EDITORIAL_STAFF";
+                case 5: return "FREQUENCY";
+                case 6: return "HOMEPAGE";
+                case 7: return "SUBCHANNEL";
+                default: return QString("SUBTYPE_%1").arg(content_subtype);
+            }
+        
+        case ContentType::INTERACTIVITY:
+            switch (content_subtype) {
+                case 0: return "SMS";
+                case 1: return "MMS";
+                case 2: return "EMAIL";
+                case 3: return "PHONE_HOTLINE";
+                case 4: return "PHONE_STUDIO";
+                case 5: return "PHONE_OTHER";
+                case 6: return "FAX";
+                case 7: return "MMS_STUDIO";
+                case 8: return "SMS_STUDIO";
+                default: return QString("SUBTYPE_%1").arg(content_subtype);
+            }
+        
+        case ContentType::STATIONNAME:
+            switch (content_subtype) {
+                case 0: return "SHORT";
+                case 1: return "LONG";
+                default: return QString("SUBTYPE_%1").arg(content_subtype);
+            }
+        
+        case ContentType::PROGRAMME_TYPE:
+            return QString("PTY_%1").arg(content_subtype);
+        
+        default:
+            return QString("SUBTYPE_%1").arg(content_subtype);
+    }
+}
 
-QString DLSPlusContentDescriptor::toString() const {
-    return QString("[%1] ID=%2 Start=%3 Len=%4 Toggle=%5 Text=\"%6\"")
-        .arg(dlsTagToString(tag))
-        .arg(content_id)
-        .arg(start_marker)
-        .arg(length_marker)
-        .arg(toggle_bit ? "1" : "0")
-        .arg(extracted_text);
+QString DLSPlusTag::getFullTagName() const {
+    return QString("%1.%2").arg(getTypeString(), getSubtypeString());
+}
+
+bool DLSPlusTag::isValid() const {
+    // Basic validation
+    if (content_type > 15) return false;  // 4-bit max
+    if (content_subtype > 15) return false;  // 4-bit max
+    if (start_marker > 127) return false;  // 7-bit max
+    if (length_marker == 0) return false;  // Must have content
+    if (start_marker + length_marker > 128) return false;  // Bounds check
+    
+    return true;
 }
 
 // ============================================================================
 // DLSPlusMessage Implementation
 // ============================================================================
 
-QString DLSPlusMessage::getItem() const {
-    return getTagText(DLSPlusTag::ITEM);
-}
-
-QString DLSPlusMessage::getArtist() const {
-    return getTagText(DLSPlusTag::ARTIST);
-}
-
-QString DLSPlusMessage::getAlbum() const {
-    return getTagText(DLSPlusTag::ALBUM);
-}
-
-QString DLSPlusMessage::getTitle() const {
-    return getTagText(DLSPlusTag::TITLE);
-}
-
-QString DLSPlusMessage::getGenre() const {
-    return getTagText(DLSPlusTag::GENRE);
-}
-
-QString DLSPlusMessage::getComment() const {
-    return getTagText(DLSPlusTag::COMMENT);
-}
-
-QString DLSPlusMessage::getURL() const {
-    return getTagText(DLSPlusTag::URL);
-}
-
-QString DLSPlusMessage::getTagText(DLSPlusTag tag) const {
-    for (const auto& descriptor : descriptors) {
-        if (descriptor.tag == tag && descriptor.isValid()) {
-            return descriptor.extracted_text;
+QString DLSPlusMessage::getTag(const QString& tag_name) const {
+    for (const auto& tag : tags) {
+        if (tag.getFullTagName() == tag_name) {
+            return tag.text;
         }
     }
     return QString();
 }
 
-QString DLSPlusMessage::toString() const {
-    QString result = QString("DLS+ Message (Service 0x%1):\n")
-        .arg(service_id, 4, 16, QChar('0'));
-    result += QString("  DLS Text: \"%1\"\n").arg(dls_text);
-    result += QString("  Timestamp: %1\n").arg(timestamp.toString(Qt::ISODate));
-    result += QString("  Descriptors (%1):\n").arg(descriptors.size());
+bool DLSPlusMessage::hasTag(const QString& tag_name) const {
+    for (const auto& tag : tags) {
+        if (tag.getFullTagName() == tag_name) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QMap<QString, QString> DLSPlusMessage::getAllTags() const {
+    QMap<QString, QString> result;
+    for (const auto& tag : tags) {
+        result[tag.getFullTagName()] = tag.text;
+    }
+    return result;
+}
+
+QString DLSPlusMessage::getNowPlaying() const {
+    QString artist = getTag("ITEM.ARTIST");
+    QString title = getTag("ITEM.TITLE");
     
-    for (const auto& descriptor : descriptors) {
-        result += QString("    %1\n").arg(descriptor.toString());
+    if (!artist.isEmpty() && !title.isEmpty()) {
+        return QString("%1 - %2").arg(artist, title);
+    } else if (!title.isEmpty()) {
+        return title;
+    } else if (!artist.isEmpty()) {
+        return artist;
     }
     
-    return result;
+    return dls_text;  // Fallback to raw DLS text
+}
+
+QString DLSPlusMessage::getArtist() const {
+    return getTag("ITEM.ARTIST");
+}
+
+QString DLSPlusMessage::getItem() const {
+    return getTag("ITEM.TITLE");
 }
 
 // ============================================================================
@@ -138,476 +192,358 @@ QString DLSPlusMessage::toString() const {
 
 DLSPlusDecoder::DLSPlusDecoder(QObject* parent)
     : QObject(parent)
+    , total_messages_processed_(0)
+    , valid_messages_count_(0)
+    , invalid_messages_count_(0)
 {
-    // Register metatypes for signal/slot usage
-    qRegisterMetaType<DLSPlusMessage>("DLSPlusMessage");
-    qRegisterMetaType<DLSPlusContentDescriptor>("DLSPlusContentDescriptor");
-    qRegisterMetaType<DLSPlusTag>("DLSPlusTag");
+    initializeTagLookupTables();
+}
+
+DLSPlusDecoder::~DLSPlusDecoder() = default;
+
+void DLSPlusDecoder::initializeTagLookupTables() {
+    // Initialize content type names
+    tag_types_[static_cast<uint8_t>(ContentType::DUMMY)] = "DUMMY";
+    tag_types_[static_cast<uint8_t>(ContentType::ITEM)] = "ITEM";
+    tag_types_[static_cast<uint8_t>(ContentType::INFO)] = "INFO";
+    tag_types_[static_cast<uint8_t>(ContentType::PROGRAMME)] = "PROGRAMME";
+    tag_types_[static_cast<uint8_t>(ContentType::INTERACTIVITY)] = "INTERACTIVITY";
+    tag_types_[static_cast<uint8_t>(ContentType::DESCRIPTOR)] = "DESCRIPTOR";
+    tag_types_[static_cast<uint8_t>(ContentType::STATIONNAME)] = "STATIONNAME";
+    tag_types_[static_cast<uint8_t>(ContentType::PROGRAMME_TYPE)] = "PROGRAMME_TYPE";
+    tag_types_[static_cast<uint8_t>(ContentType::VALIDITY)] = "VALIDITY";
     
-    // Verbose logging removed for performance (causes test slowdown)
-    // Decoder initialization is silent - check statistics for activity
+    // Initialize ITEM subtypes (ETSI TS 102 980 Table 2)
+    auto item_type = static_cast<uint8_t>(ContentType::ITEM);
+    tag_subtypes_[{item_type, 0}] = "TITLE";
+    tag_subtypes_[{item_type, 1}] = "ALBUM";
+    tag_subtypes_[{item_type, 2}] = "TRACKNUMBER";
+    tag_subtypes_[{item_type, 3}] = "ARTIST";
+    tag_subtypes_[{item_type, 4}] = "COMPOSITION";
+    tag_subtypes_[{item_type, 5}] = "MOVEMENT";
+    tag_subtypes_[{item_type, 6}] = "CONDUCTOR";
+    tag_subtypes_[{item_type, 7}] = "COMPOSER";
+    tag_subtypes_[{item_type, 8}] = "BAND";
+    tag_subtypes_[{item_type, 9}] = "COMMENT";
+    tag_subtypes_[{item_type, 10}] = "GENRE";
+    
+    // Initialize INFO subtypes
+    auto info_type = static_cast<uint8_t>(ContentType::INFO);
+    tag_subtypes_[{info_type, 0}] = "NEWS";
+    tag_subtypes_[{info_type, 1}] = "NEWS_LOCAL";
+    tag_subtypes_[{info_type, 2}] = "STOCKMARKET";
+    tag_subtypes_[{info_type, 3}] = "SPORT";
+    tag_subtypes_[{info_type, 4}] = "LOTTERY";
+    tag_subtypes_[{info_type, 5}] = "HOROSCOPE";
+    tag_subtypes_[{info_type, 6}] = "DAILY_DIVERSION";
+    tag_subtypes_[{info_type, 7}] = "HEALTH";
+    tag_subtypes_[{info_type, 8}] = "EVENT";
+    tag_subtypes_[{info_type, 9}] = "SCENE";
+    tag_subtypes_[{info_type, 10}] = "CINEMA";
+    tag_subtypes_[{info_type, 11}] = "TV";
+    tag_subtypes_[{info_type, 12}] = "DATE_TIME";
+    tag_subtypes_[{info_type, 13}] = "WEATHER";
+    tag_subtypes_[{info_type, 14}] = "TRAFFIC";
+    tag_subtypes_[{info_type, 15}] = "ALARM";
+    
+    // Initialize PROGRAMME subtypes
+    auto prog_type = static_cast<uint8_t>(ContentType::PROGRAMME);
+    tag_subtypes_[{prog_type, 0}] = "NOW";
+    tag_subtypes_[{prog_type, 1}] = "NEXT";
+    tag_subtypes_[{prog_type, 2}] = "PART";
+    tag_subtypes_[{prog_type, 3}] = "HOST";
+    tag_subtypes_[{prog_type, 4}] = "EDITORIAL_STAFF";
+    tag_subtypes_[{prog_type, 5}] = "FREQUENCY";
+    tag_subtypes_[{prog_type, 6}] = "HOMEPAGE";
+    tag_subtypes_[{prog_type, 7}] = "SUBCHANNEL";
+    
+    // Initialize INTERACTIVITY subtypes
+    auto inter_type = static_cast<uint8_t>(ContentType::INTERACTIVITY);
+    tag_subtypes_[{inter_type, 0}] = "SMS";
+    tag_subtypes_[{inter_type, 1}] = "MMS";
+    tag_subtypes_[{inter_type, 2}] = "EMAIL";
+    tag_subtypes_[{inter_type, 3}] = "PHONE_HOTLINE";
+    tag_subtypes_[{inter_type, 4}] = "PHONE_STUDIO";
+    tag_subtypes_[{inter_type, 5}] = "PHONE_OTHER";
+    tag_subtypes_[{inter_type, 6}] = "FAX";
+    tag_subtypes_[{inter_type, 7}] = "MMS_STUDIO";
+    tag_subtypes_[{inter_type, 8}] = "SMS_STUDIO";
+    
+    // Initialize STATIONNAME subtypes
+    auto station_type = static_cast<uint8_t>(ContentType::STATIONNAME);
+    tag_subtypes_[{station_type, 0}] = "SHORT";
+    tag_subtypes_[{station_type, 1}] = "LONG";
 }
-
-DLSPlusDecoder::~DLSPlusDecoder() {
-    QMutexLocker locker(&m_mutex);
-    // Verbose logging removed for performance (causes test slowdown)
-    // Statistics available via getStatistics() before destruction if needed
-}
-
-// ============================================================================
-// Main Processing Interface
-// ============================================================================
 
 bool DLSPlusDecoder::processPADData(const QByteArray& pad_data) {
+    total_messages_processed_++;
+    
     if (pad_data.isEmpty()) {
+        qWarning() << "DLS+: Empty PAD data";
+        invalid_messages_count_++;
+        return false;
+    }
+    
+    // Check if PAD contains DLS+ data
+    if (!isPADContainingDLSPlus(pad_data)) {
+        // Not an error - just regular PAD without DLS+
+        return false;
+    }
+    
+    // Extract DLS+ data from PAD
+    QByteArray dls_plus_data = extractDLSPlusData(pad_data);
+    if (dls_plus_data.isEmpty()) {
+        qWarning() << "DLS+: Failed to extract DLS+ data from PAD";
+        invalid_messages_count_++;
+        return false;
+    }
+    
+    // Parse DLS+ message
+    DLSPlusMessage message;
+    if (!parseDLSPlusObject(dls_plus_data, message)) {
+        qWarning() << "DLS+: Failed to parse DLS+ message";
+        invalid_messages_count_++;
         return false;
     }
     
     // Update statistics
+    valid_messages_count_++;
+    
+    // Update current message (thread-safe)
     {
-        QMutexLocker locker(&m_mutex);
-        m_statistics.pad_packets_processed++;
+        QMutexLocker locker(&mutex_);
+        current_message_ = message;
     }
     
-    // Extract DLS text from PAD
-    QByteArray dls_text;
-    if (!extractDLSFromPAD(pad_data, dls_text)) {
+    // Emit signals for tag changes
+    QString artist = message.getTag("ITEM.ARTIST");
+    QString title = message.getTag("ITEM.TITLE");
+    QString album = message.getTag("ITEM.ALBUM");
+    QString programme = message.getTag("PROGRAMME.NOW");
+    QString station_name = message.getTag("STATIONNAME.LONG");
+    
+    // Detect changes and emit signals
+    if (artist != previous_artist_ || title != previous_title_ || album != previous_album_) {
+        // Emit nowPlayingUpdated for main.cpp compatibility (track, artist, album)
+        emit nowPlayingUpdated(title, artist, album);
+        emit nowPlayingChanged(artist, title);
+        previous_artist_ = artist;
+        previous_title_ = title;
+    }
+    
+    if (album != previous_album_) {
+        emit albumChanged(album);
+        previous_album_ = album;
+    }
+    
+    if (programme != previous_programme_) {
+        emit programmeChanged(programme);
+        previous_programme_ = programme;
+    }
+    
+    if (station_name != previous_station_name_) {
+        emit stationNameChanged(station_name);
+        previous_station_name_ = station_name;
+    }
+    
+    // Emit main message signal
+    emit dlsPlusMessageReceived(message);
+    
+    qInfo() << "DLS+: Message parsed successfully -" << message.getNowPlaying();
+    
+    return true;
+}
+
+bool DLSPlusDecoder::parseDLSPlusObject(const QByteArray& data, DLSPlusMessage& message) {
+    // ETSI TS 102 980 Section 3: DLS+ Object Structure
+    // Minimum size check (at least DLS text + command flag + tag count)
+    if (data.size() < 3) {
+        emit parseError("DLS+ object too short");
         return false;
     }
     
-    // Extract DLS+ command from PAD
-    QByteArray command_data;
-    if (!extractCommandFromPAD(pad_data, command_data)) {
+    // Extract DLS text and charset
+    QString dls_text;
+    uint8_t charset;
+    if (!extractDLSText(data, dls_text, charset)) {
+        emit parseError("Failed to extract DLS text");
         return false;
     }
     
-    // Process DLS+ command
-    return processDLSPlusCommand(dls_text, command_data);
-}
-
-bool DLSPlusDecoder::processDLSPlusCommand(const QByteArray& dls_text, 
-                                            const QByteArray& command_data) {
-    if (dls_text.isEmpty() || command_data.isEmpty()) {
-        return false;
-    }
-    
-    // Convert to QString with UTF-8 support
-    QString dls_string = QString::fromUtf8(dls_text);
-    
-    DLSPlusMessage message;
-    bool success = false;
-    
-    {
-        QMutexLocker locker(&m_mutex);
-        
-        // Validate DLS text
-        if (!validateDLSText(dls_string)) {
-            m_statistics.parsing_errors++;
-            QString error = QString("Invalid DLS text: length=%1").arg(dls_string.length());
-            qWarning() << "[DLS+]" << error;
-            // Don't return yet - emit error signal after mutex release
-            locker.unlock();
-            emit dlsPlusDecodingError(error);
-            return false;
-        }
-        
-        // Parse DLS+ command
-        success = parseDLSPlusCommand(dls_text, command_data, message);
-        
-        if (success) {
-            // Update current message
-            m_current_message = message;
-            m_statistics.messages_processed++;
-            m_statistics.tags_extracted += message.descriptors.size();
-            m_statistics.text_updates++;
-            
-            // Verbose message logging removed for performance
-            // Use nowPlayingUpdated() signal or getCurrentMessage() for content access
-        } else {
-            m_statistics.parsing_errors++;
-        }
-    }  // Release mutex before emitting signals
-    
-    // Emit signals AFTER mutex release (avoid deadlock)
-    if (success) {
-        emit dlsPlusMessageReceived(message.service_id, message);
-        emit currentMessageChanged();
-        emit nowPlayingUpdated(message.getItem(), message.getArtist(), message.getAlbum());
-    }
-    
-    return success;
-}
-
-// ============================================================================
-// Current Message Access
-// ============================================================================
-
-std::optional<DLSPlusMessage> DLSPlusDecoder::getCurrentMessage() const {
-    QMutexLocker locker(&m_mutex);
-    return m_current_message;
-}
-
-bool DLSPlusDecoder::hasCurrentMessage() const {
-    QMutexLocker locker(&m_mutex);
-    return m_current_message.has_value() && m_current_message->isValid();
-}
-
-QString DLSPlusDecoder::currentTrack() const {
-    QMutexLocker locker(&m_mutex);
-    if (m_current_message.has_value()) {
-        return m_current_message->getItem();
-    }
-    return QString();
-}
-
-QString DLSPlusDecoder::currentArtist() const {
-    QMutexLocker locker(&m_mutex);
-    if (m_current_message.has_value()) {
-        return m_current_message->getArtist();
-    }
-    return QString();
-}
-
-QString DLSPlusDecoder::currentAlbum() const {
-    QMutexLocker locker(&m_mutex);
-    if (m_current_message.has_value()) {
-        return m_current_message->getAlbum();
-    }
-    return QString();
-}
-
-QString DLSPlusDecoder::currentProgramTitle() const {
-    QMutexLocker locker(&m_mutex);
-    if (m_current_message.has_value()) {
-        return m_current_message->getTitle();
-    }
-    return QString();
-}
-
-// ============================================================================
-// Statistics
-// ============================================================================
-
-DLSPlusDecoder::Statistics DLSPlusDecoder::getStatistics() const {
-    QMutexLocker locker(&m_mutex);
-    return m_statistics;  // Thread-safe copy
-}
-
-void DLSPlusDecoder::resetStatistics() {
-    QMutexLocker locker(&m_mutex);
-    m_statistics.reset();
-    // Verbose logging removed for performance
-}
-
-void DLSPlusDecoder::clearCurrent() {
-    bool had_message = false;
-    
-    {
-        QMutexLocker locker(&m_mutex);
-        had_message = m_current_message.has_value();
-        m_current_message.reset();
-    }
-    
-    if (had_message) {
-        emit currentMessageChanged();
-    }
-}
-
-// ============================================================================
-// ETSI TS 102 980 Parsing Methods
-// ============================================================================
-
-bool DLSPlusDecoder::parseDLSPlusCommand(const QByteArray& dls_text, 
-                                          const QByteArray& command_data, 
-                                          DLSPlusMessage& message) {
-    // Convert DLS text to QString with UTF-8
-    message.dls_text = QString::fromUtf8(dls_text);
+    message.dls_text = dls_text;
+    message.charset = charset;
     message.timestamp = QDateTime::currentDateTime();
-    message.service_id = 0;  // Will be set by caller if available
     
-    // Parse content descriptors
-    message.descriptors = parseContentDescriptors(command_data);
-    
-    if (message.descriptors.isEmpty()) {
-        qWarning() << "[DLS+] No valid descriptors found in command data";
+    // Extract tags
+    if (!extractTags(data, message.tags)) {
+        emit parseError("Failed to extract DLS+ tags");
         return false;
     }
     
-    // Extract text for each descriptor
-    for (auto& descriptor : message.descriptors) {
-        extractTagText(message.dls_text, descriptor);
-    }
-    
-    return message.isValid();
-}
-
-QVector<DLSPlusContentDescriptor> DLSPlusDecoder::parseContentDescriptors(
-    const QByteArray& command_data) {
-    
-    QVector<DLSPlusContentDescriptor> descriptors;
-    
-    // ETSI TS 102 980 Section 4: Each descriptor is 4 bytes
-    const int DESCRIPTOR_SIZE = 4;
-    const uint8_t* data = reinterpret_cast<const uint8_t*>(command_data.constData());
-    int offset = 0;
-    
-    while (offset + DESCRIPTOR_SIZE <= command_data.size()) {
-        DLSPlusContentDescriptor descriptor = parseDescriptor(data, offset);
-        
-        if (descriptor.isValid()) {
-            descriptors.append(descriptor);
-        } else if (descriptor.tag != DLSPlusTag::DUMMY) {
-            QMutexLocker locker(&m_mutex);
-            m_statistics.invalid_descriptors++;
-            // Verbose logging removed - check m_statistics.invalid_descriptors for count
-        }
-    }
-    
-    return descriptors;
-}
-
-DLSPlusContentDescriptor DLSPlusDecoder::parseDescriptor(const uint8_t* data, int& offset) {
-    DLSPlusContentDescriptor descriptor;
-    
-    // ETSI TS 102 980 Section 4: Content Descriptor Encoding (4 bytes)
-    // 
-    // Byte 0: [Tag Type 6 bits][Content ID MSB 2 bits]
-    // Byte 1: [Content ID LSB 5 bits][Start Marker MSB 3 bits]
-    // Byte 2: [Start Marker LSB 3 bits][Length Marker 5 bits]
-    // Byte 3: [Toggle bit][Reserved 7 bits]
-    
-    uint8_t byte0 = data[offset++];
-    uint8_t byte1 = data[offset++];
-    uint8_t byte2 = data[offset++];
-    uint8_t byte3 = data[offset++];
-    
-    // Extract tag type (6 bits)
-    uint8_t tag_value = (byte0 >> 2) & 0x3F;  // Upper 6 bits
-    descriptor.tag = parseTagType(tag_value);
-    
-    // Extract content ID (7 bits: 2 from byte0 + 5 from byte1)
-    descriptor.content_id = ((byte0 & 0x03) << 5) | ((byte1 >> 3) & 0x1F);
-    
-    // Extract start marker (6 bits: 3 from byte1 + 3 from byte2)
-    descriptor.start_marker = ((byte1 & 0x07) << 3) | ((byte2 >> 5) & 0x07);
-    
-    // Extract length marker (5 bits from byte2)
-    descriptor.length_marker = byte2 & 0x1F;
-    
-    // Extract toggle bit (1 bit from byte3)
-    descriptor.toggle_bit = (byte3 & 0x80) != 0;
-    
-    return descriptor;
-}
-
-void DLSPlusDecoder::extractTagText(const QString& dls_text, 
-                                     DLSPlusContentDescriptor& descriptor) {
-    // Validate bounds
-    if (descriptor.start_marker >= dls_text.length()) {
-        // H2: Enhanced boundary check logging with error signal emission
-        QString error = QString("Content descriptor bounds error: start=%1, text_len=%2")
-                        .arg(descriptor.start_marker)
-                        .arg(dls_text.length());
-        qWarning() << "[DLS+]" << error;
-        descriptor.extracted_text = QString();
-        emit dlsPlusDecodingError(error);
-        return;
-    }
-    
-    // Calculate end position
-    int end_pos = descriptor.start_marker + descriptor.length_marker;
-    if (end_pos > dls_text.length()) {
-        // H2: Boundary clamping (verbose logging removed for performance)
-        // Descriptor length exceeds text - automatically clamped
-        end_pos = dls_text.length();
-    }
-    
-    // Extract substring
-    descriptor.extracted_text = dls_text.mid(descriptor.start_marker, 
-                                             end_pos - descriptor.start_marker);
-    
-    // Trim whitespace
-    descriptor.extracted_text = descriptor.extracted_text.trimmed();
-}
-
-DLSPlusTag DLSPlusDecoder::parseTagType(uint8_t tag_byte) const {
-    // ETSI TS 102 980 Section 3.1: Tag type values
-    switch (tag_byte) {
-        case 0x00: return DLSPlusTag::DUMMY;
-        case 0x01: return DLSPlusTag::ITEM;
-        case 0x02: return DLSPlusTag::TITLE;
-        case 0x03: return DLSPlusTag::ALBUM;
-        case 0x04: return DLSPlusTag::ARTIST;
-        case 0x05: return DLSPlusTag::COMPOSITION;
-        case 0x06: return DLSPlusTag::COMMENT;
-        case 0x07: return DLSPlusTag::GENRE;
-        case 0x08: return DLSPlusTag::NEWS;
-        case 0x09: return DLSPlusTag::STOCK_MARKET;
-        case 0x0A: return DLSPlusTag::SPORT;
-        case 0x0B: return DLSPlusTag::WEATHER;
-        case 0x0C: return DLSPlusTag::URL;
-        case 0x0D: return DLSPlusTag::PHONE_NUMBER;
-        case 0x0E: return DLSPlusTag::EMAIL;
-        case 0x0F: return DLSPlusTag::SMS_NUMBER;
-        case 0x10: return DLSPlusTag::PURCHASE;
-        case 0x11: return DLSPlusTag::GET_DATA;
-        case 0x20: return DLSPlusTag::DESCRIPTOR_PLACE;
-        case 0x21: return DLSPlusTag::DESCRIPTOR_APPOINTMENT;
-        case 0x22: return DLSPlusTag::DESCRIPTOR_IDENTIFIER;
-        default:
-            // Unknown tag - return UNKNOWN (logging removed for performance)
-            // Enable via qWarning() if debugging needed
-            return DLSPlusTag::UNKNOWN;
-    }
-}
-
-// ============================================================================
-// PAD Data Extraction
-// ============================================================================
-
-bool DLSPlusDecoder::extractDLSFromPAD(const QByteArray& pad_data, QByteArray& dls_text) {
-    // ETSI TS 102 563 Section 5: PAD structure in DAB+ audio
-    // 
-    // Simplified PAD extraction for DLS text.
-    // Real implementation would handle:
-    // - F-PAD (Fixed PAD) analysis
-    // - X-PAD (Extended PAD) parsing
-    // - DLS segment reassembly
-    // - Character set handling
-    //
-    // For Phase 3B Week 1, we implement basic extraction assuming
-    // DLS text is present in PAD. Full PAD parsing would be Phase 3B Week 2.
-    
-    if (pad_data.size() < 4) {
-        return false;
-    }
-    
-    // Check for DLS indicator in F-PAD (first 2 bytes)
-    const uint8_t* data = reinterpret_cast<const uint8_t*>(pad_data.constData());
-    uint8_t fpad_type = data[0] >> 6;  // F-PAD type (2 bits)
-    
-    // For now, extract any text-like data from PAD
-    // This is simplified - real implementation would parse PAD structure fully
-    
-    // Look for printable ASCII/UTF-8 sequences (heuristic for DLS text)
-    int text_start = -1;
-    int text_length = 0;
-    
-    for (int i = 2; i < pad_data.size(); i++) {
-        if (data[i] >= 0x20 && data[i] < 0x7F) {
-            // Printable ASCII character
-            if (text_start == -1) {
-                text_start = i;
-            }
-            text_length++;
-        } else if (data[i] >= 0x80) {
-            // Possible UTF-8 continuation byte
-            if (text_start != -1) {
-                text_length++;
-            }
+    // Validate and extract text for each tag
+    for (auto& tag : message.tags) {
+        QString text;
+        if (extractTagText(tag, dls_text, text)) {
+            tag.text = text;
         } else {
-            // Non-text byte - break sequence if we have enough text
-            if (text_length >= 4) {
-                break;
-            }
-            text_start = -1;
-            text_length = 0;
+            qWarning() << "DLS+: Invalid tag bounds for" << tag.getFullTagName();
         }
     }
     
-    if (text_start >= 0 && text_length >= 4) {
-        dls_text = pad_data.mid(text_start, text_length);
-        return true;
-    }
-    
-    return false;
+    message.is_valid = true;
+    return true;
 }
 
-bool DLSPlusDecoder::extractCommandFromPAD(const QByteArray& pad_data, 
-                                            QByteArray& command_data) {
-    // ETSI TS 102 980 Section 5: DLS+ command in X-PAD
-    //
-    // DLS+ command is carried in X-PAD Data Group with:
-    // - Application Type = DLS+ (0x02)
-    // - Content descriptors (4 bytes each)
-    //
-    // Simplified extraction for Phase 3B Week 1.
-    // Real implementation would parse complete X-PAD structure.
+bool DLSPlusDecoder::extractDLSText(const QByteArray& data, QString& dls_text, uint8_t& charset) {
+    // TODO: Implement DLS text extraction from PAD data
+    // ETSI TS 102 980 Section 3.2: DLS Object
+    // For now, stub implementation
     
-    // H2: Add minimum size validation (verbose logging removed for performance)
-    if (pad_data.size() < 8) {
-        // PAD data too small - silent rejection
+    if (data.isEmpty()) {
         return false;
     }
     
-    // Look for DLS+ command signature
-    // DLS+ commands typically start after DLS text in PAD
-    // For now, extract last N bytes as potential command data
+    // Assume UTF-8 charset for now
+    charset = 15;  // UTF-8
+    dls_text = QString::fromUtf8(data);
     
-    const int MIN_COMMAND_SIZE = 4;  // At least one descriptor
-    const int MAX_DESCRIPTORS = 4;   // Typical maximum
-    const int DESCRIPTOR_SIZE = 4;
-    
-    // Try to find command data at end of PAD
-    int command_size = std::min(static_cast<int>(pad_data.size() / 2), MAX_DESCRIPTORS * DESCRIPTOR_SIZE);
-    if (command_size < MIN_COMMAND_SIZE) {
-        return false;
-    }
-    
-    // Extract potential command data
-    command_data = pad_data.right(command_size);
-    
-    // Validate that it looks like descriptor data
-    // (This is heuristic - real implementation would parse X-PAD headers)
-    const uint8_t* data = reinterpret_cast<const uint8_t*>(command_data.constData());
-    
-    // Check if first byte has valid tag type (upper 6 bits)
-    if (command_size >= 4) {
-        uint8_t tag_value = (data[0] >> 2) & 0x3F;
-        if (tag_value <= 0x22) {  // Valid tag range
-            return true;
-        }
-    }
-    
-    return false;
+    return true;
 }
 
-// ============================================================================
-// Validation
-// ============================================================================
+bool DLSPlusDecoder::extractTags(const QByteArray& data, QVector<DLSPlusTag>& tags) {
+    // TODO: Implement DLS+ tag extraction
+    // ETSI TS 102 980 Section 3.3: DLS+ Command
+    // For now, stub implementation
+    
+    tags.clear();
+    
+    // Stub: Create sample tag for testing
+    DLSPlusTag sample_tag;
+    sample_tag.content_type = static_cast<uint8_t>(ContentType::ITEM);
+    sample_tag.content_subtype = 3;  // ARTIST
+    sample_tag.content_id = 0;
+    sample_tag.start_marker = 0;
+    sample_tag.length_marker = 10;
+    
+    tags.append(sample_tag);
+    
+    return true;
+}
 
-bool DLSPlusDecoder::validateDLSText(const QString& text) const {
-    // ETSI TS 102 980: DLS text maximum 128 characters
-    if (text.isEmpty() || text.length() > 128) {
+bool DLSPlusDecoder::validateTag(const DLSPlusTag& tag, const QString& dls_text) const {
+    if (!tag.isValid()) {
         return false;
     }
     
-    // Check for valid UTF-8 encoding (Qt handles this, just verify not null)
-    if (text.contains(QChar(0))) {
-        qWarning() << "[DLS+] DLS text contains null characters";
+    // Check bounds against DLS text
+    if (tag.start_marker + tag.length_marker > dls_text.length()) {
         return false;
     }
     
     return true;
 }
 
-bool DLSPlusDecoder::validateDescriptor(const DLSPlusContentDescriptor& descriptor) const {
-    // Check tag type
-    if (descriptor.tag == DLSPlusTag::UNKNOWN) {
+bool DLSPlusDecoder::extractTagText(const DLSPlusTag& tag, const QString& dls_text, QString& text) const {
+    if (!validateTag(tag, dls_text)) {
         return false;
     }
     
-    // Check markers (start max 127, length max 31)
-    if (descriptor.start_marker > 127 || descriptor.length_marker > 31) {
-        return false;
-    }
-    
-    // Length must be > 0 for valid descriptor
-    if (descriptor.length_marker == 0) {
-        return false;
-    }
-    
+    text = dls_text.mid(tag.start_marker, tag.length_marker);
     return true;
 }
 
-} // namespace eti::dlsplus
+bool DLSPlusDecoder::isPADContainingDLSPlus(const QByteArray& pad_data) const {
+    // TODO: Implement PAD type detection
+    // Check PAD Application Type Identifier for DLS+
+    // ETSI EN 300 401 Section 7.4.2.1
+    
+    if (pad_data.size() < 2) {
+        return false;
+    }
+    
+    // Stub: For now, assume any non-empty PAD might contain DLS+
+    return true;
+}
+
+QByteArray DLSPlusDecoder::extractDLSPlusData(const QByteArray& pad_data) const {
+    // TODO: Implement PAD data extraction
+    // Extract DLS+ data from PAD based on Application Type
+    // ETSI EN 300 401 Section 7.4
+    
+    // Stub: Return raw PAD data for now
+    return pad_data;
+}
+
+QString DLSPlusDecoder::getTagTypeName(uint8_t type) const {
+    return tag_types_.value(type, QString("UNKNOWN_%1").arg(type));
+}
+
+QString DLSPlusDecoder::getTagSubtypeName(uint8_t type, uint8_t subtype) const {
+    return tag_subtypes_.value({type, subtype}, QString("UNKNOWN_%1_%2").arg(type).arg(subtype));
+}
+
+// Convenience methods
+DLSPlusMessage DLSPlusDecoder::getCurrentMessage() const {
+    QMutexLocker locker(&mutex_);
+    return current_message_;
+}
+
+QString DLSPlusDecoder::getNowPlaying() const {
+    QMutexLocker locker(&mutex_);
+    return current_message_.getNowPlaying();
+}
+
+QString DLSPlusDecoder::getArtist() const {
+    QMutexLocker locker(&mutex_);
+    return current_message_.getTag("ITEM.ARTIST");
+}
+
+QString DLSPlusDecoder::getTitle() const {
+    QMutexLocker locker(&mutex_);
+    return current_message_.getTag("ITEM.TITLE");
+}
+
+QString DLSPlusDecoder::getAlbum() const {
+    QMutexLocker locker(&mutex_);
+    return current_message_.getTag("ITEM.ALBUM");
+}
+
+QString DLSPlusDecoder::getTrackNumber() const {
+    QMutexLocker locker(&mutex_);
+    return current_message_.getTag("ITEM.TRACKNUMBER");
+}
+
+QString DLSPlusDecoder::getProgrammeName() const {
+    QMutexLocker locker(&mutex_);
+    return current_message_.getTag("PROGRAMME.NOW");
+}
+
+QString DLSPlusDecoder::getNextProgramme() const {
+    QMutexLocker locker(&mutex_);
+    return current_message_.getTag("PROGRAMME.NEXT");
+}
+
+QString DLSPlusDecoder::getStationName() const {
+    QMutexLocker locker(&mutex_);
+    return current_message_.getTag("STATIONNAME.LONG");
+}
+
+QString DLSPlusDecoder::getNewsHeadline() const {
+    QMutexLocker locker(&mutex_);
+    return current_message_.getTag("INFO.NEWS");
+}
+
+uint64_t DLSPlusDecoder::getTotalMessagesProcessed() const {
+    return total_messages_processed_;
+}
+
+uint64_t DLSPlusDecoder::getValidMessagesCount() const {
+    return valid_messages_count_;
+}
+
+uint64_t DLSPlusDecoder::getInvalidMessagesCount() const {
+    return invalid_messages_count_;
+}
+
+} // namespace dls_plus
+} // namespace eti

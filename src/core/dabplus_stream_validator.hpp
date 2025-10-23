@@ -513,11 +513,11 @@ private:
     mutable QMutex m_mutex;
 
     // Phase 3B: DLS+ decoder integration (activated)
-    eti::dlsplus::DLSPlusDecoder* m_dls_plus_decoder = nullptr;
+    eti::dls_plus::DLSPlusDecoder* m_dls_plus_decoder = nullptr;
 
 public:
     // Phase 3B: DLS+ decoder accessor
-    eti::dlsplus::DLSPlusDecoder* dlsPlusDecoder() const { return m_dls_plus_decoder; }
+    eti::dls_plus::DLSPlusDecoder* dlsPlusDecoder() const { return m_dls_plus_decoder; }
 };
 
 } // namespace eti::audio

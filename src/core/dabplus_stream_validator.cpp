@@ -96,7 +96,7 @@ DABPlusStreamValidator::DABPlusStreamValidator(QObject* parent)
     initializeFireCodeTable();
 
     // Phase 3B: DLS+ decoder integration (activated)
-    m_dls_plus_decoder = new eti::dlsplus::DLSPlusDecoder(this);
+    m_dls_plus_decoder = new eti::dls_plus::DLSPlusDecoder(this);
     
     // Connect PAD data extraction to DLS+ decoder (lambda adapts signal parameters)
     connect(this, &DABPlusStreamValidator::padDataExtracted,
