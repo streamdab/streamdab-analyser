@@ -25,6 +25,11 @@
 #include <QPushButton>
 #include <QFrame>
 #include <QDateTime>
+#include <QRadioButton>
+#include <QLineEdit>
+#include <QStackedWidget>
+#include <QGridLayout>
+#include <QButtonGroup>
 #include <chrono>
 #include <memory>
 #include <map>
@@ -795,6 +800,164 @@ private slots:
             m_systemMessages->append(QString("📊 Comparative analysis completed for %1 streams")
                                    .arg(result.compared_streams.size()));
         }
+    }
+    
+    // Live Stream Input Panel slots
+    void onSourceTypeChanged(bool networkSelected)
+    {
+        if (m_sourceInputStack) {
+            m_sourceInputStack->setCurrentIndex(networkSelected ? 1 : 0);
+        }
+    }
+    
+    void onQuickExampleSelected(int index)
+    {
+        if (!m_streamUrlEdit || index < 0) return;
+        
+        // Update URL based on selected example
+        switch (index) {
+            case 0:
+                m_streamUrlEdit->setText("udp://239.192.0.1:9200");
+                break;
+            case 1:
+                m_streamUrlEdit->setText("tcp://192.168.1.100:9200");
+                break;
+            case 2:
+                m_streamUrlEdit->setText("zmq+tcp://localhost:9201");
+                break;
+            default:
+                break;
+        }
+    }
+    
+    void onConnectClicked()
+    {
+        if (!m_streamUrlEdit) return;
+        
+        QString url = m_streamUrlEdit->text().trimmed();
+        if (url.isEmpty()) {
+            QMessageBox::warning(this, "Invalid URL", "Please enter a stream URL");
+            return;
+        }
+        
+        // Update UI state
+        if (m_connectBtn) m_connectBtn->setEnabled(false);
+        if (m_disconnectBtn) m_disconnectBtn->setEnabled(true);
+        if (m_streamStatus) {
+            m_streamStatus->setText("<span style='color: #FFA500;'>● Connecting...</span>");
+        }
+        
+        // Start statistics timer
+        if (m_statsTimer) {
+            m_statsTimer->start(1000);  // Update every 1 second
+        }
+        
+        m_systemMessages->append(QString("[STREAM] Connecting to %1...").arg(url));
+        
+        // TODO: Implement actual network connection
+        // For now, simulate successful connection
+        QTimer::singleShot(1000, this, [this, url]() {
+            if (m_streamStatus) {
+                m_streamStatus->setText("<span style='color: #107C10;'>● Connected</span>");
+            }
+            m_systemMessages->append(QString("[STREAM] Connected to %1").arg(url));
+        });
+    }
+    
+    void onDisconnectClicked()
+    {
+        // Update UI state
+        if (m_connectBtn) m_connectBtn->setEnabled(true);
+        if (m_disconnectBtn) m_disconnectBtn->setEnabled(false);
+        if (m_streamStatus) {
+            m_streamStatus->setText("<span style='color: #666;'>● Disconnected</span>");
+        }
+        
+        // Stop statistics timer
+        if (m_statsTimer) {
+            m_statsTimer->stop();
+        }
+        
+        m_systemMessages->append("[STREAM] Disconnected");
+        
+        // Reset statistics
+        if (m_streamFrameRate) m_streamFrameRate->setText("--");
+        if (m_streamFramesReceived) m_streamFramesReceived->setText("--");
+        if (m_streamFrameLoss) m_streamFrameLoss->setText("--");
+        if (m_streamLatency) m_streamLatency->setText("--");
+        if (m_streamBuffer) m_streamBuffer->setText("--");
+        if (m_streamDataRate) m_streamDataRate->setText("--");
+        if (m_streamUptime) m_streamUptime->setText("--");
+    }
+    
+    void updateStreamStatistics()
+    {
+        // TODO: Get real statistics from network receiver
+        // For now, display simulated data
+        static int frameCount = 0;
+        static auto startTime = std::chrono::steady_clock::now();
+        
+        frameCount += 250;  // Simulate 250 FPS
+        auto now = std::chrono::steady_clock::now();
+        auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - startTime).count();
+        
+        int hours = uptime / 3600;
+        int minutes = (uptime % 3600) / 60;
+        int seconds = uptime % 60;
+        
+        if (m_streamFrameRate) {
+            m_streamFrameRate->setText("250.5 FPS");
+        }
+        if (m_streamFramesReceived) {
+            m_streamFramesReceived->setText(QString("%1 frames").arg(frameCount));
+        }
+        if (m_streamFrameLoss) {
+            m_streamFrameLoss->setText("0.01% (2 frames)");
+        }
+        if (m_streamLatency) {
+            m_streamLatency->setText("15 ms");
+        }
+        if (m_streamBuffer) {
+            m_streamBuffer->setText("89% (890/1000)");
+        }
+        if (m_streamDataRate) {
+            m_streamDataRate->setText("1.54 Mbit/s");
+        }
+        if (m_streamUptime) {
+            m_streamUptime->setText(QString("%1:%2:%3")
+                .arg(hours, 2, 10, QChar('0'))
+                .arg(minutes, 2, 10, QChar('0'))
+                .arg(seconds, 2, 10, QChar('0')));
+        }
+    }
+    
+    void onBrowseFileClicked()
+    {
+        QString fileName = QFileDialog::getOpenFileName(
+            this,
+            "Open ETI File",
+            "eti/",
+            "ETI Files (*.eti *.ETI);;All Files (*)"
+        );
+        
+        if (!fileName.isEmpty() && m_filePathEdit) {
+            m_filePathEdit->setText(fileName);
+        }
+    }
+    
+    void onLoadFileClicked()
+    {
+        if (!m_filePathEdit) return;
+        
+        QString filePath = m_filePathEdit->text().trimmed();
+        if (filePath.isEmpty()) {
+            QMessageBox::warning(this, "No File Selected", "Please select an ETI file");
+            return;
+        }
+        
+        // Use existing openFile logic
+        m_currentFilePath = filePath;
+        openFile();
     }
     
     void displayComparativeAnalysis(const multistream::ComparativeAnalysisResult& result)
@@ -1803,6 +1966,197 @@ private:
         return panel;
     }
 
+    QWidget* createLiveStreamInputPanel()
+    {
+        QGroupBox* panel = new QGroupBox("Input Source");
+        QVBoxLayout* mainLayout = new QVBoxLayout(panel);
+        mainLayout->setContentsMargins(8, 8, 8, 8);
+        mainLayout->setSpacing(6);
+        
+        // Source type selection (File vs Network Stream)
+        QHBoxLayout* sourceTypeLayout = new QHBoxLayout();
+        m_fileSourceRadio = new QRadioButton("File");
+        m_networkSourceRadio = new QRadioButton("Network Stream");
+        m_fileSourceRadio->setChecked(true);  // Default to file input
+        
+        sourceTypeLayout->addWidget(m_fileSourceRadio);
+        sourceTypeLayout->addWidget(m_networkSourceRadio);
+        sourceTypeLayout->addStretch();
+        mainLayout->addLayout(sourceTypeLayout);
+        
+        // Stacked widget for File vs Network input
+        m_sourceInputStack = new QStackedWidget();
+        
+        // === PAGE 0: File Input ===
+        QWidget* fileInputPage = new QWidget();
+        QVBoxLayout* fileLayout = new QVBoxLayout(fileInputPage);
+        fileLayout->setContentsMargins(4, 4, 4, 4);
+        fileLayout->setSpacing(4);
+        
+        QHBoxLayout* filePathLayout = new QHBoxLayout();
+        QLabel* fileLabel = new QLabel("File:");
+        fileLabel->setMinimumWidth(40);
+        m_filePathEdit = new QLineEdit();
+        m_filePathEdit->setPlaceholderText("Select an ETI file...");
+        m_filePathEdit->setReadOnly(true);
+        m_browseFileButton = new QPushButton("Browse...");
+        m_loadFileButton = new QPushButton("Load File");
+        m_loadFileButton->setStyleSheet("font-weight: bold; background-color: #0078D4; color: white;");
+        
+        filePathLayout->addWidget(fileLabel);
+        filePathLayout->addWidget(m_filePathEdit, 1);
+        filePathLayout->addWidget(m_browseFileButton);
+        filePathLayout->addWidget(m_loadFileButton);
+        fileLayout->addLayout(filePathLayout);
+        
+        m_sourceInputStack->addWidget(fileInputPage);
+        
+        // === PAGE 1: Network Stream Input ===
+        QWidget* networkInputPage = new QWidget();
+        QVBoxLayout* networkLayout = new QVBoxLayout(networkInputPage);
+        networkLayout->setContentsMargins(4, 4, 4, 4);
+        networkLayout->setSpacing(6);
+        
+        // Stream URL input
+        QHBoxLayout* urlLayout = new QHBoxLayout();
+        QLabel* urlLabel = new QLabel("Stream URL:");
+        urlLabel->setMinimumWidth(80);
+        m_streamUrlEdit = new QLineEdit();
+        m_streamUrlEdit->setPlaceholderText("udp://239.192.0.1:9200");
+        m_streamUrlEdit->setFont(QFont("Consolas", 9));
+        urlLayout->addWidget(urlLabel);
+        urlLayout->addWidget(m_streamUrlEdit, 1);
+        networkLayout->addLayout(urlLayout);
+        
+        // Quick Examples dropdown
+        QHBoxLayout* examplesLayout = new QHBoxLayout();
+        QLabel* examplesLabel = new QLabel("Quick Examples:");
+        examplesLabel->setMinimumWidth(80);
+        m_quickExampleCombo = new QComboBox();
+        m_quickExampleCombo->addItem("udp://239.192.0.1:9200 (DAB Ensemble Multicast)");
+        m_quickExampleCombo->addItem("tcp://192.168.1.100:9200 (TCP Direct)");
+        m_quickExampleCombo->addItem("zmq+tcp://localhost:9201 (ODR-DabMux ZMQ)");
+        m_quickExampleCombo->setCurrentIndex(-1);  // No selection by default
+        examplesLayout->addWidget(examplesLabel);
+        examplesLayout->addWidget(m_quickExampleCombo, 1);
+        networkLayout->addLayout(examplesLayout);
+        
+        // Connect/Disconnect buttons and status
+        QHBoxLayout* controlLayout = new QHBoxLayout();
+        m_connectBtn = new QPushButton("Connect");
+        m_connectBtn->setStyleSheet("font-weight: bold; background-color: #107C10; color: white;");
+        m_disconnectBtn = new QPushButton("Disconnect");
+        m_disconnectBtn->setEnabled(false);
+        m_streamStatus = new QLabel("<span style='color: #666;'>● Disconnected</span>");
+        m_streamStatus->setFont(QFont("Arial", 10, QFont::Bold));
+        
+        controlLayout->addWidget(m_connectBtn);
+        controlLayout->addWidget(m_disconnectBtn);
+        controlLayout->addWidget(new QLabel("Status:"));
+        controlLayout->addWidget(m_streamStatus);
+        controlLayout->addStretch();
+        networkLayout->addLayout(controlLayout);
+        
+        // Stream Statistics GroupBox
+        QGroupBox* statsGroup = new QGroupBox("Stream Statistics");
+        QGridLayout* statsLayout = new QGridLayout(statsGroup);
+        statsLayout->setContentsMargins(6, 6, 6, 6);
+        statsLayout->setSpacing(4);
+        
+        // Create statistics labels (2-column layout)
+        QFont labelFont("Arial", 9);
+        QFont dataFont("Consolas", 9, QFont::Bold);
+        
+        // Row 0: Frame Rate
+        QLabel* frLabel = new QLabel("Frame Rate:");
+        frLabel->setFont(labelFont);
+        m_streamFrameRate = new QLabel("--");
+        m_streamFrameRate->setFont(dataFont);
+        m_streamFrameRate->setStyleSheet("color: #0078D4;");
+        statsLayout->addWidget(frLabel, 0, 0);
+        statsLayout->addWidget(m_streamFrameRate, 0, 1);
+        
+        // Row 0: Frames Received
+        QLabel* fcLabel = new QLabel("Frames Received:");
+        fcLabel->setFont(labelFont);
+        m_streamFramesReceived = new QLabel("--");
+        m_streamFramesReceived->setFont(dataFont);
+        m_streamFramesReceived->setStyleSheet("color: #0078D4;");
+        statsLayout->addWidget(fcLabel, 0, 2);
+        statsLayout->addWidget(m_streamFramesReceived, 0, 3);
+        
+        // Row 1: Frame Loss
+        QLabel* flLabel = new QLabel("Frame Loss:");
+        flLabel->setFont(labelFont);
+        m_streamFrameLoss = new QLabel("--");
+        m_streamFrameLoss->setFont(dataFont);
+        m_streamFrameLoss->setStyleSheet("color: #107C10;");
+        statsLayout->addWidget(flLabel, 1, 0);
+        statsLayout->addWidget(m_streamFrameLoss, 1, 1);
+        
+        // Row 1: Network Latency
+        QLabel* latLabel = new QLabel("Network Latency:");
+        latLabel->setFont(labelFont);
+        m_streamLatency = new QLabel("--");
+        m_streamLatency->setFont(dataFont);
+        m_streamLatency->setStyleSheet("color: #107C10;");
+        statsLayout->addWidget(latLabel, 1, 2);
+        statsLayout->addWidget(m_streamLatency, 1, 3);
+        
+        // Row 2: Buffer Status
+        QLabel* bufLabel = new QLabel("Buffer Status:");
+        bufLabel->setFont(labelFont);
+        m_streamBuffer = new QLabel("--");
+        m_streamBuffer->setFont(dataFont);
+        m_streamBuffer->setStyleSheet("color: #0078D4;");
+        statsLayout->addWidget(bufLabel, 2, 0);
+        statsLayout->addWidget(m_streamBuffer, 2, 1);
+        
+        // Row 2: Data Rate
+        QLabel* drLabel = new QLabel("Data Rate:");
+        drLabel->setFont(labelFont);
+        m_streamDataRate = new QLabel("--");
+        m_streamDataRate->setFont(dataFont);
+        m_streamDataRate->setStyleSheet("color: #0078D4;");
+        statsLayout->addWidget(drLabel, 2, 2);
+        statsLayout->addWidget(m_streamDataRate, 2, 3);
+        
+        // Row 3: Uptime (spans 2 columns)
+        QLabel* upLabel = new QLabel("Uptime:");
+        upLabel->setFont(labelFont);
+        m_streamUptime = new QLabel("--");
+        m_streamUptime->setFont(dataFont);
+        m_streamUptime->setStyleSheet("color: #107C10;");
+        statsLayout->addWidget(upLabel, 3, 0);
+        statsLayout->addWidget(m_streamUptime, 3, 1);
+        
+        networkLayout->addWidget(statsGroup);
+        
+        m_sourceInputStack->addWidget(networkInputPage);
+        
+        mainLayout->addWidget(m_sourceInputStack);
+        
+        // Connect signals
+        connect(m_fileSourceRadio, &QRadioButton::toggled, this, [this](bool checked) {
+            onSourceTypeChanged(!checked);
+        });
+        connect(m_networkSourceRadio, &QRadioButton::toggled, this, [this](bool checked) {
+            onSourceTypeChanged(checked);
+        });
+        connect(m_quickExampleCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this, &DABAnalyzerWindow::onQuickExampleSelected);
+        connect(m_connectBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onConnectClicked);
+        connect(m_disconnectBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onDisconnectClicked);
+        connect(m_browseFileButton, &QPushButton::clicked, this, &DABAnalyzerWindow::onBrowseFileClicked);
+        connect(m_loadFileButton, &QPushButton::clicked, this, &DABAnalyzerWindow::onLoadFileClicked);
+        
+        // Initialize statistics timer (but don't start it)
+        m_statsTimer = new QTimer(this);
+        connect(m_statsTimer, &QTimer::timeout, this, &DABAnalyzerWindow::updateStreamStatistics);
+        
+        return panel;
+    }
+
     QWidget* createTab1_CenterPanel()
     {
         QWidget* panel = new QWidget();
@@ -1810,11 +2164,15 @@ private:
         layout->setContentsMargins(2, 2, 2, 2);
         layout->setSpacing(4);
 
-        // Top 15%: Player/Decoder Status (new panels)
-        QWidget* statusPanels = createPlayerDecoderStatusPanels();
-        layout->addWidget(statusPanels, 15);
+        // Top 10%: Live Stream Input Panel
+        QWidget* liveStreamPanel = createLiveStreamInputPanel();
+        layout->addWidget(liveStreamPanel, 10);
 
-        // Middle 30%: ETI Frame Navigator
+        // Next 10%: Player/Decoder Status (new panels)
+        QWidget* statusPanels = createPlayerDecoderStatusPanels();
+        layout->addWidget(statusPanels, 10);
+
+        // Middle 25%: ETI Frame Navigator
         QGroupBox* navigatorGroup = new QGroupBox("ETI Frame Navigator");
         QVBoxLayout* navigatorLayout = new QVBoxLayout(navigatorGroup);
         
@@ -1829,7 +2187,7 @@ private:
         m_frameList = new QListWidget();
         navigatorLayout->addWidget(m_frameList);
         
-        layout->addWidget(navigatorGroup, 30);
+        layout->addWidget(navigatorGroup, 25);
 
         // Bottom 55%: Hex Viewer / ETSI Compliance tabs
         QTabWidget* viewerTabs = new QTabWidget();
@@ -3416,6 +3774,29 @@ private:
     
     // Phase 3B: DLS+ decoder instance
     eti::dlsplus::DLSPlusDecoder* m_dlsPlusDecoder{nullptr};
+    
+    // Live Stream Input Panel widgets
+    QRadioButton* m_fileSourceRadio;
+    QRadioButton* m_networkSourceRadio;
+    QStackedWidget* m_sourceInputStack;
+    QLineEdit* m_filePathEdit;
+    QPushButton* m_browseFileButton;
+    QPushButton* m_loadFileButton;
+    QLineEdit* m_streamUrlEdit;
+    QComboBox* m_quickExampleCombo;
+    QPushButton* m_connectBtn;
+    QPushButton* m_disconnectBtn;
+    QLabel* m_streamStatus;
+    
+    // Stream statistics labels
+    QLabel* m_streamFrameRate;
+    QLabel* m_streamFramesReceived;
+    QLabel* m_streamFrameLoss;
+    QLabel* m_streamLatency;
+    QLabel* m_streamBuffer;
+    QLabel* m_streamDataRate;
+    QLabel* m_streamUptime;
+    QTimer* m_statsTimer;
 
     // State
     QString m_currentFilePath;
