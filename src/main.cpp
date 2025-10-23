@@ -77,10 +77,10 @@ public:
         // m_loggingSystem = std::make_unique<professional_logging::ProfessionalLoggingSystem>();
 
         // Phase 3B: Initialize DLS+ decoder
-        m_dlsPlusDecoder = new eti::dlsplus::DLSPlusDecoder(this);
+        m_dlsPlusDecoder = new eti::dls_plus::DLSPlusDecoder(this);
         
         // Phase 3B: Connect DLS+ signals to Now Playing UI
-        connect(m_dlsPlusDecoder, &eti::dlsplus::DLSPlusDecoder::nowPlayingUpdated,
+        connect(m_dlsPlusDecoder, &eti::dls_plus::DLSPlusDecoder::nowPlayingUpdated,
                 this, [this](const QString& track, const QString& artist, const QString& album) {
                     updateNowPlaying(track, artist, album);
                 });
@@ -3773,7 +3773,7 @@ private:
     QLabel* m_lastUpdatedLabel;
     
     // Phase 3B: DLS+ decoder instance
-    eti::dlsplus::DLSPlusDecoder* m_dlsPlusDecoder{nullptr};
+    eti::dls_plus::DLSPlusDecoder* m_dlsPlusDecoder{nullptr};
     
     // Live Stream Input Panel widgets
     QRadioButton* m_fileSourceRadio;

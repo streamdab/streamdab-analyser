@@ -169,7 +169,7 @@ public:
     // TODO: Add journalineDecoder() getter when available
     
     // Phase 3B: DLS+ decoder accessor
-    eti::dlsplus::DLSPlusDecoder* dlsPlusDecoder() const { return m_dls_plus_decoder; }
+    eti::dls_plus::DLSPlusDecoder* dlsPlusDecoder() const { return m_dls_plus_decoder; }
 
     // ========================================================================
     // Processing Interface
@@ -485,7 +485,7 @@ private:
     // TODO: Add JournalineDecoder* m_journalineDecoder when available
     
     // Phase 3B: DLS+ decoder (activated)
-    eti::dlsplus::DLSPlusDecoder* m_dls_plus_decoder;
+    eti::dls_plus::DLSPlusDecoder* m_dls_plus_decoder;
 
     // ========================================================================
     // State Management

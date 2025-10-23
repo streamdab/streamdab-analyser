@@ -81,6 +81,8 @@ struct DLSPlusMessage {
     bool hasTag(const QString& tag_name) const;        // Check tag exists
     QMap<QString, QString> getAllTags() const;         // All tags as map
     QString getNowPlaying() const;                     // "ARTIST - TITLE" format
+    QString getArtist() const;                         // Get ITEM.ARTIST
+    QString getItem() const;                           // Get ITEM.TITLE (track/item)
     
     DLSPlusMessage()
         : is_valid(false)
@@ -123,7 +125,8 @@ signals:
     // Emitted when new DLS+ message received
     void dlsPlusMessageReceived(const DLSPlusMessage& message);
     
-    // Emitted when specific tags change
+    // Emitted when specific tags change (main.cpp expects these exact signal names)
+    void nowPlayingUpdated(const QString& track, const QString& artist, const QString& album);
     void nowPlayingChanged(const QString& artist, const QString& title);
     void albumChanged(const QString& album);
     void programmeChanged(const QString& programme);
