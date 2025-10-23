@@ -395,39 +395,125 @@ bool DLSPlusDecoder::parseDLSPlusObject(const QByteArray& data, DLSPlusMessage& 
 }
 
 bool DLSPlusDecoder::extractDLSText(const QByteArray& data, QString& dls_text, uint8_t& charset) {
-    // TODO: Implement DLS text extraction from PAD data
     // ETSI TS 102 980 Section 3.2: DLS Object
-    // For now, stub implementation
+    // DLS text is carried in PAD as a segment with charset indicator
     
-    if (data.isEmpty()) {
+    if (data.isEmpty() || data.size() < 2) {
         return false;
     }
     
-    // Assume UTF-8 charset for now
-    charset = 15;  // UTF-8
-    dls_text = QString::fromUtf8(data);
+    // First byte typically contains flags and charset
+    // Bit 0-3: Charset (0=ISO 8859-1, 15=UTF-8, etc.)
+    // ETSI EN 300 401 Table 4 - Character field
+    charset = data[0] & 0x0F;
     
-    return true;
+    // Extract text starting from byte 1
+    QByteArray textData = data.mid(1);
+    
+    // Decode based on charset
+    if (charset == 15) {
+        // UTF-8
+        dls_text = QString::fromUtf8(textData);
+    } else if (charset == 0) {
+        // ISO 8859-1 (Latin-1)
+        dls_text = QString::fromLatin1(textData);
+    } else if (charset == 6) {
+        // ISO 8859-9 (Turkish)
+        dls_text = QString::fromLatin1(textData);  // Close enough
+    } else {
+        // Default to UTF-8 for unknown charsets
+        qWarning() << "DLS+: Unknown charset" << charset << "- defaulting to UTF-8";
+        dls_text = QString::fromUtf8(textData);
+    }
+    
+    // Remove null terminators and trim
+    dls_text = dls_text.trimmed();
+    int nullPos = dls_text.indexOf(QChar('\0'));
+    if (nullPos >= 0) {
+        dls_text = dls_text.left(nullPos);
+    }
+    
+    return !dls_text.isEmpty();
 }
 
 bool DLSPlusDecoder::extractTags(const QByteArray& data, QVector<DLSPlusTag>& tags) {
-    // TODO: Implement DLS+ tag extraction
     // ETSI TS 102 980 Section 3.3: DLS+ Command
-    // For now, stub implementation
+    // DLS+ tags are encoded after the DLS text in a command structure
     
     tags.clear();
     
-    // Stub: Create sample tag for testing
-    DLSPlusTag sample_tag;
-    sample_tag.content_type = static_cast<uint8_t>(ContentType::ITEM);
-    sample_tag.content_subtype = 3;  // ARTIST
-    sample_tag.content_id = 0;
-    sample_tag.start_marker = 0;
-    sample_tag.length_marker = 10;
+    if (data.size() < 4) {
+        // Minimum: 1 byte charset + 1 byte text + 2 bytes for tag header
+        return false;  // No tags, just DLS text
+    }
     
-    tags.append(sample_tag);
+    // Find DLS+ command marker
+    // After DLS text, look for command byte
+    // Command byte format: bit 7-5 = link bit, bit 4 = CRC flag, bit 3-0 = num tags
     
-    return true;
+    // Skip DLS text to find command (simplified: look for non-text bytes)
+    int commandPos = 1;  // Start after charset byte
+    
+    // Find end of text (null terminator or specific pattern)
+    while (commandPos < data.size() && data[commandPos] != 0x00) {
+        commandPos++;
+    }
+    
+    // Check if we have command data after text
+    if (commandPos + 2 >= data.size()) {
+        return false;  // No command data
+    }
+    
+    // Move past null terminator
+    commandPos++;
+    
+    // Read command byte
+    uint8_t commandByte = static_cast<uint8_t>(data[commandPos]);
+    uint8_t numTags = commandByte & 0x0F;  // Bits 0-3: number of tags
+    bool hasCRC = (commandByte & 0x10) != 0;  // Bit 4: CRC present
+    
+    if (numTags == 0 || numTags > 4) {
+        // ETSI TS 102 980: Maximum 4 tags per message
+        qDebug() << "DLS+: Invalid tag count:" << numTags;
+        return false;
+    }
+    
+    commandPos++;  // Move to first tag
+    
+    // Parse each tag (each tag is 4 bytes)
+    for (int i = 0; i < numTags && commandPos + 4 <= data.size(); i++) {
+        DLSPlusTag tag;
+        
+        // Byte 0-1: Content type (4 bits) + subtype (4 bits) + content ID (12 bits)
+        uint16_t word1 = (static_cast<uint8_t>(data[commandPos]) << 8) | 
+                         static_cast<uint8_t>(data[commandPos + 1]);
+        
+        tag.content_type = (word1 >> 12) & 0x0F;  // Bits 12-15
+        tag.content_subtype = (word1 >> 8) & 0x0F;  // Bits 8-11
+        tag.content_id = word1 & 0x0FFF;  // Bits 0-11 (12-bit content ID)
+        
+        // Byte 2: Start marker (7 bits) + length marker high bit
+        uint8_t byte2 = static_cast<uint8_t>(data[commandPos + 2]);
+        tag.start_marker = (byte2 >> 1) & 0x7F;  // Bits 1-7
+        uint8_t lengthHigh = byte2 & 0x01;  // Bit 0
+        
+        // Byte 3: Length marker low bits (6 bits)
+        uint8_t byte3 = static_cast<uint8_t>(data[commandPos + 3]);
+        tag.length_marker = ((lengthHigh << 6) | ((byte3 >> 2) & 0x3F));  // 7-bit length
+        
+        // Validate tag
+        if (tag.isValid()) {
+            tags.append(tag);
+            qDebug() << "DLS+: Parsed tag" << i << ":" << tag.getFullTagName()
+                     << "start=" << tag.start_marker << "len=" << tag.length_marker;
+        } else {
+            qWarning() << "DLS+: Invalid tag" << i << "- skipping";
+        }
+        
+        commandPos += 4;  // Move to next tag (4 bytes per tag)
+    }
+    
+    return !tags.isEmpty();
 }
 
 bool DLSPlusDecoder::validateTag(const DLSPlusTag& tag, const QString& dls_text) const {
@@ -453,24 +539,91 @@ bool DLSPlusDecoder::extractTagText(const DLSPlusTag& tag, const QString& dls_te
 }
 
 bool DLSPlusDecoder::isPADContainingDLSPlus(const QByteArray& pad_data) const {
-    // TODO: Implement PAD type detection
-    // Check PAD Application Type Identifier for DLS+
-    // ETSI EN 300 401 Section 7.4.2.1
+    // ETSI EN 300 401 Section 7.4.2.1: PAD Application Type
+    // Check PAD Application Type Identifier for DLS/DLS+
     
     if (pad_data.size() < 2) {
         return false;
     }
     
-    // Stub: For now, assume any non-empty PAD might contain DLS+
-    return true;
+    // PAD starts with CI (Content Indicator) byte
+    // For X-PAD: Check for DLS application type
+    // DLS/DLS+ uses Application Type = 2 or 3
+    
+    uint8_t firstByte = static_cast<uint8_t>(pad_data[0]);
+    
+    // Check for X-PAD indicator (bit 7 = 0 for F-PAD, 1 for X-PAD)
+    bool isXPAD = (firstByte & 0x80) != 0;
+    
+    if (!isXPAD) {
+        // F-PAD (Fixed PAD) - simple case
+        // Check if it looks like DLS text (printable characters)
+        return true;  // Assume F-PAD can contain DLS
+    }
+    
+    // X-PAD (Extended PAD) - check application type
+    // Byte 0: CI flag + length indicator
+    // Following bytes: Data Group or PAD data
+    
+    // Look for DLS+ command structure
+    // DLS+ has specific markers: text followed by command byte
+    
+    // Check if data contains null-terminated text followed by command
+    int nullPos = pad_data.indexOf('\0');
+    if (nullPos > 0 && nullPos + 2 < pad_data.size()) {
+        // Found potential text + command structure
+        uint8_t commandByte = static_cast<uint8_t>(pad_data[nullPos + 1]);
+        uint8_t numTags = commandByte & 0x0F;
+        
+        // DLS+ typically has 1-4 tags
+        if (numTags >= 1 && numTags <= 4) {
+            return true;  // Likely DLS+
+        }
+    }
+    
+    // Check for printable text (indicates DLS/DLS+)
+    int printableCount = 0;
+    for (int i = 0; i < qMin(20, pad_data.size()); i++) {
+        uint8_t byte = static_cast<uint8_t>(pad_data[i]);
+        if ((byte >= 0x20 && byte <= 0x7E) || byte >= 0x80) {
+            printableCount++;
+        }
+    }
+    
+    // If > 50% printable, likely contains DLS text
+    return printableCount > (qMin(20, pad_data.size()) / 2);
 }
 
 QByteArray DLSPlusDecoder::extractDLSPlusData(const QByteArray& pad_data) const {
-    // TODO: Implement PAD data extraction
+    // ETSI EN 300 401 Section 7.4: PAD Data Extraction
     // Extract DLS+ data from PAD based on Application Type
-    // ETSI EN 300 401 Section 7.4
     
-    // Stub: Return raw PAD data for now
+    if (pad_data.isEmpty()) {
+        return QByteArray();
+    }
+    
+    uint8_t firstByte = static_cast<uint8_t>(pad_data[0]);
+    bool isXPAD = (firstByte & 0x80) != 0;
+    
+    if (!isXPAD) {
+        // F-PAD (Fixed PAD) - return as-is
+        return pad_data;
+    }
+    
+    // X-PAD (Extended PAD) - need to extract payload
+    // Byte 0: CI (Content Indicator)
+    //   Bit 7: X-PAD indicator (1)
+    //   Bit 6-4: Length indicator
+    //   Bit 3-0: Application type / first nibble
+    
+    uint8_t lengthIndicator = (firstByte >> 4) & 0x07;
+    
+    // Skip CI byte and extract payload
+    if (pad_data.size() > 1) {
+        // Return payload (skip CI byte)
+        return pad_data.mid(1);
+    }
+    
     return pad_data;
 }
 
