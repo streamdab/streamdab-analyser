@@ -293,9 +293,9 @@ void TestDLSPlusDecoder::testTagParsing_AllStandardTags()
     QString dls_text = "Rock Station - The Beatles - Hey Jude [Abbey Road] Pop/Rock";
     
     QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags;
-    tags.append({eti::dls_plus::ContentType::TITLE, {0, 12}});       // "Rock Station"
+    tags.append({eti::dls_plus::ContentType::STATIONNAME_SHORT, {0, 12}});  // "Rock Station"
     tags.append({eti::dls_plus::ContentType::ARTIST, {15, 11}});     // "The Beatles"
-    tags.append({eti::dls_plus::ContentType::ITEM, {29, 8}});        // "Hey Jude"
+    tags.append({eti::dls_plus::ContentType::TITLE, {29, 8}});       // "Hey Jude"
     tags.append({eti::dls_plus::ContentType::ALBUM, {39, 10}});      // "Abbey Road"
     tags.append({eti::dls_plus::ContentType::GENRE, {51, 8}});       // "Pop/Rock"
     
@@ -306,9 +306,9 @@ void TestDLSPlusDecoder::testTagParsing_AllStandardTags()
     
     auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
-    QCOMPARE(msg->getTitle(), QString("Rock Station"));
+    QCOMPARE(msg->getStationName(), QString("Rock Station"));  // Changed to match tag type
     QCOMPARE(msg->getArtist(), QString("The Beatles"));
-    QCOMPARE(msg->getItem(), QString("Hey Jude"));
+    QCOMPARE(msg->getItem(), QString("Hey Jude"));  // Now correctly gets ITEM.TITLE
     QCOMPARE(msg->getAlbum(), QString("Abbey Road"));
     QCOMPARE(msg->getGenre(), QString("Pop/Rock"));
 }
@@ -587,9 +587,9 @@ void TestDLSPlusDecoder::testMessage_FullMetadata()
     QString dls_text = "Rock FM - The Beatles - Hey Jude [Abbey Road] Rock";
     
     QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags;
-    tags.append({eti::dls_plus::ContentType::TITLE, {0, 7}});     // "Rock FM"
+    tags.append({eti::dls_plus::ContentType::STATIONNAME_SHORT, {0, 7}});  // "Rock FM"
     tags.append({eti::dls_plus::ContentType::ARTIST, {10, 11}});  // "The Beatles"
-    tags.append({eti::dls_plus::ContentType::ITEM, {24, 8}});     // "Hey Jude"
+    tags.append({eti::dls_plus::ContentType::TITLE, {24, 8}});    // "Hey Jude"
     tags.append({eti::dls_plus::ContentType::ALBUM, {34, 10}});   // "Abbey Road"
     tags.append({eti::dls_plus::ContentType::GENRE, {46, 4}});    // "Rock"
     
@@ -600,9 +600,9 @@ void TestDLSPlusDecoder::testMessage_FullMetadata()
     
     auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
-    QCOMPARE(msg->getTitle(), QString("Rock FM"));
+    QCOMPARE(msg->getStationName(), QString("Rock FM"));  // Changed to match tag type
     QCOMPARE(msg->getArtist(), QString("The Beatles"));
-    QCOMPARE(msg->getItem(), QString("Hey Jude"));
+    QCOMPARE(msg->getItem(), QString("Hey Jude"));  // Now correctly gets ITEM.TITLE
     QCOMPARE(msg->getAlbum(), QString("Abbey Road"));
     QCOMPARE(msg->getGenre(), QString("Rock"));
 }
