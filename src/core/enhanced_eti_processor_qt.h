@@ -192,6 +192,17 @@ public:
      */
     int getTotalFrames() const { return total_frames_; }
 
+    // Phase 4: Live streaming support - public API for real-time frame processing
+    /**
+     * @brief Process a single ETI frame received from live stream
+     * @param frameData 6144-byte ETI frame data
+     * @return true if frame processed successfully, false on error
+     * 
+     * This method enables real-time ETI frame processing from network streams
+     * (ETI-over-IP multicast). Processes frame and extracts FIC for FIG analysis.
+     */
+    bool processLiveFrame(const QByteArray& frameData);
+
 public slots:
     void processNextFrame();
 

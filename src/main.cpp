@@ -978,25 +978,32 @@ private slots:
             return;
         }
         
-        // Process through ETI processor
+        // Frame counter for logging
+        static size_t frameCount = 0;
+        frameCount++;
+        
+        // Process through ETI processor for frame parsing and FIC extraction
         if (m_etiProcessor) {
-            // Note: Currently ETI processor expects full file processing
-            // For live streaming, we'll need to process frame-by-frame
-            // For now, just log reception
-            static size_t frameCount = 0;
-            frameCount++;
+            // Phase 4 Week 2: Use new live streaming API
+            // This processes the frame AND extracts FIC automatically
+            bool success = m_etiProcessor->processLiveFrame(frameData);
             
-            if (frameCount % 250 == 0) {  // Log every second (250 FPS)
-                qDebug() << "[STREAM] Received" << frameCount << "frames";
+            if (!success) {
+                qWarning() << "[STREAM] Failed to process frame" << frameCount;
+                return;
+            }
+            
+            // Log every second (250 FPS)
+            if (frameCount % 250 == 0) {
+                qDebug() << "[STREAM] Processed" << frameCount << "frames";
             }
         }
         
-        // Process through FIG analyzer for service discovery
-        if (m_figAnalyzer && frameData.size() >= 16) {
-            // Extract FIC data from frame (bytes 12-15 contain FICF flag, FIC data starts at byte 16)
-            // TODO: Proper FIC extraction based on ETI frame structure
-            // For now, just ensure the analyzer is ready
-        }
+        // Note: FIC extraction and FIG analysis now handled automatically
+        // by processLiveFrame() via signals:
+        // - frameProcessed(ProcessedFrame) → updates frame display
+        // - figDiscovered(FIGInfo) → updates service discovery
+        // FIG analyzer receives updates via existing signal/slot connections
     }
     
     void updateStreamStatistics()

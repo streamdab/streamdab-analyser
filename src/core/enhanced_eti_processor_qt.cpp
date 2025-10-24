@@ -947,6 +947,29 @@ QByteArray EnhancedETIProcessorQt::getRawFrameData(int frame_index) const
     return result;
 }
 
+// Phase 4: Live streaming support
+bool EnhancedETIProcessorQt::processLiveFrame(const QByteArray& frameData)
+{
+    // Validate input
+    if (frameData.size() != ETI_FRAME_SIZE) {
+        qWarning() << "[LIVE] Invalid frame size:" << frameData.size() << "expected" << ETI_FRAME_SIZE;
+        return false;
+    }
+    
+    // Process frame using existing frame processing logic
+    // This reuses the validated ETI frame parser and FIC processing
+    bool success = processEtiFrame(frameData);
+    
+    if (success) {
+        // Frame successfully processed - signals emitted by processEtiFrame:
+        // - frameProcessed(ProcessedFrame)
+        // - figDiscovered(FIGInfo) via processFicData
+        qDebug() << "[LIVE] Frame" << frame_count_ << "processed successfully";
+    }
+    
+    return success;
+}
+
 void EnhancedETIProcessorQt::stopProcessing()
 {
     processing_timer_->stop();
