@@ -709,17 +709,34 @@ bool DLSPlusDecoder::extractTagText(const DLSPlusTag& tag, const QString& dls_te
     // ETSI TS 102 980: Markers are BYTE offsets in UTF-8, not character positions
     QByteArray utf8_bytes = dls_text.toUtf8();
     
-    // Validate byte-level bounds
-    if (tag.start_marker + tag.length_marker > static_cast<uint8_t>(utf8_bytes.size())) {
+    // FIX MEDIUM-004: Prevent integer overflow by using size_t for calculation
+    // Cast to size_t BEFORE addition to prevent uint8_t overflow
+    const size_t start_pos = static_cast<size_t>(tag.start_marker);
+    const size_t length = static_cast<size_t>(tag.length_marker);
+    const size_t end_pos = start_pos + length;
+    const size_t text_size = static_cast<size_t>(utf8_bytes.size());
+    
+    // Validate byte-level bounds (now overflow-safe)
+    if (end_pos > text_size) {
         qWarning() << "DLS+: Tag bounds exceed text size:"
                    << "start=" << tag.start_marker
                    << "len=" << tag.length_marker
+                   << "end=" << end_pos
+                   << "text_bytes=" << utf8_bytes.size();
+        return false;
+    }
+    
+    // Additional check: ensure start position is valid
+    if (start_pos >= text_size) {
+        qWarning() << "DLS+: Tag start position beyond text:"
+                   << "start=" << tag.start_marker
                    << "text_bytes=" << utf8_bytes.size();
         return false;
     }
     
     // Extract bytes and convert to QString
-    QByteArray extracted_bytes = utf8_bytes.mid(tag.start_marker, tag.length_marker);
+    QByteArray extracted_bytes = utf8_bytes.mid(static_cast<int>(start_pos), 
+                                                static_cast<int>(length));
     text = QString::fromUtf8(extracted_bytes);
     
     return !text.isEmpty();

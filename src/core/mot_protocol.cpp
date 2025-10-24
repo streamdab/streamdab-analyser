@@ -345,6 +345,25 @@ bool MOTProtocol::parseHeaderParameters(const std::vector<uint8_t>& data,
                                        size_t offset,
                                        size_t length,
                                        MOTHeader& header) {
+    // FIX MEDIUM-003: Validate input bounds before processing
+    if (data.empty()) {
+        qWarning() << "MOT: Empty data buffer for header parameter parsing";
+        return false;
+    }
+    
+    if (offset >= data.size()) {
+        qWarning() << "MOT: Offset beyond data buffer" 
+                   << "offset:" << offset << "size:" << data.size();
+        return false;
+    }
+    
+    if (offset + length > data.size()) {
+        qWarning() << "MOT: Parameter length exceeds data buffer"
+                   << "offset:" << offset << "length:" << length 
+                   << "data_size:" << data.size();
+        return false;
+    }
+    
     size_t pos = offset;
     size_t end = offset + length;
 
@@ -775,9 +794,38 @@ QString MOTProtocol::extractUTF8String(const std::vector<uint8_t>& data) {
         return QString();
     }
 
+    // FIX MEDIUM-005: Add input sanitization and UTF-8 validation
+    // Maximum reasonable string length (prevent resource exhaustion)
+    constexpr size_t MAX_STRING_LENGTH = 4096;
+    
+    if (data.size() > MAX_STRING_LENGTH) {
+        qWarning() << "MOT: String data exceeds maximum length"
+                   << "size:" << data.size() << "max:" << MAX_STRING_LENGTH;
+        // Truncate to maximum length
+        std::vector<uint8_t> truncated(data.begin(), data.begin() + MAX_STRING_LENGTH);
+        QByteArray ba(reinterpret_cast<const char*>(truncated.data()), truncated.size());
+        QString result = QString::fromUtf8(ba);
+        return result.left(MAX_STRING_LENGTH);  // Additional QString length check
+    }
+
     // Convert to QByteArray and decode as UTF-8
-    QByteArray ba(reinterpret_cast<const char*>(data.data()), data.size());
-    return QString::fromUtf8(ba);
+    QByteArray ba(reinterpret_cast<const char*>(data.data()), 
+                  static_cast<int>(data.size()));
+    
+    // QString::fromUtf8 handles invalid UTF-8 by replacing with replacement character
+    QString result = QString::fromUtf8(ba);
+    
+    // Sanitize: Remove null characters and control characters (except newline/tab)
+    result.remove(QChar('\0'));
+    for (int i = 0; i < result.length(); ++i) {
+        QChar ch = result.at(i);
+        if (ch.unicode() < 32 && ch != '\n' && ch != '\r' && ch != '\t') {
+            result.remove(i, 1);
+            --i;  // Adjust index after removal
+        }
+    }
+    
+    return result;
 }
 
 uint32_t MOTProtocol::extractTriggerTime(const std::vector<uint8_t>& data) {
