@@ -192,9 +192,11 @@ QString DLSPlusMessage::getItem() const {
 
 DLSPlusDecoder::DLSPlusDecoder(QObject* parent)
     : QObject(parent)
+    , has_current_message_(false)
     , total_messages_processed_(0)
     , valid_messages_count_(0)
     , invalid_messages_count_(0)
+    , tags_extracted_count_(0)
 {
     initializeTagLookupTables();
 }
@@ -313,6 +315,7 @@ bool DLSPlusDecoder::processPADData(const QByteArray& pad_data) {
     {
         QMutexLocker locker(&mutex_);
         current_message_ = message;
+        has_current_message_ = true;
     }
     
     // Emit signals for tag changes
@@ -346,10 +349,154 @@ bool DLSPlusDecoder::processPADData(const QByteArray& pad_data) {
         previous_station_name_ = station_name;
     }
     
-    // Emit main message signal
-    emit dlsPlusMessageReceived(message);
+    // Emit main message signal (with service_id = 0 for compatibility)
+    emit dlsPlusMessageReceived(0, message);
     
     qInfo() << "DLS+: Message parsed successfully -" << message.getNowPlaying();
+    
+    return true;
+}
+
+bool DLSPlusDecoder::processDLSPlusCommand(const QByteArray& dls_text, const QByteArray& command_data) {
+    // Alternative processing method for testing
+    // Combines DLS text and command data into a single message
+    
+    total_messages_processed_++;
+    
+    DLSPlusMessage message;
+    message.timestamp = QDateTime::currentDateTime();
+    message.charset = 15; // UTF-8
+    
+    // Extract DLS text
+    message.dls_text = QString::fromUtf8(dls_text);
+    if (message.dls_text.isEmpty()) {
+        emit dlsPlusDecodingError("Empty DLS text");
+        invalid_messages_count_++;
+        return false;
+    }
+    
+    // Parse tags from command data
+    if (!command_data.isEmpty()) {
+        if (!parseCommandData(command_data, message.dls_text, message.tags)) {
+            emit dlsPlusDecodingError("Failed to parse command data");
+            invalid_messages_count_++;
+            return false;
+        }
+    }
+    
+    // Copy tags to descriptors for test compatibility
+    message.descriptors = message.tags;
+    message.is_valid = true;
+    valid_messages_count_++;
+    tags_extracted_count_ += message.tags.size();
+    
+    // Update current message (thread-safe)
+    {
+        QMutexLocker locker(&mutex_);
+        current_message_ = message;
+        has_current_message_ = true;
+    }
+    
+    // Emit signals for tag changes
+    QString artist = message.getTag("ITEM.ARTIST");
+    QString title = message.getTag("ITEM.TITLE");
+    QString album = message.getTag("ITEM.ALBUM");
+    QString programme = message.getTag("PROGRAMME.NOW");
+    QString station_name = message.getTag("STATIONNAME.LONG");
+    
+    // Detect changes and emit signals
+    if (artist != previous_artist_ || title != previous_title_ || album != previous_album_) {
+        emit nowPlayingUpdated(title, artist, album);
+        emit nowPlayingChanged(artist, title);
+        previous_artist_ = artist;
+        previous_title_ = title;
+    }
+    
+    if (album != previous_album_) {
+        emit albumChanged(album);
+        previous_album_ = album;
+    }
+    
+    if (programme != previous_programme_) {
+        emit programmeChanged(programme);
+        previous_programme_ = programme;
+    }
+    
+    if (station_name != previous_station_name_) {
+        emit stationNameChanged(station_name);
+        previous_station_name_ = station_name;
+    }
+    
+    // Emit main message signal (with service_id = 0 for compatibility)
+    emit dlsPlusMessageReceived(0, message);
+    
+    return true;
+}
+
+bool DLSPlusDecoder::parseCommandData(const QByteArray& command_data, const QString& dls_text, QVector<DLSPlusTag>& tags) {
+    // Parse DLS+ command data (4 bytes per tag)
+    // ETSI TS 102 980 Section 4: Content Descriptor Format
+    
+    tags.clear();
+    
+    if (command_data.isEmpty()) {
+        return true; // No tags, but not an error
+    }
+    
+    if (command_data.size() % 4 != 0) {
+        qWarning() << "DLS+: Command data size not multiple of 4:" << command_data.size();
+        return false;
+    }
+    
+    int num_tags = command_data.size() / 4;
+    if (num_tags > 4) {
+        qWarning() << "DLS+: Too many tags:" << num_tags;
+        return false;
+    }
+    
+    for (int i = 0; i < num_tags; i++) {
+        int offset = i * 4;
+        DLSPlusTag tag;
+        
+        // Parse 4-byte descriptor
+        // Byte 0: Content type (6 bits MSB) | Content ID MSB (2 bits)
+        uint8_t byte0 = static_cast<uint8_t>(command_data[offset]);
+        tag.content_type = (byte0 >> 2) & 0x3F;
+        uint16_t content_id_msb = byte0 & 0x03;
+        
+        // Byte 1: Content ID LSB (5 bits) | Start marker MSB (3 bits)
+        uint8_t byte1 = static_cast<uint8_t>(command_data[offset + 1]);
+        uint16_t content_id_lsb = (byte1 >> 3) & 0x1F;
+        tag.content_id = (content_id_msb << 5) | content_id_lsb;
+        uint8_t start_msb = byte1 & 0x07;
+        
+        // Byte 2: Start marker LSB (3 bits) | Length marker (5 bits)
+        uint8_t byte2 = static_cast<uint8_t>(command_data[offset + 2]);
+        uint8_t start_lsb = (byte2 >> 5) & 0x07;
+        tag.start_marker = (start_msb << 3) | start_lsb;
+        tag.length_marker = byte2 & 0x1F;
+        
+        // Byte 3: Toggle bit (1 bit) | Reserved (7 bits)
+        // uint8_t byte3 = static_cast<uint8_t>(command_data[offset + 3]);
+        // Not used for basic parsing
+        
+        // Extract content subtype from content_type
+        // Content type is actually: 4-bit type + 4-bit subtype (8 bits total)
+        // But ETSI TS 102 980 uses 6-bit tag type field
+        // Split into 4-bit type + 2-bit subtype extension
+        tag.content_subtype = tag.content_type & 0x0F;  // Lower 4 bits
+        tag.content_type = (tag.content_type >> 4) & 0x0F;  // Upper 4 bits
+        
+        // Extract text from DLS using markers
+        if (extractTagText(tag, dls_text, tag.text)) {
+            tags.append(tag);
+            qDebug() << "DLS+: Parsed tag" << tag.getFullTagName() 
+                     << "start=" << tag.start_marker << "len=" << tag.length_marker
+                     << "text=" << tag.text;
+        } else {
+            qWarning() << "DLS+: Failed to extract text for tag" << tag.getFullTagName();
+        }
+    }
     
     return true;
 }
@@ -359,6 +506,7 @@ bool DLSPlusDecoder::parseDLSPlusObject(const QByteArray& data, DLSPlusMessage& 
     // Minimum size check (at least DLS text + command flag + tag count)
     if (data.size() < 3) {
         emit parseError("DLS+ object too short");
+        emit dlsPlusDecodingError("DLS+ object too short");
         return false;
     }
     
@@ -367,6 +515,7 @@ bool DLSPlusDecoder::parseDLSPlusObject(const QByteArray& data, DLSPlusMessage& 
     uint8_t charset;
     if (!extractDLSText(data, dls_text, charset)) {
         emit parseError("Failed to extract DLS text");
+        emit dlsPlusDecodingError("Failed to extract DLS text");
         return false;
     }
     
@@ -377,6 +526,7 @@ bool DLSPlusDecoder::parseDLSPlusObject(const QByteArray& data, DLSPlusMessage& 
     // Extract tags
     if (!extractTags(data, message.tags)) {
         emit parseError("Failed to extract DLS+ tags");
+        emit dlsPlusDecodingError("Failed to extract DLS+ tags");
         return false;
     }
     
@@ -390,7 +540,11 @@ bool DLSPlusDecoder::parseDLSPlusObject(const QByteArray& data, DLSPlusMessage& 
         }
     }
     
+    // Copy tags to descriptors for compatibility
+    message.descriptors = message.tags;
     message.is_valid = true;
+    tags_extracted_count_ += message.tags.size();
+    
     return true;
 }
 
@@ -530,12 +684,23 @@ bool DLSPlusDecoder::validateTag(const DLSPlusTag& tag, const QString& dls_text)
 }
 
 bool DLSPlusDecoder::extractTagText(const DLSPlusTag& tag, const QString& dls_text, QString& text) const {
-    if (!validateTag(tag, dls_text)) {
+    // ETSI TS 102 980: Markers are BYTE offsets in UTF-8, not character positions
+    QByteArray utf8_bytes = dls_text.toUtf8();
+    
+    // Validate byte-level bounds
+    if (tag.start_marker + tag.length_marker > static_cast<uint8_t>(utf8_bytes.size())) {
+        qWarning() << "DLS+: Tag bounds exceed text size:"
+                   << "start=" << tag.start_marker
+                   << "len=" << tag.length_marker
+                   << "text_bytes=" << utf8_bytes.size();
         return false;
     }
     
-    text = dls_text.mid(tag.start_marker, tag.length_marker);
-    return true;
+    // Extract bytes and convert to QString
+    QByteArray extracted_bytes = utf8_bytes.mid(tag.start_marker, tag.length_marker);
+    text = QString::fromUtf8(extracted_bytes);
+    
+    return !text.isEmpty();
 }
 
 bool DLSPlusDecoder::isPADContainingDLSPlus(const QByteArray& pad_data) const {
@@ -641,6 +806,19 @@ DLSPlusMessage DLSPlusDecoder::getCurrentMessage() const {
     return current_message_;
 }
 
+std::optional<DLSPlusMessage> DLSPlusDecoder::getCurrentMessageOptional() const {
+    QMutexLocker locker(&mutex_);
+    if (has_current_message_) {
+        return current_message_;
+    }
+    return std::nullopt;
+}
+
+bool DLSPlusDecoder::hasCurrentMessage() const {
+    QMutexLocker locker(&mutex_);
+    return has_current_message_;
+}
+
 QString DLSPlusDecoder::getNowPlaying() const {
     QMutexLocker locker(&mutex_);
     return current_message_.getNowPlaying();
@@ -696,6 +874,23 @@ uint64_t DLSPlusDecoder::getValidMessagesCount() const {
 
 uint64_t DLSPlusDecoder::getInvalidMessagesCount() const {
     return invalid_messages_count_;
+}
+
+DLSPlusDecoder::Statistics DLSPlusDecoder::getStatistics() const {
+    Statistics stats;
+    stats.messages_processed = static_cast<uint32_t>(total_messages_processed_);
+    stats.tags_extracted = tags_extracted_count_;
+    stats.parsing_errors = static_cast<uint32_t>(invalid_messages_count_);
+    return stats;
+}
+
+void DLSPlusDecoder::resetStatistics() {
+    QMutexLocker locker(&mutex_);
+    total_messages_processed_ = 0;
+    valid_messages_count_ = 0;
+    invalid_messages_count_ = 0;
+    tags_extracted_count_ = 0;
+    has_current_message_ = false;
 }
 
 } // namespace dls_plus
