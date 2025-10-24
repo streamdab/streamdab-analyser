@@ -664,33 +664,57 @@ QByteArray DABPlusStreamValidator::extractPADData(
     const QByteArray& msc_data,
     const AudioSuperframe& superframe)
 {
-    // TODO: Phase 3B Week 2 - Implement PAD extraction
     // ETSI TS 102 563 Section 7: Programme Associated Data (PAD)
     //
     // PAD structure in DAB+ superframe:
     // 1. Audio Access Units (AAC frames)
     // 2. PAD data field (X-PAD for DLS+/MOT SlideShow)
     // 3. F-PAD (Fixed PAD) - 2 bytes at end
-    //
-    // Extraction algorithm:
-    // - Calculate total AU size from superframe.access_units
-    // - PAD starts after last AU
-    // - PAD length indicator in F-PAD (last 2 bytes)
-    // - Extract X-PAD based on length
-    //
-    // For now, return empty (will be implemented when DLS+ decoder is ready)
-    Q_UNUSED(msc_data);
-    Q_UNUSED(superframe);
-
-    // Placeholder: Extract last 128 bytes as potential PAD data
-    // Real implementation will parse F-PAD length indicator
-    if (msc_data.size() > 128) {
-        // Return last 128 bytes as PAD candidate
-        // This is a simplified extraction - real implementation needs F-PAD parsing
-        return msc_data.right(128);
+    
+    // FIX MEDIUM-001: Add comprehensive bounds checking
+    // Minimum PAD size: F-PAD (2 bytes) + optional X-PAD
+    constexpr int MIN_PAD_SIZE = 2;
+    constexpr int MAX_PAD_SIZE = 128;  // ETSI TS 102 563 maximum
+    constexpr int FPAD_SIZE = 2;
+    
+    // Validate input size
+    if (msc_data.isEmpty()) {
+        qDebug() << "DABPlusStreamValidator: Empty MSC data for PAD extraction";
+        return QByteArray();
     }
-
-    return QByteArray();
+    
+    if (msc_data.size() < MIN_PAD_SIZE) {
+        qWarning() << "DABPlusStreamValidator: MSC data too small for PAD extraction"
+                   << "size:" << msc_data.size() << "min:" << MIN_PAD_SIZE;
+        return QByteArray();
+    }
+    
+    // Additional validation: Ensure MSC data is reasonable size
+    // DAB+ superframe is typically 120ms worth of data
+    constexpr int MIN_SUPERFRAME_SIZE = 100;  // Reasonable minimum
+    if (msc_data.size() < MIN_SUPERFRAME_SIZE) {
+        qWarning() << "DABPlusStreamValidator: MSC data suspiciously small"
+                   << "size:" << msc_data.size() << "min:" << MIN_SUPERFRAME_SIZE;
+        return QByteArray();
+    }
+    
+    // Simplified extraction: Use last 128 bytes as PAD candidate
+    // Real implementation would parse F-PAD length indicator
+    const int pad_extract_size = std::min<int>(MAX_PAD_SIZE, msc_data.size());
+    
+    // Additional safety: Ensure we don't read beyond buffer
+    if (pad_extract_size > msc_data.size()) {
+        qCritical() << "DABPlusStreamValidator: PAD extraction would overflow buffer";
+        return QByteArray();
+    }
+    
+    // Safe extraction with bounds validation
+    QByteArray pad_data = msc_data.right(pad_extract_size);
+    
+    qDebug() << "DABPlusStreamValidator: Extracted PAD data"
+             << "size:" << pad_data.size() << "bytes";
+    
+    return pad_data;
 }
 
 } // namespace eti::audio

@@ -227,6 +227,19 @@ bool Phase3AIntegrationManager::connectSignals()
     connect(m_motProtocol, &eti::mot::MOTProtocol::objectComplete,
             this, [this](uint32_t transport_id, const eti::mot::MOTObject& object) {
                 Q_UNUSED(transport_id);
+                
+                // FIX MEDIUM-002: Validate object before pointer casting
+                if (!object.isValid()) {
+                    qWarning() << "[Phase3A Integration] Invalid MOT object, skipping EPG processing";
+                    return;
+                }
+                
+                if (object.body.empty()) {
+                    qDebug() << "[Phase3A Integration] Empty MOT object body, skipping";
+                    return;
+                }
+                
+                // Safe conversion with validation
                 // Check if MOT object contains EPG data (content type check)
                 // EPG data typically has specific content types or UserApplicationType
                 // For now, forward all MOT objects to EPG decoder - it will filter internally
