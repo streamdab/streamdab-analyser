@@ -31,6 +31,8 @@ set(SOURCES
     src/core/dls_plus_decoder.cpp
     src/core/phase3a_integration.cpp
     src/core/network_stream_receiver.cpp
+    src/core/eti_reader_thread.cpp
+    src/core/shared_eti_data.cpp
     src/utils/logger.cpp
 )
 
