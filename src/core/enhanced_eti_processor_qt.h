@@ -21,15 +21,88 @@ enum class ETIFormat {
 };
 
 struct ProcessedFrame {
-    uint64_t frame_number;
-    ETIFormat format;
-    uint32_t sync_pattern;
-    uint32_t lidata;
+    uint64_t frame_number = 0;
+    ETIFormat format = ETIFormat::UNKNOWN;
+    uint32_t sync_pattern = 0;
+    uint32_t lidata = 0;
     QByteArray fic_data;
     QByteArray msc_data;
-    uint32_t crc;
+    uint32_t crc = 0;
     QDateTime timestamp;
-    bool is_valid;
+    bool is_valid = false;
+    
+    // Default constructor
+    ProcessedFrame() = default;
+    
+    // Explicit copy constructor with deep copy to fix Qt::QueuedConnection crash
+    ProcessedFrame(const ProcessedFrame& other)
+        : frame_number(other.frame_number)
+        , format(other.format)
+        , sync_pattern(other.sync_pattern)
+        , lidata(other.lidata)
+        , fic_data(other.fic_data)
+        , msc_data(other.msc_data)
+        , crc(other.crc)
+        , timestamp(other.timestamp)
+        , is_valid(other.is_valid)
+    {
+        // Force deep copy to avoid Qt implicit sharing issues with queued signals
+        fic_data.detach();
+        msc_data.detach();
+    }
+    
+    // Copy assignment operator
+    ProcessedFrame& operator=(const ProcessedFrame& other) {
+        if (this != &other) {
+            frame_number = other.frame_number;
+            format = other.format;
+            sync_pattern = other.sync_pattern;
+            lidata = other.lidata;
+            fic_data = other.fic_data;
+            msc_data = other.msc_data;
+            crc = other.crc;
+            timestamp = other.timestamp;
+            is_valid = other.is_valid;
+            fic_data.detach();
+            msc_data.detach();
+        }
+        return *this;
+    }
+    
+    // Move constructor - CRITICAL for std::vector reallocation safety
+    ProcessedFrame(ProcessedFrame&& other) noexcept
+        : frame_number(other.frame_number)
+        , format(other.format)
+        , sync_pattern(other.sync_pattern)
+        , lidata(other.lidata)
+        , fic_data(std::move(other.fic_data))
+        , msc_data(std::move(other.msc_data))
+        , crc(other.crc)
+        , timestamp(std::move(other.timestamp))
+        , is_valid(other.is_valid)
+    {
+        // QByteArray move is safe, but detach to ensure independence
+        fic_data.detach();
+        msc_data.detach();
+    }
+    
+    // Move assignment operator - CRITICAL for std::vector operations
+    ProcessedFrame& operator=(ProcessedFrame&& other) noexcept {
+        if (this != &other) {
+            frame_number = other.frame_number;
+            format = other.format;
+            sync_pattern = other.sync_pattern;
+            lidata = other.lidata;
+            fic_data = std::move(other.fic_data);
+            msc_data = std::move(other.msc_data);
+            crc = other.crc;
+            timestamp = std::move(other.timestamp);
+            is_valid = other.is_valid;
+            fic_data.detach();
+            msc_data.detach();
+        }
+        return *this;
+    }
 };
 
 struct FIGInfo {

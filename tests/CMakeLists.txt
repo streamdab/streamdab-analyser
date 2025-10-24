@@ -256,18 +256,46 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/e2e/test_phase3a_complete_pipeline.cpp")
     message(STATUS "  ✓ performance_benchmark (standalone tool)")
 endif()
 
+# ============================================================================
+# REGRESSION TESTS - Segfault Fixes (October 24, 2025)
+# ============================================================================
+
+# Test: Segmentation Fault Fixes Regression Suite
+add_executable(test_segfault_fixes
+    test_segfault_fixes.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_segfault_fixes
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    pthread
+)
+add_test(NAME test_segfault_fixes COMMAND test_segfault_fixes)
+set_tests_properties(test_segfault_fixes PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 30
+)
+
 message(STATUS "")
 message(STATUS "===========================================")
-message(STATUS "Configured 11 validation tests:")
+message(STATUS "Configured 12 validation tests:")
 message(STATUS "  - 5 core tests (ETI, FIG 0/1, LI CRC)")
 message(STATUS "  - 5 Phase 3A tests (MOT, EPG, Journaline)")
 message(STATUS "  - 1 Phase 3B test (DLS+ decoder - STUBBED)")
+message(STATUS "  - 1 Regression test (Segfault fixes)")
 message(STATUS "Integration tests: 4 (audio + EPG + Journaline + DLS+)")
 message(STATUS "E2E tests: 1 (Phase 3A complete pipeline - 26 tests)")
 message(STATUS "Benchmark tools: 1 (performance_benchmark)")
 message(STATUS "")
 message(STATUS "NOTE: DLS+ tests are STUBBED pending Agent 1 completion")
 message(STATUS "      All DLS+ tests will SKIP until dls_plus_decoder ready")
+message(STATUS "")
+message(STATUS "Regression tests verify all fixes for:")
+message(STATUS "  ✓ ProcessedFrame deep copy (QByteArray detach)")
+message(STATUS "  ✓ Qt::QueuedConnection safety")
+message(STATUS "  ✓ Pass-by-value slots")
+message(STATUS "  ✓ MSC bounds error handling")
 message(STATUS "")
 message(STATUS "Test execution: make && ctest")
 message(STATUS "Benchmark: make && ./tests/performance_benchmark")
