@@ -44,6 +44,7 @@
 #include "core/advanced_error_detection.hpp"
 #include "core/professional_logging_system.hpp"
 #include "core/dls_plus_decoder.hpp"  // Phase 3B: DLS+ decoder integration
+#include "core/network_stream_receiver.hpp"  // Phase 4: ETI-over-IP live streaming
 
 // Note: gui/main_window.h exists for GUI testing purposes only
 // Do NOT include it here to avoid redefinition conflicts
@@ -840,6 +841,31 @@ private slots:
             return;
         }
         
+        // Parse URL to extract address and port
+        // Format: multicast_address:port or tcp://host:port or zmq+tcp://host:port
+        QString address;
+        quint16 port = 9200;  // Default ETI port
+        
+        if (url.contains("://")) {
+            // Protocol-prefixed URL (tcp://, zmq+tcp://, udp://)
+            QStringList parts = url.split("://");
+            if (parts.size() >= 2) {
+                QString hostPort = parts[1];
+                QStringList hostPortParts = hostPort.split(":");
+                address = hostPortParts[0];
+                if (hostPortParts.size() >= 2) {
+                    port = hostPortParts[1].toUShort();
+                }
+            }
+        } else {
+            // Simple address:port format
+            QStringList parts = url.split(":");
+            address = parts[0];
+            if (parts.size() >= 2) {
+                port = parts[1].toUShort();
+            }
+        }
+        
         // Update UI state
         if (m_connectBtn) m_connectBtn->setEnabled(false);
         if (m_disconnectBtn) m_disconnectBtn->setEnabled(true);
@@ -847,25 +873,78 @@ private slots:
             m_streamStatus->setText("<span style='color: #FFA500;'>● Connecting...</span>");
         }
         
-        // Start statistics timer
-        if (m_statsTimer) {
-            m_statsTimer->start(1000);  // Update every 1 second
-        }
+        m_systemMessages->append(QString("[STREAM] Connecting to %1:%2...").arg(address).arg(port));
         
-        m_systemMessages->append(QString("[STREAM] Connecting to %1...").arg(url));
+        // Create network receiver with configuration
+        eti::NetworkStreamConfig config;
+        config.multicast_address = address;
+        config.port = port;
+        config.buffer_size = 1000;
+        config.auto_reconnect = true;
+        config.max_reconnect_attempts = 10;
         
-        // TODO: Implement actual network connection
-        // For now, simulate successful connection
-        QTimer::singleShot(1000, this, [this, url]() {
+        m_networkReceiver = std::make_unique<eti::NetworkStreamReceiver>(config, this);
+        
+        // Connect signals
+        connect(m_networkReceiver.get(), &eti::NetworkStreamReceiver::frame_received,
+                this, &DABAnalyzerWindow::onNetworkFrameReceived);
+        
+        connect(m_networkReceiver.get(), &eti::NetworkStreamReceiver::connection_status_changed,
+                this, [this](bool connected) {
+                    if (connected) {
+                        if (m_streamStatus) {
+                            m_streamStatus->setText("<span style='color: #107C10;'>● Connected</span>");
+                        }
+                        m_streamStartTime = std::chrono::steady_clock::now();
+                        m_systemMessages->append("[STREAM] Connected successfully");
+                        
+                        // Start statistics timer
+                        if (m_statsTimer) {
+                            m_statsTimer->start(1000);  // Update every 1 second
+                        }
+                    } else {
+                        if (m_streamStatus) {
+                            m_streamStatus->setText("<span style='color: #D32F2F;'>● Disconnected</span>");
+                        }
+                        m_systemMessages->append("[STREAM] Connection lost");
+                    }
+                });
+        
+        connect(m_networkReceiver.get(), &eti::NetworkStreamReceiver::error_occurred,
+                this, [this](const QString& error) {
+                    m_systemMessages->append(QString("[STREAM ERROR] %1").arg(error));
+                    if (m_streamStatus) {
+                        m_streamStatus->setText("<span style='color: #D32F2F;'>● Error</span>");
+                    }
+                    // Re-enable connect button on error
+                    if (m_connectBtn) m_connectBtn->setEnabled(true);
+                    if (m_disconnectBtn) m_disconnectBtn->setEnabled(false);
+                });
+        
+        // Attempt connection
+        if (m_networkReceiver->connect_to_stream(address, port)) {
+            m_networkReceiver->start_reception();
+        } else {
+            QString error = m_networkReceiver->get_last_error();
+            m_systemMessages->append(QString("[STREAM] Connection failed: %1").arg(error));
             if (m_streamStatus) {
-                m_streamStatus->setText("<span style='color: #107C10;'>● Connected</span>");
+                m_streamStatus->setText("<span style='color: #D32F2F;'>● Failed</span>");
             }
-            m_systemMessages->append(QString("[STREAM] Connected to %1").arg(url));
-        });
+            // Re-enable connect button
+            if (m_connectBtn) m_connectBtn->setEnabled(true);
+            if (m_disconnectBtn) m_disconnectBtn->setEnabled(false);
+        }
     }
     
     void onDisconnectClicked()
     {
+        // Disconnect from network stream
+        if (m_networkReceiver) {
+            m_networkReceiver->stop_reception();
+            m_networkReceiver->disconnect_from_stream();
+            m_networkReceiver.reset();
+        }
+        
         // Update UI state
         if (m_connectBtn) m_connectBtn->setEnabled(true);
         if (m_disconnectBtn) m_disconnectBtn->setEnabled(false);
@@ -878,51 +957,108 @@ private slots:
             m_statsTimer->stop();
         }
         
-        m_systemMessages->append("[STREAM] Disconnected");
+        // Reset statistics display
+        if (m_streamFrameRate) m_streamFrameRate->setText("0.0 FPS");
+        if (m_streamFramesReceived) m_streamFramesReceived->setText("0 frames");
+        if (m_streamFrameLoss) m_streamFrameLoss->setText("0.0%");
+        if (m_streamLatency) m_streamLatency->setText("0 ms");
+        if (m_streamBuffer) m_streamBuffer->setText("0/0");
+        if (m_streamDataRate) m_streamDataRate->setText("0.0 MB/s");
+        if (m_streamUptime) m_streamUptime->setText("00:00:00");
         
-        // Reset statistics
-        if (m_streamFrameRate) m_streamFrameRate->setText("--");
-        if (m_streamFramesReceived) m_streamFramesReceived->setText("--");
-        if (m_streamFrameLoss) m_streamFrameLoss->setText("--");
-        if (m_streamLatency) m_streamLatency->setText("--");
-        if (m_streamBuffer) m_streamBuffer->setText("--");
-        if (m_streamDataRate) m_streamDataRate->setText("--");
-        if (m_streamUptime) m_streamUptime->setText("--");
+        m_systemMessages->append("[STREAM] Disconnected");
+    }
+    
+    void onNetworkFrameReceived(const QByteArray& frameData)
+    {
+        // Process received ETI frame through the analysis pipeline
+        
+        if (frameData.size() != 6144) {
+            qWarning() << "[STREAM] Invalid frame size:" << frameData.size();
+            return;
+        }
+        
+        // Process through ETI processor
+        if (m_etiProcessor) {
+            // Note: Currently ETI processor expects full file processing
+            // For live streaming, we'll need to process frame-by-frame
+            // For now, just log reception
+            static size_t frameCount = 0;
+            frameCount++;
+            
+            if (frameCount % 250 == 0) {  // Log every second (250 FPS)
+                qDebug() << "[STREAM] Received" << frameCount << "frames";
+            }
+        }
+        
+        // Process through FIG analyzer for service discovery
+        if (m_figAnalyzer && frameData.size() >= 16) {
+            // Extract FIC data from frame (bytes 12-15 contain FICF flag, FIC data starts at byte 16)
+            // TODO: Proper FIC extraction based on ETI frame structure
+            // For now, just ensure the analyzer is ready
+        }
     }
     
     void updateStreamStatistics()
     {
-        // TODO: Get real statistics from network receiver
-        // For now, display simulated data
-        static int frameCount = 0;
-        static auto startTime = std::chrono::steady_clock::now();
+        // Get real statistics from network receiver
+        if (!m_networkReceiver || !m_networkReceiver->is_connected()) {
+            return;  // No active connection, nothing to update
+        }
         
-        frameCount += 250;  // Simulate 250 FPS
+        auto stats = m_networkReceiver->get_statistics();
+        
+        // Calculate uptime
         auto now = std::chrono::steady_clock::now();
-        auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - startTime).count();
+        auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - m_streamStartTime).count();
         
         int hours = uptime / 3600;
         int minutes = (uptime % 3600) / 60;
         int seconds = uptime % 60;
         
+        // Update frame rate
         if (m_streamFrameRate) {
-            m_streamFrameRate->setText("250.5 FPS");
+            m_streamFrameRate->setText(QString("%1 FPS").arg(stats.current_frame_rate, 0, 'f', 1));
         }
+        
+        // Update frames received
         if (m_streamFramesReceived) {
-            m_streamFramesReceived->setText(QString("%1 frames").arg(frameCount));
+            m_streamFramesReceived->setText(QString("%1 frames").arg(stats.frames_received));
         }
+        
+        // Update frame loss
         if (m_streamFrameLoss) {
-            m_streamFrameLoss->setText("0.01% (2 frames)");
+            double lossPercent = stats.frame_loss_rate * 100.0;
+            m_streamFrameLoss->setText(QString("%1% (%2 frames)")
+                .arg(lossPercent, 0, 'f', 2)
+                .arg(stats.frames_dropped));
         }
+        
+        // Update latency
         if (m_streamLatency) {
-            m_streamLatency->setText("15 ms");
+            double latencyMs = stats.average_latency_us / 1000.0;
+            m_streamLatency->setText(QString("%1 ms").arg(latencyMs, 0, 'f', 1));
         }
+        
+        // Update buffer status
         if (m_streamBuffer) {
-            m_streamBuffer->setText("89% (890/1000)");
+            size_t bufferFill = stats.frames_received - stats.frames_processed;
+            size_t bufferSize = 1000;  // From config
+            double bufferPercent = (bufferFill * 100.0) / bufferSize;
+            m_streamBuffer->setText(QString("%1% (%2/%3)")
+                .arg(bufferPercent, 0, 'f', 0)
+                .arg(bufferFill)
+                .arg(bufferSize));
         }
+        
+        // Update data rate (6144 bytes per frame)
         if (m_streamDataRate) {
-            m_streamDataRate->setText("1.54 Mbit/s");
+            double bytesPerSecond = stats.current_frame_rate * 6144.0;
+            double mbitsPerSecond = (bytesPerSecond * 8.0) / (1024.0 * 1024.0);
+            m_streamDataRate->setText(QString("%1 Mbit/s").arg(mbitsPerSecond, 0, 'f', 2));
         }
+        
+        // Update uptime
         if (m_streamUptime) {
             m_streamUptime->setText(QString("%1:%2:%3")
                 .arg(hours, 2, 10, QChar('0'))
@@ -3797,6 +3933,10 @@ private:
     QLabel* m_streamDataRate;
     QLabel* m_streamUptime;
     QTimer* m_statsTimer;
+
+    // Phase 4: Network stream receiver
+    std::unique_ptr<eti::NetworkStreamReceiver> m_networkReceiver;
+    std::chrono::steady_clock::time_point m_streamStartTime;
 
     // State
     QString m_currentFilePath;

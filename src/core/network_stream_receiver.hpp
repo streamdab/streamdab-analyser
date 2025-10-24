@@ -124,23 +124,10 @@ struct NetworkPacket {
     QString source_address;
     quint16 source_port = 0;
     bool is_valid = true;
-    size_t expected_size = ETI_FRAME_SIZE;
+    size_t expected_size = 6144;  // ETI frame size constant
     
     bool contains_eti_frame() const {
-        return data.size() >= ETI_FRAME_SIZE && is_valid;
-    }
-    
-    EtiFrame extract_eti_frame() const {
-        if (!contains_eti_frame()) {
-            return EtiFrame{};
-        }
-        
-        std::array<uint8_t, ETI_FRAME_SIZE> frame_data;
-        std::copy(data.begin(), data.begin() + ETI_FRAME_SIZE, frame_data.begin());
-        
-        EtiFrame frame(frame_data);
-        frame.set_receive_timestamp(std::chrono::system_clock::now());
-        return frame;
+        return data.size() >= 6144 && is_valid;
     }
 };
 
@@ -161,7 +148,7 @@ public slots:
     void update_statistics();
 
 signals:
-    void frame_received(const eti::EtiFrame& frame);
+    void frame_received(const QByteArray& frameData);
     void packet_received(const eti::NetworkPacket& packet);
     void error_occurred(const QString& error);
     void statistics_updated(const eti::NetworkStreamStatistics& stats);
@@ -238,7 +225,7 @@ public:
 
     // Data access
     bool has_pending_frames() const;
-    std::vector<EtiFrame> get_pending_frames();
+    std::vector<QByteArray> get_pending_frames();
     std::vector<NetworkPacket> get_pending_packets();
     size_t get_available_frame_count() const;
 
@@ -263,7 +250,7 @@ public:
     QString get_last_error() const;
 
     // Callback registration for real-time processing
-    using FrameCallback = std::function<void(const EtiFrame&)>;
+    using FrameCallback = std::function<void(const QByteArray&)>;
     using PacketCallback = std::function<void(const NetworkPacket&)>;
     using ErrorCallback = std::function<void(const QString&)>;
     using StatisticsCallback = std::function<void(const NetworkStreamStatistics&)>;
@@ -280,7 +267,7 @@ public:
     void enable_flow_control(bool enabled);
 
 signals:
-    void frame_received(const eti::EtiFrame& frame);
+    void frame_received(const QByteArray& frameData);
     void packet_received(const eti::NetworkPacket& packet);
     void error_occurred(const QString& error);
     void statistics_updated(const eti::NetworkStreamStatistics& stats);
@@ -291,7 +278,7 @@ signals:
     void buffer_underflow_detected();
 
 private slots:
-    void handle_worker_frame(const eti::EtiFrame& frame);
+    void handle_worker_frame(const QByteArray& frameData);
     void handle_worker_packet(const eti::NetworkPacket& packet);
     void handle_worker_error(const QString& error);
     void handle_worker_statistics(const eti::NetworkStreamStatistics& stats);
@@ -321,7 +308,9 @@ private:
     std::atomic<size_t> m_reconnection_attempts{0};
     
     // Frame and packet queues for buffering
-    QQueue<EtiFrame> m_frame_queue;
+    // Note: Frame queue disabled to avoid EtiFrame type visibility issues with MOC
+    // Frames are delivered via signals instead
+    // QQueue<EtiFrame> m_frame_queue;
     QQueue<NetworkPacket> m_packet_queue;
     QMutex m_queue_mutex;
     
