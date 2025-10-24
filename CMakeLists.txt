@@ -30,6 +30,7 @@ set(SOURCES
     src/core/journaline_decoder.cpp
     src/core/dls_plus_decoder.cpp
     src/core/phase3a_integration.cpp
+    src/core/network_stream_receiver.cpp
     src/utils/logger.cpp
 )
 
