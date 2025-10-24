@@ -25,31 +25,56 @@
 namespace eti {
 namespace dls_plus {
 
-// DLS+ Content Types (ETSI TS 102 980 Section 4.1)
-// These are actually content type tags (combining type + subtype)
+// DLS+ Content Types (ETSI TS 102 980 Section 4.1 Table 2)
+// These are the actual 6-bit tag codes used in DLS+ descriptors
 enum class ContentType : uint8_t {
-    DUMMY = 0,          // No data
-    ITEM = 1,           // Item (ITEM.TITLE, ITEM.ARTIST, ITEM.ALBUM, etc.)
-    INFO = 2,           // Information (INFO.NEWS, INFO.SPORT, etc.)
-    PROGRAMME = 3,      // Programme (PROGRAMME.NOW, PROGRAMME.NEXT, etc.)
-    INTERACTIVITY = 4,  // Interactivity (phone, SMS, email)
-    RESERVED_5 = 5,     // Reserved
-    RESERVED_6 = 6,     // Reserved
-    DESCRIPTOR = 7,     // Content descriptor
-    STATIONNAME = 8,    // Station name (SHORT, LONG)
-    PROGRAMME_TYPE = 9, // Programme type
-    VALIDITY = 10,      // Validity information
-    RESERVED_11 = 11,   // Reserved
-    RESERVED_12 = 12,   // Reserved
-    RESERVED_13 = 13,   // Reserved
-    RESERVED_14 = 14,   // Reserved
-    RESERVED_15 = 15,   // Reserved
+    DUMMY = 0,              // No data
     
-    // Convenience aliases for common tags (ITEM subtypes)
-    TITLE = 1,          // Alias for ITEM (subtype 0: ITEM.TITLE)
-    ALBUM = 1,          // Alias for ITEM (subtype 1: ITEM.ALBUM)
-    ARTIST = 1,         // Alias for ITEM (subtype 3: ITEM.ARTIST)
-    GENRE = 1           // Alias for ITEM (subtype 10: ITEM.GENRE)
+    // ITEM tag codes (1-31)
+    ITEM_TITLE = 1,         // Tag code 1: ITEM.TITLE (type=1, subtype=0)
+    ITEM_ALBUM = 2,         // Tag code 2: ITEM.ALBUM (type=1, subtype=1)
+    ITEM_TRACKNUMBER = 3,   // Tag code 3: ITEM.TRACKNUMBER (type=1, subtype=2)
+    ITEM_ARTIST = 4,        // Tag code 4: ITEM.ARTIST (type=1, subtype=3)
+    ITEM_COMPOSITION = 5,   // Tag code 5: ITEM.COMPOSITION (type=1, subtype=4)
+    ITEM_MOVEMENT = 6,      // Tag code 6: ITEM.MOVEMENT (type=1, subtype=5)
+    ITEM_CONDUCTOR = 7,     // Tag code 7: ITEM.CONDUCTOR (type=1, subtype=6)
+    ITEM_COMPOSER = 8,      // Tag code 8: ITEM.COMPOSER (type=1, subtype=7)
+    ITEM_BAND = 9,          // Tag code 9: ITEM.BAND (type=1, subtype=8)
+    ITEM_COMMENT = 10,      // Tag code 10: ITEM.COMMENT (type=1, subtype=9)
+    ITEM_GENRE = 11,        // Tag code 11: ITEM.GENRE (type=1, subtype=10)
+    
+    // INFO tag codes (32-47)
+    INFO_NEWS = 32,         // Tag code 32: INFO.NEWS (type=2, subtype=0)
+    INFO_NEWS_LOCAL = 33,   // Tag code 33: INFO.NEWS_LOCAL (type=2, subtype=1)
+    INFO_SPORT = 35,        // Tag code 35: INFO.SPORT (type=2, subtype=3)
+    INFO_WEATHER = 45,      // Tag code 45: INFO.WEATHER (type=2, subtype=13)
+    
+    // PROGRAMME tag codes (48-55)
+    PROGRAMME_NOW = 48,     // Tag code 48: PROGRAMME.NOW (type=3, subtype=0)
+    PROGRAMME_NEXT = 49,    // Tag code 49: PROGRAMME.NEXT (type=3, subtype=1)
+    
+    // INTERACTIVITY tag codes (56-59)
+    INTERACTIVITY_SMS = 56, // Tag code 56: INTERACTIVITY.SMS (type=4, subtype=0)
+    
+    // STATIONNAME tag codes (60-61)
+    STATIONNAME_SHORT = 60, // Tag code 60: STATIONNAME.SHORT (type=8, subtype=0)
+    STATIONNAME_LONG = 61,  // Tag code 61: STATIONNAME.LONG (type=8, subtype=1)
+    
+    // PROGRAMME_TYPE tag code
+    PROGRAMME_TYPE = 62,    // Tag code 62: PROGRAMME_TYPE (type=9)
+    
+    // Internal type codes for decoder (not tag codes)
+    ITEM = 1,               // Internal: ITEM type
+    INFO = 2,               // Internal: INFO type
+    PROGRAMME = 3,          // Internal: PROGRAMME type
+    INTERACTIVITY = 4,      // Internal: INTERACTIVITY type
+    STATIONNAME = 8,        // Internal: STATIONNAME type
+    
+    // Convenience aliases (map to actual tag codes)
+    TITLE = ITEM_TITLE,     // Alias for ITEM_TITLE
+    ALBUM = ITEM_ALBUM,     // Alias for ITEM_ALBUM
+    ARTIST = ITEM_ARTIST,   // Alias for ITEM_ARTIST
+    GENRE = ITEM_GENRE      // Alias for ITEM_GENRE
 };
 
 // DLS+ tag structure
@@ -95,6 +120,7 @@ struct DLSPlusMessage {
     QString getTitle() const { return getTag("ITEM.TITLE"); }  // Alias for getItem
     QString getAlbum() const { return getTag("ITEM.ALBUM"); }
     QString getGenre() const { return getTag("ITEM.GENRE"); }
+    QString getStationName() const { return getTag("STATIONNAME.SHORT"); }  // Get station name
     
     DLSPlusMessage()
         : is_valid(false)

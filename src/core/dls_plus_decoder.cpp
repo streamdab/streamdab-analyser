@@ -26,10 +26,8 @@ QString DLSPlusTag::getTypeString() const {
         case ContentType::INFO: return "INFO";
         case ContentType::PROGRAMME: return "PROGRAMME";
         case ContentType::INTERACTIVITY: return "INTERACTIVITY";
-        case ContentType::DESCRIPTOR: return "DESCRIPTOR";
         case ContentType::STATIONNAME: return "STATIONNAME";
         case ContentType::PROGRAMME_TYPE: return "PROGRAMME_TYPE";
-        case ContentType::VALIDITY: return "VALIDITY";
         default: return QString("RESERVED_%1").arg(content_type);
     }
 }
@@ -204,16 +202,14 @@ DLSPlusDecoder::DLSPlusDecoder(QObject* parent)
 DLSPlusDecoder::~DLSPlusDecoder() = default;
 
 void DLSPlusDecoder::initializeTagLookupTables() {
-    // Initialize content type names
+    // Initialize content type names (internal type values, not tag codes)
     tag_types_[static_cast<uint8_t>(ContentType::DUMMY)] = "DUMMY";
     tag_types_[static_cast<uint8_t>(ContentType::ITEM)] = "ITEM";
     tag_types_[static_cast<uint8_t>(ContentType::INFO)] = "INFO";
     tag_types_[static_cast<uint8_t>(ContentType::PROGRAMME)] = "PROGRAMME";
     tag_types_[static_cast<uint8_t>(ContentType::INTERACTIVITY)] = "INTERACTIVITY";
-    tag_types_[static_cast<uint8_t>(ContentType::DESCRIPTOR)] = "DESCRIPTOR";
     tag_types_[static_cast<uint8_t>(ContentType::STATIONNAME)] = "STATIONNAME";
     tag_types_[static_cast<uint8_t>(ContentType::PROGRAMME_TYPE)] = "PROGRAMME_TYPE";
-    tag_types_[static_cast<uint8_t>(ContentType::VALIDITY)] = "VALIDITY";
     
     // Initialize ITEM subtypes (ETSI TS 102 980 Table 2)
     auto item_type = static_cast<uint8_t>(ContentType::ITEM);
@@ -449,7 +445,7 @@ bool DLSPlusDecoder::parseCommandData(const QByteArray& command_data, const QStr
     }
     
     int num_tags = command_data.size() / 4;
-    if (num_tags > 4) {
+    if (num_tags > 8) {  // ETSI TS 102 980 allows up to 8 content descriptors
         qWarning() << "DLS+: Too many tags:" << num_tags;
         return false;
     }
@@ -480,12 +476,38 @@ bool DLSPlusDecoder::parseCommandData(const QByteArray& command_data, const QStr
         // uint8_t byte3 = static_cast<uint8_t>(command_data[offset + 3]);
         // Not used for basic parsing
         
-        // Extract content subtype from content_type
-        // Content type is actually: 4-bit type + 4-bit subtype (8 bits total)
-        // But ETSI TS 102 980 uses 6-bit tag type field
-        // Split into 4-bit type + 2-bit subtype extension
-        tag.content_subtype = tag.content_type & 0x0F;  // Lower 4 bits
-        tag.content_type = (tag.content_type >> 4) & 0x0F;  // Upper 4 bits
+        // Map 6-bit tag code to content_type and content_subtype per ETSI TS 102 980 Table 2
+        // Tag codes 1-31: ITEM (content_type=1, subtypes 0-30)
+        // Tag codes 32-47: INFO (content_type=2, subtypes 0-15)
+        // Tag codes 48-55: PROGRAMME (content_type=3, subtypes 0-7)
+        // Tag codes 56-59: INTERACTIVITY (content_type=4, subtypes 0-3)
+        // Tag codes 60-61: STATIONNAME (content_type=8, subtypes 0-1)
+        // Tag codes 62: PROGRAMME_TYPE (content_type=9)
+        uint8_t tag_code = tag.content_type;  // 6-bit value
+        
+        if (tag_code >= 1 && tag_code <= 31) {
+            tag.content_type = static_cast<uint8_t>(ContentType::ITEM);
+            tag.content_subtype = tag_code - 1;  // 0-30 (TITLE=0, ALBUM=1, TRACKNUMBER=2, ARTIST=3, etc.)
+        } else if (tag_code >= 32 && tag_code <= 47) {
+            tag.content_type = static_cast<uint8_t>(ContentType::INFO);
+            tag.content_subtype = tag_code - 32;  // 0-15 (NEWS=0, NEWS_LOCAL=1, etc.)
+        } else if (tag_code >= 48 && tag_code <= 55) {
+            tag.content_type = static_cast<uint8_t>(ContentType::PROGRAMME);
+            tag.content_subtype = tag_code - 48;  // 0-7 (NOW=0, NEXT=1, etc.)
+        } else if (tag_code >= 56 && tag_code <= 59) {
+            tag.content_type = static_cast<uint8_t>(ContentType::INTERACTIVITY);
+            tag.content_subtype = tag_code - 56;  // 0-3 (SMS=0, MMS=1, etc.)
+        } else if (tag_code >= 60 && tag_code <= 61) {
+            tag.content_type = static_cast<uint8_t>(ContentType::STATIONNAME);
+            tag.content_subtype = tag_code - 60;  // 0-1 (SHORT=0, LONG=1)
+        } else if (tag_code == 62) {
+            tag.content_type = static_cast<uint8_t>(ContentType::PROGRAMME_TYPE);
+            tag.content_subtype = 0;
+        } else {
+            // Unknown tag code - treat as DUMMY
+            tag.content_type = static_cast<uint8_t>(ContentType::DUMMY);
+            tag.content_subtype = 0;
+        }
         
         // Extract text from DLS using markers
         if (extractTagText(tag, dls_text, tag.text)) {
