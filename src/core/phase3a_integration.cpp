@@ -213,9 +213,7 @@ bool Phase3AIntegrationManager::connectSignals()
             });
     
     connect(m_dls_plus_decoder, &eti::dls_plus::DLSPlusDecoder::dlsPlusMessageReceived,
-            this, [this](const eti::dls_plus::DLSPlusMessage& msg) {
-                // TODO: Get service_id from current context
-                uint32_t service_id = 0;  // Stub for now
+            this, [this](uint32_t service_id, const eti::dls_plus::DLSPlusMessage& msg) {
                 emit dlsPlusMessageReceived(service_id, msg.getArtist(), msg.getItem());
             });
     
