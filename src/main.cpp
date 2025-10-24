@@ -869,6 +869,7 @@ private slots:
         // Update UI state
         if (m_connectBtn) m_connectBtn->setEnabled(false);
         if (m_disconnectBtn) m_disconnectBtn->setEnabled(true);
+        if (m_recordBtn) m_recordBtn->setEnabled(false);  // Disable until connected
         if (m_streamStatus) {
             m_streamStatus->setText("<span style='color: #FFA500;'>● Connecting...</span>");
         }
@@ -902,11 +903,22 @@ private slots:
                         if (m_statsTimer) {
                             m_statsTimer->start(1000);  // Update every 1 second
                         }
+                        
+                        // Enable recording button
+                        if (m_recordBtn) {
+                            m_recordBtn->setEnabled(true);
+                        }
                     } else {
                         if (m_streamStatus) {
                             m_streamStatus->setText("<span style='color: #D32F2F;'>● Disconnected</span>");
                         }
                         m_systemMessages->append("[STREAM] Connection lost");
+                        
+                        // Disable recording and stop any active recording
+                        if (m_recordBtn) {
+                            m_recordBtn->setEnabled(false);
+                        }
+                        stopRecording();
                     }
                 });
         
@@ -945,9 +957,13 @@ private slots:
             m_networkReceiver.reset();
         }
         
+        // Stop any active recording
+        stopRecording();
+        
         // Update UI state
         if (m_connectBtn) m_connectBtn->setEnabled(true);
         if (m_disconnectBtn) m_disconnectBtn->setEnabled(false);
+        if (m_recordBtn) m_recordBtn->setEnabled(false);
         if (m_streamStatus) {
             m_streamStatus->setText("<span style='color: #666;'>● Disconnected</span>");
         }
@@ -969,6 +985,67 @@ private slots:
         m_systemMessages->append("[STREAM] Disconnected");
     }
     
+    void onRecordClicked()
+    {
+        if (!m_isRecording) {
+            // Start recording
+            QString fileName = QFileDialog::getSaveFileName(
+                this,
+                "Save ETI Stream Recording",
+                QDir::homePath() + "/recorded_stream_" + 
+                    QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".eti",
+                "ETI Files (*.eti);;All Files (*)"
+            );
+            
+            if (fileName.isEmpty()) {
+                return;  // User cancelled
+            }
+            
+            m_recordingFile.setFileName(fileName);
+            if (!m_recordingFile.open(QIODevice::WriteOnly)) {
+                QMessageBox::warning(this, "Recording Error", 
+                    "Failed to create recording file:\n" + m_recordingFile.errorString());
+                return;
+            }
+            
+            m_isRecording = true;
+            m_recordedFrames = 0;
+            
+            if (m_recordBtn) {
+                m_recordBtn->setText("⏹ Stop Recording");
+                m_recordBtn->setStyleSheet("background-color: #D32F2F; color: white; font-weight: bold;");
+            }
+            
+            m_systemMessages->append("[RECORDING] Started: " + fileName);
+            qInfo() << "[RECORDING] Recording to:" << fileName;
+            
+        } else {
+            // Stop recording
+            stopRecording();
+        }
+    }
+    
+    void stopRecording()
+    {
+        if (!m_isRecording) return;
+        
+        m_isRecording = false;
+        m_recordingFile.close();
+        
+        if (m_recordBtn) {
+            m_recordBtn->setText("⏺ Record");
+            m_recordBtn->setStyleSheet("background-color: #D32F2F; color: white;");
+        }
+        
+        m_systemMessages->append(QString("[RECORDING] Stopped - Saved %1 frames (%2 MB)")
+            .arg(m_recordedFrames)
+            .arg((m_recordedFrames * 6144) / (1024.0 * 1024.0), 0, 'f', 2));
+        
+        qInfo() << "[RECORDING] Stopped -" << m_recordedFrames << "frames recorded";
+        
+        m_recordedFrames = 0;
+    }
+    
     void onNetworkFrameReceived(const QByteArray& frameData)
     {
         // Process received ETI frame through the analysis pipeline
@@ -976,6 +1053,23 @@ private slots:
         if (frameData.size() != 6144) {
             qWarning() << "[STREAM] Invalid frame size:" << frameData.size();
             return;
+        }
+        
+        // Phase 4 Week 3: Record frame to file if recording is active
+        if (m_isRecording && m_recordingFile.isOpen()) {
+            qint64 written = m_recordingFile.write(frameData);
+            if (written == 6144) {
+                m_recordedFrames++;
+                
+                // Log every 1000 frames (~4 seconds at 250 FPS)
+                if (m_recordedFrames % 1000 == 0) {
+                    qDebug() << "[RECORDING]" << m_recordedFrames << "frames recorded"
+                             << "(" << (m_recordedFrames * 6144) / (1024 * 1024) << "MB)";
+                }
+            } else {
+                qCritical() << "[RECORDING] Write failed - stopping recording";
+                stopRecording();
+            }
         }
         
         // Frame counter for logging
@@ -2190,11 +2284,15 @@ private:
         m_connectBtn->setStyleSheet("font-weight: bold; background-color: #107C10; color: white;");
         m_disconnectBtn = new QPushButton("Disconnect");
         m_disconnectBtn->setEnabled(false);
+        m_recordBtn = new QPushButton("⏺ Record");
+        m_recordBtn->setEnabled(false);
+        m_recordBtn->setStyleSheet("background-color: #D32F2F; color: white;");
         m_streamStatus = new QLabel("<span style='color: #666;'>● Disconnected</span>");
         m_streamStatus->setFont(QFont("Arial", 10, QFont::Bold));
         
         controlLayout->addWidget(m_connectBtn);
         controlLayout->addWidget(m_disconnectBtn);
+        controlLayout->addWidget(m_recordBtn);
         controlLayout->addWidget(new QLabel("Status:"));
         controlLayout->addWidget(m_streamStatus);
         controlLayout->addStretch();
@@ -2290,6 +2388,7 @@ private:
                 this, &DABAnalyzerWindow::onQuickExampleSelected);
         connect(m_connectBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onConnectClicked);
         connect(m_disconnectBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onDisconnectClicked);
+        connect(m_recordBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onRecordClicked);
         connect(m_browseFileButton, &QPushButton::clicked, this, &DABAnalyzerWindow::onBrowseFileClicked);
         connect(m_loadFileButton, &QPushButton::clicked, this, &DABAnalyzerWindow::onLoadFileClicked);
         
@@ -3944,6 +4043,12 @@ private:
     // Phase 4: Network stream receiver
     std::unique_ptr<eti::NetworkStreamReceiver> m_networkReceiver;
     std::chrono::steady_clock::time_point m_streamStartTime;
+
+    // Phase 4 Week 3: Stream recording
+    QFile m_recordingFile;
+    bool m_isRecording{false};
+    size_t m_recordedFrames{0};
+    QPushButton* m_recordBtn{nullptr};
 
     // State
     QString m_currentFilePath;
