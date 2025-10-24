@@ -45,6 +45,8 @@
 #include "core/professional_logging_system.hpp"
 #include "core/dls_plus_decoder.hpp"  // Phase 3B: DLS+ decoder integration
 #include "core/network_stream_receiver.hpp"  // Phase 4: ETI-over-IP live streaming
+#include "core/eti_reader_thread.hpp"  // Phase A: Pattern 3 - Worker Thread
+#include "core/shared_eti_data.hpp"  // Phase A: Pattern 5 - Shared Data Model
 
 // Note: gui/main_window.h exists for GUI testing purposes only
 // Do NOT include it here to avoid redefinition conflicts
@@ -95,9 +97,14 @@ public:
                     updateNowPlaying(track, artist, album);
                 });
 
+        // Phase A: Initialize worker thread architecture
+        m_sharedData = new streamdab::core::SharedETIData(this);
+        m_readerThread = new ETIReaderThread(this);
+
         setupUI();
         setupMenuBar();
         setupSignalConnections();
+        setupWorkerThread();  // Phase A: Worker thread signal connections
         setupStatusBar();
 
         // EMERGENCY: ALL CUSTOM THEMING DISABLED FOR TEXT VISIBILITY
@@ -153,7 +160,15 @@ private slots:
         statusBar()->showMessage("Loading ETI file...");
         m_systemMessages->append(QString("📁 Loading file: %1").arg(filePath));
 
-        // === Load file with real ETI processor ===
+        // === Phase A: Start worker thread for non-blocking processing ===
+        if (m_readerThread) {
+            m_readerThread->setFilePath(filePath);
+            m_readerThread->setInputMode(ETIReaderThread::InputMode::FileMode);
+            m_readerThread->startProcessing();
+            qDebug() << "Phase A: Worker thread started for file:" << filePath;
+        }
+
+        // === Load file with real ETI processor (compatibility mode) ===
         if (!m_etiProcessor->processETIFile(filePath)) {
             // File loading failed
             QString error = "Failed to load ETI file";
@@ -3533,6 +3548,38 @@ private:
 
     }
 
+    // Phase A: Worker thread signal connections
+    void setupWorkerThread()
+    {
+        if (!m_readerThread || !m_sharedData) {
+            qWarning() << "Phase A: Worker thread not initialized";
+            return;
+        }
+        
+        // Connect worker thread signals to shared data
+        connect(m_readerThread, &ETIReaderThread::frameReceived,
+                this, [this](quint32 frameNumber) {
+                    // Update frame counter in shared data
+                    // Note: Full integration in Phase B
+                    qDebug() << "Phase A: Frame" << frameNumber << "received from worker thread";
+                });
+        
+        // Connect worker thread completion signal
+        connect(m_readerThread, &ETIReaderThread::processingComplete,
+                this, [this](int totalFrames, int timeMs) {
+                    qDebug() << "Phase A: Worker thread processed" << totalFrames 
+                             << "frames in" << timeMs << "ms";
+                });
+        
+        // Connect worker thread error signal
+        connect(m_readerThread, &ETIReaderThread::processingError,
+                this, [this](const QString& error) {
+                    qWarning() << "Phase A: Worker thread error:" << error;
+                });
+        
+        qDebug() << "Phase A: Worker thread signal connections established";
+    }
+
     void setupStatusBar()
     {
         statusBar()->showMessage("Ready - Open an ETI file to begin analysis");
@@ -3915,6 +3962,10 @@ private:
     std::unique_ptr<multistream::MultiStreamProcessor> m_multiStreamProcessor;
     std::unique_ptr<error_detection::AdvancedErrorDetector> m_errorDetector;
     std::unique_ptr<professional_logging::ProfessionalLoggingSystem> m_loggingSystem;
+    
+    // Phase A: Worker thread architecture (Pattern 3 + Pattern 5)
+    streamdab::core::SharedETIData* m_sharedData = nullptr;
+    ETIReaderThread* m_readerThread = nullptr;
 
     // UI components
     QTreeWidget* m_ensembleTree;
@@ -4101,6 +4152,16 @@ private:
 
 DABAnalyzerWindow::~DABAnalyzerWindow()
 {
+    // Phase A: Stop worker thread first
+    if (m_readerThread) {
+        m_readerThread->stopProcessing();
+        if (!m_readerThread->wait(2000)) {
+            qWarning() << "Phase A: Worker thread did not stop in time, forcing termination";
+            m_readerThread->terminate();
+            m_readerThread->wait();
+        }
+    }
+
     // Stop all processing before destruction
     if (m_etiProcessor) {
         m_etiProcessor->stopProcessing();

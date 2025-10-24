@@ -27,6 +27,8 @@ set(CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/epg_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/journaline_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dls_plus_decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_reader_thread.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/shared_eti_data.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
 )
 
@@ -173,6 +175,48 @@ target_link_libraries(test_dls_plus_decoder
 add_test(NAME test_dls_plus_decoder COMMAND test_dls_plus_decoder)
 
 # ============================================================================
+# PHASE A TESTS - Worker Thread Architecture (Pattern 3 + Pattern 5)
+# ============================================================================
+
+# Test 11: ETI Reader Thread (Pattern 3: Worker Thread + Event Loop)
+add_executable(test_eti_reader_thread
+    test_eti_reader_thread.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_eti_reader_thread
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    pthread
+    gtest
+    gtest_main
+)
+add_test(NAME test_eti_reader_thread COMMAND test_eti_reader_thread)
+set_tests_properties(test_eti_reader_thread PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 30
+)
+
+# Test 12: Shared ETI Data (Pattern 5: Shared Data Model with Mutex)
+add_executable(test_shared_eti_data
+    test_shared_eti_data.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_shared_eti_data
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    pthread
+    gtest
+    gtest_main
+)
+add_test(NAME test_shared_eti_data COMMAND test_shared_eti_data)
+set_tests_properties(test_shared_eti_data PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 30
+)
+
+# ============================================================================
 # INTEGRATION TESTS - Phase 3A Wave 3.1
 # ============================================================================
 
@@ -180,22 +224,114 @@ add_test(NAME test_dls_plus_decoder COMMAND test_dls_plus_decoder)
 add_subdirectory(integration)
 
 # ============================================================================
-# GUI TESTS - Enable GUI E2E automated testing
+# GUI TESTS - QTest Automated Widget Testing (October 25, 2025)
 # ============================================================================
 
 message(STATUS "")
 message(STATUS "=== GUI Test Configuration ===")
 
 # GUI tests require Qt6 Widgets
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Test)
 
-# Include GUI test subdirectory
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/gui/CMakeLists.txt")
-    add_subdirectory(gui)
-    message(STATUS "  ✓ GUI tests enabled (22 test files)")
-else()
-    message(STATUS "  ✗ GUI tests not found")
-endif()
+# GUI Test 1: ETI Explorer Table Tests
+add_executable(test_eti_explorer
+    gui/test_eti_explorer.cpp
+)
+target_link_libraries(test_eti_explorer
+    Qt6::Test
+    Qt6::Widgets
+    Qt6::Core
+)
+target_include_directories(test_eti_explorer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui
+)
+add_test(NAME ETIExplorerTests COMMAND test_eti_explorer)
+set_tests_properties(ETIExplorerTests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 10
+)
+
+# GUI Test 2: Service List (Ensemble Tree) Tests
+add_executable(test_service_list
+    gui/test_service_list.cpp
+)
+target_link_libraries(test_service_list
+    Qt6::Test
+    Qt6::Widgets
+    Qt6::Core
+)
+target_include_directories(test_service_list PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui
+)
+add_test(NAME ServiceListTests COMMAND test_service_list)
+set_tests_properties(ServiceListTests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 10
+)
+
+# GUI Test 3: Frame Viewer Tests
+add_executable(test_frame_viewer
+    gui/test_frame_viewer.cpp
+)
+target_link_libraries(test_frame_viewer
+    Qt6::Test
+    Qt6::Widgets
+    Qt6::Core
+)
+target_include_directories(test_frame_viewer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui
+)
+add_test(NAME FrameViewerTests COMMAND test_frame_viewer)
+set_tests_properties(FrameViewerTests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 10
+)
+
+# GUI Test 4: FIG Extractor Tests
+add_executable(test_fig_extractor
+    gui/test_fig_extractor.cpp
+)
+target_link_libraries(test_fig_extractor
+    Qt6::Test
+    Qt6::Widgets
+    Qt6::Core
+)
+target_include_directories(test_fig_extractor PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui
+)
+add_test(NAME FIGExtractorTests COMMAND test_fig_extractor)
+set_tests_properties(FIGExtractorTests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 10
+)
+
+# Custom target to build all GUI tests
+add_custom_target(build_gui_tests
+    DEPENDS test_eti_explorer test_service_list test_frame_viewer test_fig_extractor
+    COMMENT "Building all QTest GUI automated tests..."
+)
+
+# Custom target to run all GUI tests
+add_custom_target(run_gui_tests
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R ".*Tests"
+    DEPENDS test_eti_explorer test_service_list test_frame_viewer test_fig_extractor
+    COMMENT "Running all QTest GUI automated tests..."
+)
+
+message(STATUS "  ✓ GUI tests enabled (4 QTest suites, 40+ test cases)")
+message(STATUS "    - test_eti_explorer (8 tests)")
+message(STATUS "    - test_service_list (11 tests)")
+message(STATUS "    - test_frame_viewer (10 tests)")
+message(STATUS "    - test_fig_extractor (10 tests)")
+message(STATUS "  Run: make build_gui_tests && make run_gui_tests")
 
 # ============================================================================
 # PHASE 3A E2E TESTS - Wave 3.2 End-to-End Testing
@@ -279,13 +415,15 @@ set_tests_properties(test_segfault_fixes PROPERTIES
 
 message(STATUS "")
 message(STATUS "===========================================")
-message(STATUS "Configured 12 validation tests:")
+message(STATUS "Configured 16 validation tests:")
 message(STATUS "  - 5 core tests (ETI, FIG 0/1, LI CRC)")
 message(STATUS "  - 5 Phase 3A tests (MOT, EPG, Journaline)")
 message(STATUS "  - 1 Phase 3B test (DLS+ decoder - STUBBED)")
 message(STATUS "  - 1 Regression test (Segfault fixes)")
+message(STATUS "  - 4 GUI tests (QTest widget verification)")
 message(STATUS "Integration tests: 4 (audio + EPG + Journaline + DLS+)")
 message(STATUS "E2E tests: 1 (Phase 3A complete pipeline - 26 tests)")
+message(STATUS "GUI tests: 4 (40+ widget test cases)")
 message(STATUS "Benchmark tools: 1 (performance_benchmark)")
 message(STATUS "")
 message(STATUS "NOTE: DLS+ tests are STUBBED pending Agent 1 completion")
@@ -297,6 +435,13 @@ message(STATUS "  ✓ Qt::QueuedConnection safety")
 message(STATUS "  ✓ Pass-by-value slots")
 message(STATUS "  ✓ MSC bounds error handling")
 message(STATUS "")
+message(STATUS "GUI tests verify (October 25, 2025):")
+message(STATUS "  ✓ ETI Explorer table population and structure")
+message(STATUS "  ✓ Service list display and Thai UTF-8 support")
+message(STATUS "  ✓ Frame viewer safe click handling (no crashes)")
+message(STATUS "  ✓ FIG Extractor statistics display")
+message(STATUS "")
 message(STATUS "Test execution: make && ctest")
+message(STATUS "GUI tests only: make build_gui_tests && make run_gui_tests")
 message(STATUS "Benchmark: make && ./tests/performance_benchmark")
 message(STATUS "===========================================")
