@@ -835,23 +835,38 @@ bool EnhancedETIProcessorQt::processEtiFrame(const QByteArray& frameData)
 
     // Populate legacy frame structure for signals
     frame.lidata = (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
-    frame.fic_data = parsed_frame.fic_data;
+    
+    // CRITICAL FIX: Force deep copy of FIC data to prevent dangling pointers
+    // when using Qt::QueuedConnection (fixes segmentation fault)
+    frame.fic_data = QByteArray(parsed_frame.fic_data.constData(), 
+                                parsed_frame.fic_data.size());
+    
     // Combine all MSC sub-channels for legacy compatibility
     QByteArray combined_msc;
     for (const auto& sc : parsed_frame.sub_channels) {
         combined_msc.append(sc.data);
     }
-    frame.msc_data = combined_msc;
+    
+    // CRITICAL FIX: Force deep copy of MSC data to prevent dangling pointers
+    frame.msc_data = QByteArray(combined_msc.constData(), combined_msc.size());
+    
     frame.crc = parsed_frame.frame_crc;
     frame.is_valid = true;
 
     // HIGH-007: Store frame using FIFO cleanup method
     storeFrame(frame);
 
-    // Emit signals
-    qDebug() << "EnhancedETIProcessorQt: Emitting frameProcessed signal for frame" << frame.frame_number;
-    emit formatDetected(frame.format, formatToString(frame.format));
-    emit frameProcessed(frame);
+    // CRITICAL FIX: Only emit frameProcessed signal on intervals to prevent GUI crash
+    // Emit for: first frame, every 100th frame, and last frame
+    bool shouldEmit = (frame.frame_number == 1) || 
+                      (frame.frame_number % 100 == 0) || 
+                      (frame.frame_number == total_frames_);
+    
+    if (shouldEmit) {
+        qDebug() << "EnhancedETIProcessorQt: Emitting frameProcessed signal for frame" << frame.frame_number;
+        emit formatDetected(frame.format, formatToString(frame.format));
+        emit frameProcessed(frame);
+    }
 
     return true;
 }

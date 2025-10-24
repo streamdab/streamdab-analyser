@@ -75,11 +75,39 @@ set_tests_properties(GUI_Framework_Basic PROPERTIES
 message(STATUS "  ✓ test_gui_framework_basic configured (Qt infrastructure validation)")
 
 # ============================================================================
+# GUI TEST 2: ETI Loading Crash Test (E2E)
+# ============================================================================
+# This test loads the actual problematic ETI file in GUI mode to verify no crash
+add_executable(test_eti_loading_crash
+    test_eti_loading_crash.cpp
+    ${GUI_TEST_CORE_SOURCES}
+)
+target_link_libraries(test_eti_loading_crash ${GUI_TEST_LIBRARIES})
+target_compile_definitions(test_eti_loading_crash PRIVATE GUI_TEST_MODE)
+set_target_properties(test_eti_loading_crash PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/gui"
+)
+add_test(
+    NAME GUI_ETI_Loading_Crash
+    COMMAND test_eti_loading_crash
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(GUI_ETI_Loading_Crash PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60
+    LABELS "GUI;E2E;Critical"
+)
+
+message(STATUS "  ✓ test_eti_loading_crash configured (E2E crash reproduction test)")
+
+# ============================================================================
 # Additional GUI tests can be added here following the same pattern
 # ============================================================================
 
 # Note: Starting with basic framework test to validate Qt GUI infrastructure
 # Full DABAnalyzerWindow testing requires integration test approach (see documentation)
 
-message(STATUS "GUI tests configured: 1 test enabled (test_gui_framework_basic)")
-message(STATUS "Run with: cd build && ctest -R GUI_Framework_Basic -V")
+message(STATUS "GUI tests configured: 2 tests enabled")
+message(STATUS "  - test_gui_framework_basic (Qt infrastructure)")
+message(STATUS "  - test_eti_loading_crash (E2E crash test)")
+message(STATUS "Run with: cd build && ctest -R GUI -V")
