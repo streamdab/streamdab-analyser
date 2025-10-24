@@ -78,25 +78,14 @@ add_test(NAME test_phase3a_integration COMMAND test_phase3a_integration)
 
 # ============================================================================
 # Integration Test 4: DLS+ Pipeline (Phase 3B Week 2)
-# Note: Currently stubbed - waiting for Agent 1 to complete dls_plus_decoder.hpp/cpp
+# Note: Removed - will be recreated with proper implementation in Week 2
 # ============================================================================
-add_executable(test_dls_plus_pipeline
-    test_dls_plus_pipeline.cpp
-    ${CORE_SOURCES}
-)
-target_link_libraries(test_dls_plus_pipeline
-    Qt6::Test
-    Qt6::Core
-    Qt6::Widgets
-    pthread
-)
-add_test(NAME test_dls_plus_pipeline COMMAND test_dls_plus_pipeline)
+# TODO Week 2: Add test_dls_plus_pipeline.cpp with real PAD data testing
 
 message(STATUS "Integration tests configured:")
 message(STATUS "  - test_audio_pipeline: ETI → Audio validation")
 message(STATUS "  - test_mot_pipeline: ETI → MOT extraction")
 message(STATUS "  - test_phase3a_integration: Complete Phase 3A pipeline")
-message(STATUS "  - test_dls_plus_pipeline: PAD → DLS+ metadata (STUBBED)")
 message(STATUS "")
-message(STATUS "NOTE: test_dls_plus_pipeline is stubbed pending Agent 1")
+message(STATUS "NOTE: DLS+ pipeline integration test will be added in Week 2")
 message(STATUS "==========================================")
