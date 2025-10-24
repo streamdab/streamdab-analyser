@@ -47,7 +47,7 @@
 // Phase 3B: DLS+ decoder implementation (Agent 1 complete - activated)
 #include "../src/core/dls_plus_decoder.hpp"
 
-using namespace eti::dlsplus;
+using namespace eti::dls_plus;
 
 /**
  * @brief Comprehensive DLS+ Decoder Test Suite
@@ -144,8 +144,8 @@ private:
 
     // Test helper methods
     QByteArray createTestDLSText(const QString& text);
-    QByteArray createTestCommandData(const QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>>& tags);
-    QByteArray createTestDescriptor(eti::dls_plus::DLSPlusTag tag, uint8_t start, uint8_t length);
+    QByteArray createTestCommandData(const QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>>& tags);
+    QByteArray createTestDescriptor(eti::dls_plus::ContentType tag, uint8_t start, uint8_t length);
 };
 
 // ============================================================================
@@ -216,14 +216,14 @@ void TestDLSPlusDecoder::cleanup()
 void TestDLSPlusDecoder::testTagParsing_ItemTitle()
 {
     QString dls_text = "Song Title by Artist Name";
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 10);
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 10);
     
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
     QVERIFY2(success, "Failed to process DLS+ command with ITEM tag");
     QVERIFY(m_decoder->hasCurrentMessage());
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QCOMPARE(msg->getItem(), QString("Song Title"));
 }
@@ -231,14 +231,14 @@ void TestDLSPlusDecoder::testTagParsing_ItemTitle()
 void TestDLSPlusDecoder::testTagParsing_ItemArtist()
 {
     QString dls_text = "Song Title by Artist Name";
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::ARTIST, 14, 11);
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::ARTIST, 14, 11);
     
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
     QVERIFY2(success, "Failed to process DLS+ command with ARTIST tag");
     QVERIFY(m_decoder->hasCurrentMessage());
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QCOMPARE(msg->getArtist(), QString("Artist Name"));
 }
@@ -246,14 +246,14 @@ void TestDLSPlusDecoder::testTagParsing_ItemArtist()
 void TestDLSPlusDecoder::testTagParsing_ItemAlbum()
 {
     QString dls_text = "Greatest Hits Album - Various Artists";
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::ALBUM, 0, 19);
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::ALBUM, 0, 19);
     
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
     QVERIFY2(success, "Failed to process DLS+ command with ALBUM tag");
     QVERIFY(m_decoder->hasCurrentMessage());
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QCOMPARE(msg->getAlbum(), QString("Greatest Hits Album"));
 }
@@ -261,7 +261,7 @@ void TestDLSPlusDecoder::testTagParsing_ItemAlbum()
 void TestDLSPlusDecoder::testTagParsing_ItemTrackNumber()
 {
     QString dls_text = "Track 5 - Song Title";
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::TITLE, 0, 7);
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::TITLE, 0, 7);
     
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
@@ -273,16 +273,16 @@ void TestDLSPlusDecoder::testTagParsing_MultipleTags()
 {
     QString dls_text = "The Beatles - Hey Jude";
     
-    QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>> tags;
-    tags.append({eti::dls_plus::DLSPlusTag::ARTIST, {0, 11}});      // "The Beatles"
-    tags.append({eti::dls_plus::DLSPlusTag::ITEM, {14, 8}});        // "Hey Jude"
+    QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags;
+    tags.append({eti::dls_plus::ContentType::ARTIST, {0, 11}});      // "The Beatles"
+    tags.append({eti::dls_plus::ContentType::ITEM, {14, 8}});        // "Hey Jude"
     
     QByteArray command = createTestCommandData(tags);
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
     QVERIFY2(success, "Failed to process multiple tags");
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QCOMPARE(msg->getArtist(), QString("The Beatles"));
     QCOMPARE(msg->getItem(), QString("Hey Jude"));
@@ -292,19 +292,19 @@ void TestDLSPlusDecoder::testTagParsing_AllStandardTags()
 {
     QString dls_text = "Rock Station - The Beatles - Hey Jude [Abbey Road] Pop/Rock";
     
-    QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>> tags;
-    tags.append({eti::dls_plus::DLSPlusTag::TITLE, {0, 12}});       // "Rock Station"
-    tags.append({eti::dls_plus::DLSPlusTag::ARTIST, {15, 11}});     // "The Beatles"
-    tags.append({eti::dls_plus::DLSPlusTag::ITEM, {29, 8}});        // "Hey Jude"
-    tags.append({eti::dls_plus::DLSPlusTag::ALBUM, {39, 10}});      // "Abbey Road"
-    tags.append({eti::dls_plus::DLSPlusTag::GENRE, {51, 8}});       // "Pop/Rock"
+    QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags;
+    tags.append({eti::dls_plus::ContentType::TITLE, {0, 12}});       // "Rock Station"
+    tags.append({eti::dls_plus::ContentType::ARTIST, {15, 11}});     // "The Beatles"
+    tags.append({eti::dls_plus::ContentType::ITEM, {29, 8}});        // "Hey Jude"
+    tags.append({eti::dls_plus::ContentType::ALBUM, {39, 10}});      // "Abbey Road"
+    tags.append({eti::dls_plus::ContentType::GENRE, {51, 8}});       // "Pop/Rock"
     
     QByteArray command = createTestCommandData(tags);
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
     QVERIFY2(success, "Failed to process all standard tags");
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QCOMPARE(msg->getTitle(), QString("Rock Station"));
     QCOMPARE(msg->getArtist(), QString("The Beatles"));
@@ -365,13 +365,13 @@ void TestDLSPlusDecoder::testTagParsing_InvalidTagCode()
 void TestDLSPlusDecoder::testTextExtraction_SimpleMarkers()
 {
     QString dls_text = "ABCDEFGHIJKLMNOP";
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 4); // "ABCD"
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 4); // "ABCD"
     
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
     QVERIFY2(success, "Failed to extract with simple markers");
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QCOMPARE(msg->getItem(), QString("ABCD"));
 }
@@ -379,13 +379,13 @@ void TestDLSPlusDecoder::testTextExtraction_SimpleMarkers()
 void TestDLSPlusDecoder::testTextExtraction_FullText()
 {
     QString dls_text = "Complete Message Text";
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 21); // Full text
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 21); // Full text
     
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
     QVERIFY2(success, "Failed to extract full text");
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QCOMPARE(msg->getItem(), QString("Complete Message Text"));
 }
@@ -393,13 +393,13 @@ void TestDLSPlusDecoder::testTextExtraction_FullText()
 void TestDLSPlusDecoder::testTextExtraction_PartialText()
 {
     QString dls_text = "Start Middle End";
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 6, 6); // "Middle"
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 6, 6); // "Middle"
     
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
     QVERIFY2(success, "Failed to extract partial text");
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QCOMPARE(msg->getItem(), QString("Middle"));
 }
@@ -426,16 +426,16 @@ void TestDLSPlusDecoder::testTextExtraction_ThaiUTF8()
     uint8_t item_start = artist_bytes.size() + 3; // 30 bytes (27 + 3)
     uint8_t item_length = item_bytes.size(); // 21 bytes (7 chars × 3 bytes)
     
-    QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>> tags;
-    tags.append({eti::dls_plus::DLSPlusTag::ARTIST, {artist_start, artist_length}});  // bytes 0-26
-    tags.append({eti::dls_plus::DLSPlusTag::ITEM, {item_start, item_length}});        // bytes 30-50
+    QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags;
+    tags.append({eti::dls_plus::ContentType::ARTIST, {artist_start, artist_length}});  // bytes 0-26
+    tags.append({eti::dls_plus::ContentType::ITEM, {item_start, item_length}});        // bytes 30-50
     
     QByteArray command = createTestCommandData(tags);
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
     QVERIFY2(success, "Failed to extract Thai UTF-8 text with byte offsets");
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QCOMPARE(msg->getArtist(), QString("ศิลปินไทย"));
     QCOMPARE(msg->getItem(), QString("เพลงไทย"));
@@ -446,29 +446,29 @@ void TestDLSPlusDecoder::testTextExtraction_BoundaryChecks()
     QString dls_text = "0123456789";
     
     // Test start boundary (position 0)
-    QByteArray command1 = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 3);
+    QByteArray command1 = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 3);
     bool success1 = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command1);
     QVERIFY2(success1, "Failed at start boundary");
     
-    auto msg1 = m_decoder->getCurrentMessage();
+    auto msg1 = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg1.has_value());
     QCOMPARE(msg1->getItem(), QString("012"));
     
     // Test end boundary (last characters)
-    QByteArray command2 = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 7, 3);
+    QByteArray command2 = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 7, 3);
     bool success2 = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command2);
     QVERIFY2(success2, "Failed at end boundary");
     
-    auto msg2 = m_decoder->getCurrentMessage();
+    auto msg2 = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg2.has_value());
     QCOMPARE(msg2->getItem(), QString("789"));
     
     // Test single character
-    QByteArray command3 = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 5, 1);
+    QByteArray command3 = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 5, 1);
     bool success3 = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command3);
     QVERIFY2(success3, "Failed for single character");
     
-    auto msg3 = m_decoder->getCurrentMessage();
+    auto msg3 = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg3.has_value());
     QCOMPARE(msg3->getItem(), QString("5"));
 }
@@ -482,14 +482,14 @@ void TestDLSPlusDecoder::testDescriptor_ValidStructure()
     QString dls_text = "Valid Descriptor Test";
     
     // Create well-formed descriptor
-    QByteArray descriptor = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 5);
+    QByteArray descriptor = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 5);
     
     QVERIFY2(descriptor.size() == 4, "Descriptor should be 4 bytes");
     
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), descriptor);
     QVERIFY2(success, "Valid descriptor should be processed successfully");
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QCOMPARE(msg->getItem(), QString("Valid"));
 }
@@ -499,14 +499,14 @@ void TestDLSPlusDecoder::testDescriptor_InvalidMarkers()
     QString dls_text = "Short";
     
     // Start marker beyond text length
-    QByteArray descriptor = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 50, 5);
+    QByteArray descriptor = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 50, 5);
     
     QSignalSpy errorSpy(m_decoder, &eti::dls_plus::DLSPlusDecoder::dlsPlusDecodingError);
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), descriptor);
     
     // Should handle gracefully without crashing
     if (success) {
-        auto msg = m_decoder->getCurrentMessage();
+        auto msg = m_decoder->getCurrentMessageOptional();
         if (msg.has_value()) {
             QVERIFY2(msg->getItem().isEmpty() || !msg->getItem().isEmpty(),
                      "Invalid markers handled - text may be empty or adjusted");
@@ -522,14 +522,14 @@ void TestDLSPlusDecoder::testDescriptor_OutOfBounds()
     QString dls_text = "Test";
     
     // Start + length exceeds text length
-    QByteArray descriptor = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 2, 10);
+    QByteArray descriptor = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 2, 10);
     
     QSignalSpy errorSpy(m_decoder, &eti::dls_plus::DLSPlusDecoder::dlsPlusDecodingError);
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), descriptor);
     
     // Decoder should handle out-of-bounds gracefully without crashing
     if (success) {
-        auto msg = m_decoder->getCurrentMessage();
+        auto msg = m_decoder->getCurrentMessageOptional();
         QVERIFY2(msg.has_value() || !msg.has_value(), "Out-of-bounds processed");
     } else {
         QVERIFY2(errorSpy.count() >= 0, "Out-of-bounds rejected gracefully");
@@ -541,10 +541,10 @@ void TestDLSPlusDecoder::testDescriptor_MultipleDescriptors()
 {
     QString dls_text = "First Second Third";
     
-    QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>> tags;
-    tags.append({eti::dls_plus::DLSPlusTag::ITEM, {0, 5}});      // "First"
-    tags.append({eti::dls_plus::DLSPlusTag::ARTIST, {6, 6}});    // "Second"
-    tags.append({eti::dls_plus::DLSPlusTag::ALBUM, {13, 5}});    // "Third"
+    QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags;
+    tags.append({eti::dls_plus::ContentType::ITEM, {0, 5}});      // "First"
+    tags.append({eti::dls_plus::ContentType::ARTIST, {6, 6}});    // "Second"
+    tags.append({eti::dls_plus::ContentType::ALBUM, {13, 5}});    // "Third"
     
     QByteArray command = createTestCommandData(tags);
     
@@ -553,7 +553,7 @@ void TestDLSPlusDecoder::testDescriptor_MultipleDescriptors()
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     QVERIFY2(success, "Multiple descriptors should be processed");
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QVERIFY2(msg->descriptors.size() >= 3, "Should have at least 3 descriptors");
 }
@@ -566,16 +566,16 @@ void TestDLSPlusDecoder::testMessage_ItemAndArtist()
 {
     QString dls_text = "Artist Name - Track Title";
     
-    QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>> tags;
-    tags.append({eti::dls_plus::DLSPlusTag::ARTIST, {0, 11}});   // "Artist Name"
-    tags.append({eti::dls_plus::DLSPlusTag::ITEM, {14, 11}});    // "Track Title"
+    QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags;
+    tags.append({eti::dls_plus::ContentType::ARTIST, {0, 11}});   // "Artist Name"
+    tags.append({eti::dls_plus::ContentType::ITEM, {14, 11}});    // "Track Title"
     
     QByteArray command = createTestCommandData(tags);
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
     QVERIFY2(success, "Failed to process ITEM + ARTIST message");
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QCOMPARE(msg->dls_text, dls_text);
     QCOMPARE(msg->getArtist(), QString("Artist Name"));
@@ -586,19 +586,19 @@ void TestDLSPlusDecoder::testMessage_FullMetadata()
 {
     QString dls_text = "Rock FM - The Beatles - Hey Jude [Abbey Road] Rock";
     
-    QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>> tags;
-    tags.append({eti::dls_plus::DLSPlusTag::TITLE, {0, 7}});     // "Rock FM"
-    tags.append({eti::dls_plus::DLSPlusTag::ARTIST, {10, 11}});  // "The Beatles"
-    tags.append({eti::dls_plus::DLSPlusTag::ITEM, {24, 8}});     // "Hey Jude"
-    tags.append({eti::dls_plus::DLSPlusTag::ALBUM, {34, 10}});   // "Abbey Road"
-    tags.append({eti::dls_plus::DLSPlusTag::GENRE, {46, 4}});    // "Rock"
+    QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags;
+    tags.append({eti::dls_plus::ContentType::TITLE, {0, 7}});     // "Rock FM"
+    tags.append({eti::dls_plus::ContentType::ARTIST, {10, 11}});  // "The Beatles"
+    tags.append({eti::dls_plus::ContentType::ITEM, {24, 8}});     // "Hey Jude"
+    tags.append({eti::dls_plus::ContentType::ALBUM, {34, 10}});   // "Abbey Road"
+    tags.append({eti::dls_plus::ContentType::GENRE, {46, 4}});    // "Rock"
     
     QByteArray command = createTestCommandData(tags);
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
     QVERIFY2(success, "Failed to process full metadata message");
     
-    auto msg = m_decoder->getCurrentMessage();
+    auto msg = m_decoder->getCurrentMessageOptional();
     QVERIFY(msg.has_value());
     QCOMPARE(msg->getTitle(), QString("Rock FM"));
     QCOMPARE(msg->getArtist(), QString("The Beatles"));
@@ -611,10 +611,10 @@ void TestDLSPlusDecoder::testMessage_ConvenienceAccessors()
 {
     QString dls_text = "Artist - Title [Album]";
     
-    QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>> tags;
-    tags.append({eti::dls_plus::DLSPlusTag::ARTIST, {0, 6}});    // "Artist"
-    tags.append({eti::dls_plus::DLSPlusTag::ITEM, {9, 5}});      // "Title"
-    tags.append({eti::dls_plus::DLSPlusTag::ALBUM, {16, 5}});    // "Album"
+    QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags;
+    tags.append({eti::dls_plus::ContentType::ARTIST, {0, 6}});    // "Artist"
+    tags.append({eti::dls_plus::ContentType::ITEM, {9, 5}});      // "Title"
+    tags.append({eti::dls_plus::ContentType::ALBUM, {16, 5}});    // "Album"
     
     QByteArray command = createTestCommandData(tags);
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
@@ -642,9 +642,9 @@ void TestDLSPlusDecoder::testMessage_EmptyDescriptors()
 void TestDLSPlusDecoder::testMessage_TagOverwrite()
 {
     QString dls_text1 = "First Artist - First Song";
-    QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>> tags1;
-    tags1.append({eti::dls_plus::DLSPlusTag::ARTIST, {0, 12}});  // "First Artist"
-    tags1.append({eti::dls_plus::DLSPlusTag::ITEM, {15, 10}});   // "First Song"
+    QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags1;
+    tags1.append({eti::dls_plus::ContentType::ARTIST, {0, 12}});  // "First Artist"
+    tags1.append({eti::dls_plus::ContentType::ITEM, {15, 10}});   // "First Song"
     
     QByteArray command1 = createTestCommandData(tags1);
     m_decoder->processDLSPlusCommand(dls_text1.toUtf8(), command1);
@@ -654,9 +654,9 @@ void TestDLSPlusDecoder::testMessage_TagOverwrite()
     
     // Process second message - should overwrite
     QString dls_text2 = "Second Artist - Second Song";
-    QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>> tags2;
-    tags2.append({eti::dls_plus::DLSPlusTag::ARTIST, {0, 13}});  // "Second Artist"
-    tags2.append({eti::dls_plus::DLSPlusTag::ITEM, {16, 11}});   // "Second Song"
+    QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags2;
+    tags2.append({eti::dls_plus::ContentType::ARTIST, {0, 13}});  // "Second Artist"
+    tags2.append({eti::dls_plus::ContentType::ITEM, {16, 11}});   // "Second Song"
     
     QByteArray command2 = createTestCommandData(tags2);
     m_decoder->processDLSPlusCommand(dls_text2.toUtf8(), command2);
@@ -675,9 +675,9 @@ void TestDLSPlusDecoder::testSignals_MessageReceived()
     QSignalSpy messageSpy(m_decoder, &eti::dls_plus::DLSPlusDecoder::dlsPlusMessageReceived);
     
     QString dls_text = "Artist - Song";
-    QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>> tags;
-    tags.append({eti::dls_plus::DLSPlusTag::ARTIST, {0, 6}});
-    tags.append({eti::dls_plus::DLSPlusTag::ITEM, {9, 4}});
+    QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags;
+    tags.append({eti::dls_plus::ContentType::ARTIST, {0, 6}});
+    tags.append({eti::dls_plus::ContentType::ITEM, {9, 4}});
     
     QByteArray command = createTestCommandData(tags);
     bool success = m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
@@ -695,10 +695,10 @@ void TestDLSPlusDecoder::testSignals_NowPlayingUpdated()
     QSignalSpy nowPlayingSpy(m_decoder, &eti::dls_plus::DLSPlusDecoder::nowPlayingUpdated);
     
     QString dls_text = "The Beatles - Hey Jude [Abbey Road]";
-    QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>> tags;
-    tags.append({eti::dls_plus::DLSPlusTag::ARTIST, {0, 11}});   // "The Beatles"
-    tags.append({eti::dls_plus::DLSPlusTag::ITEM, {14, 8}});     // "Hey Jude"
-    tags.append({eti::dls_plus::DLSPlusTag::ALBUM, {24, 10}});   // "Abbey Road"
+    QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>> tags;
+    tags.append({eti::dls_plus::ContentType::ARTIST, {0, 11}});   // "The Beatles"
+    tags.append({eti::dls_plus::ContentType::ITEM, {14, 8}});     // "Hey Jude"
+    tags.append({eti::dls_plus::ContentType::ALBUM, {24, 10}});   // "Abbey Road"
     
     QByteArray command = createTestCommandData(tags);
     m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
@@ -719,17 +719,17 @@ void TestDLSPlusDecoder::testSignals_MultipleMessages()
     
     // First message
     QString dls_text1 = "Artist1 - Song1";
-    QByteArray command1 = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 10, 5);
+    QByteArray command1 = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 10, 5);
     m_decoder->processDLSPlusCommand(dls_text1.toUtf8(), command1);
     
     // Second message
     QString dls_text2 = "Artist2 - Song2";
-    QByteArray command2 = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 10, 5);
+    QByteArray command2 = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 10, 5);
     m_decoder->processDLSPlusCommand(dls_text2.toUtf8(), command2);
     
     // Third message
     QString dls_text3 = "Artist3 - Song3";
-    QByteArray command3 = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 10, 5);
+    QByteArray command3 = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 10, 5);
     m_decoder->processDLSPlusCommand(dls_text3.toUtf8(), command3);
     
     QCOMPARE(messageSpy.count(), 3);
@@ -742,7 +742,7 @@ void TestDLSPlusDecoder::testSignals_NoSignalOnError()
     
     // Try to process invalid data
     QString empty_text = "";
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 5);
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 5);
     
     m_decoder->processDLSPlusCommand(empty_text.toUtf8(), command);
     
@@ -759,7 +759,7 @@ void TestDLSPlusDecoder::testSignals_NoSignalOnError()
 void TestDLSPlusDecoder::testEdgeCase_EmptyDLSText()
 {
     QString empty_text = "";
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 5);
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 5);
     
     bool success = m_decoder->processDLSPlusCommand(empty_text.toUtf8(), command);
     
@@ -802,14 +802,14 @@ void TestDLSPlusDecoder::testEdgeCase_MaxLength()
 {
     // DLS text maximum is 128 characters (ETSI EN 300 401)
     QString max_text = QString("A").repeated(128);
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 31); // Max length marker is 31
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 31); // Max length marker is 31
     
     bool success = m_decoder->processDLSPlusCommand(max_text.toUtf8(), command);
     
     QVERIFY2(success, "Maximum length DLS text should be handled");
     
     if (success) {
-        auto msg = m_decoder->getCurrentMessage();
+        auto msg = m_decoder->getCurrentMessageOptional();
         QVERIFY(msg.has_value());
         QVERIFY2(msg->dls_text.length() <= 128, "DLS text should not exceed 128 characters");
     }
@@ -824,7 +824,7 @@ void TestDLSPlusDecoder::testEdgeCase_InvalidUTF8()
     invalid_utf8.append(char(0xFE)); // Invalid UTF-8 byte
     invalid_utf8.append(" Valid end");
     
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 10);
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 10);
     
     bool success = m_decoder->processDLSPlusCommand(invalid_utf8, command);
     
@@ -846,15 +846,15 @@ void TestDLSPlusDecoder::testStatistics_MessageCount()
     
     // Process multiple messages
     QString dls_text1 = "Message 1";
-    QByteArray command1 = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 9);
+    QByteArray command1 = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 9);
     m_decoder->processDLSPlusCommand(dls_text1.toUtf8(), command1);
     
     QString dls_text2 = "Message 2";
-    QByteArray command2 = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 9);
+    QByteArray command2 = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 9);
     m_decoder->processDLSPlusCommand(dls_text2.toUtf8(), command2);
     
     QString dls_text3 = "Message 3";
-    QByteArray command3 = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 9);
+    QByteArray command3 = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 9);
     m_decoder->processDLSPlusCommand(dls_text3.toUtf8(), command3);
     
     // Check statistics
@@ -871,7 +871,7 @@ void TestDLSPlusDecoder::testStatistics_ErrorCount()
     
     // Try to process invalid data that should cause errors
     QString empty_text = "";
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 50, 10);
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 50, 10);
     m_decoder->processDLSPlusCommand(empty_text.toUtf8(), command);
     
     // Create corrupted descriptor
@@ -889,7 +889,7 @@ void TestDLSPlusDecoder::testStatistics_ResetStatistics()
 {
     // Process some messages first
     QString dls_text = "Test Message";
-    QByteArray command = createTestDescriptor(eti::dls_plus::DLSPlusTag::ITEM, 0, 4);
+    QByteArray command = createTestDescriptor(eti::dls_plus::ContentType::ITEM, 0, 4);
     m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     m_decoder->processDLSPlusCommand(dls_text.toUtf8(), command);
     
@@ -915,13 +915,13 @@ QByteArray TestDLSPlusDecoder::createTestDLSText(const QString& text)
 }
 
 QByteArray TestDLSPlusDecoder::createTestCommandData(
-    const QVector<QPair<eti::dls_plus::DLSPlusTag, QPair<uint8_t, uint8_t>>>& tags)
+    const QVector<QPair<eti::dls_plus::ContentType, QPair<uint8_t, uint8_t>>>& tags)
 {
     QByteArray command_data;
     uint8_t content_id = 0;
     
     for (const auto& tag_pair : tags) {
-        eti::dls_plus::DLSPlusTag tag = tag_pair.first;
+        eti::dls_plus::ContentType tag = tag_pair.first;
         uint8_t start = tag_pair.second.first;
         uint8_t length = tag_pair.second.second;
         
@@ -933,12 +933,12 @@ QByteArray TestDLSPlusDecoder::createTestCommandData(
 }
 
 QByteArray TestDLSPlusDecoder::createTestDescriptor(
-    eti::dls_plus::DLSPlusTag tag,
+    eti::dls_plus::ContentType tag,
     uint8_t start,
     uint8_t length)
 {
     QByteArray descriptor(4, 0);
-    uint8_t tag_value = tag.content_type;
+    uint8_t tag_value = static_cast<uint8_t>(tag);
     uint8_t content_id = 0; // Simple content ID for testing
     
     // ETSI TS 102 980 Section 4: DLS+ descriptor encoding
