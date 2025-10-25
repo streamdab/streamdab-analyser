@@ -23,6 +23,12 @@ ETIReaderThread::ETIReaderThread(QObject *parent)
     qRegisterMetaType<QSharedPointer<FICDataSignal>>("QSharedPointer<FICDataSignal>");
     qRegisterMetaType<QSharedPointer<MSCData>>("QSharedPointer<MSCData>");
     qRegisterMetaType<ErrorStats>("ErrorStats");
+    
+    // Phase D: Start throttling timers
+    m_frameCounterThrottle.start();
+    m_figDataThrottle.start();
+    m_errorStatsThrottle.start();
+    m_mscDataThrottle.start();
 }
 
 ETIReaderThread::~ETIReaderThread()
@@ -191,17 +197,40 @@ void ETIReaderThread::processNextFrame()
             m_currentFrame++;
             m_framesProcessed++;
             
-            // Emit frame received signal
+            // Phase B: Emit legacy frame received signal (for backward compatibility)
             emit frameReceived(m_currentFrame);
             
-            // Note: The EnhancedETIProcessorQt emits its own signals:
-            // - frameProcessed(ProcessedFrame)
-            // - figDiscovered(FIGInfo)
-            // The widgets connect to those signals directly
+            // Phase D: Emit throttled specialized signals (Pattern 7 + Pattern 8)
             
-            // For Phase A, we just forward basic frame count
-            // Phase B will add DLS+ extraction
-            // Phase C will add live streaming
+            // Frame counter update (5 fps throttle)
+            if (m_frameCounterThrottle.elapsed() >= FRAME_COUNTER_INTERVAL_MS) {
+                emit frameCounterUpdated(m_currentFrame);
+                m_frameCounterThrottle.restart();
+            }
+            
+            // FIG data update (1 fps throttle)
+            if (m_figDataThrottle.elapsed() >= FIG_DATA_INTERVAL_MS) {
+                auto figData = extractFICData();
+                if (figData) {
+                    emit figDataReady(figData);
+                }
+                m_figDataThrottle.restart();
+            }
+            
+            // Error statistics update (0.5 fps throttle)
+            if (m_errorStatsThrottle.elapsed() >= ERROR_STATS_INTERVAL_MS) {
+                emit errorStatsReady(m_errorStats);
+                m_errorStatsThrottle.restart();
+            }
+            
+            // MSC data update (2 fps throttle)
+            if (m_mscDataThrottle.elapsed() >= MSC_DATA_INTERVAL_MS) {
+                auto mscData = extractMSCData();
+                if (mscData) {
+                    emit mscDataReady(mscData);
+                }
+                m_mscDataThrottle.restart();
+            }
         }
     }
 }
