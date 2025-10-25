@@ -11,6 +11,8 @@
 #include <QList>
 #include <QVector>
 #include <QFile>
+#include <QUdpSocket>          // Phase C: UDP streaming support
+#include <QHostAddress>        // Phase C: Multicast support
 #include <memory>
 #include "eti_types.h"
 
@@ -61,6 +63,13 @@ public:
     void setInputMode(InputMode mode);
     int getFramesProcessed() const { return m_framesProcessed; }
     int getProcessingTimeMs() const { return m_processingTimeMs; }
+    
+    // Phase C: UDP configuration methods
+    void setUDPPort(quint16 port);
+    void setMulticastAddress(const QString& address);
+    void setUseMulticast(bool enable);
+    int getPacketsReceived() const { return m_packetsReceived; }
+    int getPacketsLost() const { return m_packetsLost; }
 
 public slots:
     void startProcessing();
@@ -112,8 +121,14 @@ private:
     QString m_filePath;
     QFile m_file;
 
-    QString m_udpAddress;
+    // Phase C: UDP streaming members
+    QUdpSocket* m_udpSocket;
+    QString m_multicastAddress;
     quint16 m_udpPort;
+    bool m_useMulticast;
+    QByteArray m_networkBuffer;
+    int m_packetsReceived;
+    int m_packetsLost;
 
     quint32 m_currentFrame;
     int m_framesProcessed;
