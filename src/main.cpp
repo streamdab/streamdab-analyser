@@ -2354,6 +2354,18 @@ private:
         QGroupBox* errorCounterPanel = createErrorDetectionPanel();
         layout->addWidget(errorCounterPanel);
 
+        // Timing Panel (DATA_AVAILABILITY_MATRIX.md item #12)
+        QGroupBox* timingPanel = createTimingPanel();
+        layout->addWidget(timingPanel);
+
+        // CU Usage Chart (DATA_AVAILABILITY_MATRIX.md item #13)
+        QGroupBox* cuUsagePanel = createCUUsagePanel();
+        layout->addWidget(cuUsagePanel);
+
+        // Stream Statistics (DATA_AVAILABILITY_MATRIX.md item #14)
+        QGroupBox* streamStatsPanel = createStreamStatisticsPanel();
+        layout->addWidget(streamStatsPanel);
+
         return panel;
     }
 
@@ -2749,6 +2761,111 @@ private:
         m_lastUpdatedLabel->setAlignment(Qt::AlignRight);
         layout->addWidget(m_lastUpdatedLabel);
         
+        return groupBox;
+    }
+
+    // ========================================================================
+    // ADDITIONAL HELPER METHODS: TIMING, CU USAGE, STREAM STATISTICS
+    // ========================================================================
+    // Items #12-14 from DATA_AVAILABILITY_MATRIX.md (RIGHT Panel)
+
+    QGroupBox* createTimingPanel()
+    {
+        QGroupBox* groupBox = new QGroupBox("Timing");
+        QVBoxLayout* layout = new QVBoxLayout(groupBox);
+        layout->setContentsMargins(4, 8, 4, 4);
+        
+        m_timingTable = new QTableWidget(4, 2);
+        m_timingTable->setHorizontalHeaderLabels({"Property", "Value"});
+        m_timingTable->verticalHeader()->setVisible(false);
+        m_timingTable->setAlternatingRowColors(true);
+        m_timingTable->horizontalHeader()->setStretchLastSection(true);
+        m_timingTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        m_timingTable->setMaximumHeight(150);
+        
+        // Initialize timing properties
+        QStringList properties = {
+            "FCT = 0 (µs)", "Step (µs)", "FCT = 0 (ticks)", "Step (ticks)"
+        };
+        for (int i = 0; i < properties.size(); ++i) {
+            QTableWidgetItem* propItem = new QTableWidgetItem(properties[i]);
+            propItem->setFont(QFont("Segoe UI", 9, QFont::Bold));
+            m_timingTable->setItem(i, 0, propItem);
+            
+            QTableWidgetItem* valItem = new QTableWidgetItem("--");
+            valItem->setFont(QFont("Consolas", 9));
+            m_timingTable->setItem(i, 1, valItem);
+        }
+        
+        layout->addWidget(m_timingTable);
+        return groupBox;
+    }
+
+    QGroupBox* createCUUsagePanel()
+    {
+        QGroupBox* groupBox = new QGroupBox("CU Usage");
+        QVBoxLayout* layout = new QVBoxLayout(groupBox);
+        layout->setContentsMargins(4, 8, 4, 4);
+        
+        // Simple implementation: Progress bar showing X / 864 CUs
+        QLabel* cuLabel = new QLabel("Capacity Units:");
+        cuLabel->setStyleSheet("font-weight: bold;");
+        layout->addWidget(cuLabel);
+        
+        m_cuUsageBar = new QProgressBar();
+        m_cuUsageBar->setMaximum(864);  // Mode 1 max CUs
+        m_cuUsageBar->setValue(0);
+        m_cuUsageBar->setFormat("%v / %m CUs (%p%)");
+        m_cuUsageBar->setTextVisible(true);
+        layout->addWidget(m_cuUsageBar);
+        
+        m_cuUsageLabel = new QLabel("0 subchannels active");
+        m_cuUsageLabel->setStyleSheet("color: #666; font-size: 9pt;");
+        layout->addWidget(m_cuUsageLabel);
+        
+        layout->addStretch();
+        return groupBox;
+    }
+
+    QGroupBox* createStreamStatisticsPanel()
+    {
+        QGroupBox* groupBox = new QGroupBox("DAB Stream Statistics");
+        QVBoxLayout* layout = new QVBoxLayout(groupBox);
+        layout->setContentsMargins(4, 8, 4, 4);
+        
+        m_streamStatsTable = new QTableWidget(10, 2);
+        m_streamStatsTable->setHorizontalHeaderLabels({"Metric", "Value"});
+        m_streamStatsTable->verticalHeader()->setVisible(false);
+        m_streamStatsTable->setAlternatingRowColors(true);
+        m_streamStatsTable->horizontalHeader()->setStretchLastSection(true);
+        m_streamStatsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        
+        // Initialize stream statistics metrics
+        QStringList metrics = {
+            "FIC Blocks Processed",
+            "Total FIG Count",
+            "Unique Services Found",
+            "Active Subchannels",
+            "Total CU Used / 864",
+            "DAB Services Count",
+            "DAB+ Services Count",
+            "Data Services Count",
+            "Average Frame Rate",
+            "Processing Time (ms)"
+        };
+        
+        for (int i = 0; i < metrics.size(); ++i) {
+            QTableWidgetItem* metricItem = new QTableWidgetItem(metrics[i]);
+            metricItem->setFont(QFont("Segoe UI", 9));
+            m_streamStatsTable->setItem(i, 0, metricItem);
+            
+            QTableWidgetItem* valItem = new QTableWidgetItem("0");
+            valItem->setFont(QFont("Consolas", 9, QFont::Bold));
+            valItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            m_streamStatsTable->setItem(i, 1, valItem);
+        }
+        
+        layout->addWidget(m_streamStatsTable);
         return groupBox;
     }
 
@@ -3985,6 +4102,10 @@ private:
     QLabel* m_frameDetails;  // OBSOLETE - replaced by m_etiExplorerDetails
     QTableWidget* m_etiExplorerDetails;  // NEW: ETI Explorer Details table (Tab 1)
     QTableWidget* m_subchannelTable;  // NEW: Subchannel Organization table (Tab 1 Center Panel)
+    QTableWidget* m_timingTable;  // NEW: Timing table (Tab 1 Right Panel - item #12)
+    QProgressBar* m_cuUsageBar;  // NEW: CU Usage progress bar (Tab 1 Right Panel - item #13)
+    QLabel* m_cuUsageLabel;  // NEW: CU Usage label (Tab 1 Right Panel - item #13)
+    QTableWidget* m_streamStatsTable;  // NEW: Stream Statistics table (Tab 1 Right Panel - item #14)
     
     // Professional FIC Analysis Hub widgets
     QTreeWidget* m_figAnalysisResults;
