@@ -691,133 +691,7 @@ private slots:
         m_complianceViewer->setHtml(html);
     }
     
-    // Multi-stream processing slots
-    void onAddStreamClicked()
-    {
-        QString fileName = QFileDialog::getOpenFileName(this, 
-            "Add ETI Stream", "", "ETI Files (*.eti);;All Files (*)");
-        
-        if (!fileName.isEmpty()) {
-            QString streamId = m_multiStreamProcessor->addETIStream(fileName);
-            if (!streamId.isEmpty()) {
-                if (m_systemMessages) {
-                    m_systemMessages->append(QString("📡 Added ETI stream: %1").arg(QFileInfo(fileName).baseName()));
-                }
-            }
-        }
-    }
-    
-    void onRemoveStreamClicked()
-    {
-        QTreeWidgetItem* selectedItem = m_activeStreamsTree->currentItem();
-        if (selectedItem) {
-            QString streamId = selectedItem->data(0, Qt::UserRole).toString();
-            if (m_multiStreamProcessor->removeETIStream(streamId)) {
-                if (m_systemMessages) {
-                    m_systemMessages->append(QString("❌ Removed ETI stream: %1").arg(selectedItem->text(0)));
-                }
-            }
-        }
-    }
-    
-    void onStartProcessingClicked()
-    {
-        m_multiStreamProcessor->startParallelProcessing();
-        if (m_systemMessages) {
-            m_systemMessages->append("🚀 Started parallel multi-stream processing");
-        }
-    }
-    
-    void onStopProcessingClicked()
-    {
-        m_multiStreamProcessor->stopParallelProcessing();
-        if (m_systemMessages) {
-            m_systemMessages->append("⏹️ Stopped parallel multi-stream processing");
-        }
-    }
-    
-    void onCompareStreamsClicked()
-    {
-        multistream::ComparativeAnalysisResult result = m_multiStreamProcessor->compareAllStreams();
-        displayComparativeAnalysis(result);
-    }
-    
-    void onStreamAdded(const QString& streamId, const multistream::ETIStreamInfo& info)
-    {
-        if (!m_activeStreamsTree) return;
-        
-        QTreeWidgetItem* item = new QTreeWidgetItem(m_activeStreamsTree);
-        item->setText(0, info.stream_name);
-        item->setText(1, info.file_path);
-        item->setText(2, QString::number(info.total_frames));
-        item->setText(3, QString("%1 MB").arg(info.file_size / 1024.0 / 1024.0, 0, 'f', 1));
-        item->setText(4, "Ready");
-        item->setText(5, "0%");
-        item->setData(0, Qt::UserRole, streamId);
-        
-        m_activeStreamsTree->resizeColumnToContents(0);
-        m_activeStreamsTree->resizeColumnToContents(1);
-    }
-    
-    void onStreamRemoved(const QString& streamId)
-    {
-        if (!m_activeStreamsTree) return;
-        
-        for (int i = 0; i < m_activeStreamsTree->topLevelItemCount(); i++) {
-            QTreeWidgetItem* item = m_activeStreamsTree->topLevelItem(i);
-            if (item && item->data(0, Qt::UserRole).toString() == streamId) {
-                delete m_activeStreamsTree->takeTopLevelItem(i);
-                break;
-            }
-        }
-    }
-    
-    void onStreamProcessingProgress(const QString& streamId, double progress)
-    {
-        if (!m_activeStreamsTree) return;
-        
-        for (int i = 0; i < m_activeStreamsTree->topLevelItemCount(); i++) {
-            QTreeWidgetItem* item = m_activeStreamsTree->topLevelItem(i);
-            if (item && item->data(0, Qt::UserRole).toString() == streamId) {
-                item->setText(4, "Processing");
-                item->setText(5, QString("%1%").arg(progress, 0, 'f', 1));
-                break;
-            }
-        }
-    }
-    
-    void onStreamProcessingCompleted(const QString& streamId, const multistream::StreamProcessingStats& stats)
-    {
-        if (!m_activeStreamsTree) return;
-        
-        QTreeWidgetItem* foundItem = nullptr;
-        for (int i = 0; i < m_activeStreamsTree->topLevelItemCount(); i++) {
-            QTreeWidgetItem* item = m_activeStreamsTree->topLevelItem(i);
-            if (item && item->data(0, Qt::UserRole).toString() == streamId) {
-                item->setText(4, "Completed");
-                item->setText(5, "100%");
-                foundItem = item;
-                break;
-            }
-        }
-        
-        if (m_systemMessages && foundItem) {
-            m_systemMessages->append(QString("✅ Completed processing stream: %1 (%2 frames at %3 FPS)")
-                                   .arg(foundItem->text(0))
-                                   .arg(stats.frames_processed)
-                                   .arg(stats.fps_rate, 0, 'f', 1));
-        }
-    }
-    
-    void onComparativeAnalysisCompleted(const multistream::ComparativeAnalysisResult& result)
-    {
-        displayComparativeAnalysis(result);
-        
-        if (m_systemMessages) {
-            m_systemMessages->append(QString("📊 Comparative analysis completed for %1 streams")
-                                   .arg(result.compared_streams.size()));
-        }
-    }
+    // NOTE: Multi-stream processing methods removed - moved to Phase 5 (FUTURE_FEATURES.md)
     
     // Live Stream Input Panel slots
     void onSourceTypeChanged(bool networkSelected)
@@ -1212,73 +1086,7 @@ private slots:
         loadETIFile(filePath);
     }
     
-    void displayComparativeAnalysis(const multistream::ComparativeAnalysisResult& result)
-    {
-        if (!m_comparativeResults) return;
-        
-        QString html = "<html><head><style>"
-                      "body { font-family: 'Consolas', monospace; font-size: 10px; }"
-                      ".header { background-color: #e6f3ff; padding: 8px; font-weight: bold; }"
-                      ".synchronized { color: #28a745; font-weight: bold; }"
-                      ".not-synchronized { color: #dc3545; font-weight: bold; }"
-                      ".stream-info { margin: 5px 0; padding: 5px; background-color: #f8f9fa; }"
-                      "</style></head><body>";
-        
-        html += QString("<div class='header'>Multi-stream Comparative Analysis</div>");
-        html += QString("<p><strong>Analysis ID:</strong> %1</p>").arg(result.analysis_id);
-        html += QString("<p><strong>Analysis Time:</strong> %1</p>").arg(result.analysis_time.toString());
-        html += QString("<p><strong>Streams Compared:</strong> %1</p>").arg(result.compared_streams.size());
-        
-        // Synchronization status
-        if (result.streams_synchronized) {
-            html += "<p><span class='synchronized'>✅ SYNCHRONIZED</span></p>";
-        } else {
-            html += "<p><span class='not-synchronized'>❌ NOT SYNCHRONIZED</span></p>";
-        }
-        
-        // Frame count comparison
-        html += "<h4>Frame Count Comparison:</h4>";
-        for (const auto& pair : result.frame_counts) {
-            const QString& streamId = pair.first;
-            uint32_t frameCount = pair.second;
-            
-            // Find stream name from active streams
-            QString streamName = streamId;
-            for (int i = 0; i < m_activeStreamsTree->topLevelItemCount(); i++) {
-                QTreeWidgetItem* item = m_activeStreamsTree->topLevelItem(i);
-                if (item && item->data(0, Qt::UserRole).toString() == streamId) {
-                    streamName = item->text(0);
-                    break;
-                }
-            }
-            
-            html += QString("<div class='stream-info'>%1: %2 frames</div>")
-                   .arg(streamName).arg(frameCount);
-        }
-        
-        // Quality scores
-        html += "<h4>Stream Quality Scores:</h4>";
-        for (const auto& pair : result.quality_scores) {
-            const QString& streamId = pair.first;
-            double quality = pair.second;
-            
-            QString streamName = streamId;
-            for (int i = 0; i < m_activeStreamsTree->topLevelItemCount(); i++) {
-                QTreeWidgetItem* item = m_activeStreamsTree->topLevelItem(i);
-                if (item && item->data(0, Qt::UserRole).toString() == streamId) {
-                    streamName = item->text(0);
-                    break;
-                }
-            }
-            
-            html += QString("<div class='stream-info'>%1: %2%</div>")
-                   .arg(streamName).arg(quality, 0, 'f', 1);
-        }
-        
-        html += "</body></html>";
-        
-        m_comparativeResults->setHtml(html);
-    }
+    // NOTE: displayComparativeAnalysis removed - Multi-stream moved to Phase 5
     
     // Advanced Error Detection signal handlers
     void onEnableErrorDetection()
@@ -2122,9 +1930,8 @@ private:
         QWidget* tab3 = createTab3_FICExtractor();
         mainTabs->addTab(tab3, "📊 FIC-Extractor");
 
-        // Tab 4: Advanced Features (QUATERNARY - advanced capabilities)
-        QWidget* tab4 = createTab4_AdvancedFeatures();
-        mainTabs->addTab(tab4, "⚙️ Advanced Features");
+        // NOTE: Tab 4 (Advanced Features) removed - Multi-stream moved to Phase 5 (FUTURE_FEATURES.md)
+        //       Error Detection and Logging relocated to Tab 1 panels
 
         // Shared bottom panel (consistent across all tabs)
         QTabWidget* sharedBottomPanel = createSharedBottomPanel();
@@ -2618,66 +2425,13 @@ private:
     }
 
     // ========================================================================
-    // TAB 4: ADVANCED FEATURES (MULTI-STREAM, ERROR DETECTION, LOGGING)
+    // HELPER METHODS: ERROR DETECTION & LOGGING PANELS (Used in Tab 1)
     // ========================================================================
-    QWidget* createTab4_AdvancedFeatures()
+    // NOTE: These were previously in Tab 4, now integrated into Tab 1
+    
+    QGroupBox* createErrorDetectionPanel()
     {
-        QWidget* tab = new QWidget();
-        QVBoxLayout* mainLayout = new QVBoxLayout(tab);
-        mainLayout->setContentsMargins(4, 4, 4, 4);
-
-        QTabWidget* advancedTabs = new QTabWidget();
-
-        // Sub-Tab 1: Multi-stream Processing
-        QWidget* multiStreamTab = createTab4_MultiStream();
-        advancedTabs->addTab(multiStreamTab, "Multi-stream Processing");
-
-        // Sub-Tab 2: Advanced Error Detection
-        QWidget* errorDetectionTab = createTab4_ErrorDetection();
-        advancedTabs->addTab(errorDetectionTab, "Error Detection");
-
-        // Sub-Tab 3: Professional Logging
-        QWidget* loggingTab = createTab4_Logging();
-        advancedTabs->addTab(loggingTab, "Professional Logging");
-
-        mainLayout->addWidget(advancedTabs);
-        return tab;
-    }
-
-    QWidget* createTab4_MultiStream()
-    {
-        QWidget* widget = new QWidget();
-        QVBoxLayout* layout = new QVBoxLayout(widget);
-
-        QGroupBox* controlsGroup = new QGroupBox("Multi-stream Controls");
-        QHBoxLayout* controlsLayout = new QHBoxLayout(controlsGroup);
-        QPushButton* addStreamBtn = new QPushButton("Add Stream");
-        QPushButton* compareBtn = new QPushButton("Compare Streams");
-        controlsLayout->addWidget(addStreamBtn);
-        controlsLayout->addWidget(compareBtn);
-        controlsLayout->addStretch();
-        layout->addWidget(controlsGroup);
-
-        QGroupBox* streamsGroup = new QGroupBox("Active ETI Streams");
-        QVBoxLayout* streamsLayout = new QVBoxLayout(streamsGroup);
-        m_activeStreamsTree = new QTreeWidget();
-        m_activeStreamsTree->setHeaderLabels({"Stream", "File", "Status"});
-        streamsLayout->addWidget(m_activeStreamsTree);
-        layout->addWidget(streamsGroup);
-
-        QGroupBox* resultsGroup = new QGroupBox("Comparative Analysis");
-        QVBoxLayout* resultsLayout = new QVBoxLayout(resultsGroup);
-        m_comparativeResults = new QTextEdit();
-        m_comparativeResults->setReadOnly(true);
-        resultsLayout->addWidget(m_comparativeResults);
-        layout->addWidget(resultsGroup);
-
-        return widget;
-    }
-
-    QWidget* createTab4_ErrorDetection()
-    {
-        QWidget* widget = new QWidget();
+        QGroupBox* widget = new QGroupBox("DAB Error Counter");
         QVBoxLayout* layout = new QVBoxLayout(widget);
 
         QGroupBox* statusGroup = new QGroupBox("Error Detection Status");
@@ -2708,9 +2462,9 @@ private:
         return widget;
     }
 
-    QWidget* createTab4_Logging()
+    QGroupBox* createLoggingPanel()
     {
-        QWidget* widget = new QWidget();
+        QGroupBox* widget = new QGroupBox("Messages");
         QVBoxLayout* layout = new QVBoxLayout(widget);
 
         QGroupBox* statusGroup = new QGroupBox("Logging System Status");
@@ -3164,83 +2918,7 @@ private:
         return widget;
     }
     
-    QWidget* createMultiStreamTab()
-    {
-        QWidget* multiStreamTab = new QWidget();
-        QVBoxLayout* layout = new QVBoxLayout(multiStreamTab);
-        
-        // Multi-stream controls section
-        QGroupBox* controlsGroup = new QGroupBox("Multi-stream Processing Controls");
-        QHBoxLayout* controlsLayout = new QHBoxLayout(controlsGroup);
-        
-        // Stream management buttons
-        QPushButton* addStreamBtn = new QPushButton("Add ETI Stream");
-        QPushButton* removeStreamBtn = new QPushButton("Remove Stream");
-        QPushButton* startProcessingBtn = new QPushButton("Start Parallel Processing");
-        QPushButton* stopProcessingBtn = new QPushButton("Stop Processing");
-        QPushButton* compareStreamsBtn = new QPushButton("Compare All Streams");
-        
-        controlsLayout->addWidget(addStreamBtn);
-        controlsLayout->addWidget(removeStreamBtn);
-        controlsLayout->addWidget(startProcessingBtn);
-        controlsLayout->addWidget(stopProcessingBtn);
-        controlsLayout->addWidget(compareStreamsBtn);
-        controlsLayout->addStretch();
-        
-        layout->addWidget(controlsGroup);
-        
-        // Active streams display
-        QGroupBox* streamsGroup = new QGroupBox("Active ETI Streams");
-        QVBoxLayout* streamsLayout = new QVBoxLayout(streamsGroup);
-        
-        m_activeStreamsTree = new QTreeWidget();
-        m_activeStreamsTree->setHeaderLabels({"Stream Name", "File Path", "Frames", "Size", "Status", "Progress"});
-        m_activeStreamsTree->setAlternatingRowColors(true);
-        streamsLayout->addWidget(m_activeStreamsTree);
-        
-        layout->addWidget(streamsGroup);
-        
-        // Comparative analysis results
-        QGroupBox* analysisGroup = new QGroupBox("Comparative Analysis Results");
-        QVBoxLayout* analysisLayout = new QVBoxLayout(analysisGroup);
-        
-        m_comparativeResults = new QTextEdit();
-        m_comparativeResults->setFont(QFont("Consolas", 9));
-        m_comparativeResults->setPlaceholderText("Comparative analysis results will appear here...");
-        m_comparativeResults->setMaximumHeight(200);
-        analysisLayout->addWidget(m_comparativeResults);
-        
-        layout->addWidget(analysisGroup);
-        
-        // Multi-stream processor signal connections (immediate, no timer)
-        if (m_multiStreamProcessor) {
-            connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamAdded,
-                    this, &DABAnalyzerWindow::onStreamAdded,
-                    Qt::QueuedConnection);
-            connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamRemoved,
-                    this, &DABAnalyzerWindow::onStreamRemoved,
-                    Qt::QueuedConnection);
-            connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamProcessingProgress,
-                    this, &DABAnalyzerWindow::onStreamProcessingProgress,
-                    Qt::QueuedConnection);
-            connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::streamProcessingCompleted,
-                    this, &DABAnalyzerWindow::onStreamProcessingCompleted,
-                    Qt::QueuedConnection);
-            connect(m_multiStreamProcessor.get(), &multistream::MultiStreamProcessor::comparativeAnalysisCompleted,
-                    this, &DABAnalyzerWindow::onComparativeAnalysisCompleted,
-                    Qt::QueuedConnection);
-            qDebug() << "Multi-stream processor signals connected immediately";
-        }
-        
-        // Connect button signals
-        connect(addStreamBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onAddStreamClicked);
-        connect(removeStreamBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onRemoveStreamClicked);
-        connect(startProcessingBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onStartProcessingClicked);
-        connect(stopProcessingBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onStopProcessingClicked);
-        connect(compareStreamsBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onCompareStreamsClicked);
-        
-        return multiStreamTab;
-    }
+    // NOTE: createMultiStreamTab() removed - Multi-stream moved to Phase 5 (FUTURE_FEATURES.md)
 
     QWidget* createErrorDetectionTab()
     {
@@ -4261,11 +3939,9 @@ private:
     QTextEdit* m_complianceViewer;
     QTextEdit* m_systemMessages;
     
-    // Multi-stream UI components
-    QTreeWidget* m_activeStreamsTree;
-    QTextEdit* m_comparativeResults;
+    // NOTE: Multi-stream components removed - moved to Phase 5 (see docs/FUTURE_FEATURES.md)
     
-    // Advanced Error Detection UI components
+    // Advanced Error Detection UI components (relocated to Tab 1 Right Panel)
     QLabel* m_errorDetectionStatus;
     QLabel* m_systemHealthScore;
     QLabel* m_errorCountLabel;
