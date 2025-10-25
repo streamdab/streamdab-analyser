@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 message(STATUS "=== Simplified Test Framework - PDCA Workflow ===")
 
 # Find Qt6 Test module
-find_package(Qt6 REQUIRED COMPONENTS Test Core Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Test Core Widgets Network)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,6 +51,8 @@ target_link_libraries(test_eti_frame_parser
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
+    Qt6::Network
     pthread
 )
 add_test(NAME test_eti_frame_parser COMMAND test_eti_frame_parser)
@@ -64,6 +66,7 @@ target_link_libraries(test_fig0_processor
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     pthread
 )
 add_test(NAME test_fig0_processor COMMAND test_fig0_processor)
@@ -77,6 +80,7 @@ target_link_libraries(test_fig1_processor
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     pthread
 )
 add_test(NAME test_fig1_processor COMMAND test_fig1_processor)
@@ -90,6 +94,7 @@ target_link_libraries(test_eti_li_crc_validation
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     pthread
 )
 add_test(NAME test_eti_li_crc_validation COMMAND test_eti_li_crc_validation)
@@ -104,6 +109,7 @@ target_link_libraries(test_mot_protocol
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     pthread
 )
 add_test(NAME test_mot_protocol COMMAND test_mot_protocol)
@@ -117,6 +123,7 @@ target_link_libraries(test_epg_decoder
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     pthread
 )
 add_test(NAME test_epg_decoder COMMAND test_epg_decoder)
@@ -130,6 +137,7 @@ target_link_libraries(test_epg_pipeline
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     pthread
 )
 add_test(NAME test_epg_pipeline COMMAND test_epg_pipeline)
@@ -143,6 +151,7 @@ target_link_libraries(test_journaline_decoder
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     pthread
 )
 add_test(NAME test_journaline_decoder COMMAND test_journaline_decoder)
@@ -156,6 +165,7 @@ target_link_libraries(test_journaline_pipeline
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     pthread
 )
 add_test(NAME test_journaline_pipeline COMMAND test_journaline_pipeline)
@@ -170,6 +180,7 @@ target_link_libraries(test_dls_plus_decoder
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     pthread
 )
 add_test(NAME test_dls_plus_decoder COMMAND test_dls_plus_decoder)
@@ -187,6 +198,7 @@ target_link_libraries(test_eti_reader_thread
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     pthread
     gtest
     gtest_main
@@ -206,6 +218,7 @@ target_link_libraries(test_shared_eti_data
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     pthread
     gtest
     gtest_main
@@ -241,6 +254,7 @@ target_link_libraries(test_eti_explorer
     Qt6::Test
     Qt6::Widgets
     Qt6::Core
+    Qt6::Network
 )
 target_include_directories(test_eti_explorer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
@@ -261,6 +275,7 @@ target_link_libraries(test_service_list
     Qt6::Test
     Qt6::Widgets
     Qt6::Core
+    Qt6::Network
 )
 target_include_directories(test_service_list PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
@@ -281,6 +296,7 @@ target_link_libraries(test_frame_viewer
     Qt6::Test
     Qt6::Widgets
     Qt6::Core
+    Qt6::Network
 )
 target_include_directories(test_frame_viewer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
@@ -301,6 +317,7 @@ target_link_libraries(test_fig_extractor
     Qt6::Test
     Qt6::Widgets
     Qt6::Core
+    Qt6::Network
 )
 target_include_directories(test_fig_extractor PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
@@ -364,6 +381,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/e2e/test_phase3a_complete_pipeline.cpp")
         Qt6::Test Qt6::Core Qt6::Widgets pthread
     )
     target_include_directories(test_phase3a_complete_pipeline PRIVATE
+    Qt6::Network
         ${CMAKE_CURRENT_SOURCE_DIR}/../src
         ${CMAKE_CURRENT_SOURCE_DIR}/../include
         ${CMAKE_CURRENT_SOURCE_DIR}/integration
@@ -384,6 +402,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/e2e/test_phase3a_complete_pipeline.cpp")
         Qt6::Core Qt6::Widgets pthread
     )
     target_include_directories(performance_benchmark PRIVATE
+    Qt6::Network
         ${CMAKE_CURRENT_SOURCE_DIR}/../src
         ${CMAKE_CURRENT_SOURCE_DIR}/../include
     )
@@ -405,6 +424,7 @@ target_link_libraries(test_segfault_fixes
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     pthread
 )
 add_test(NAME test_segfault_fixes COMMAND test_segfault_fixes)
