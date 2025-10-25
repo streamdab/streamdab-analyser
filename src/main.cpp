@@ -4075,119 +4075,122 @@ private:
     ETIReaderThread* m_readerThread = nullptr;
 
     // UI components
-    QTreeWidget* m_ensembleTree;
-    QListWidget* m_frameList;
-    QTextEdit* m_hexViewer;
-    QTextEdit* m_complianceViewer;
-    QTextEdit* m_systemMessages;
+    QTreeWidget* m_ensembleTree = nullptr;
+    QListWidget* m_frameList = nullptr;
+    QTextEdit* m_hexViewer = nullptr;
+    QTextEdit* m_complianceViewer = nullptr;
+    QTextEdit* m_systemMessages = nullptr;
     
     // NOTE: Multi-stream components removed - moved to Phase 5 (see docs/FUTURE_FEATURES.md)
     
     // Advanced Error Detection UI components (relocated to Tab 1 Right Panel)
-    QLabel* m_errorDetectionStatus;
-    QLabel* m_systemHealthScore;
-    QLabel* m_errorCountLabel;
-    QTreeWidget* m_errorHistoryTree;
-    QTextEdit* m_errorPatternsDisplay;
+    QLabel* m_errorDetectionStatus = nullptr;
+    QLabel* m_systemHealthScore = nullptr;
+    QLabel* m_errorCountLabel = nullptr;
+    QTreeWidget* m_errorHistoryTree = nullptr;
+    QTextEdit* m_errorPatternsDisplay = nullptr;
     
     // Professional Logging UI components
-    QLabel* m_loggingStatus;
-    QLabel* m_loggingLevel;
-    QLabel* m_logCountLabel;
-    QLabel* m_sessionIdLabel;
-    QComboBox* m_logLevelFilter;
-    QComboBox* m_logCategoryFilter;
-    QTreeWidget* m_logEntriesTree;
-    QTextEdit* m_loggingStatsDisplay;
-    QLabel* m_frameDetails;  // OBSOLETE - replaced by m_etiExplorerDetails
-    QTableWidget* m_etiExplorerDetails;  // NEW: ETI Explorer Details table (Tab 1)
-    QTableWidget* m_subchannelTable;  // NEW: Subchannel Organization table (Tab 1 Center Panel)
-    QTableWidget* m_timingTable;  // NEW: Timing table (Tab 1 Right Panel - item #12)
-    QProgressBar* m_cuUsageBar;  // NEW: CU Usage progress bar (Tab 1 Right Panel - item #13)
-    QLabel* m_cuUsageLabel;  // NEW: CU Usage label (Tab 1 Right Panel - item #13)
-    QTableWidget* m_streamStatsTable;  // NEW: Stream Statistics table (Tab 1 Right Panel - item #14)
+    QLabel* m_loggingStatus = nullptr;
+    QLabel* m_loggingLevel = nullptr;
+    QLabel* m_logCountLabel = nullptr;
+    QLabel* m_sessionIdLabel = nullptr;
+    QComboBox* m_logLevelFilter = nullptr;
+    QComboBox* m_logCategoryFilter = nullptr;
+    QTreeWidget* m_logEntriesTree = nullptr;
+    QTextEdit* m_loggingStatsDisplay = nullptr;
+    QLabel* m_frameDetails = nullptr;  // OBSOLETE - replaced by m_etiExplorerDetails
+    QTableWidget* m_etiExplorerDetails = nullptr;  // NEW: ETI Explorer Details table (Tab 1)
+    QTableWidget* m_subchannelTable = nullptr;  // NEW: Subchannel Organization table (Tab 1 Center Panel)
+    QTableWidget* m_timingTable = nullptr;  // NEW: Timing table (Tab 1 Right Panel - item #12)
+    QProgressBar* m_cuUsageBar = nullptr;  // NEW: CU Usage progress bar (Tab 1 Right Panel - item #13)
+    QLabel* m_cuUsageLabel = nullptr;  // NEW: CU Usage label (Tab 1 Right Panel - item #13)
+    QTableWidget* m_streamStatsTable = nullptr;  // NEW: Stream Statistics table (Tab 1 Right Panel - item #14)
+    
+    // Now Playing (DLS+) widgets (Tab 1 Right Panel - item #9)
+    QLabel* m_trackLabel = nullptr;
+    QLabel* m_artistLabel = nullptr;
+    QLabel* m_albumLabel = nullptr;
+    QLabel* m_lastUpdatedLabel = nullptr;
+    
+    // Live Stream Input widgets (Tab 1 Center Panel)
+    QLabel* m_streamFrameRate = nullptr;
+    QLabel* m_streamFramesReceived = nullptr;
+    QLabel* m_streamFrameLoss = nullptr;
+    QLabel* m_streamLatency = nullptr;
+    QLabel* m_streamBuffer = nullptr;
+    QLabel* m_streamDataRate = nullptr;
+    QLabel* m_streamUptime = nullptr;
+    QTimer* m_statsTimer = nullptr;
     
     // Professional FIC Analysis Hub widgets
-    QTreeWidget* m_figAnalysisResults;
-    QTextEdit* m_figAnalysisDetails;
-    QComboBox* m_figTypeFilter;
-    QCheckBox* m_enableFig0Analysis;
-    QCheckBox* m_enableFig1Analysis;
-    QCheckBox* m_figType00;
-    QCheckBox* m_figType01;
-    QCheckBox* m_figType02;
-    QCheckBox* m_figType03;
-    QCheckBox* m_figType10;
-    QCheckBox* m_figType11;
-    QCheckBox* m_figType14;
-    QSpinBox* m_analysisDepthControl;
-    QProgressBar* m_analysisProgress;
+    QTreeWidget* m_figAnalysisResults = nullptr;
+    QTextEdit* m_figAnalysisDetails = nullptr;
+    QComboBox* m_figTypeFilter = nullptr;
+    QCheckBox* m_enableFig0Analysis = nullptr;
+    QCheckBox* m_enableFig1Analysis = nullptr;
+    QCheckBox* m_figType00 = nullptr;
+    QCheckBox* m_figType01 = nullptr;
+    QCheckBox* m_figType02 = nullptr;
+    QCheckBox* m_figType03 = nullptr;
+    QCheckBox* m_figType10 = nullptr;
+    QCheckBox* m_figType11 = nullptr;
+    QCheckBox* m_figType14 = nullptr;
+    QSpinBox* m_analysisDepthControl = nullptr;
+    QProgressBar* m_analysisProgress = nullptr;
     
     // FIC-Extractor widgets
-    QTreeWidget* m_hierarchicalServiceTree;
-    QTextEdit* m_extractedServiceLabels;
-    QTextEdit* m_extractedProgramTypes;
-    QTextEdit* m_extractedProgrammeInfo;
-    QListWidget* m_extractedFrequencies;
-    QTextEdit* m_extractedTimeDate;
-    QLabel* m_extractedTimeInfo;
+    QTreeWidget* m_hierarchicalServiceTree = nullptr;
+    QTextEdit* m_extractedServiceLabels = nullptr;
+    QTextEdit* m_extractedProgramTypes = nullptr;
+    QTextEdit* m_extractedProgrammeInfo = nullptr;
+    QListWidget* m_extractedFrequencies = nullptr;
+    QTextEdit* m_extractedTimeDate = nullptr;
+    QLabel* m_extractedTimeInfo = nullptr;
     
     // Performance Dashboard widgets
-    QLabel* m_fpsCounter;
-    QLabel* m_fpsLabel;
-    QLabel* m_memoryUsage;
-    QLabel* m_memoryLabel;
-    QProgressBar* m_etsiCompliance;
-    QProgressBar* m_complianceScore;
-    QLabel* m_frameRate;
-    QLabel* m_frameRateLabel;
-    QLabel* m_errorCount;
-    QLabel* m_processingTimeLabel;
-    QLabel* m_complianceLabel;
+    QLabel* m_fpsCounter = nullptr;
+    QLabel* m_fpsLabel = nullptr;
+    QLabel* m_memoryUsage = nullptr;
+    QLabel* m_memoryLabel = nullptr;
+    QProgressBar* m_etsiCompliance = nullptr;
+    QProgressBar* m_complianceScore = nullptr;
+    QLabel* m_frameRate = nullptr;
+    QLabel* m_frameRateLabel = nullptr;
+    QLabel* m_errorCount = nullptr;
+    QLabel* m_processingTimeLabel = nullptr;
+    QLabel* m_complianceLabel = nullptr;
     
     // System Messages widgets (enhanced)
-    QComboBox* m_messageFilter;
+    QComboBox* m_messageFilter = nullptr;
     
     // Constellation Viewer widgets
-    QWidget* m_constellationDisplay;
+    QWidget* m_constellationDisplay = nullptr;
     
     // Additional UI state widgets
-    QLabel* m_serviceInfo;
-    QLabel* m_frameCountLabel;
-    QProgressBar* m_progressBar;
-    QProgressBar* m_qualityMeter;
-    
-    // Phase 3B: DLS+ "Now Playing" UI components
-    QLabel* m_trackLabel;
-    QLabel* m_artistLabel;
-    QLabel* m_albumLabel;
-    QLabel* m_lastUpdatedLabel;
+    QLabel* m_serviceInfo = nullptr;
+    QLabel* m_frameCountLabel = nullptr;
+    QProgressBar* m_progressBar = nullptr;
+    QProgressBar* m_qualityMeter = nullptr;
     
     // Phase 3B: DLS+ decoder instance
     eti::dls_plus::DLSPlusDecoder* m_dlsPlusDecoder{nullptr};
     
     // Live Stream Input Panel widgets
-    QRadioButton* m_fileSourceRadio;
-    QRadioButton* m_networkSourceRadio;
-    QStackedWidget* m_sourceInputStack;
-    QLineEdit* m_filePathEdit;
-    QPushButton* m_browseFileButton;
-    QPushButton* m_loadFileButton;
-    QLineEdit* m_streamUrlEdit;
-    QComboBox* m_quickExampleCombo;
-    QPushButton* m_connectBtn;
-    QPushButton* m_disconnectBtn;
-    QLabel* m_streamStatus;
+    QRadioButton* m_fileSourceRadio = nullptr;
+    QRadioButton* m_networkSourceRadio = nullptr;
+    QStackedWidget* m_sourceInputStack = nullptr;
+    QLineEdit* m_filePathEdit = nullptr;
+    QPushButton* m_browseFileButton = nullptr;
+    QPushButton* m_loadFileButton = nullptr;
+    QLineEdit* m_streamUrlEdit = nullptr;
+    QComboBox* m_quickExampleCombo = nullptr;
+    QPushButton* m_connectBtn = nullptr;
+    QPushButton* m_disconnectBtn = nullptr;
+    QPushButton* m_recordBtn = nullptr;
+    QLabel* m_streamStatus = nullptr;
     
-    // Stream statistics labels
-    QLabel* m_streamFrameRate;
-    QLabel* m_streamFramesReceived;
-    QLabel* m_streamFrameLoss;
-    QLabel* m_streamLatency;
-    QLabel* m_streamBuffer;
-    QLabel* m_streamDataRate;
-    QLabel* m_streamUptime;
-    QTimer* m_statsTimer;
+    // NOTE: Stream statistics labels already declared above (lines 4114-4123)
 
     // Phase 4: Network stream receiver
     std::unique_ptr<eti::NetworkStreamReceiver> m_networkReceiver;
@@ -4197,7 +4200,6 @@ private:
     QFile m_recordingFile;
     bool m_isRecording{false};
     size_t m_recordedFrames{0};
-    QPushButton* m_recordBtn{nullptr};
 
     // State
     QString m_currentFilePath;
