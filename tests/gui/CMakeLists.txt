@@ -101,13 +101,38 @@ set_tests_properties(GUI_ETI_Loading_Crash PROPERTIES
 message(STATUS "  ✓ test_eti_loading_crash configured (E2E crash reproduction test)")
 
 # ============================================================================
+# GUI TEST 3: E2E GUI Click-Through Workflow Test
+# ============================================================================
+# This test simulates real user interactions - คลิกตาม step ด้วย QTest
+add_executable(test_gui_click_through_workflow
+    ../e2e_gui/test_gui_click_through_workflow.cpp
+)
+target_link_libraries(test_gui_click_through_workflow ${GUI_TEST_LIBRARIES})
+set_target_properties(test_gui_click_through_workflow PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/gui"
+)
+add_test(
+    NAME GUI_Click_Through_Workflow
+    COMMAND test_gui_click_through_workflow
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(GUI_Click_Through_Workflow PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60
+    LABELS "GUI;E2E;ClickThrough"
+)
+
+message(STATUS "  ✓ test_gui_click_through_workflow configured (E2E user interaction simulation)")
+
+# ============================================================================
 # Additional GUI tests can be added here following the same pattern
 # ============================================================================
 
 # Note: Starting with basic framework test to validate Qt GUI infrastructure
 # Full DABAnalyzerWindow testing requires integration test approach (see documentation)
 
-message(STATUS "GUI tests configured: 2 tests enabled")
+message(STATUS "GUI tests configured: 3 tests enabled")
 message(STATUS "  - test_gui_framework_basic (Qt infrastructure)")
 message(STATUS "  - test_eti_loading_crash (E2E crash test)")
+message(STATUS "  - test_gui_click_through_workflow (E2E click simulation)")
 message(STATUS "Run with: cd build && ctest -R GUI -V")
