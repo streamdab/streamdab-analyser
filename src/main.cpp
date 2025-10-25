@@ -30,6 +30,10 @@
 #include <QStackedWidget>
 #include <QGridLayout>
 #include <QButtonGroup>
+#include <QDialog>              // Phase C: UDP settings dialog
+#include <QFormLayout>          // Phase C: UDP settings dialog
+#include <QDialogButtonBox>     // Phase C: UDP settings dialog
+#include <QActionGroup>         // Phase C: Input menu radio group
 #include <chrono>
 #include <memory>
 #include <map>
@@ -3459,6 +3463,44 @@ private:
         QAction* exitAction = fileMenu->addAction("Exit");
         connect(exitAction, &QAction::triggered, this, &QWidget::close);
         
+        // Phase C: Input Source menu
+        QMenu* inputMenu = menuBar->addMenu("Input");
+        
+        QActionGroup* inputGroup = new QActionGroup(this);
+        
+        QAction* fileInputAction = new QAction("File Input", this);
+        fileInputAction->setCheckable(true);
+        fileInputAction->setChecked(true);  // Default to file mode
+        fileInputAction->setActionGroup(inputGroup);
+        
+        QAction* udpInputAction = new QAction("UDP Streaming", this);
+        udpInputAction->setCheckable(true);
+        udpInputAction->setActionGroup(inputGroup);
+        
+        inputMenu->addAction(fileInputAction);
+        inputMenu->addAction(udpInputAction);
+        inputMenu->addSeparator();
+        
+        QAction* udpSettingsAction = new QAction("UDP Settings...", this);
+        inputMenu->addAction(udpSettingsAction);
+        
+        // Phase C: Connect input mode actions
+        connect(fileInputAction, &QAction::triggered, [this]() {
+            if (m_readerThread) {
+                m_readerThread->setInputMode(ETIReaderThread::InputMode::FileMode);
+                qDebug() << "Phase C: Switched to File input mode";
+            }
+        });
+        
+        connect(udpInputAction, &QAction::triggered, [this]() {
+            if (m_readerThread) {
+                m_readerThread->setInputMode(ETIReaderThread::InputMode::UDPMode);
+                qDebug() << "Phase C: Switched to UDP input mode";
+            }
+        });
+        
+        connect(udpSettingsAction, &QAction::triggered, this, &DABAnalyzerWindow::showUDPSettings);
+        
         // View menu
         QMenu* viewMenu = menuBar->addMenu("View");
         viewMenu->addAction("Refresh Analysis");
@@ -3721,6 +3763,74 @@ private:
     void setupStatusBar()
     {
         statusBar()->showMessage("Ready - Open an ETI file to begin analysis");
+    }
+    
+    // Phase C: UDP Settings Dialog
+    void showUDPSettings()
+    {
+        QDialog dialog(this);
+        dialog.setWindowTitle("UDP Streaming Settings");
+        dialog.setMinimumWidth(400);
+        
+        QFormLayout* layout = new QFormLayout(&dialog);
+        
+        // Port setting
+        QSpinBox* portSpinBox = new QSpinBox(&dialog);
+        portSpinBox->setRange(1024, 65535);
+        portSpinBox->setValue(m_readerThread ? m_readerThread->getPacketsReceived() : 12000);
+        layout->addRow("UDP Port:", portSpinBox);
+        
+        // Multicast address
+        QLineEdit* addressEdit = new QLineEdit(&dialog);
+        addressEdit->setText("239.0.0.1");
+        addressEdit->setPlaceholderText("239.0.0.1");
+        layout->addRow("Multicast Address:", addressEdit);
+        
+        // Enable multicast checkbox
+        QCheckBox* multicastCheck = new QCheckBox("Enable Multicast Subscription", &dialog);
+        multicastCheck->setChecked(false);
+        layout->addRow(multicastCheck);
+        
+        // Info label
+        QLabel* infoLabel = new QLabel(&dialog);
+        infoLabel->setText(
+            "<b>ETI-over-IP Configuration</b><br><br>"
+            "<b>Common Ports:</b> 5004, 12000, 9200<br>"
+            "<b>Multicast Range:</b> 239.0.0.0 - 239.255.255.255<br>"
+            "<b>Frame Size:</b> 6144 bytes (ETI-LI)<br>"
+            "<b>Frame Rate:</b> ~41 fps (24ms interval)<br><br>"
+            "<i>Note: For unicast, leave multicast unchecked.</i>"
+        );
+        infoLabel->setWordWrap(true);
+        infoLabel->setStyleSheet("QLabel { background-color: #f0f0f0; padding: 10px; border: 1px solid #ccc; }");
+        layout->addRow(infoLabel);
+        
+        // Buttons
+        QDialogButtonBox* buttons = new QDialogButtonBox(
+            QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+        layout->addRow(buttons);
+        
+        connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        
+        if (dialog.exec() == QDialog::Accepted) {
+            if (m_readerThread) {
+                m_readerThread->setUDPPort(portSpinBox->value());
+                m_readerThread->setMulticastAddress(addressEdit->text());
+                m_readerThread->setUseMulticast(multicastCheck->isChecked());
+                
+                qDebug() << "Phase C: UDP settings updated - Port:" << portSpinBox->value()
+                         << "Multicast:" << addressEdit->text()
+                         << "Enabled:" << multicastCheck->isChecked();
+                
+                QMessageBox::information(this, "Settings Updated",
+                    QString("UDP settings saved.\n\nPort: %1\nMulticast: %2\nEnabled: %3\n\n"
+                            "Switch to UDP mode in Input menu to start streaming.")
+                            .arg(portSpinBox->value())
+                            .arg(addressEdit->text())
+                            .arg(multicastCheck->isChecked() ? "Yes" : "No"));
+            }
+        }
     }
 
     // === PHASE 3: Real ETI Processing Helpers ===
