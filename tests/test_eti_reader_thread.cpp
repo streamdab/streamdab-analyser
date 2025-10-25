@@ -383,6 +383,14 @@ TEST_F(ETIReaderThreadTest, EnsembleInfoSignalTest) {
 }
 
 int main(int argc, char **argv) {
+    // Create QCoreApplication BEFORE initializing GTest
+    // This provides the event loop needed for QThread::exec() in worker thread
+    QCoreApplication app(argc, argv);
+    
     ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    
+    // Run tests with Qt event loop processing
+    int result = RUN_ALL_TESTS();
+    
+    return result;
 }

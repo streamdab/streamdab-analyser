@@ -3548,36 +3548,174 @@ private:
 
     }
 
-    // Phase A: Worker thread signal connections
+    // Phase B: Complete worker thread integration with SharedETIData
     void setupWorkerThread()
     {
         if (!m_readerThread || !m_sharedData) {
-            qWarning() << "Phase A: Worker thread not initialized";
+            qWarning() << "Phase B: Worker thread not initialized";
             return;
         }
         
-        // Connect worker thread signals to shared data
+        // === Phase B: Connect ETIReaderThread signals to update SharedETIData ===
+        
+        // Pattern 5: Worker thread frame updates -> SharedETIData (queued connection)
         connect(m_readerThread, &ETIReaderThread::frameReceived,
-                this, [this](quint32 frameNumber) {
-                    // Update frame counter in shared data
-                    // Note: Full integration in Phase B
-                    qDebug() << "Phase A: Frame" << frameNumber << "received from worker thread";
+                this, &DABAnalyzerWindow::onWorkerFrameReceived, Qt::QueuedConnection);
+        
+        // FIC data updates from worker thread
+        connect(m_readerThread, &ETIReaderThread::ficDataUpdated,
+                this, &DABAnalyzerWindow::onWorkerFICDataUpdated, Qt::QueuedConnection);
+        
+        // MSC data updates from worker thread
+        connect(m_readerThread, &ETIReaderThread::mscDataUpdated,
+                this, &DABAnalyzerWindow::onWorkerMSCDataUpdated, Qt::QueuedConnection);
+        
+        // Error statistics updates
+        connect(m_readerThread, &ETIReaderThread::errorStatsUpdated,
+                this, &DABAnalyzerWindow::onWorkerErrorStatsUpdated, Qt::QueuedConnection);
+        
+        // Ensemble info updates
+        connect(m_readerThread, &ETIReaderThread::ensembleInfoChanged,
+                this, &DABAnalyzerWindow::onWorkerEnsembleInfoChanged, Qt::QueuedConnection);
+        
+        // Processing lifecycle signals
+        connect(m_readerThread, &ETIReaderThread::processingStarted,
+                this, [this]() {
+                    qDebug() << "Phase B: Worker thread processing started";
+                    if (m_progressBar) m_progressBar->setValue(0);
                 });
         
-        // Connect worker thread completion signal
         connect(m_readerThread, &ETIReaderThread::processingComplete,
                 this, [this](int totalFrames, int timeMs) {
-                    qDebug() << "Phase A: Worker thread processed" << totalFrames 
+                    qDebug() << "Phase B: Worker thread completed -" << totalFrames 
                              << "frames in" << timeMs << "ms";
+                    if (m_progressBar) m_progressBar->setValue(100);
+                    m_fileLoaded = true;
+                    m_totalFrames = static_cast<size_t>(totalFrames);
                 });
         
-        // Connect worker thread error signal
         connect(m_readerThread, &ETIReaderThread::processingError,
                 this, [this](const QString& error) {
-                    qWarning() << "Phase A: Worker thread error:" << error;
+                    qWarning() << "Phase B: Worker thread error:" << error;
+                    QMessageBox::critical(this, "Processing Error", error);
                 });
         
-        qDebug() << "Phase A: Worker thread signal connections established";
+        // === Phase B: Connect SharedETIData signals to widgets ===
+        
+        // Frame updates -> Update frame display widgets
+        connect(m_sharedData, &streamdab::core::SharedETIData::frameUpdated,
+                this, [this](uint64_t frameNum) {
+                    // Update frame number display (no m_frameCounter widget exists)
+                    qDebug() << "Phase B: Frame" << frameNum << "updated in SharedETIData";
+                });
+        
+        // Service list updates -> Update service tree widget
+        connect(m_sharedData, &streamdab::core::SharedETIData::serviceListUpdated,
+                this, [this]() {
+                    updateServiceListFromSharedData();
+                });
+        
+        // FIC data updates -> Update FIG extractor
+        connect(m_sharedData, &streamdab::core::SharedETIData::ficDataUpdated,
+                this, [this]() {
+                    updateFIGExtractorFromSharedData();
+                });
+        
+        qDebug() << "Phase B: Worker thread and widget signal connections established";
+    }
+    
+    // === Phase B: Worker thread signal handlers (update SharedETIData) ===
+    
+    void onWorkerFrameReceived(quint32 frameNumber) {
+        if (!m_sharedData || !m_etiProcessor) return;
+        
+        // Get current frame data from processor
+        // Note: m_etiProcessor runs in parallel (backward compatibility)
+        // We extract data from it to populate SharedETIData
+        
+        streamdab::core::ETIFrame etiFrame;
+        etiFrame.frame_number = frameNumber;
+        etiFrame.timestamp = QDateTime::currentDateTime();
+        
+        // TODO: Extract actual frame data from m_etiProcessor
+        // For Phase B, we just update the frame number
+        // Full data extraction will be added as needed
+        
+        m_sharedData->setCurrentFrame(etiFrame);
+    }
+    
+    void onWorkerFICDataUpdated(QSharedPointer<FICDataSignal> ficData) {
+        if (!m_sharedData || !ficData) return;
+        
+        // Convert FICDataSignal to SharedETIData::FICData format
+        streamdab::core::FICData sharedFicData;
+        // TODO: Populate FIC data fields from ficData
+        // For Phase B initial implementation, basic structure only
+        
+        m_sharedData->setFICData(sharedFicData);
+    }
+    
+    void onWorkerMSCDataUpdated(QSharedPointer<MSCData> mscData) {
+        if (!m_sharedData || !mscData) return;
+        
+        // Convert MSCData to QByteArray for SharedETIData
+        // TODO: Phase B - implement proper MSC data conversion
+        // For now, just log the update
+        qDebug() << "Phase B: MSC data updated (conversion not yet implemented)";
+    }
+    
+    void onWorkerErrorStatsUpdated(ErrorStats stats) {
+        if (!m_sharedData) return;
+        
+        // Convert ErrorStats from eti_reader_thread to SharedETIData format
+        streamdab::core::ErrorStats sharedStats;
+        sharedStats.crc_errors = stats.crcErrors;
+        sharedStats.sync_errors = stats.syncLost;
+        sharedStats.total_frames = 0; // Not available in source ErrorStats
+        
+        m_sharedData->updateErrorStats(sharedStats);
+    }
+    
+    void onWorkerEnsembleInfoChanged(EnsembleInfo info) {
+        if (!m_sharedData) return;
+        
+        // Update ensemble info (ECC, country, ensemble ID, label)
+        // TODO: Add ensemble info to SharedETIData if needed
+        // Note: EnsembleInfo from eti_reader_thread.hpp may have different fields
+        qDebug() << "Phase B: Ensemble info updated:" << info.ensembleLabel;
+    }
+    
+    // === Phase B: Widget update helpers (read from SharedETIData) ===
+    
+    void updateServiceListFromSharedData() {
+        if (!m_sharedData) return;
+        
+        // Get services from SharedETIData (thread-safe)
+        auto services = m_sharedData->getServices();
+        
+        // TODO: Update service tree widget when we identify the correct widget
+        // For Phase B initial implementation, just log the update
+        
+        qDebug() << "Phase B: Service list updated -" << services.size() << "services";
+        
+        // Display service info
+        for (const auto& service : services) {
+            qDebug() << "  Service ID:" << QString::number(service.service_id, 16).toUpper()
+                     << "Label:" << service.service_label
+                     << "Type:" << (service.is_dabplus ? "DAB+" : "DAB");
+        }
+    }
+    
+    void updateFIGExtractorFromSharedData() {
+        if (!m_sharedData || !m_figAnalysisResults) return;
+        
+        // Get FIC data from SharedETIData
+        auto ficData = m_sharedData->getFICData();
+        
+        // Update FIG extractor display
+        // TODO: Parse FIC data and populate FIG tree
+        // For Phase B initial implementation, just log
+        qDebug() << "Phase B: FIG data updated in SharedETIData";
     }
 
     void setupStatusBar()
