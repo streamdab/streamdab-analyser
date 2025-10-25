@@ -1980,53 +1980,31 @@ private:
         layout->setContentsMargins(2, 2, 2, 2);
         layout->setSpacing(4);
 
-        // Top 50%: DAB Ensemble Tree
-        QLabel* treeLabel = new QLabel("DAB Ensemble Explorer");
-        treeLabel->setStyleSheet("font-weight: bold; font-size: 11pt;");
-        layout->addWidget(treeLabel);
-
-        m_ensembleTree = new QTreeWidget();
-        m_ensembleTree->setHeaderLabels({"Service", "Label", "Type"});
-        m_ensembleTree->setAlternatingRowColors(true);
-        m_ensembleTree->header()->setStretchLastSection(false);
-        m_ensembleTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-        m_ensembleTree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
-        m_ensembleTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-        layout->addWidget(m_ensembleTree, 50);  // 50% stretch
-
-        // Bottom 50%: ETI Explorer Details (converted from QLabel to QTableWidget)
-        QGroupBox* detailsGroup = new QGroupBox("ETI Explorer Details");
-        QVBoxLayout* detailsLayout = new QVBoxLayout(detailsGroup);
-        detailsLayout->setContentsMargins(4, 8, 4, 4);
+        // LEFT Panel per DATA_AVAILABILITY_MATRIX.md specification
         
-        m_etiExplorerDetails = new QTableWidget(8, 2);
-        m_etiExplorerDetails->setHorizontalHeaderLabels({"Property", "Value"});
-        m_etiExplorerDetails->verticalHeader()->setVisible(false);
-        m_etiExplorerDetails->setAlternatingRowColors(true);
-        m_etiExplorerDetails->horizontalHeader()->setStretchLastSection(true);
-        m_etiExplorerDetails->setEditTriggers(QAbstractItemView::NoEditTriggers);
-        
-        // Initialize ETI Explorer properties
-        QStringList properties = {
-            "ETI Type", "Error Field", "DAB Mode", "STAT",
-            "Total Frames", "ETI-NI Count", "ETI-LI-A Count", "ETI-LI-B Count"
-        };
-        for (int i = 0; i < properties.size(); ++i) {
-            QTableWidgetItem* propItem = new QTableWidgetItem(properties[i]);
-            propItem->setFont(QFont("Segoe UI", 9, QFont::Bold));
-            m_etiExplorerDetails->setItem(i, 0, propItem);
-            
-            QTableWidgetItem* valItem = new QTableWidgetItem("--");
-            valItem->setFont(QFont("Consolas", 9));
-            m_etiExplorerDetails->setItem(i, 1, valItem);
+        // 1. Player Panel (Item #1) - 20%
+        QGroupBox* playerPanel = createPlayerPanel();
+        if (playerPanel) {
+            layout->addWidget(playerPanel, 20);
         }
         
-        detailsLayout->addWidget(m_etiExplorerDetails);
-        layout->addWidget(detailsGroup, 40);  // 40% stretch (reduced to make room for Messages)
-
-        // Messages Panel (Professional Logging - relocated from Tab 4)
+        // 2. Decoder Panel (Item #2) - 20%
+        QGroupBox* decoderPanel = createDecoderPanel();
+        if (decoderPanel) {
+            layout->addWidget(decoderPanel, 20);
+        }
+        
+        // 3. System Panel (Item #3) - 40%
+        QGroupBox* systemPanel = createSystemPanel();
+        if (systemPanel) {
+            layout->addWidget(systemPanel, 40);
+        }
+        
+        // 4. Messages Panel (Item #4) - 20%
         QGroupBox* messagesPanel = createLoggingPanel();
-        layout->addWidget(messagesPanel, 10);  // 10% stretch
+        if (messagesPanel) {
+            layout->addWidget(messagesPanel, 20);
+        }
 
         return panel;
     }
@@ -2234,64 +2212,82 @@ private:
         layout->setContentsMargins(2, 2, 2, 2);
         layout->setSpacing(4);
 
-        // Top 10%: Live Stream Input Panel
-        QWidget* liveStreamPanel = createLiveStreamInputPanel();
-        layout->addWidget(liveStreamPanel, 10);
+        // CENTER Panel per DATA_AVAILABILITY_MATRIX.md specification
+        
+        // 1. DAB Ensemble Explorer (Item #5) - moved from LEFT - 15%
+        QGroupBox* ensembleGroup = new QGroupBox("DAB Ensemble Explorer");
+        QVBoxLayout* ensembleLayout = new QVBoxLayout(ensembleGroup);
+        
+        if (!m_ensembleTree) {
+            m_ensembleTree = new QTreeWidget();
+        }
+        m_ensembleTree->setHeaderLabels({"Service", "Label", "Type"});
+        m_ensembleTree->setAlternatingRowColors(true);
+        m_ensembleTree->header()->setStretchLastSection(false);
+        m_ensembleTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+        m_ensembleTree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
+        m_ensembleTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+        ensembleLayout->addWidget(m_ensembleTree);
+        
+        layout->addWidget(ensembleGroup, 15);
 
-        // Next 10%: Player/Decoder Status (new panels)
-        QWidget* statusPanels = createPlayerDecoderStatusPanels();
-        layout->addWidget(statusPanels, 10);
-
-        // Middle 25%: ETI Frame Navigator
+        // 2. ETI Frame Navigator (Item #6) - 15%
         QGroupBox* navigatorGroup = new QGroupBox("ETI Frame Navigator");
         QVBoxLayout* navigatorLayout = new QVBoxLayout(navigatorGroup);
         
-        m_progressBar = new QProgressBar();
-        m_progressBar->setTextVisible(true);
-        navigatorLayout->addWidget(m_progressBar);
-        
-        m_frameCountLabel = new QLabel("Frames: 0 / 0");
-        m_frameCountLabel->setStyleSheet("font-weight: bold;");
-        navigatorLayout->addWidget(m_frameCountLabel);
-        
-        m_frameList = new QListWidget();
+        if (!m_frameList) {
+            m_frameList = new QListWidget();
+        }
+        m_frameList->setAlternatingRowColors(true);
         navigatorLayout->addWidget(m_frameList);
         
-        layout->addWidget(navigatorGroup, 25);
+        layout->addWidget(navigatorGroup, 15);
 
-        // Subchannel Organization Table (from DATA_AVAILABILITY_MATRIX.md item #8)
-        QGroupBox* subchannelGroup = new QGroupBox("Subchannel Organization");
-        QVBoxLayout* subchannelLayout = new QVBoxLayout(subchannelGroup);
-        
-        m_subchannelTable = new QTableWidget();
-        m_subchannelTable->setColumnCount(8);
-        m_subchannelTable->setHorizontalHeaderLabels({
-            "☑", "SubCh ID", "Type", "Level", "Bitrate", "SAD", "Size", "Errors"
-        });
-        m_subchannelTable->setAlternatingRowColors(true);
-        m_subchannelTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-        m_subchannelTable->horizontalHeader()->setStretchLastSection(true);
-        m_subchannelTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-        subchannelLayout->addWidget(m_subchannelTable);
-        
-        layout->addWidget(subchannelGroup, 20);
-
-        // Bottom 35%: Hex Viewer / ETSI Compliance tabs
+        // 3. Hex Viewer / ETSI Compliance (Item #7) - 30%
         QTabWidget* viewerTabs = new QTabWidget();
         
-        m_hexViewer = new QTextEdit();
-        m_hexViewer->setFont(QFont("Consolas", 9));
-        m_hexViewer->setReadOnly(true);
+        if (!m_hexViewer) {
+            m_hexViewer = new QTextEdit();
+            m_hexViewer->setFont(QFont("Consolas", 9));
+            m_hexViewer->setReadOnly(true);
+        }
         m_hexViewer->setPlaceholderText("Select a frame to view hex data...");
         viewerTabs->addTab(m_hexViewer, "Hex Viewer");
         
-        m_complianceViewer = new QTextEdit();
-        m_complianceViewer->setFont(QFont("Consolas", 9));
-        m_complianceViewer->setReadOnly(true);
+        if (!m_complianceViewer) {
+            m_complianceViewer = new QTextEdit();
+            m_complianceViewer->setFont(QFont("Consolas", 9));
+            m_complianceViewer->setReadOnly(true);
+        }
         m_complianceViewer->setPlaceholderText("ETSI EN 300 799 compliance results...");
         viewerTabs->addTab(m_complianceViewer, "ETSI Compliance");
         
-        layout->addWidget(viewerTabs, 35);
+        layout->addWidget(viewerTabs, 30);
+
+        // 4. Subchannel Organization (Item #8) - 15%
+        QGroupBox* subchannelGroup = new QGroupBox("Subchannel Organization");
+        QVBoxLayout* subchannelLayout = new QVBoxLayout(subchannelGroup);
+        
+        if (!m_subchannelTable) {
+            m_subchannelTable = new QTableWidget();
+            m_subchannelTable->setColumnCount(8);
+            m_subchannelTable->setHorizontalHeaderLabels({
+                "☑", "SubCh ID", "Type", "Level", "Bitrate", "SAD", "Size", "Errors"
+            });
+            m_subchannelTable->setAlternatingRowColors(true);
+            m_subchannelTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+            m_subchannelTable->horizontalHeader()->setStretchLastSection(true);
+            m_subchannelTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        }
+        subchannelLayout->addWidget(m_subchannelTable);
+        
+        layout->addWidget(subchannelGroup, 15);
+
+        // 5. Now Playing (DLS+) (Item #9) - moved from RIGHT - 25%
+        QGroupBox* nowPlayingPanel = createNowPlayingPanel();
+        if (nowPlayingPanel) {
+            layout->addWidget(nowPlayingPanel, 25);
+        }
 
         return panel;
     }
@@ -2329,42 +2325,37 @@ private:
         layout->setContentsMargins(2, 2, 2, 2);
         layout->setSpacing(4);
 
-        // Top 25%: Current Service
-        QGroupBox* serviceGroup = new QGroupBox("Current Service");
-        QVBoxLayout* serviceLayout = new QVBoxLayout(serviceGroup);
-        m_serviceInfo = new QLabel("No service selected");
-        m_serviceInfo->setWordWrap(true);
-        serviceLayout->addWidget(m_serviceInfo);
-        layout->addWidget(serviceGroup, 25);
+        // RIGHT Panel per DATA_AVAILABILITY_MATRIX.md specification
+        
+        // 1. ETI Overview (Item #10) - 25%
+        QGroupBox* etiOverviewPanel = createETIOverviewPanel();
+        if (etiOverviewPanel) {
+            layout->addWidget(etiOverviewPanel, 25);
+        }
 
-        // Middle 20%: Signal Quality
-        QGroupBox* qualityGroup = new QGroupBox("Signal Quality");
-        QVBoxLayout* qualityLayout = new QVBoxLayout(qualityGroup);
-        m_qualityMeter = new QProgressBar();
-        m_qualityMeter->setValue(85);
-        qualityLayout->addWidget(new QLabel("Quality: Good"));
-        qualityLayout->addWidget(m_qualityMeter);
-        layout->addWidget(qualityGroup, 20);
-
-        // Bottom 55%: Now Playing (DLS+)
-        QGroupBox* nowPlayingGroup = createNowPlayingPanel();
-        layout->addWidget(nowPlayingGroup, 55);
-
-        // DAB Error Counter (relocated from Tab 4)
+        // 2. DAB Error Counter (Item #11) - 20%
         QGroupBox* errorCounterPanel = createErrorDetectionPanel();
-        layout->addWidget(errorCounterPanel);
+        if (errorCounterPanel) {
+            layout->addWidget(errorCounterPanel, 20);
+        }
 
-        // Timing Panel (DATA_AVAILABILITY_MATRIX.md item #12)
+        // 3. Timing (Item #12) - 20%
         QGroupBox* timingPanel = createTimingPanel();
-        layout->addWidget(timingPanel);
+        if (timingPanel) {
+            layout->addWidget(timingPanel, 20);
+        }
 
-        // CU Usage Chart (DATA_AVAILABILITY_MATRIX.md item #13)
+        // 4. CU Usage (Item #13) - 20%
         QGroupBox* cuUsagePanel = createCUUsagePanel();
-        layout->addWidget(cuUsagePanel);
+        if (cuUsagePanel) {
+            layout->addWidget(cuUsagePanel, 20);
+        }
 
-        // Stream Statistics (DATA_AVAILABILITY_MATRIX.md item #14)
+        // 5. Stream Statistics (Item #14) - 15%
         QGroupBox* streamStatsPanel = createStreamStatisticsPanel();
-        layout->addWidget(streamStatsPanel);
+        if (streamStatsPanel) {
+            layout->addWidget(streamStatsPanel, 15);
+        }
 
         return panel;
     }
@@ -2765,6 +2756,202 @@ private:
     }
 
     // ========================================================================
+    // LEFT PANEL HELPER METHODS: PLAYER, DECODER, SYSTEM
+    // ========================================================================
+    // Items #1-4 from DATA_AVAILABILITY_MATRIX.md (LEFT Panel)
+
+    /**
+     * @brief Create Player Panel for LEFT panel (Item #1)
+     * 
+     * Displays player status, file information, timing, and controls.
+     * Per DATA_AVAILABILITY_MATRIX.md specification.
+     * 
+     * @return QGroupBox* Player panel widget
+     */
+    QGroupBox* createPlayerPanel()
+    {
+        QGroupBox* group = new QGroupBox("Player");
+        if (!group) {
+            qCritical() << "Failed to create Player panel";
+            return nullptr;
+        }
+        
+        QGridLayout* layout = new QGridLayout(group);
+        layout->setContentsMargins(4, 8, 4, 4);
+        layout->setSpacing(4);
+        
+        // Row 0: Status
+        QLabel* statusLabel = new QLabel("Status:");
+        statusLabel->setStyleSheet("font-weight: bold;");
+        m_playerStatusLabel = new QLabel("Stopped");
+        m_playerStatusLabel->setStyleSheet("color: #666;");
+        layout->addWidget(statusLabel, 0, 0);
+        layout->addWidget(m_playerStatusLabel, 0, 1);
+        
+        // Row 1: File name
+        QLabel* fileLabel = new QLabel("File:");
+        fileLabel->setStyleSheet("font-weight: bold;");
+        m_playerFileLabel = new QLabel("No file loaded");
+        m_playerFileLabel->setWordWrap(true);
+        m_playerFileLabel->setStyleSheet("color: #666;");
+        layout->addWidget(fileLabel, 1, 0);
+        layout->addWidget(m_playerFileLabel, 1, 1);
+        
+        // Row 2: Time
+        QLabel* timeLabel = new QLabel("Time:");
+        timeLabel->setStyleSheet("font-weight: bold;");
+        m_playerTimeLabel = new QLabel("00:00:00 / 00:00:00");
+        m_playerTimeLabel->setStyleSheet("font-family: 'Consolas', monospace;");
+        layout->addWidget(timeLabel, 2, 0);
+        layout->addWidget(m_playerTimeLabel, 2, 1);
+        
+        // Row 3: Frame number
+        QLabel* frameLabel = new QLabel("Frame:");
+        frameLabel->setStyleSheet("font-weight: bold;");
+        m_playerFrameLabel = new QLabel("0 / 0");
+        m_playerFrameLabel->setStyleSheet("font-family: 'Consolas', monospace;");
+        layout->addWidget(frameLabel, 3, 0);
+        layout->addWidget(m_playerFrameLabel, 3, 1);
+        
+        // Row 4: Loop checkbox
+        m_playerLoopCheckbox = new QCheckBox("Loop playback");
+        layout->addWidget(m_playerLoopCheckbox, 4, 0, 1, 2);
+        
+        // Row 5: Progress bar
+        if (!m_progressBar) {
+            m_progressBar = new QProgressBar();
+        }
+        m_progressBar->setValue(0);
+        m_progressBar->setTextVisible(true);
+        layout->addWidget(m_progressBar, 5, 0, 1, 2);
+        
+        return group;
+    }
+
+    /**
+     * @brief Create Decoder Panel for LEFT panel (Item #2)
+     * 
+     * Displays decoder status, type, timing, and frame information.
+     * Mirrors Player Panel timing information.
+     * 
+     * @return QGroupBox* Decoder panel widget
+     */
+    QGroupBox* createDecoderPanel()
+    {
+        QGroupBox* group = new QGroupBox("Decoder");
+        if (!group) {
+            qCritical() << "Failed to create Decoder panel";
+            return nullptr;
+        }
+        
+        QGridLayout* layout = new QGridLayout(group);
+        layout->setContentsMargins(4, 8, 4, 4);
+        layout->setSpacing(4);
+        
+        // Row 0: Status
+        QLabel* statusLabel = new QLabel("Status:");
+        statusLabel->setStyleSheet("font-weight: bold;");
+        m_decoderStatusLabel = new QLabel("Idle");
+        m_decoderStatusLabel->setStyleSheet("color: #666;");
+        layout->addWidget(statusLabel, 0, 0);
+        layout->addWidget(m_decoderStatusLabel, 0, 1);
+        
+        // Row 1: Type
+        QLabel* typeLabel = new QLabel("Type:");
+        typeLabel->setStyleSheet("font-weight: bold;");
+        m_decoderTypeLabel = new QLabel("ETI-NI");
+        m_decoderTypeLabel->setStyleSheet("color: #0078d4; font-weight: bold;");
+        layout->addWidget(typeLabel, 1, 0);
+        layout->addWidget(m_decoderTypeLabel, 1, 1);
+        
+        // Row 2: Time (mirrors player)
+        QLabel* timeLabel = new QLabel("Time:");
+        timeLabel->setStyleSheet("font-weight: bold;");
+        m_decoderTimeLabel = new QLabel("00:00:00 / 00:00:00");
+        m_decoderTimeLabel->setStyleSheet("font-family: 'Consolas', monospace;");
+        layout->addWidget(timeLabel, 2, 0);
+        layout->addWidget(m_decoderTimeLabel, 2, 1);
+        
+        // Row 3: Frames
+        QLabel* framesLabel = new QLabel("Frames:");
+        framesLabel->setStyleSheet("font-weight: bold;");
+        m_decoderFramesLabel = new QLabel("0");
+        m_decoderFramesLabel->setStyleSheet("font-family: 'Consolas', monospace;");
+        layout->addWidget(framesLabel, 3, 0);
+        layout->addWidget(m_decoderFramesLabel, 3, 1);
+        
+        return group;
+    }
+
+    /**
+     * @brief Create System Panel for LEFT panel (Item #3)
+     * 
+     * QTabWidget with 2 tabs:
+     * - FIC Overview: Hierarchical FIG analysis results
+     * - Control: Processing controls and settings
+     * 
+     * @return QGroupBox* System panel widget
+     */
+    QGroupBox* createSystemPanel()
+    {
+        QGroupBox* group = new QGroupBox("System");
+        if (!group) {
+            qCritical() << "Failed to create System panel";
+            return nullptr;
+        }
+        
+        QVBoxLayout* layout = new QVBoxLayout(group);
+        layout->setContentsMargins(4, 8, 4, 4);
+        
+        QTabWidget* tabs = new QTabWidget();
+        if (!tabs) {
+            qCritical() << "Failed to create System tabs";
+            delete group;
+            return nullptr;
+        }
+        
+        // Tab 1: FIC Overview
+        QWidget* ficOverviewTab = new QWidget();
+        QVBoxLayout* ficLayout = new QVBoxLayout(ficOverviewTab);
+        
+        m_ficOverviewTree = new QTreeWidget();
+        if (m_ficOverviewTree) {
+            m_ficOverviewTree->setHeaderLabels({"Property", "Value", "Data", "Status"});
+            m_ficOverviewTree->setAlternatingRowColors(true);
+            ficLayout->addWidget(m_ficOverviewTree);
+        }
+        
+        tabs->addTab(ficOverviewTab, "FIC Overview");
+        
+        // Tab 2: Control
+        QWidget* controlTab = new QWidget();
+        QVBoxLayout* controlLayout = new QVBoxLayout(controlTab);
+        
+        QLabel* controlLabel = new QLabel("Processing Controls");
+        controlLabel->setStyleSheet("font-weight: bold;");
+        controlLayout->addWidget(controlLabel);
+        
+        m_processingControlsGroup = new QGroupBox("Analysis Settings");
+        QVBoxLayout* controlsLayout = new QVBoxLayout(m_processingControlsGroup);
+        
+        m_enableFicAnalysis = new QCheckBox("Enable FIC Analysis");
+        m_enableFicAnalysis->setChecked(true);
+        controlsLayout->addWidget(m_enableFicAnalysis);
+        
+        m_enableMscAnalysis = new QCheckBox("Enable MSC Analysis");
+        m_enableMscAnalysis->setChecked(false);
+        controlsLayout->addWidget(m_enableMscAnalysis);
+        
+        controlLayout->addWidget(m_processingControlsGroup);
+        controlLayout->addStretch();
+        
+        tabs->addTab(controlTab, "Control");
+        
+        layout->addWidget(tabs);
+        return group;
+    }
+
+    // ========================================================================
     // ADDITIONAL HELPER METHODS: TIMING, CU USAGE, STREAM STATISTICS
     // ========================================================================
     // Items #12-14 from DATA_AVAILABILITY_MATRIX.md (RIGHT Panel)
@@ -2818,6 +3005,37 @@ private:
         }
         
         return table;
+    }
+
+    /**
+     * @brief Create ETI Overview panel for RIGHT panel (Item #10)
+     * Shows ETI Type, Error Field, DAB Mode, STAT percentage
+     */
+    QGroupBox* createETIOverviewPanel()
+    {
+        QGroupBox* groupBox = new QGroupBox("ETI Overview");
+        if (!groupBox) {
+            qCritical() << "Failed to create ETI Overview panel";
+            return nullptr;
+        }
+        
+        QVBoxLayout* layout = new QVBoxLayout(groupBox);
+        layout->setContentsMargins(4, 8, 4, 4);
+        
+        // Use helper method to create table (DATA_AVAILABILITY_MATRIX.md Item #10)
+        QStringList properties = {
+            "ETI Type", "Error Field", "DAB Mode", "STAT"
+        };
+        m_etiOverviewTable = createPropertyTable(4, properties);
+        if (!m_etiOverviewTable) {
+            qCritical() << "Failed to create ETI overview table";
+            delete groupBox;
+            return nullptr;
+        }
+        
+        m_etiOverviewTable->setMaximumHeight(150);
+        layout->addWidget(m_etiOverviewTable);
+        return groupBox;
     }
 
     QGroupBox* createTimingPanel()
@@ -4174,6 +4392,7 @@ private:
     QLabel* m_frameDetails = nullptr;  // OBSOLETE - replaced by m_etiExplorerDetails
     QTableWidget* m_etiExplorerDetails = nullptr;  // NEW: ETI Explorer Details table (Tab 1)
     QTableWidget* m_subchannelTable = nullptr;  // NEW: Subchannel Organization table (Tab 1 Center Panel)
+    QTableWidget* m_etiOverviewTable = nullptr;  // NEW: ETI Overview table (Tab 1 Right Panel - item #10)
     QTableWidget* m_timingTable = nullptr;  // NEW: Timing table (Tab 1 Right Panel - item #12)
     QProgressBar* m_cuUsageBar = nullptr;  // NEW: CU Usage progress bar (Tab 1 Right Panel - item #13)
     QLabel* m_cuUsageLabel = nullptr;  // NEW: CU Usage label (Tab 1 Right Panel - item #13)
@@ -4184,6 +4403,27 @@ private:
     QLabel* m_artistLabel = nullptr;
     QLabel* m_albumLabel = nullptr;
     QLabel* m_lastUpdatedLabel = nullptr;
+    
+    // LEFT Panel widgets (Items #1-3 from DATA_AVAILABILITY_MATRIX.md)
+    // Player Panel (Item #1)
+    QLabel* m_playerStatusLabel = nullptr;
+    QLabel* m_playerFileLabel = nullptr;
+    QLabel* m_playerTimeLabel = nullptr;
+    QLabel* m_playerFrameLabel = nullptr;
+    QCheckBox* m_playerLoopCheckbox = nullptr;
+    QProgressBar* m_playerProgressBar = nullptr;
+    
+    // Decoder Panel (Item #2)
+    QLabel* m_decoderStatusLabel = nullptr;
+    QLabel* m_decoderTypeLabel = nullptr;
+    QLabel* m_decoderTimeLabel = nullptr;
+    QLabel* m_decoderFramesLabel = nullptr;
+    
+    // System Panel (Item #3)
+    QTreeWidget* m_ficOverviewTree = nullptr;
+    QGroupBox* m_processingControlsGroup = nullptr;
+    QCheckBox* m_enableFicAnalysis = nullptr;
+    QCheckBox* m_enableMscAnalysis = nullptr;
     
     // Live Stream Input widgets (Tab 1 Center Panel)
     QLabel* m_streamFrameRate = nullptr;
