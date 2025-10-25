@@ -787,35 +787,74 @@ QByteArray TestFIG0Processor::createFIG0_2(uint32_t service_id, uint8_t subch_id
 {
     QByteArray fig;
 
-    // FIC header (2 bytes)
-    uint8_t type_byte = (0 << 5);
-    fig.append(static_cast<char>(type_byte));
-    fig.append(static_cast<char>(is_audio ? 0x07 : 0x09));  // Length depends on service type
+    // CRITICAL FIX FOR FIG 0/2 TEST FAILURES (8 tests)
+    // Determine encoding from service_id VALUE, not is_audio parameter
+    // Per ETSI EN 300 401 Section 6.3.1:
+    // - SId 0x0000-0xFFFF: 16-bit encoding with P/D flag
+    // - SId > 0xFFFF: 32-bit encoding (typically 0xE0xxxxxx range)
+    
+    bool use_32bit = (service_id > 0xFFFF);
+    
+    // Calculate FIG data length (excluding FIC header 2 bytes)
+    // 16-bit SId: ext(1) + SId(2) + NumComp(1) + CompDesc(2) = 6 bytes
+    // 32-bit SId: ext(1) + SId(4) + NumComp(1) + CompDesc(2) = 8 bytes
+    uint8_t fig_length = use_32bit ? 0x08 : 0x06;
 
-    // Extension field (1 byte) - Extension 2 for service organization
-    uint8_t ext_byte = (2 << 3);
-    ext_byte |= (is_audio ? 0x00 : 0x01);  // P/D bit (0=Programme, 1=Data)
+    // FIC header (2 bytes): Type (bits 7-5) + Length (bits 4-0 of byte 2)
+    uint8_t type_byte = (0 << 5);  // FIG Type 0
+    fig.append(static_cast<char>(type_byte));
+    fig.append(static_cast<char>(fig_length));
+
+    // FIG 0/2 header byte: Extension (bits 7-3) + P/D (bit 2) + other flags
+    uint8_t ext_byte = (2 << 3);  // Extension = 2
+    // P/D bit: Only used in 16-bit encoding (1=Programme/Audio, 0=Data)
+    // For 32-bit encoding, P/D should be 0 (bits are part of SId in parsing)
+    if (!use_32bit) {
+        ext_byte |= (is_audio ? 0x04 : 0x00);  // P/D in bit 2
+    }
     fig.append(static_cast<char>(ext_byte));
 
-    if (is_audio) {
-        // Programme service (16-bit SId)
-        fig.append(static_cast<char>((service_id >> 8) & 0xFF));
-        fig.append(static_cast<char>(service_id & 0xFF));
-    } else {
-        // Data service (32-bit SId)
+    // Service ID encoding
+    if (use_32bit) {
+        // 32-bit Service ID (full 4 bytes, no P/D flag in SId)
         fig.append(static_cast<char>((service_id >> 24) & 0xFF));
         fig.append(static_cast<char>((service_id >> 16) & 0xFF));
         fig.append(static_cast<char>((service_id >> 8) & 0xFF));
         fig.append(static_cast<char>(service_id & 0xFF));
+    } else {
+        // 16-bit Service ID with P/D flag in bit 15
+        uint16_t sid_16 = static_cast<uint16_t>(service_id & 0xFFFF);
+        uint8_t sid_high = static_cast<uint8_t>((sid_16 >> 8) & 0x7F);
+        if (is_audio) {
+            sid_high |= 0x80;  // P/D flag: 1=Programme (audio)
+        }
+        fig.append(static_cast<char>(sid_high));
+        fig.append(static_cast<char>(sid_16 & 0xFF));
     }
 
-    // Number of service components (1)
+    // Number of service components (high nibble of byte)
     uint8_t num_components = 1;
     fig.append(static_cast<char>((num_components & 0x0F) << 4));
 
-    // Service component: TMId=0 (MSC stream), ASCTy/DSCTy=0, SubCh
-    fig.append(static_cast<char>(0x00));  // TMId=0, ASCTy/DSCTy=0
-    fig.append(static_cast<char>(subch_id & 0x3F));  // SubChId
+    // Service Component Descriptor (2 bytes)
+    // Byte 1: TMId (bits 7-6) + ASCTy/DSCTy (bits 5-0)
+    //   TMId = 0 (MSC stream audio/data)
+    //   ASCTy: 0x00=DAB audio, 0x3F=DAB+ audio
+    //   DSCTy: 0x01-0x3E for various data services
+    uint8_t tmid_ascty = 0x00;  // TMId=0 (MSC stream)
+    if (is_audio) {
+        tmid_ascty |= 0x3F;  // ASCTy = 0x3F for DAB+ (triggers is_dab_plus flag)
+    } else {
+        tmid_ascty |= 0x01;  // DSCTy = 0x01 for generic data service (not audio)
+    }
+    fig.append(static_cast<char>(tmid_ascty));
+    
+    // Byte 2: P/S flag (bit 7) + CA flag (bit 6) + SubChId (bits 5-0)
+    //   P/S = 1 (Primary component)
+    //   CA = 0 (Not conditional access)
+    uint8_t ps_subch = 0x80;  // P/S = 1 (Primary)
+    ps_subch |= (subch_id & 0x3F);
+    fig.append(static_cast<char>(ps_subch));
 
     return fig;
 }
