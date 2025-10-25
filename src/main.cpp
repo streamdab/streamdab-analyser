@@ -1733,13 +1733,10 @@ private slots:
         figItem->setText(2, content);
         figItem->setText(3, status);
         
-        // Add to FIC-Analyzer results tree
-        if (m_figAnalysisResults) {
-            m_figAnalysisResults->addTopLevelItem(figItem);
-            
-            // Auto-scroll to latest entry
-            m_figAnalysisResults->scrollToBottom();
-        }
+        // OBSOLETE: m_figAnalysisResults removed with Tab 2 restructure
+        // TODO: Add to new Tab 2 FIG Content table (m_tab2_figContentTable)
+        // For now, just track FIG count
+        delete figItem;  // Clean up unused item
         
         // Update system messages with FIG discovery (with null check)
         if (m_systemMessages) {
@@ -1755,9 +1752,8 @@ private slots:
             m_systemMessages->append(QString("📡 ETI Format Detected: %1").arg(formatName));
         }
         
-        // CRITICAL FIX: Do NOT update m_extractedTimeInfo - causes segfault
-        // The widget appears to be in an invalid state or freed memory
-        // Disable ALL access to m_extractedTimeInfo to prevent crash
+        // OBSOLETE: m_extractedTimeInfo removed with Tab 3 restructure
+        // Tab 3 now uses m_tab3_figInstanceTree and m_tab3_figItemDetailsTree
         
         (void)format;  // Suppress unused warning
     }
@@ -1765,57 +1761,9 @@ private slots:
     // FIG Type filtering slot implementation
     void onFIGTypeFilterChanged()
     {
-        // Check if FIG Analysis Results tree exists
-        if (!m_figAnalysisResults) {
-            return;
-        }
-        
-        // Get selected FIG types from checkboxes
-        QStringList selectedFIGTypes;
-        
-        if (m_figType00 && m_figType00->isChecked()) {
-            selectedFIGTypes << "FIG 0/0";
-        }
-        if (m_figType01 && m_figType01->isChecked()) {
-            selectedFIGTypes << "FIG 0/1";
-        }
-        if (m_figType02 && m_figType02->isChecked()) {
-            selectedFIGTypes << "FIG 0/2";
-        }
-        if (m_figType03 && m_figType03->isChecked()) {
-            selectedFIGTypes << "FIG 0/3";
-        }
-        if (m_figType10 && m_figType10->isChecked()) {
-            selectedFIGTypes << "FIG 1/0";
-        }
-        if (m_figType11 && m_figType11->isChecked()) {
-            selectedFIGTypes << "FIG 1/1";
-        }
-        if (m_figType14 && m_figType14->isChecked()) {
-            selectedFIGTypes << "FIG 1/4";
-        }
-        
-        // Apply filtering to FIG Analysis Results tree
-        for (int i = 0; i < m_figAnalysisResults->topLevelItemCount(); i++) {
-            QTreeWidgetItem* item = m_figAnalysisResults->topLevelItem(i);
-            if (item) {
-                QString figType = item->text(0); // FIG Type column
-                
-                // Show item if no filters selected (show all) or if matches selected types
-                bool shouldShow = selectedFIGTypes.isEmpty() || selectedFIGTypes.contains(figType);
-                item->setHidden(!shouldShow);
-            }
-        }
-        
-        // Update system messages with filter status
-        if (m_systemMessages) {
-            if (selectedFIGTypes.isEmpty()) {
-                m_systemMessages->append("🔍 FIG Filter: Showing all FIG types");
-            } else {
-                m_systemMessages->append(QString("🔍 FIG Filter: Showing %1 (%2 types)")
-                                       .arg(selectedFIGTypes.join(", ")).arg(selectedFIGTypes.count()));
-            }
-        }
+        // OBSOLETE: FIG type filter checkboxes removed with Tab 2 restructure
+        // This function is kept as a no-op to avoid breaking signal connections
+        // TODO: Remove this function after verifying no references remain
     }
     
     // Performance metrics update method
@@ -2361,95 +2309,280 @@ private:
     }
 
     // ========================================================================
-    // TAB 2: FIC ANALYSIS TOOLS (SPECIALIZED ANALYSIS)
+    // TAB 2: FIC-ANALYZER (3-PANEL LAYOUT PER DATA_AVAILABILITY_MATRIX.md)
     // ========================================================================
-    // Tab 2: FIC-Analyzer (now a main tab, not a sub-panel)
-    QWidget* createTab2_FICAnalyzer()
+    
+    QWidget* createTab2_LeftPanel()
     {
         QWidget* panel = new QWidget();
         QVBoxLayout* layout = new QVBoxLayout(panel);
         layout->setContentsMargins(2, 2, 2, 2);
+        layout->setSpacing(4);
 
-        // FIG Type Controls
-        QGroupBox* controlsGroup = new QGroupBox("FIG Type Analysis");
-        QVBoxLayout* controlsLayout = new QVBoxLayout(controlsGroup);
-
-        m_figType00 = new QCheckBox("FIG 0/0 - Ensemble Organization");
-        m_figType01 = new QCheckBox("FIG 0/1 - Sub-channel Organization");
-        m_figType02 = new QCheckBox("FIG 0/2 - Service Organization");
-        m_figType03 = new QCheckBox("FIG 0/3 - Service Component");
-        m_figType10 = new QCheckBox("FIG 1/0 - Ensemble Label");
-        m_figType11 = new QCheckBox("FIG 1/1 - Service Label");
-        m_figType14 = new QCheckBox("FIG 1/4 - Service Component Label");
-
-        controlsLayout->addWidget(m_figType00);
-        controlsLayout->addWidget(m_figType01);
-        controlsLayout->addWidget(m_figType02);
-        controlsLayout->addWidget(m_figType03);
-        controlsLayout->addWidget(m_figType10);
-        controlsLayout->addWidget(m_figType11);
-        controlsLayout->addWidget(m_figType14);
-        controlsLayout->addStretch();
-
-        layout->addWidget(controlsGroup, 30);
-
-        // FIG Analysis Results
-        QGroupBox* resultsGroup = new QGroupBox("FIG Analysis Results");
-        QVBoxLayout* resultsLayout = new QVBoxLayout(resultsGroup);
+        // 1. Overview (QGroupBox) - 20%
+        QGroupBox* overviewGroup = new QGroupBox("Overview");
+        QVBoxLayout* overviewLayout = new QVBoxLayout(overviewGroup);
         
-        m_figAnalysisResults = new QTreeWidget();
-        m_figAnalysisResults->setHeaderLabels({"FIG Type", "Extension", "Content", "Status"});
-        m_figAnalysisResults->setAlternatingRowColors(true);
-        resultsLayout->addWidget(m_figAnalysisResults);
+        if (!m_tab2_ensembleName) {
+            m_tab2_ensembleName = new QLabel("Ensemble: (none)");
+        }
+        if (!m_tab2_ficContentSummary) {
+            m_tab2_ficContentSummary = new QLabel("FIC Content: 0 FIGs");
+        }
+        if (!m_tab2_subchannelOrgSummary) {
+            m_tab2_subchannelOrgSummary = new QLabel("Sub-Channels: 0");
+        }
+        
+        m_tab2_ensembleName->setWordWrap(true);
+        m_tab2_ficContentSummary->setWordWrap(true);
+        m_tab2_subchannelOrgSummary->setWordWrap(true);
+        
+        overviewLayout->addWidget(m_tab2_ensembleName);
+        overviewLayout->addWidget(m_tab2_ficContentSummary);
+        overviewLayout->addWidget(m_tab2_subchannelOrgSummary);
+        overviewLayout->addStretch();
+        
+        layout->addWidget(overviewGroup, 20);
 
-        layout->addWidget(resultsGroup, 70);
+        // 2. Service Tree (QTreeWidget) - 40%
+        QGroupBox* serviceTreeGroup = new QGroupBox("Service Tree");
+        QVBoxLayout* serviceTreeLayout = new QVBoxLayout(serviceTreeGroup);
+        
+        if (!m_tab2_serviceTree) {
+            m_tab2_serviceTree = new QTreeWidget();
+            m_tab2_serviceTree->setHeaderLabels({"SubCh / Service", "Type", "Component ID"});
+            m_tab2_serviceTree->setAlternatingRowColors(true);
+        }
+        serviceTreeLayout->addWidget(m_tab2_serviceTree);
+        
+        layout->addWidget(serviceTreeGroup, 40);
+
+        // 3. Digital Org Info (QLabel list) - 20%
+        QGroupBox* digitalOrgGroup = new QGroupBox("Digital Org Info");
+        QVBoxLayout* digitalOrgLayout = new QVBoxLayout(digitalOrgGroup);
+        
+        if (!m_tab2_digitalOrgInfo) {
+            m_tab2_digitalOrgInfo = new QTextEdit();
+            m_tab2_digitalOrgInfo->setReadOnly(true);
+            m_tab2_digitalOrgInfo->setPlaceholderText("Service IDs + Names:\n(e.g., 0x202E: Digital Org.)");
+        }
+        digitalOrgLayout->addWidget(m_tab2_digitalOrgInfo);
+        
+        layout->addWidget(digitalOrgGroup, 20);
+
+        // 4. Service Components (QTreeWidget) - 20%
+        QGroupBox* componentsGroup = new QGroupBox("Service Components");
+        QVBoxLayout* componentsLayout = new QVBoxLayout(componentsGroup);
+        
+        if (!m_tab2_serviceComponents) {
+            m_tab2_serviceComponents = new QTreeWidget();
+            m_tab2_serviceComponents->setHeaderLabels({"Component", "Type", "Details"});
+            m_tab2_serviceComponents->setAlternatingRowColors(true);
+        }
+        componentsLayout->addWidget(m_tab2_serviceComponents);
+        
+        layout->addWidget(componentsGroup, 20);
 
         return panel;
     }
 
-    // Tab 3: FIC-Extractor (now a main tab, not a sub-panel)
-    QWidget* createTab3_FICExtractor()
+    QWidget* createTab2_CenterPanel()
     {
         QWidget* panel = new QWidget();
         QVBoxLayout* layout = new QVBoxLayout(panel);
         layout->setContentsMargins(2, 2, 2, 2);
+        layout->setSpacing(4);
 
-        // Hierarchical Service Tree
-        QGroupBox* treeGroup = new QGroupBox("Hierarchical Service Tree");
-        QVBoxLayout* treeLayout = new QVBoxLayout(treeGroup);
+        // 1. Ensemble Table (10 columns) - 33%
+        QGroupBox* ensembleTableGroup = new QGroupBox("Ensemble Table");
+        QVBoxLayout* ensembleTableLayout = new QVBoxLayout(ensembleTableGroup);
         
-        m_hierarchicalServiceTree = new QTreeWidget();
-        m_hierarchicalServiceTree->setHeaderLabels({"Component", "Type", "Details"});
-        m_hierarchicalServiceTree->setAlternatingRowColors(true);
-        treeLayout->addWidget(m_hierarchicalServiceTree);
+        if (!m_tab2_ensembleTable) {
+            m_tab2_ensembleTable = new QTableWidget();
+            m_tab2_ensembleTable->setColumnCount(10);
+            m_tab2_ensembleTable->setHorizontalHeaderLabels({
+                "Type", "SubCH Id", "FIGCH", "PADDR", "SC1d", "CA", "CAOrg", "Bitrate", "ASCTy+", "Info"
+            });
+            m_tab2_ensembleTable->setAlternatingRowColors(true);
+            m_tab2_ensembleTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        }
+        ensembleTableLayout->addWidget(m_tab2_ensembleTable);
         
-        layout->addWidget(treeGroup, 40);
+        layout->addWidget(ensembleTableGroup, 33);
 
-        // Extracted Information Tabs
-        QGroupBox* extractedGroup = new QGroupBox("Extracted Information");
-        QVBoxLayout* extractedLayout = new QVBoxLayout(extractedGroup);
+        // 2. Sub-Channel Table (10 columns) - 33%
+        QGroupBox* subchannelTableGroup = new QGroupBox("Sub-Channel Table");
+        QVBoxLayout* subchannelTableLayout = new QVBoxLayout(subchannelTableGroup);
         
-        QTabWidget* extractedTabs = new QTabWidget();
+        if (!m_tab2_subchannelTable) {
+            m_tab2_subchannelTable = new QTableWidget();
+            m_tab2_subchannelTable->setColumnCount(10);
+            m_tab2_subchannelTable->setHorizontalHeaderLabels({
+                "SubCh Id", "SAD", "Bitrate", "P.Level", "P.Type", "SubCh Type", "SId", "Service Label", "Short Label", "CAID"
+            });
+            m_tab2_subchannelTable->setAlternatingRowColors(true);
+            m_tab2_subchannelTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        }
+        subchannelTableLayout->addWidget(m_tab2_subchannelTable);
         
-        m_extractedServiceLabels = new QTextEdit();
-        m_extractedServiceLabels->setReadOnly(true);
-        extractedTabs->addTab(m_extractedServiceLabels, "Service Labels");
+        layout->addWidget(subchannelTableGroup, 33);
+
+        // 3. Service Table (4 columns) - 34%
+        QGroupBox* serviceTableGroup = new QGroupBox("Service Table");
+        QVBoxLayout* serviceTableLayout = new QVBoxLayout(serviceTableGroup);
         
-        m_extractedProgrammeInfo = new QTextEdit();
-        m_extractedProgrammeInfo->setReadOnly(true);
-        extractedTabs->addTab(m_extractedProgrammeInfo, "Programme Info");
+        if (!m_tab2_serviceTable) {
+            m_tab2_serviceTable = new QTableWidget();
+            m_tab2_serviceTable->setColumnCount(4);
+            m_tab2_serviceTable->setHorizontalHeaderLabels({
+                "SId", "Service Label", "Short Label", "CAID"
+            });
+            m_tab2_serviceTable->setAlternatingRowColors(true);
+            m_tab2_serviceTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        }
+        serviceTableLayout->addWidget(m_tab2_serviceTable);
         
-        m_extractedTimeDate = new QTextEdit();
-        m_extractedTimeDate->setReadOnly(true);
-        extractedTabs->addTab(m_extractedTimeDate, "Date/Time");
-        
-        m_extractedFrequencies = new QListWidget();
-        extractedTabs->addTab(m_extractedFrequencies, "Frequencies");
-        
-        extractedLayout->addWidget(extractedTabs);
-        layout->addWidget(extractedGroup, 60);
+        layout->addWidget(serviceTableGroup, 34);
 
         return panel;
+    }
+
+    QWidget* createTab2_RightPanel()
+    {
+        QWidget* panel = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(panel);
+        layout->setContentsMargins(2, 2, 2, 2);
+        layout->setSpacing(4);
+
+        // FIG Content Table (4 columns) - 100%
+        QGroupBox* figContentGroup = new QGroupBox("FIG Content");
+        QVBoxLayout* figContentLayout = new QVBoxLayout(figContentGroup);
+        
+        if (!m_tab2_figContentTable) {
+            m_tab2_figContentTable = new QTableWidget();
+            m_tab2_figContentTable->setColumnCount(4);
+            m_tab2_figContentTable->setHorizontalHeaderLabels({
+                "Type", "Extension", "Number", "Subject"
+            });
+            m_tab2_figContentTable->setAlternatingRowColors(true);
+            m_tab2_figContentTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        }
+        figContentLayout->addWidget(m_tab2_figContentTable);
+        
+        layout->addWidget(figContentGroup);
+
+        return panel;
+    }
+
+    QWidget* createTab2_FICAnalyzer()
+    {
+        QWidget* mainPanel = new QWidget();
+        QHBoxLayout* mainLayout = new QHBoxLayout(mainPanel);
+        mainLayout->setContentsMargins(0, 0, 0, 0);
+        mainLayout->setSpacing(2);
+
+        // LEFT Panel (25%)
+        QWidget* leftPanel = createTab2_LeftPanel();
+        mainLayout->addWidget(leftPanel, 25);
+
+        // CENTER Panel (50%)
+        QWidget* centerPanel = createTab2_CenterPanel();
+        mainLayout->addWidget(centerPanel, 50);
+
+        // RIGHT Panel (25%)
+        QWidget* rightPanel = createTab2_RightPanel();
+        mainLayout->addWidget(rightPanel, 25);
+
+        return mainPanel;
+    }
+
+    // ========================================================================
+    // TAB 3: FIC-EXTRACTOR (2-PANEL LAYOUT PER DATA_AVAILABILITY_MATRIX.md)
+    // ========================================================================
+    
+    QWidget* createTab3_LeftPanel()
+    {
+        QWidget* panel = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(panel);
+        layout->setContentsMargins(2, 2, 2, 2);
+        layout->setSpacing(4);
+
+        // FIG Instance Tree (7 columns) - 100%
+        QGroupBox* figInstanceGroup = new QGroupBox("FIG Instance List");
+        QVBoxLayout* figInstanceLayout = new QVBoxLayout(figInstanceGroup);
+        
+        if (!m_tab3_figInstanceTree) {
+            m_tab3_figInstanceTree = new QTreeWidget();
+            m_tab3_figInstanceTree->setHeaderLabels({
+                "FIG Type", "Index", "Frame#", "CIF#", "FIB#", "Length", "Items"
+            });
+            m_tab3_figInstanceTree->setAlternatingRowColors(true);
+            m_tab3_figInstanceTree->setEditTriggers(QAbstractItemView::NoEditTriggers);
+            
+            // Set column widths for readability
+            m_tab3_figInstanceTree->setColumnWidth(0, 80);   // FIG Type
+            m_tab3_figInstanceTree->setColumnWidth(1, 50);   // Index
+            m_tab3_figInstanceTree->setColumnWidth(2, 70);   // Frame#
+            m_tab3_figInstanceTree->setColumnWidth(3, 50);   // CIF#
+            m_tab3_figInstanceTree->setColumnWidth(4, 50);   // FIB#
+            m_tab3_figInstanceTree->setColumnWidth(5, 60);   // Length
+            m_tab3_figInstanceTree->setColumnWidth(6, 50);   // Items
+        }
+        figInstanceLayout->addWidget(m_tab3_figInstanceTree);
+        
+        layout->addWidget(figInstanceGroup);
+
+        return panel;
+    }
+
+    QWidget* createTab3_RightPanel()
+    {
+        QWidget* panel = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(panel);
+        layout->setContentsMargins(2, 2, 2, 2);
+        layout->setSpacing(4);
+
+        // FIG Item Details Tree (4 columns, 5 levels) - 100%
+        QGroupBox* figItemDetailsGroup = new QGroupBox("FIG Item Details");
+        QVBoxLayout* figItemDetailsLayout = new QVBoxLayout(figItemDetailsGroup);
+        
+        if (!m_tab3_figItemDetailsTree) {
+            m_tab3_figItemDetailsTree = new QTreeWidget();
+            m_tab3_figItemDetailsTree->setHeaderLabels({
+                "Property", "Size", "Value", "Information"
+            });
+            m_tab3_figItemDetailsTree->setAlternatingRowColors(true);
+            m_tab3_figItemDetailsTree->setEditTriggers(QAbstractItemView::NoEditTriggers);
+            
+            // Set column widths for readability
+            m_tab3_figItemDetailsTree->setColumnWidth(0, 150);  // Property
+            m_tab3_figItemDetailsTree->setColumnWidth(1, 60);   // Size (bits)
+            m_tab3_figItemDetailsTree->setColumnWidth(2, 100);  // Value (hex/dec)
+            // Information column stretches
+        }
+        figItemDetailsLayout->addWidget(m_tab3_figItemDetailsTree);
+        
+        layout->addWidget(figItemDetailsGroup);
+
+        return panel;
+    }
+
+    QWidget* createTab3_FICExtractor()
+    {
+        QWidget* mainPanel = new QWidget();
+        QHBoxLayout* mainLayout = new QHBoxLayout(mainPanel);
+        mainLayout->setContentsMargins(0, 0, 0, 0);
+        mainLayout->setSpacing(2);
+
+        // LEFT Panel (40%) - FIG Instance Tree
+        QWidget* leftPanel = createTab3_LeftPanel();
+        mainLayout->addWidget(leftPanel, 40);
+
+        // RIGHT Panel (60%) - FIG Item Details Tree
+        QWidget* rightPanel = createTab3_RightPanel();
+        mainLayout->addWidget(rightPanel, 60);
+
+        return mainPanel;
     }
 
     // ========================================================================
@@ -3150,146 +3283,12 @@ private:
         return groupBox;
     }
 
-    void createEnhancedFICAnalysisPanel(QSplitter* parent)
-    {
-        QTabWidget* analysisTabs = new QTabWidget();
+    // OBSOLETE: Old createEnhancedFICAnalysisPanel() removed
+    // This was creating nested tabs which are now main tabs (Tab 2, Tab 3, etc.)
 
-        // Tab 1: FIC-Analyzer (DAB-XPlorer pattern)
-        QWidget* ficAnalyzerTab = createFICAnalyzerTab();
-        analysisTabs->addTab(ficAnalyzerTab, "FIC-Analyzer");
+    // OBSOLETE: Old createFICAnalyzerTab() removed - replaced by createTab2_FICAnalyzer()
 
-        // Tab 2: FIC-Extractor (Tree tool)
-        QWidget* ficExtractorTab = createFICExtractorTab();
-        analysisTabs->addTab(ficExtractorTab, "FIC-Extractor");
-
-        // Tab 3: System Messages (Original)
-        m_systemMessages = new QTextEdit();
-        m_systemMessages->setFont(QFont("Consolas", 9));
-        analysisTabs->addTab(m_systemMessages, "System Messages");
-
-        // Tab 4: Performance Dashboard
-        QWidget* performanceTab = createPerformanceDashboardTab();
-        analysisTabs->addTab(performanceTab, "Performance");
-
-        // Tab 5: Multi-stream Manager (Hidden for future development)
-        // QWidget* multiStreamTab = createMultiStreamTab();
-        // analysisTabs->addTab(multiStreamTab, "Multi-stream");
-        
-        // Tab 6: Advanced Error Detection
-        QWidget* errorDetectionTab = createErrorDetectionTab();
-        analysisTabs->addTab(errorDetectionTab, "Error Detection");
-        
-        // Tab 7: Professional Logging
-        QWidget* loggingTab = createLoggingTab();
-        analysisTabs->addTab(loggingTab, "Logging");
-        
-        // Tab 8: Constellation Viewer
-        QWidget* constellationTab = createConstellationTab();
-        analysisTabs->addTab(constellationTab, "Constellation");
-
-        parent->addWidget(analysisTabs);
-    }
-
-    QWidget* createFICAnalyzerTab()
-    {
-        QWidget* widget = new QWidget();
-        QHBoxLayout* layout = new QHBoxLayout(widget);
-
-        // Left side: FIG Type Controls (DAB-XPlorer style)
-        QGroupBox* figControlsGroup = new QGroupBox("FIG Type Analysis");
-        QVBoxLayout* controlsLayout = new QVBoxLayout(figControlsGroup);
-
-        // FIG Type checkboxes with professional descriptions
-        m_figType00 = new QCheckBox("FIG 0/0 - Ensemble Organization");
-        m_figType01 = new QCheckBox("FIG 0/1 - Sub-channel Organization");
-        m_figType02 = new QCheckBox("FIG 0/2 - Service Organization");
-        m_figType03 = new QCheckBox("FIG 0/3 - Service Component");
-        m_figType10 = new QCheckBox("FIG 1/0 - Ensemble Label");
-        m_figType11 = new QCheckBox("FIG 1/1 - Service Label");
-        m_figType14 = new QCheckBox("FIG 1/4 - Service Component Label");
-
-        // Initialize all checkboxes as unchecked (show all FIG types by default)
-        m_figType00->setChecked(false);
-        m_figType01->setChecked(false);
-        m_figType02->setChecked(false);
-        m_figType03->setChecked(false);
-        m_figType10->setChecked(false);
-        m_figType11->setChecked(false);
-        m_figType14->setChecked(false);
-
-        controlsLayout->addWidget(m_figType00);
-        controlsLayout->addWidget(m_figType01);
-        controlsLayout->addWidget(m_figType02);
-        controlsLayout->addWidget(m_figType03);
-        controlsLayout->addWidget(m_figType10);
-        controlsLayout->addWidget(m_figType11);
-        controlsLayout->addWidget(m_figType14);
-        controlsLayout->addStretch();
-
-        // Right side: FIG Analysis Results
-        QGroupBox* resultsGroup = new QGroupBox("FIG Analysis Results");
-        QVBoxLayout* resultsLayout = new QVBoxLayout(resultsGroup);
-        
-        m_figAnalysisResults = new QTreeWidget();
-        m_figAnalysisResults->setHeaderLabels({"FIG Type", "Extension", "Content", "Status"});
-        m_figAnalysisResults->setRootIsDecorated(true);
-        m_figAnalysisResults->setAlternatingRowColors(true);
-        resultsLayout->addWidget(m_figAnalysisResults);
-
-        layout->addWidget(figControlsGroup, 1);
-        layout->addWidget(resultsGroup, 2);
-
-        return widget;
-    }
-
-    QWidget* createFICExtractorTab()
-    {
-        QWidget* widget = new QWidget();
-        QHBoxLayout* layout = new QHBoxLayout(widget);
-
-        // Left side: Hierarchical Service Tree (XPlorer pattern)
-        QGroupBox* treeGroup = new QGroupBox("Hierarchical Service Tree");
-        QVBoxLayout* treeLayout = new QVBoxLayout(treeGroup);
-
-        m_hierarchicalServiceTree = new QTreeWidget();
-        m_hierarchicalServiceTree->setHeaderLabels({"Component", "Type", "Details"});
-        m_hierarchicalServiceTree->setAlternatingRowColors(true);
-        treeLayout->addWidget(m_hierarchicalServiceTree);
-
-        // Right side: Extracted Information
-        QGroupBox* extractedGroup = new QGroupBox("Extracted Information");
-        QVBoxLayout* extractedLayout = new QVBoxLayout(extractedGroup);
-
-        // Service Labels
-        QLabel* serviceLabelsLabel = new QLabel("Service Labels:");
-        serviceLabelsLabel->setStyleSheet("font-weight: bold;");
-        m_extractedServiceLabels = new QTextEdit();
-        m_extractedServiceLabels->setMaximumHeight(100);
-        extractedLayout->addWidget(serviceLabelsLabel);
-        extractedLayout->addWidget(m_extractedServiceLabels);
-
-        // Programme Information
-        QLabel* programmeLabel = new QLabel("Programme Information:");
-        programmeLabel->setStyleSheet("font-weight: bold;");
-        m_extractedProgrammeInfo = new QTextEdit();
-        m_extractedProgrammeInfo->setMaximumHeight(100);
-        extractedLayout->addWidget(programmeLabel);
-        extractedLayout->addWidget(m_extractedProgrammeInfo);
-
-        // Time Information
-        QLabel* timeLabel = new QLabel("Date/Time Information:");
-        timeLabel->setStyleSheet("font-weight: bold;");
-        m_extractedTimeInfo = new QLabel("Time: Not available");
-        extractedLayout->addWidget(timeLabel);
-        extractedLayout->addWidget(m_extractedTimeInfo);
-
-        extractedLayout->addStretch();
-
-        layout->addWidget(treeGroup, 2);
-        layout->addWidget(extractedGroup, 1);
-
-        return widget;
-    }
+    // OBSOLETE: Old createFICExtractorTab() removed - replaced by createTab3_FICExtractor()
 
     QWidget* createPerformanceDashboardTab()
     {
@@ -3637,13 +3636,7 @@ private:
                 this, &DABAnalyzerWindow::onETIFormatDetected);
         
         // FIG Type checkbox filtering signals
-        connect(m_figType00, &QCheckBox::toggled, this, &DABAnalyzerWindow::onFIGTypeFilterChanged);
-        connect(m_figType01, &QCheckBox::toggled, this, &DABAnalyzerWindow::onFIGTypeFilterChanged);
-        connect(m_figType02, &QCheckBox::toggled, this, &DABAnalyzerWindow::onFIGTypeFilterChanged);
-        connect(m_figType03, &QCheckBox::toggled, this, &DABAnalyzerWindow::onFIGTypeFilterChanged);
-        connect(m_figType10, &QCheckBox::toggled, this, &DABAnalyzerWindow::onFIGTypeFilterChanged);
-        connect(m_figType11, &QCheckBox::toggled, this, &DABAnalyzerWindow::onFIGTypeFilterChanged);
-        connect(m_figType14, &QCheckBox::toggled, this, &DABAnalyzerWindow::onFIGTypeFilterChanged);
+        // OBSOLETE: FIG type filter checkboxes removed with old Tab 2 layout
 
         // FIG Analyzer signals (if available)
         connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceDiscovered,
@@ -3889,15 +3882,12 @@ private:
     }
     
     void updateFIGExtractorFromSharedData() {
-        if (!m_sharedData || !m_figAnalysisResults) return;
+        // OBSOLETE: m_figAnalysisResults removed with Tab 2 restructure
+        // Tab 3 now uses m_tab3_figInstanceTree and m_tab3_figItemDetailsTree
+        // TODO: Reimplement with new Tab 3 widgets
+        if (!m_sharedData) return;
         
-        // Get FIC data from SharedETIData
-        auto ficData = m_sharedData->getFICData();
-        
-        // Update FIG extractor display
-        // TODO: Parse FIC data and populate FIG tree
-        // For Phase B initial implementation, just log
-        qDebug() << "Phase B: FIG data updated in SharedETIData";
+        qDebug() << "Phase B: FIG data updated in SharedETIData (display update pending)";
     }
 
     void setupStatusBar()
@@ -4436,29 +4426,29 @@ private:
     QTimer* m_statsTimer = nullptr;
     
     // Professional FIC Analysis Hub widgets
-    QTreeWidget* m_figAnalysisResults = nullptr;
-    QTextEdit* m_figAnalysisDetails = nullptr;
-    QComboBox* m_figTypeFilter = nullptr;
-    QCheckBox* m_enableFig0Analysis = nullptr;
-    QCheckBox* m_enableFig1Analysis = nullptr;
-    QCheckBox* m_figType00 = nullptr;
-    QCheckBox* m_figType01 = nullptr;
-    QCheckBox* m_figType02 = nullptr;
-    QCheckBox* m_figType03 = nullptr;
-    QCheckBox* m_figType10 = nullptr;
-    QCheckBox* m_figType11 = nullptr;
-    QCheckBox* m_figType14 = nullptr;
-    QSpinBox* m_analysisDepthControl = nullptr;
-    QProgressBar* m_analysisProgress = nullptr;
+    // Tab 2: FIC-Analyzer widgets (3-panel layout per DATA_AVAILABILITY_MATRIX.md)
+    // LEFT Panel widgets
+    QLabel* m_tab2_ensembleName = nullptr;
+    QLabel* m_tab2_ficContentSummary = nullptr;
+    QLabel* m_tab2_subchannelOrgSummary = nullptr;
+    QTreeWidget* m_tab2_serviceTree = nullptr;
+    QTextEdit* m_tab2_digitalOrgInfo = nullptr;
+    QTreeWidget* m_tab2_serviceComponents = nullptr;
     
-    // FIC-Extractor widgets
-    QTreeWidget* m_hierarchicalServiceTree = nullptr;
-    QTextEdit* m_extractedServiceLabels = nullptr;
-    QTextEdit* m_extractedProgramTypes = nullptr;
-    QTextEdit* m_extractedProgrammeInfo = nullptr;
-    QListWidget* m_extractedFrequencies = nullptr;
-    QTextEdit* m_extractedTimeDate = nullptr;
-    QLabel* m_extractedTimeInfo = nullptr;
+    // CENTER Panel widgets
+    QTableWidget* m_tab2_ensembleTable = nullptr;  // 10 columns
+    QTableWidget* m_tab2_subchannelTable = nullptr;  // 10 columns
+    QTableWidget* m_tab2_serviceTable = nullptr;  // 4 columns
+    
+    // RIGHT Panel widgets
+    QTableWidget* m_tab2_figContentTable = nullptr;  // 4 columns
+    
+    // Tab 3: FIC-Extractor widgets (2-panel layout per DATA_AVAILABILITY_MATRIX.md)
+    // LEFT Panel widgets
+    QTreeWidget* m_tab3_figInstanceTree = nullptr;  // 7 columns: FIG Type, Index, Frame#, CIF#, FIB#, Length, Items
+    
+    // RIGHT Panel widgets
+    QTreeWidget* m_tab3_figItemDetailsTree = nullptr;  // 4 columns: Property, Size, Value, Information
     
     // Performance Dashboard widgets
     QLabel* m_fpsCounter = nullptr;
