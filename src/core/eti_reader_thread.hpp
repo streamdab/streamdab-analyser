@@ -78,13 +78,24 @@ public slots:
     void resumeProcessing();
 
 signals:
-    void frameReceived(quint32 frameNumber);
+    // Phase D: Pattern 7 - Specialized signals with throttling at source
+    void frameCounterUpdated(quint32 frameNumber);       // 5 fps (throttled)
+    void figDataReady(QSharedPointer<FICDataSignal> data);  // 1 fps (throttled)
+    void errorStatsReady(ErrorStats stats);              // 0.5 fps (throttled)
+    void mscDataReady(QSharedPointer<MSCData> data);     // 2 fps (throttled)
+    
+    // Event-driven signals (not throttled - fire on change only)
+    void serviceListChanged(QList<ServiceInfo> services);
+    void ensembleInfoChanged(EnsembleInfo info);
+    
+    // Legacy signals (Phase A/B compatibility - keep for existing connections)
+    void frameReceived(quint32 frameNumber);             // 41 fps (internal)
     void ficDataUpdated(QSharedPointer<FICDataSignal> data);
     void mscDataUpdated(QSharedPointer<MSCData> data);
     void errorStatsUpdated(ErrorStats stats);
-    void ensembleInfoChanged(EnsembleInfo info);
     void serviceListUpdated(QList<ServiceInfo> services);
     
+    // Lifecycle signals
     void processingStarted();
     void processingComplete(int totalFrames, int timeMs);
     void processingError(QString error);
@@ -137,9 +148,21 @@ private:
 
     ErrorStats m_errorStats;
     EnsembleInfo m_ensembleInfo;
+    
+    // Phase D: Pattern 8 - Throttling timers for specialized signals
+    QElapsedTimer m_frameCounterThrottle;
+    QElapsedTimer m_figDataThrottle;
+    QElapsedTimer m_errorStatsThrottle;
+    QElapsedTimer m_mscDataThrottle;
 
     static constexpr int ETI_FRAME_SIZE = 6144;
     static constexpr int FRAME_INTERVAL_MS = 24;
+    
+    // Phase D: Throttling intervals for specialized signals
+    static constexpr int FRAME_COUNTER_INTERVAL_MS = 200;   // 5 fps
+    static constexpr int FIG_DATA_INTERVAL_MS = 1000;       // 1 fps
+    static constexpr int ERROR_STATS_INTERVAL_MS = 2000;    // 0.5 fps
+    static constexpr int MSC_DATA_INTERVAL_MS = 500;        // 2 fps
 };
 
 Q_DECLARE_METATYPE(QSharedPointer<FICDataSignal>)

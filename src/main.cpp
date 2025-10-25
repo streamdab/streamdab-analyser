@@ -3598,7 +3598,46 @@ private:
             return;
         }
         
+        // === Phase D: Connect throttled specialized signals (Pattern 7 + 8) ===
+        
+        // Frame counter (5 fps - throttled at source)
+        connect(m_readerThread, &ETIReaderThread::frameCounterUpdated,
+                this, [this](quint32 frameNum) {
+                    qDebug() << "Phase D: Frame counter:" << frameNum << "(5 fps throttled)";
+                    // Update frame counter widget when implemented
+                }, Qt::QueuedConnection);
+        
+        // FIG data (1 fps - throttled at source)
+        connect(m_readerThread, &ETIReaderThread::figDataReady,
+                this, [this](QSharedPointer<FICDataSignal> figData) {
+                    qDebug() << "Phase D: FIG data ready (1 fps throttled)";
+                    if (figData && m_sharedData) {
+                        streamdab::core::FICData sharedFicData;
+                        m_sharedData->setFICData(sharedFicData);
+                    }
+                }, Qt::QueuedConnection);
+        
+        // Error statistics (0.5 fps - throttled at source)
+        connect(m_readerThread, &ETIReaderThread::errorStatsReady,
+                this, [this](ErrorStats stats) {
+                    qDebug() << "Phase D: Error stats ready (0.5 fps throttled)";
+                    if (m_sharedData) {
+                        streamdab::core::ErrorStats sharedStats;
+                        sharedStats.crc_errors = stats.crcErrors;
+                        sharedStats.sync_errors = stats.syncLost;
+                        m_sharedData->updateErrorStats(sharedStats);
+                    }
+                }, Qt::QueuedConnection);
+        
+        // MSC data (2 fps - throttled at source)
+        connect(m_readerThread, &ETIReaderThread::mscDataReady,
+                this, [this](QSharedPointer<MSCData> mscData) {
+                    qDebug() << "Phase D: MSC data ready (2 fps throttled)";
+                    // Process MSC data when needed
+                }, Qt::QueuedConnection);
+        
         // === Phase B: Connect ETIReaderThread signals to update SharedETIData ===
+        // Note: These legacy signals still work for backward compatibility
         
         // Pattern 5: Worker thread frame updates -> SharedETIData (queued connection)
         connect(m_readerThread, &ETIReaderThread::frameReceived,
