@@ -2022,7 +2022,11 @@ private:
         }
         
         detailsLayout->addWidget(m_etiExplorerDetails);
-        layout->addWidget(detailsGroup, 50);  // 50% stretch
+        layout->addWidget(detailsGroup, 40);  // 40% stretch (reduced to make room for Messages)
+
+        // Messages Panel (Professional Logging - relocated from Tab 4)
+        QGroupBox* messagesPanel = createLoggingPanel();
+        layout->addWidget(messagesPanel, 10);  // 10% stretch
 
         return panel;
     }
@@ -2255,7 +2259,24 @@ private:
         
         layout->addWidget(navigatorGroup, 25);
 
-        // Bottom 55%: Hex Viewer / ETSI Compliance tabs
+        // Subchannel Organization Table (from DATA_AVAILABILITY_MATRIX.md item #8)
+        QGroupBox* subchannelGroup = new QGroupBox("Subchannel Organization");
+        QVBoxLayout* subchannelLayout = new QVBoxLayout(subchannelGroup);
+        
+        m_subchannelTable = new QTableWidget();
+        m_subchannelTable->setColumnCount(8);
+        m_subchannelTable->setHorizontalHeaderLabels({
+            "☑", "SubCh ID", "Type", "Level", "Bitrate", "SAD", "Size", "Errors"
+        });
+        m_subchannelTable->setAlternatingRowColors(true);
+        m_subchannelTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+        m_subchannelTable->horizontalHeader()->setStretchLastSection(true);
+        m_subchannelTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        subchannelLayout->addWidget(m_subchannelTable);
+        
+        layout->addWidget(subchannelGroup, 20);
+
+        // Bottom 35%: Hex Viewer / ETSI Compliance tabs
         QTabWidget* viewerTabs = new QTabWidget();
         
         m_hexViewer = new QTextEdit();
@@ -2270,7 +2291,7 @@ private:
         m_complianceViewer->setPlaceholderText("ETSI EN 300 799 compliance results...");
         viewerTabs->addTab(m_complianceViewer, "ETSI Compliance");
         
-        layout->addWidget(viewerTabs, 55);
+        layout->addWidget(viewerTabs, 35);
 
         return panel;
     }
@@ -2328,6 +2349,10 @@ private:
         // Bottom 55%: Now Playing (DLS+)
         QGroupBox* nowPlayingGroup = createNowPlayingPanel();
         layout->addWidget(nowPlayingGroup, 55);
+
+        // DAB Error Counter (relocated from Tab 4)
+        QGroupBox* errorCounterPanel = createErrorDetectionPanel();
+        layout->addWidget(errorCounterPanel);
 
         return panel;
     }
@@ -3959,6 +3984,7 @@ private:
     QTextEdit* m_loggingStatsDisplay;
     QLabel* m_frameDetails;  // OBSOLETE - replaced by m_etiExplorerDetails
     QTableWidget* m_etiExplorerDetails;  // NEW: ETI Explorer Details table (Tab 1)
+    QTableWidget* m_subchannelTable;  // NEW: Subchannel Organization table (Tab 1 Center Panel)
     
     // Professional FIC Analysis Hub widgets
     QTreeWidget* m_figAnalysisResults;
