@@ -2769,34 +2769,80 @@ private:
     // ========================================================================
     // Items #12-14 from DATA_AVAILABILITY_MATRIX.md (RIGHT Panel)
 
+    /**
+     * @brief Helper method to create a standard property-value table widget
+     * 
+     * Reduces code duplication across multiple panel creation methods.
+     * Creates a 2-column table with consistent styling:
+     * - Column 1: Property names (bold font)
+     * - Column 2: Values (monospace font)
+     * 
+     * @param rows Number of rows in the table
+     * @param properties QStringList of property names for column 1
+     * @param fontFamily Font family for property column (default: "Segoe UI")
+     * @param fontSize Font size for both columns (default: 9)
+     * @return QTableWidget* Configured table widget (parent must take ownership)
+     * 
+     * @note Fixes HIGH-003 from code review: Extract table creation helper
+     */
+    QTableWidget* createPropertyTable(int rows, 
+                                      const QStringList& properties,
+                                      const QString& fontFamily = "Segoe UI",
+                                      int fontSize = 9)
+    {
+        auto* table = new QTableWidget(rows, 2);
+        if (!table) {
+            qCritical() << "Failed to allocate QTableWidget";
+            return nullptr;
+        }
+        
+        table->setHorizontalHeaderLabels({"Property", "Value"});
+        table->verticalHeader()->setVisible(false);
+        table->setAlternatingRowColors(true);
+        table->horizontalHeader()->setStretchLastSection(true);
+        table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        
+        // Initialize rows with property names and default values
+        for (int i = 0; i < properties.size() && i < rows; ++i) {
+            auto* propItem = new QTableWidgetItem(properties[i]);
+            if (propItem) {
+                propItem->setFont(QFont(fontFamily, fontSize, QFont::Bold));
+                table->setItem(i, 0, propItem);
+            }
+            
+            auto* valItem = new QTableWidgetItem("--");
+            if (valItem) {
+                valItem->setFont(QFont("Consolas", fontSize));
+                table->setItem(i, 1, valItem);
+            }
+        }
+        
+        return table;
+    }
+
     QGroupBox* createTimingPanel()
     {
         QGroupBox* groupBox = new QGroupBox("Timing");
+        if (!groupBox) {
+            qCritical() << "Failed to create Timing panel";
+            return nullptr;
+        }
+        
         QVBoxLayout* layout = new QVBoxLayout(groupBox);
         layout->setContentsMargins(4, 8, 4, 4);
         
-        m_timingTable = new QTableWidget(4, 2);
-        m_timingTable->setHorizontalHeaderLabels({"Property", "Value"});
-        m_timingTable->verticalHeader()->setVisible(false);
-        m_timingTable->setAlternatingRowColors(true);
-        m_timingTable->horizontalHeader()->setStretchLastSection(true);
-        m_timingTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-        m_timingTable->setMaximumHeight(150);
-        
-        // Initialize timing properties
+        // Use helper method to create table (HIGH-003 fix)
         QStringList properties = {
             "FCT = 0 (µs)", "Step (µs)", "FCT = 0 (ticks)", "Step (ticks)"
         };
-        for (int i = 0; i < properties.size(); ++i) {
-            QTableWidgetItem* propItem = new QTableWidgetItem(properties[i]);
-            propItem->setFont(QFont("Segoe UI", 9, QFont::Bold));
-            m_timingTable->setItem(i, 0, propItem);
-            
-            QTableWidgetItem* valItem = new QTableWidgetItem("--");
-            valItem->setFont(QFont("Consolas", 9));
-            m_timingTable->setItem(i, 1, valItem);
+        m_timingTable = createPropertyTable(4, properties);
+        if (!m_timingTable) {
+            qCritical() << "Failed to create timing table";
+            delete groupBox;
+            return nullptr;
         }
         
+        m_timingTable->setMaximumHeight(150);
         layout->addWidget(m_timingTable);
         return groupBox;
     }
@@ -2804,15 +2850,27 @@ private:
     QGroupBox* createCUUsagePanel()
     {
         QGroupBox* groupBox = new QGroupBox("CU Usage");
+        if (!groupBox) {
+            qCritical() << "Failed to create CU Usage panel";
+            return nullptr;
+        }
+        
         QVBoxLayout* layout = new QVBoxLayout(groupBox);
         layout->setContentsMargins(4, 8, 4, 4);
         
         // Simple implementation: Progress bar showing X / 864 CUs
         QLabel* cuLabel = new QLabel("Capacity Units:");
-        cuLabel->setStyleSheet("font-weight: bold;");
-        layout->addWidget(cuLabel);
+        if (cuLabel) {
+            cuLabel->setStyleSheet("font-weight: bold;");
+            layout->addWidget(cuLabel);
+        }
         
         m_cuUsageBar = new QProgressBar();
+        if (!m_cuUsageBar) {
+            qCritical() << "Failed to create CU usage progress bar";
+            delete groupBox;
+            return nullptr;
+        }
         m_cuUsageBar->setMaximum(864);  // Mode 1 max CUs
         m_cuUsageBar->setValue(0);
         m_cuUsageBar->setFormat("%v / %m CUs (%p%)");
@@ -2820,8 +2878,10 @@ private:
         layout->addWidget(m_cuUsageBar);
         
         m_cuUsageLabel = new QLabel("0 subchannels active");
-        m_cuUsageLabel->setStyleSheet("color: #666; font-size: 9pt;");
-        layout->addWidget(m_cuUsageLabel);
+        if (m_cuUsageLabel) {
+            m_cuUsageLabel->setStyleSheet("color: #666; font-size: 9pt;");
+            layout->addWidget(m_cuUsageLabel);
+        }
         
         layout->addStretch();
         return groupBox;
@@ -2830,17 +2890,15 @@ private:
     QGroupBox* createStreamStatisticsPanel()
     {
         QGroupBox* groupBox = new QGroupBox("DAB Stream Statistics");
+        if (!groupBox) {
+            qCritical() << "Failed to create Stream Statistics panel";
+            return nullptr;
+        }
+        
         QVBoxLayout* layout = new QVBoxLayout(groupBox);
         layout->setContentsMargins(4, 8, 4, 4);
         
-        m_streamStatsTable = new QTableWidget(10, 2);
-        m_streamStatsTable->setHorizontalHeaderLabels({"Metric", "Value"});
-        m_streamStatsTable->verticalHeader()->setVisible(false);
-        m_streamStatsTable->setAlternatingRowColors(true);
-        m_streamStatsTable->horizontalHeader()->setStretchLastSection(true);
-        m_streamStatsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-        
-        // Initialize stream statistics metrics
+        // Use helper method to create table (HIGH-003 fix)
         QStringList metrics = {
             "FIC Blocks Processed",
             "Total FIG Count",
@@ -2854,15 +2912,20 @@ private:
             "Processing Time (ms)"
         };
         
-        for (int i = 0; i < metrics.size(); ++i) {
-            QTableWidgetItem* metricItem = new QTableWidgetItem(metrics[i]);
-            metricItem->setFont(QFont("Segoe UI", 9));
-            m_streamStatsTable->setItem(i, 0, metricItem);
-            
-            QTableWidgetItem* valItem = new QTableWidgetItem("0");
-            valItem->setFont(QFont("Consolas", 9, QFont::Bold));
-            valItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-            m_streamStatsTable->setItem(i, 1, valItem);
+        m_streamStatsTable = createPropertyTable(10, metrics);
+        if (!m_streamStatsTable) {
+            qCritical() << "Failed to create stream statistics table";
+            delete groupBox;
+            return nullptr;
+        }
+        
+        // Customize for statistics: right-align values, set default to "0" instead of "--"
+        for (int i = 0; i < m_streamStatsTable->rowCount(); ++i) {
+            QTableWidgetItem* valItem = m_streamStatsTable->item(i, 1);
+            if (valItem) {
+                valItem->setText("0");
+                valItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            }
         }
         
         layout->addWidget(m_streamStatsTable);
@@ -3974,6 +4037,17 @@ private slots:
 private:
     // === PHASE 3 AGENT 4: Core Navigation Logic ===
     void navigateToFrame(size_t frameIndex) {
+        // HIGH-004: Add null checks at method entry
+        if (!m_etiProcessor) {
+            qWarning() << "[NAV] ETI processor not initialized";
+            return;
+        }
+        
+        if (!isValidFrameIndex(frameIndex)) {
+            qWarning() << "[NAV] Invalid frame index:" << frameIndex;
+            return;
+        }
+        
         qDebug() << "[NAV] Navigating to frame" << frameIndex;
         
         // Try cache first
@@ -3994,10 +4068,8 @@ private:
         m_cacheMisses++;
         qDebug() << "[NAV] Cache miss for frame" << frameIndex << "- processing...";
         
-        if (m_etiProcessor) {
-            // NOTE: This will trigger onFrameProcessed which will cache the frame
-            processFrame(frameIndex);
-        }
+        // NOTE: This will trigger onFrameProcessed which will cache the frame
+        processFrame(frameIndex);
     }
     
     void updateNavigationControls(size_t frameIndex) {
