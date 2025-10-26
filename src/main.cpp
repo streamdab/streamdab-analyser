@@ -203,6 +203,9 @@ private slots:
         // === PHASE 3: Update status to "Processing" ===
         updatePlayerPanelStatus("Running");
         updateDecoderPanelStatus("Processing");
+        
+        // === PHASE 4: Initialize error counter ===
+        updateErrorCounterTable();
 
         // === Note: Actual frame processing happens via signals ===
         // The following signals will be emitted during processing:
@@ -267,6 +270,12 @@ private slots:
         
         // DO NOT call updateFrameDetails - causes crash
         // DO NOT call formatToString - causes crash in this context
+        
+        // === PHASE 4: Throttled error counter updates (5 fps) ===
+        static std::atomic<uint64_t> errorCounterUpdateCounter{0};
+        if (++errorCounterUpdateCounter % 20 == 0) {  // Every 20 frames
+            updateErrorCounterTable();
+        }
     }
 
     void onProcessingProgress(int percentage, int currentFrame, int totalFrames)
@@ -340,6 +349,9 @@ private slots:
         updatePlayerPanelStatus("Completed");
         updateDecoderPanelStatus("Completed");
         updateTimingTable();
+        
+        // === PHASE 4: Final error statistics ===
+        updateErrorCounterTable();
         
         // Validate frame count
         if (totalFrames == 5001) {
@@ -2334,6 +2346,73 @@ private:
     }
 
     // === PHASE 3.3: Timing Table Update ===
+    // === PHASE 4: Error Counter Table Update ===
+    void updateErrorCounterTable() {
+        if (!m_errorCounterTable) return;
+        
+        // IMPORTANT: Use clearContents() to prevent memory leaks
+        m_errorCounterTable->clearContents();
+        
+        // Ensure correct size
+        if (m_errorCounterTable->rowCount() != 5) {
+            m_errorCounterTable->setRowCount(5);
+        }
+        if (m_errorCounterTable->columnCount() != 2) {
+            m_errorCounterTable->setColumnCount(2);
+            m_errorCounterTable->setHorizontalHeaderLabels({"Error Type", "Count"});
+        }
+        
+        // Get error statistics
+        // TODO: Connect to actual error detector when available
+        // For now, display zeros (framework is ready for integration)
+        int ficCrcErrors = 0;
+        int mscCrcErrors = 0;
+        int invalidFigErrors = 0;
+        int serviceOrgErrors = 0;
+        int subchannelErrors = 0;
+        
+        // Update table with error counts
+        struct ErrorRow {
+            QString type;
+            int count;
+        };
+        
+        ErrorRow errors[] = {
+            {"FIC CRC Errors", ficCrcErrors},
+            {"MSC CRC Errors", mscCrcErrors},
+            {"Invalid FIG Errors", invalidFigErrors},
+            {"Service Org Errors", serviceOrgErrors},
+            {"Subchannel Errors", subchannelErrors}
+        };
+        
+        for (int row = 0; row < 5; ++row) {
+            auto* typeItem = new QTableWidgetItem(errors[row].type);
+            typeItem->setFlags(typeItem->flags() & ~Qt::ItemIsEditable);
+            
+            auto* countItem = new QTableWidgetItem(QString::number(errors[row].count));
+            countItem->setFlags(countItem->flags() & ~Qt::ItemIsEditable);
+            
+            // Color code: Red for errors > 0, Green for 0 errors
+            if (errors[row].count > 0) {
+                countItem->setForeground(QColor(220, 50, 50));  // Red
+            } else {
+                countItem->setForeground(QColor(50, 180, 50));  // Green
+            }
+            
+            m_errorCounterTable->setItem(row, 0, typeItem);
+            m_errorCounterTable->setItem(row, 1, countItem);
+        }
+        
+        // Update total in status label
+        int totalErrors = ficCrcErrors + mscCrcErrors + invalidFigErrors + 
+                         serviceOrgErrors + subchannelErrors;
+        if (m_errorCountLabel) {
+            m_errorCountLabel->setText(QString("Total: %1").arg(totalErrors));
+        }
+        
+        qDebug() << "[PHASE 4] Error counter table updated";
+    }
+
     void updateTimingTable() {
         if (!m_timingTable) return;
         
@@ -3131,30 +3210,38 @@ private:
         QGroupBox* widget = new QGroupBox("DAB Error Counter");
         QVBoxLayout* layout = new QVBoxLayout(widget);
 
-        QGroupBox* statusGroup = new QGroupBox("Error Detection Status");
+        // === PHASE 4: Error Counter Table (Primary widget per DATA_AVAILABILITY_MATRIX.md) ===
+        if (!m_errorCounterTable) {
+            m_errorCounterTable = new QTableWidget();
+            m_errorCounterTable->setColumnCount(2);
+            m_errorCounterTable->setRowCount(5);
+            m_errorCounterTable->setHorizontalHeaderLabels({"Error Type", "Count"});
+            m_errorCounterTable->verticalHeader()->setVisible(false);
+            m_errorCounterTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+            m_errorCounterTable->setSelectionMode(QAbstractItemView::SingleSelection);
+            m_errorCounterTable->horizontalHeader()->setStretchLastSection(true);
+            
+            // Initialize with placeholder data
+            QStringList errorTypes = {"FIC CRC Errors", "MSC CRC Errors", "Invalid FIG Errors", 
+                                      "Service Org Errors", "Subchannel Errors"};
+            for (int row = 0; row < 5; ++row) {
+                m_errorCounterTable->setItem(row, 0, new QTableWidgetItem(errorTypes[row]));
+                m_errorCounterTable->setItem(row, 1, new QTableWidgetItem("0"));
+            }
+        }
+        layout->addWidget(m_errorCounterTable, 70);  // 70% of panel space
+
+        // Status summary (30% of panel space)
+        QGroupBox* statusGroup = new QGroupBox("Status");
         QHBoxLayout* statusLayout = new QHBoxLayout(statusGroup);
         m_errorDetectionStatus = new QLabel("Status: Active");
-        m_systemHealthScore = new QLabel("Health: 95%");
-        m_errorCountLabel = new QLabel("Errors: 0");
+        m_systemHealthScore = new QLabel("Health: 100%");
+        m_errorCountLabel = new QLabel("Total: 0");
         statusLayout->addWidget(m_errorDetectionStatus);
         statusLayout->addWidget(m_systemHealthScore);
         statusLayout->addWidget(m_errorCountLabel);
         statusLayout->addStretch();
-        layout->addWidget(statusGroup);
-
-        QGroupBox* historyGroup = new QGroupBox("Error History");
-        QVBoxLayout* historyLayout = new QVBoxLayout(historyGroup);
-        m_errorHistoryTree = new QTreeWidget();
-        m_errorHistoryTree->setHeaderLabels({"Timestamp", "Severity", "Type", "Description"});
-        historyLayout->addWidget(m_errorHistoryTree);
-        layout->addWidget(historyGroup);
-
-        QGroupBox* patternsGroup = new QGroupBox("Error Patterns Analysis");
-        QVBoxLayout* patternsLayout = new QVBoxLayout(patternsGroup);
-        m_errorPatternsDisplay = new QTextEdit();
-        m_errorPatternsDisplay->setReadOnly(true);
-        patternsLayout->addWidget(m_errorPatternsDisplay);
-        layout->addWidget(patternsGroup);
+        layout->addWidget(statusGroup, 30);
 
         return widget;
     }
@@ -4844,6 +4931,7 @@ private:
     QTableWidget* m_etiExplorerDetails = nullptr;  // NEW: ETI Explorer Details table (Tab 1)
     QTableWidget* m_subchannelTable = nullptr;  // NEW: Subchannel Organization table (Tab 1 Center Panel)
     QTableWidget* m_etiOverviewTable = nullptr;  // NEW: ETI Overview table (Tab 1 Right Panel - item #10)
+    QTableWidget* m_errorCounterTable = nullptr;  // PHASE 4: Error counter table (Tab 1 Right Panel - item #11)
     QTableWidget* m_timingTable = nullptr;  // NEW: Timing table (Tab 1 Right Panel - item #12)
     QProgressBar* m_cuUsageBar = nullptr;  // NEW: CU Usage progress bar (Tab 1 Right Panel - item #13)
     QLabel* m_cuUsageLabel = nullptr;  // NEW: CU Usage label (Tab 1 Right Panel - item #13)
