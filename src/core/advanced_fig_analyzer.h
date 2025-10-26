@@ -53,6 +53,11 @@ enum class LabelType {
  *
  * Complete sub-channel organization structure per ETSI EN 300 401
  * Supports both short form (EEP) and long form (UEP) protection
+ * 
+ * NAMING CONVENTION (Priority 3):
+ * - Canonical: snake_case (sub_channel_id, sub_channel_size, start_address)
+ * - Use these names consistently in all new code
+ * - Do NOT use: subchannel_id, subchannelId, subChannelId variants
  */
 struct SubChannelInfo {
     uint8_t sub_channel_id;        // 6 bits - Sub-channel ID

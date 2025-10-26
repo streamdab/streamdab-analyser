@@ -44,6 +44,11 @@ struct ETIFrame {
  * 
  * Contains complete information about a discovered DAB service
  * Used for service tree population and detail display
+ * 
+ * NAMING CONVENTION (Priority 3):
+ * - Canonical: camelCase (serviceId, ensembleId, subchannelId)
+ * - Use these names consistently in all new code
+ * - Do NOT use: service_id, ServiceId, service-id variants
  */
 struct ServiceInfo {
     uint32_t serviceId;        // Service Identifier (SID)
