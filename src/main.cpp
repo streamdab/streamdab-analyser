@@ -163,6 +163,10 @@ private slots:
         m_hexViewer->clear();
         m_systemMessages->clear();
 
+        // === PHASE 3: Update Player/Decoder status ===
+        updatePlayerPanelStatus("Loading", filePath);
+        updateDecoderPanelStatus("Initializing");
+
         // === Update status ===
         statusBar()->showMessage("Loading ETI file...");
         m_systemMessages->append(QString("📁 Loading file: %1").arg(filePath));
@@ -195,6 +199,10 @@ private slots:
         // === File loaded successfully - update state ===
         m_currentFilePath = filePath;
         m_systemMessages->append("✅ ETI file loaded - processing frames...");
+
+        // === PHASE 3: Update status to "Processing" ===
+        updatePlayerPanelStatus("Running");
+        updateDecoderPanelStatus("Processing");
 
         // === Note: Actual frame processing happens via signals ===
         // The following signals will be emitted during processing:
@@ -231,6 +239,7 @@ private slots:
         // Cache frame data (limit 10K frames to prevent memory bloat)
         // FIX HIGH-002: Evict before adding to maintain exact 10K limit
         if (!frameData.isEmpty()) {
+            QMutexLocker locker(&m_frameCacheMutex);  // FIX HIGH-002: Thread-safe cache access
             if (m_frameDataCache.size() >= 10000) {
                 // Evict oldest entry (first in map) before adding new one
                 auto it = m_frameDataCache.begin();
@@ -326,6 +335,11 @@ private slots:
         
         // === PHASE 2.3: Update stream statistics ===
         updateStreamStatistics(totalFrames, processingTimeMs);
+        
+        // === PHASE 3: Update Player/Decoder final status and timing ===
+        updatePlayerPanelStatus("Completed");
+        updateDecoderPanelStatus("Completed");
+        updateTimingTable();
         
         // Validate frame count
         if (totalFrames == 5001) {
@@ -1939,9 +1953,14 @@ private:
         
         // Get frame data from cache or processor
         QByteArray frameData;
-        if (m_frameDataCache.count(frameIndex) > 0) {
-            frameData = m_frameDataCache[frameIndex];
-        } else if (m_etiProcessor && m_fileLoaded) {
+        {
+            QMutexLocker locker(&m_frameCacheMutex);  // FIX HIGH-002: Thread-safe cache access
+            if (m_frameDataCache.count(frameIndex) > 0) {
+                frameData = m_frameDataCache[frameIndex];
+            }
+        }  // Release mutex before potentially slow getRawFrameData() call
+        
+        if (frameData.isEmpty() && m_etiProcessor && m_fileLoaded) {
             frameData = m_etiProcessor->getRawFrameData(frameIndex);
         }
         
@@ -2039,6 +2058,9 @@ private:
 
     // === HELPER: Get Current DAB Mode ===
     uint8_t getCurrentDABMode() const {
+        // FIX HIGH-002: Thread-safe access to frame cache
+        QMutexLocker locker(&m_frameCacheMutex);
+        
         // Try to get mode from most recent cached frame
         if (!m_frameDataCache.empty()) {
             // Get the last cached frame
@@ -2257,6 +2279,110 @@ private:
         
         qDebug() << "[PHASE 2.3] Stream statistics updated: Services=" << serviceCount 
                  << "Subchannels=" << subchannelCount << "FPS=" << fps;
+    }
+
+    // === PHASE 3.1: Player Panel Status Update ===
+    void updatePlayerPanelStatus(const QString& status, const QString& filePath = QString()) {
+        if (!m_playerStatusLabel) return;
+        
+        // Update status with color coding
+        m_playerStatusLabel->setText(status);
+        if (status == "Running" || status == "Processing") {
+            m_playerStatusLabel->setStyleSheet("color: green; font-weight: bold;");
+        } else if (status == "Stopped" || status == "Completed") {
+            m_playerStatusLabel->setStyleSheet("color: #0078D4; font-weight: bold;");
+        } else {
+            m_playerStatusLabel->setStyleSheet("color: #666;");
+        }
+        
+        // Update file name if provided
+        if (!filePath.isEmpty() && m_playerFileLabel) {
+            QFileInfo fileInfo(filePath);
+            m_playerFileLabel->setText(fileInfo.fileName());
+            m_playerFileLabel->setToolTip(filePath);  // Full path on hover
+            m_playerFileLabel->setStyleSheet("color: black;");
+        }
+        
+        qDebug() << "[PHASE 3.1] Player panel status updated:" << status;
+    }
+
+    // === PHASE 3.2: Decoder Panel Status Update ===
+    void updateDecoderPanelStatus(const QString& status, const QString& etiType = "ETI-NI") {
+        if (!m_decoderStatusLabel) return;
+        
+        // Update decoder status
+        m_decoderStatusLabel->setText(status);
+        if (status == "Running" || status == "Processing") {
+            m_decoderStatusLabel->setStyleSheet("color: green; font-weight: bold;");
+        } else if (status == "Idle" || status == "Completed") {
+            m_decoderStatusLabel->setStyleSheet("color: #0078D4; font-weight: bold;");
+        } else {
+            m_decoderStatusLabel->setStyleSheet("color: #666;");
+        }
+        
+        // Update ETI type (usually always ETI-NI for DAB streams)
+        if (m_decoderTypeLabel) {
+            m_decoderTypeLabel->setText(etiType);
+        }
+        
+        // Update total frames when processing completes
+        if (status == "Completed" && m_decoderFramesLabel) {
+            m_decoderFramesLabel->setText(QString("%1 frames").arg(m_totalFrames));
+        }
+        
+        qDebug() << "[PHASE 3.2] Decoder panel status updated:" << status;
+    }
+
+    // === PHASE 3.3: Timing Table Update ===
+    void updateTimingTable() {
+        if (!m_timingTable) return;
+        
+        // Get current DAB mode to determine frame duration
+        uint8_t dabMode = getCurrentDABMode();
+        
+        // Frame duration per ETSI EN 300 401:
+        // Mode 1: 24 ms per frame (96 ms transmission frame / 4 CIFs)
+        // Mode 2: 48 ms per frame (96 ms transmission frame / 2 CIFs)
+        // Mode 3: 24 ms per frame (96 ms transmission frame / 4 CIFs)
+        // Mode 4: 24 ms per frame (96 ms transmission frame / 4 CIFs)
+        uint32_t frameStepUs = (dabMode == 2) ? 48000 : 24000;  // microseconds
+        uint32_t frameStepTicks = frameStepUs;  // 1 tick = 1 us
+        
+        // Ensure table has 4 rows
+        if (m_timingTable->rowCount() < 4) {
+            m_timingTable->setRowCount(4);
+            m_timingTable->setColumnCount(2);
+            m_timingTable->setHorizontalHeaderLabels({"Property", "Value"});
+            
+            m_timingTable->setItem(0, 0, new QTableWidgetItem("FCT = 0 (us)"));
+            m_timingTable->setItem(1, 0, new QTableWidgetItem("Step (us)"));
+            m_timingTable->setItem(2, 0, new QTableWidgetItem("FCT = 0 (ticks)"));
+            m_timingTable->setItem(3, 0, new QTableWidgetItem("Step (ticks)"));
+        }
+        
+        // Clear value column
+        for (int row = 0; row < 4; ++row) {
+            QTableWidgetItem* oldItem = m_timingTable->item(row, 1);
+            if (oldItem) {
+                delete m_timingTable->takeItem(row, 1);
+            }
+        }
+        
+        // Update values
+        // Row 0: FCT=0 timestamp (always 0 at start)
+        m_timingTable->setItem(0, 1, new QTableWidgetItem("0"));
+        
+        // Row 1: Frame step in microseconds
+        m_timingTable->setItem(1, 1, new QTableWidgetItem(QString("%1 µs").arg(frameStepUs)));
+        
+        // Row 2: FCT=0 in ticks (same as microseconds)
+        m_timingTable->setItem(2, 1, new QTableWidgetItem("0"));
+        
+        // Row 3: Frame step in ticks
+        m_timingTable->setItem(3, 1, new QTableWidgetItem(QString("%1 ticks").arg(frameStepTicks)));
+        
+        qDebug() << "[PHASE 3.3] Timing table updated (Mode" << dabMode << "):" 
+                 << frameStepUs << "µs per frame";
     }
 
     void setupUI()
@@ -4894,6 +5020,7 @@ private:
     // === PHASE 1: Signal/Slot Connection State Variables ===
     // Phase 1.1: Frame data cache for hex viewer
     std::map<int, QByteArray> m_frameDataCache;
+    mutable QMutex m_frameCacheMutex;  // FIX HIGH-002: Protects m_frameDataCache from race conditions
     std::atomic<int> m_frameUpdateCounter{0};  // Thread-safe counter for throttling
     
     // Phase 1.2: Timing update throttle
