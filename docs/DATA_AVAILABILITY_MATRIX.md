@@ -88,7 +88,27 @@
 
 ### CENTER PANEL
 
-#### 5. DAB Ensemble Explorer (QTreeWidget)
+#### 5. Live Stream Input (QGroupBox with QStackedWidget)
+| Component | Data Source | Status | Implementation |
+|-----------|-------------|--------|----------------|
+| Source Type Radio | UI control | ✅ Available | File / Network Stream selection |
+| File Input Page | File system | ✅ Available | Browse + Load buttons |
+| Network Input Page | NetworkStreamReceiver | ✅ Available | URL input with protocol examples |
+| Connect/Disconnect | Network state | ✅ Available | Start/stop stream reception |
+| Stream Statistics | NetworkStreamStatisticsSnapshot | ✅ Available | Frame rate, latency, buffer, loss |
+
+**Supported Protocols:**
+- ✅ UDP Multicast: `udp://239.192.0.1:9200`
+- ✅ TCP: `tcp://192.168.1.100:9200`
+- ⚠️ ZeroMQ: `zmq+tcp://localhost:9201` (needs ZMQ library)
+
+**Implementation:** QStackedWidget switches between File and Network input pages. Network page includes quick examples dropdown and real-time statistics display.
+
+**Location:** Placed at top of CENTER panel (above Ensemble Explorer) per user request for better logical flow - source selection should be near the data it generates.
+
+**See Also:** Section "Live Stream Input - Network Support" at end of document for detailed protocol specifications.
+
+#### 6. DAB Ensemble Explorer (QTreeWidget)
 | Level | Field | Data Source | Status | Parser |
 |-------|-------|-------------|--------|--------|
 | 1 | Ensemble | FIG 1/0 | ✅ Available | `Fig10EnsembleLabel` |
@@ -103,7 +123,7 @@
 
 **Implementation:** Build tree from `FIGAnalysisResult::discovered_services`.
 
-#### 6. ETI Frame Navigator (QListWidget)
+#### 7. ETI Frame Navigator (QListWidget)
 | Field | Data Source | Status | Implementation |
 |-------|-------------|--------|----------------|
 | Frame number | Frame index | ✅ Available | m_currentFrameIndex |
@@ -112,7 +132,7 @@
 
 **Implementation:** Format: "Frame X: ETI-NI (0xff8c549)" - already working.
 
-#### 7. Hex Viewer / ETSI Compliance (QTabWidget)
+#### 8. Hex Viewer / ETSI Compliance (QTabWidget)
 | Tab | Data Source | Status | Implementation |
 |-----|-------------|--------|----------------|
 | Hex Viewer | Frame raw data | ✅ Available | HexViewerFormatter (working) |
@@ -120,7 +140,7 @@
 
 **Implementation:** Already implemented, enhance with multi-color highlighting.
 
-#### 8. Subchannel Organization (QTableWidget)
+#### 9. Subchannel Organization (QTableWidget)
 | Column | Data Source | Status | Parser |
 |--------|-------------|--------|--------|
 | Checkbox | UI control | ✅ Available | Add checkboxes |
@@ -134,7 +154,7 @@
 
 **Implementation:** Extract from `FIGAnalysisResult::subchannels`.
 
-#### 9. Now Playing (DLS+) (QGroupBox)
+#### 10. Now Playing (DLS+) (QGroupBox)
 | Field | Data Source | Status | Implementation |
 |-------|-------------|--------|----------------|
 | Track | DLS+ decoder | ✅ Available | DLSPlusDecoder (working) |
@@ -148,7 +168,7 @@
 
 ### RIGHT PANEL
 
-#### 10. ETI Overview (QTableWidget)
+#### 11. ETI Overview (QTableWidget)
 | Property | Data Source | Status | Parser |
 |----------|-------------|--------|--------|
 | ETI Type | Frame header | ✅ Available | "ETSI(NI, G.704)" from frame type |
@@ -158,7 +178,7 @@
 
 **Implementation:** Extract from `EtiFrame` header fields.
 
-#### 11. DAB Error Counter (QTableWidget) *(G.703 removed - DAB focus)*
+#### 12. DAB Error Counter (QTableWidget) *(G.703 removed - DAB focus)*
 | Error Type | Data Source | Status | Implementation |
 |------------|-------------|--------|----------------|
 | FIC CRC Errors | CRC validation | ✅ Available | Track FIC CRC failures |
@@ -169,7 +189,7 @@
 
 **Status:** 100% available for DAB/DAB+ error detection
 
-#### 12. Timing (QTableWidget)
+#### 13. Timing (QTableWidget)
 | Property | Data Source | Status | Parser |
 |----------|-------------|--------|--------|
 | FCT = 0 (us) | Calculated | ✅ Available | 24ms * FCT (Mode 1) |
@@ -179,7 +199,7 @@
 
 **Implementation:** Calculate from `EtiFrame::fct` and `mode`.
 
-#### 13. CU Usage (Stacked Bar Chart)
+#### 14. CU Usage (Stacked Bar Chart)
 | Data | Source | Status | Implementation |
 |------|--------|--------|----------------|
 | CU per subchannel | FIG 0/1 | ✅ Available | SubChannelInfo sizes |
@@ -188,7 +208,7 @@
 
 **Implementation:** Create custom widget or use QtCharts.
 
-#### 14. DAB Stream Statistics (10+ metrics) *(G.703 counters removed - DAB focus)*
+#### 15. DAB Stream Statistics (10+ metrics) *(G.703 counters removed - DAB focus)*
 | Metric | Data Source | Status | Implementation |
 |--------|-------------|--------|----------------|
 | FIC Blocks Processed | FIC count | ✅ Available | Count FIC blocks |

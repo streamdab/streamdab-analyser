@@ -2692,6 +2692,12 @@ private:
 
         // CENTER Panel per DATA_AVAILABILITY_MATRIX.md specification
         
+        // 0. Live Stream Input (NEW - placed above Ensemble Explorer) - 10%
+        QWidget* liveStreamPanel = createLiveStreamInputPanel();
+        if (liveStreamPanel) {
+            layout->addWidget(liveStreamPanel, 10);
+        }
+        
         // 1. DAB Ensemble Explorer (Item #5) - moved from LEFT - 15%
         QGroupBox* ensembleGroup = new QGroupBox("DAB Ensemble Explorer");
         QVBoxLayout* ensembleLayout = new QVBoxLayout(ensembleGroup);
