@@ -683,6 +683,31 @@ uint32_t AdvancedErrorDetector::getTotalErrorCount() const
     return static_cast<uint32_t>(m_error_history.size());
 }
 
+// === PRIORITY 2: Implement missing error detector methods ===
+uint32_t AdvancedErrorDetector::getErrorCount(ErrorCategory category) const
+{
+    QMutexLocker locker(&m_errors_mutex);
+    uint32_t count = 0;
+    for (const auto& error : m_error_history) {
+        if (error.category == category) {
+            count++;
+        }
+    }
+    return count;
+}
+
+std::vector<ErrorReport> AdvancedErrorDetector::getErrorsByCategory(ErrorCategory category) const
+{
+    QMutexLocker locker(&m_errors_mutex);
+    std::vector<ErrorReport> filtered_errors;
+    for (const auto& error : m_error_history) {
+        if (error.category == category) {
+            filtered_errors.push_back(error);
+        }
+    }
+    return filtered_errors;
+}
+
 void AdvancedErrorDetector::onMonitoringTimerTimeout()
 {
     if (!m_real_time_monitoring_enabled.load()) {
