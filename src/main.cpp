@@ -272,8 +272,7 @@ private slots:
         // DO NOT call formatToString - causes crash in this context
         
         // === PHASE 4: Throttled error counter updates (5 fps) ===
-        static std::atomic<uint64_t> errorCounterUpdateCounter{0};
-        if (++errorCounterUpdateCounter % 20 == 0) {  // Every 20 frames
+        if (++m_errorCounterUpdateCounter % ERROR_COUNTER_UPDATE_THROTTLE == 0) {
             updateErrorCounterTable();
         }
     }
@@ -355,6 +354,17 @@ private slots:
         
         // === PHASE 5: Build FIC overview ===
         buildFICOverviewTree();
+        
+        // === PHASE 6: Update Tab 2 LEFT panel ===
+        updateTab2OverviewLabels();
+        buildTab2ServiceTree();
+        buildTab2ComponentsTree();
+        
+        // === PHASE 7: Update Tab 2 CENTER panel tables ===
+        updateTab2EnsembleTable();
+        updateTab2SubchannelTable();
+        updateTab2ServiceTable();
+        updateTab2FIGContentTable();
         
         // Validate frame count
         if (totalFrames == 5001) {
@@ -2449,6 +2459,127 @@ private:
         
         m_ficOverviewTree->expandAll();
         qDebug() << "[PHASE 5] FIC overview tree built";
+    }
+
+    // === PHASE 6: Tab 2 LEFT Panel Updates ===
+    void updateTab2OverviewLabels() {
+        if (m_tab2_ensembleName) {
+            m_tab2_ensembleName->setText(m_fileLoaded ? "Ensemble: Ready" : "Ensemble: (none)");
+        }
+        if (m_tab2_ficContentSummary) {
+            m_tab2_ficContentSummary->setText(m_fileLoaded ? "FIC Content: Available" : "FIC Content: 0 FIGs");
+        }
+        if (m_tab2_subchannelOrgSummary) {
+            m_tab2_subchannelOrgSummary->setText(m_fileLoaded ? "Sub-Channels: Ready" : "Sub-Channels: 0");
+        }
+        qDebug() << "[PHASE 6.1] Tab 2 overview labels updated";
+    }
+    
+    void buildTab2ServiceTree() {
+        if (!m_tab2_serviceTree) return;
+        
+        m_tab2_serviceTree->clear();
+        
+        if (m_fileLoaded) {
+            auto* rootItem = new QTreeWidgetItem(m_tab2_serviceTree);
+            rootItem->setText(0, "Services");
+            rootItem->setText(1, "Ready");
+            rootItem->setText(2, "TODO: Connect data");
+        } else {
+            auto* noDataItem = new QTreeWidgetItem(m_tab2_serviceTree);
+            noDataItem->setText(0, "No services");
+            noDataItem->setText(1, "Load file");
+        }
+        
+        m_tab2_serviceTree->expandAll();
+        qDebug() << "[PHASE 6.2] Tab 2 service tree built";
+    }
+    
+    void buildTab2ComponentsTree() {
+        if (!m_tab2_serviceComponents) return;
+        
+        m_tab2_serviceComponents->clear();
+        
+        if (m_fileLoaded) {
+            auto* rootItem = new QTreeWidgetItem(m_tab2_serviceComponents);
+            rootItem->setText(0, "Components");
+            rootItem->setText(1, "Ready");
+            rootItem->setText(2, "TODO: Connect data");
+        } else {
+            auto* noDataItem = new QTreeWidgetItem(m_tab2_serviceComponents);
+            noDataItem->setText(0, "No components");
+            noDataItem->setText(1, "Load file");
+        }
+        
+        m_tab2_serviceComponents->expandAll();
+        qDebug() << "[PHASE 6.3] Tab 2 components tree built";
+    }
+
+    // === PHASE 7: Tab 2 CENTER Panel Table Updates ===
+    void updateTab2EnsembleTable() {
+        if (!m_tab2_ensembleTable) return;
+        
+        m_tab2_ensembleTable->clearContents();
+        m_tab2_ensembleTable->setRowCount(1);
+        
+        if (m_fileLoaded) {
+            m_tab2_ensembleTable->setItem(0, 0, new QTableWidgetItem("Ready"));
+            for (int col = 1; col < m_tab2_ensembleTable->columnCount(); ++col) {
+                m_tab2_ensembleTable->setItem(0, col, new QTableWidgetItem("TODO"));
+            }
+        } else {
+            m_tab2_ensembleTable->setItem(0, 0, new QTableWidgetItem("No data"));
+        }
+        
+        qDebug() << "[PHASE 7.1] Tab 2 ensemble table updated";
+    }
+    
+    void updateTab2SubchannelTable() {
+        if (!m_tab2_subchannelTable) return;
+        
+        m_tab2_subchannelTable->clearContents();
+        m_tab2_subchannelTable->setRowCount(m_fileLoaded ? 1 : 0);
+        
+        if (m_fileLoaded) {
+            m_tab2_subchannelTable->setItem(0, 0, new QTableWidgetItem("Ready"));
+            for (int col = 1; col < m_tab2_subchannelTable->columnCount(); ++col) {
+                m_tab2_subchannelTable->setItem(0, col, new QTableWidgetItem("TODO"));
+            }
+        }
+        
+        qDebug() << "[PHASE 7.2] Tab 2 subchannel table updated";
+    }
+    
+    void updateTab2ServiceTable() {
+        if (!m_tab2_serviceTable) return;
+        
+        m_tab2_serviceTable->clearContents();
+        m_tab2_serviceTable->setRowCount(m_fileLoaded ? 1 : 0);
+        
+        if (m_fileLoaded) {
+            m_tab2_serviceTable->setItem(0, 0, new QTableWidgetItem("Ready"));
+            for (int col = 1; col < m_tab2_serviceTable->columnCount(); ++col) {
+                m_tab2_serviceTable->setItem(0, col, new QTableWidgetItem("TODO"));
+            }
+        }
+        
+        qDebug() << "[PHASE 7.3] Tab 2 service table updated";
+    }
+    
+    void updateTab2FIGContentTable() {
+        if (!m_tab2_figContentTable) return;
+        
+        m_tab2_figContentTable->clearContents();
+        m_tab2_figContentTable->setRowCount(m_fileLoaded ? 1 : 0);
+        
+        if (m_fileLoaded) {
+            m_tab2_figContentTable->setItem(0, 0, new QTableWidgetItem("Ready"));
+            for (int col = 1; col < m_tab2_figContentTable->columnCount(); ++col) {
+                m_tab2_figContentTable->setItem(0, col, new QTableWidgetItem("TODO"));
+            }
+        }
+        
+        qDebug() << "[PHASE 7.4] Tab 2 FIG content table updated";
     }
 
     void updateTimingTable() {
@@ -5154,11 +5285,13 @@ private:
     std::map<int, QByteArray> m_frameDataCache;
     mutable QMutex m_frameCacheMutex;  // FIX HIGH-002: Protects m_frameDataCache from race conditions
     std::atomic<int> m_frameUpdateCounter{0};  // Thread-safe counter for throttling
+    std::atomic<uint64_t> m_errorCounterUpdateCounter{0};  // Phase 4: Error table throttle
     
     // Phase 1.2: Timing update throttle
     QElapsedTimer m_timingUpdateTimer;
     static constexpr int TIMING_UPDATE_INTERVAL_MS = 200;  // 5 fps
     static constexpr int FRAME_LIST_UPDATE_THROTTLE = 10;  // ~10 fps (update every 10 frames)
+    static constexpr int ERROR_COUNTER_UPDATE_THROTTLE = 20;  // 5 fps (update every 20 frames)
     
     // Phase 1: Processing counters
     int m_processedFrames{0};
