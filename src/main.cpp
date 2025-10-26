@@ -34,11 +34,14 @@
 #include <QFormLayout>          // Phase C: UDP settings dialog
 #include <QDialogButtonBox>     // Phase C: UDP settings dialog
 #include <QActionGroup>         // Phase C: Input menu radio group
+#include <QRegularExpression>   // Phase 1.1: Hex viewer formatting
+#include <QElapsedTimer>        // Phase 1.2: Timing throttle
 #include <chrono>
 #include <memory>
 #include <map>
 #include <list>
 #include <optional>
+#include <atomic>               // Phase 1.1: Thread-safe counter
 
 #include "core/enhanced_eti_processor_qt.h"
 #include "core/advanced_fig_analyzer.h"
@@ -216,8 +219,42 @@ private slots:
         if (frame.frame_number <= 0) return;
         if (!m_frameList) return;
         
-        QString frameText = QString("Frame %1").arg(frame.frame_number);
-        m_frameList->addItem(frameText);
+        // === PHASE 1.1: Frame Data Caching ===
+        m_processedFrames++;
+        
+        // Get raw frame data from processor
+        QByteArray frameData;
+        if (m_etiProcessor) {
+            frameData = m_etiProcessor->getRawFrameData(frame.frame_number);
+        }
+        
+        // Cache frame data (limit 10K frames to prevent memory bloat)
+        // FIX HIGH-002: Evict before adding to maintain exact 10K limit
+        if (!frameData.isEmpty()) {
+            if (m_frameDataCache.size() >= 10000) {
+                // Evict oldest entry (first in map) before adding new one
+                auto it = m_frameDataCache.begin();
+                m_frameDataCache.erase(it);
+            }
+            m_frameDataCache[frame.frame_number] = frameData;
+        }
+        
+        // === PHASE 1.1: Throttled Frame List Updates (~10 fps) ===
+        // FIX HIGH-001: Use atomic member variable instead of static for thread safety
+        if (++m_frameUpdateCounter % FRAME_LIST_UPDATE_THROTTLE == 0) {
+            // Detect frame type from FIC data presence
+            QString frameType = frame.fic_data.isEmpty() ? "ETI-MSC" : "ETI-FIC";
+            
+            // Use CRC from ProcessedFrame structure
+            QString crcStr = QString("0x%1").arg(frame.crc, 8, 16, QChar('0')).toUpper();
+            
+            QString itemText = QString("Frame %1: %2 (CRC: %3)")
+                .arg(frame.frame_number)
+                .arg(frameType)
+                .arg(crcStr);
+            m_frameList->addItem(itemText);
+            m_frameList->scrollToBottom();
+        }
         
         // DO NOT call updateFrameDetails - causes crash
         // DO NOT call formatToString - causes crash in this context
@@ -228,13 +265,39 @@ private slots:
         // CRITICAL FIX: Only update progress bar - disable all other widget updates
         m_progressBar->setValue(percentage);
         
+        // === PHASE 1.2: Player/Decoder Timing Updates (Throttled to 5 fps) ===
+        if (!m_timingUpdateTimer.isValid()) {
+            m_timingUpdateTimer.start();  // Initialize timer on first call
+        }
+        
+        // Throttle timing updates to 5 fps (200ms interval)
+        if (m_timingUpdateTimer.elapsed() >= TIMING_UPDATE_INTERVAL_MS) {
+            m_timingUpdateTimer.restart();
+            
+            // Update Player panel timing
+            if (m_playerTimeLabel) {
+                m_playerTimeLabel->setText(frameToTimeString(currentFrame, totalFrames));
+            }
+            if (m_playerFrameLabel) {
+                m_playerFrameLabel->setText(QString("Frame %1 / %2").arg(currentFrame).arg(totalFrames));
+            }
+            if (m_playerProgressBar) {
+                m_playerProgressBar->setValue(percentage);
+            }
+            
+            // Update Decoder panel timing (mirrors player)
+            if (m_decoderTimeLabel) {
+                m_decoderTimeLabel->setText(frameToTimeString(currentFrame, totalFrames));
+            }
+            if (m_decoderStatusLabel) {
+                m_decoderStatusLabel->setText("Processing");
+            }
+        }
+        
         // Disabled to prevent crash:
         // - NO m_frameCountLabel->setText()
         // - NO m_systemMessages->append()
         // These will be updated AFTER processing completes
-        
-        (void)currentFrame;  // Suppress unused parameter warning
-        (void)totalFrames;   // Suppress unused parameter warning
     }
 
     void onProcessingComplete(int totalFrames, int processingTimeMs)
@@ -356,6 +419,9 @@ private slots:
             
             // Perform ETSI Compliance validation on selected frame
             performETSIComplianceValidation(currentRow);
+            
+            // === PHASE 1.3: Update ETI Overview Table ===
+            updateETIOverviewTable(currentRow);
         }
     }
     
@@ -1838,6 +1904,136 @@ protected:
     }
 
 private:
+    // === PHASE 1.2: Timing Helper Function ===
+    QString frameToTimeString(int frameIndex, int totalFrames, int mode = 1) const {
+        // Mode 1 (DAB) = 24ms per frame, Mode 2/3/4 have different timings
+        int msPerFrame = (mode == 1) ? 24 : 48;
+        
+        // Lambda for converting milliseconds to HH:MM:SS format
+        auto msToTimeString = [](qint64 totalMs) -> QString {
+            int hours = totalMs / 3600000;
+            int minutes = (totalMs % 3600000) / 60000;
+            int seconds = (totalMs % 60000) / 1000;
+            return QString("%1:%2:%3")
+                .arg(hours, 2, 10, QChar('0'))
+                .arg(minutes, 2, 10, QChar('0'))
+                .arg(seconds, 2, 10, QChar('0'));
+        };
+        
+        qint64 currentMs = static_cast<qint64>(frameIndex) * msPerFrame;
+        qint64 totalMs = static_cast<qint64>(totalFrames) * msPerFrame;
+        
+        return QString("%1 / %2")
+            .arg(msToTimeString(currentMs))
+            .arg(msToTimeString(totalMs));
+    }
+
+    // === PHASE 1.3: ETI Overview Table Update ===
+    void updateETIOverviewTable(int frameIndex) {
+        if (!m_etiOverviewTable || m_etiOverviewTable->rowCount() < 4) {
+            return;  // Table not initialized or insufficient rows
+        }
+        
+        // Get frame data from cache or processor
+        QByteArray frameData;
+        if (m_frameDataCache.count(frameIndex) > 0) {
+            frameData = m_frameDataCache[frameIndex];
+        } else if (m_etiProcessor && m_fileLoaded) {
+            frameData = m_etiProcessor->getRawFrameData(frameIndex);
+        }
+        
+        if (frameData.isEmpty() || frameData.size() < 6) {
+            return;  // Insufficient data
+        }
+        
+        // Extract ETI header fields (ETSI EN 300 799)
+        uint8_t stat = static_cast<uint8_t>(frameData[4]);
+        uint8_t mode_byte = static_cast<uint8_t>(frameData[5]);
+        uint8_t mode = (mode_byte >> 6) & 0x03;  // Bits 7-6
+        
+        // Row 0: ETI Type (always ETI-NI for most files)
+        if (m_etiOverviewTable->item(0, 1)) {
+            m_etiOverviewTable->item(0, 1)->setText("ETI-NI");
+        }
+        
+        // Row 1: Error Field (STAT: 0xFF = no errors)
+        if (m_etiOverviewTable->item(1, 1)) {
+            QString errorField = (stat == 0xFF) ? "No errors" 
+                : QString("Level %1").arg(stat);
+            m_etiOverviewTable->item(1, 1)->setText(errorField);
+        }
+        
+        // Row 2: DAB Mode (0-3 → Mode 1-4)
+        if (m_etiOverviewTable->item(2, 1)) {
+            QString dabMode = QString("Mode %1").arg(mode + 1);
+            m_etiOverviewTable->item(2, 1)->setText(dabMode);
+        }
+        
+        // Row 3: STAT (hex + percentage: STAT/255 * 100)
+        if (m_etiOverviewTable->item(3, 1)) {
+            double statPercentage = (static_cast<double>(stat) / 255.0) * 100.0;
+            QString statString = QString("0x%1 (%2%)")
+                .arg(stat, 2, 16, QChar('0')).toUpper()
+                .arg(statPercentage, 0, 'f', 1);
+            m_etiOverviewTable->item(3, 1)->setText(statString);
+        }
+    }
+
+    // === PHASE 1.4: Ensemble Tree Builder ===
+    void buildEnsembleTree() {
+        if (!m_ensembleTree || !m_figAnalyzer) {
+            return;  // Tree or analyzer not initialized
+        }
+        
+        m_ensembleTree->clear();
+        
+        // Level 1: Ensemble root
+        QTreeWidgetItem* ensembleRoot = new QTreeWidgetItem(m_ensembleTree);
+        EnsembleInfo ensemble = m_figAnalyzer->getCurrentEnsemble();
+        
+        ensembleRoot->setText(0, QString("0x%1").arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper());
+        ensembleRoot->setText(1, ensemble.ensembleLabel.isEmpty() 
+            ? QString("Ensemble 0x%1").arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper()
+            : ensemble.ensembleLabel);
+        ensembleRoot->setText(2, "Ensemble");
+        
+        // Bold formatting for ensemble root
+        QFont boldFont = ensembleRoot->font(0);
+        boldFont.setBold(true);
+        ensembleRoot->setFont(0, boldFont);
+        ensembleRoot->setFont(1, boldFont);
+        ensembleRoot->setFont(2, boldFont);
+        
+        // Level 2: Services
+        QList<ServiceInfo> services = m_figAnalyzer->getDiscoveredServices();
+        for (const ServiceInfo& service : services) {
+            QTreeWidgetItem* serviceItem = new QTreeWidgetItem(ensembleRoot);
+            serviceItem->setText(0, QString("0x%1").arg(service.serviceId, 4, 16, QChar('0')).toUpper());
+            serviceItem->setText(1, service.label);
+            
+            // Service type from ServiceInfo (uses .type field which contains "DAB+", "Data", etc.)
+            QString serviceType = service.type.isEmpty() ? 
+                (service.isData ? "Data" : "Audio") : service.type;
+            serviceItem->setText(2, serviceType);
+            
+            // Level 3: Components (placeholder - detailed component info requires more FIG processing)
+            if (service.isAudio) {
+                QTreeWidgetItem* componentItem = new QTreeWidgetItem(serviceItem);
+                componentItem->setText(0, "-");
+                componentItem->setText(1, "Primary Audio");
+                componentItem->setText(2, "Service Detail");
+                
+                // Italic formatting for component placeholder
+                QFont italicFont = componentItem->font(1);
+                italicFont.setItalic(true);
+                componentItem->setFont(1, italicFont);
+            }
+        }
+        
+        m_ensembleTree->expandAll();
+        qDebug() << "[PHASE 1.4] Ensemble tree rebuilt with" << services.size() << "services";
+    }
+
     void setupUI()
     {
         // Create main vertical splitter (Tab area + Shared bottom panel)
@@ -4207,8 +4403,8 @@ private:
             .arg(ensemble.ensembleLabel)
             .arg(ensemble.ensembleId, 4, 16, QChar('0')));
 
-        // NOTE: Agent 2 will handle updating the service tree
-        // We just log the event here for debugging
+        // === PHASE 1.4: Rebuild ensemble tree ===
+        buildEnsembleTree();
     }
 
     void onServicesUpdated()
@@ -4220,8 +4416,8 @@ private:
         m_systemMessages->append(QString("🎵 Services discovered: %1 services")
             .arg(serviceCount));
 
-        // NOTE: Agent 2 will handle rebuilding the service tree
-        // We just log the event here for debugging
+        // === PHASE 1.4: Rebuild ensemble tree ===
+        buildEnsembleTree();
     }
 
 private:
@@ -4445,6 +4641,19 @@ private:
     
     size_t m_cacheHits{0};
     size_t m_cacheMisses{0};
+
+    // === PHASE 1: Signal/Slot Connection State Variables ===
+    // Phase 1.1: Frame data cache for hex viewer
+    std::map<int, QByteArray> m_frameDataCache;
+    std::atomic<int> m_frameUpdateCounter{0};  // Thread-safe counter for throttling
+    
+    // Phase 1.2: Timing update throttle
+    QElapsedTimer m_timingUpdateTimer;
+    static constexpr int TIMING_UPDATE_INTERVAL_MS = 200;  // 5 fps
+    static constexpr int FRAME_LIST_UPDATE_THROTTLE = 10;  // ~10 fps (update every 10 frames)
+    
+    // Phase 1: Processing counters
+    int m_processedFrames{0};
 
 };
 
