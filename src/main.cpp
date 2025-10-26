@@ -366,6 +366,12 @@ private slots:
         updateTab2ServiceTable();
         updateTab2FIGContentTable();
         
+        // === PHASE 8: Update Tab 3 LEFT panel ===
+        buildFIGInstanceTree();
+        
+        // === PHASE 9: Update Tab 3 RIGHT panel ===
+        buildFIGItemDetailsTree();
+        
         // Validate frame count
         if (totalFrames == 5001) {
             m_systemMessages->append(QString("\n✅ ETI VALIDATION: SUCCESS!"));
@@ -2582,6 +2588,121 @@ private:
         qDebug() << "[PHASE 7.4] Tab 2 FIG content table updated";
     }
 
+    // === PHASE 8: Tab 3 LEFT Panel - FIG Instance Tree ===
+    void buildFIGInstanceTree() {
+        if (!m_tab3_figInstanceTree) return;
+        
+        m_tab3_figInstanceTree->clear();
+        
+        if (!m_fileLoaded) {
+            auto* noDataItem = new QTreeWidgetItem(m_tab3_figInstanceTree);
+            noDataItem->setText(0, "No FIG instances");
+            noDataItem->setText(1, "");
+            noDataItem->setText(2, "Load file");
+            noDataItem->setText(3, "");
+            noDataItem->setText(4, "");
+            noDataItem->setText(5, "");
+            noDataItem->setText(6, "");
+            return;
+        }
+        
+        // TODO: Connect to actual FIG instance tracker when available
+        // For now, show placeholder structure demonstrating the format
+        // Real implementation needs: FIG occurrence tracking across frames with CIF/FIB positions
+        
+        // Example FIG instances (showing expected format)
+        struct FIGInstance {
+            QString figType;   // "FIG 0/0", "FIG 0/1", etc.
+            int index;         // Occurrence index
+            int frameNum;      // Frame number
+            int subframe;      // Subframe (0-3 for Mode 1)
+            int cif;           // CIF number (0-3)
+            int fib;           // FIB number (0-11)
+            int length;        // FIG data length in bytes
+            int itemCount;     // Number of items in FIG
+        };
+        
+        // Placeholder instances showing structure
+        std::vector<FIGInstance> instances = {
+            {"FIG 0/0", 1, 0, 0, 0, 0, 6, 1},
+            {"FIG 0/1", 1, 0, 0, 0, 1, 8, 1},
+            {"FIG 0/2", 1, 0, 0, 0, 2, 12, 3},
+            {"FIG 1/0", 1, 0, 1, 1, 3, 18, 1},
+            {"FIG 1/1", 1, 0, 1, 1, 4, 20, 2},
+        };
+        
+        for (const auto& inst : instances) {
+            auto* item = new QTreeWidgetItem(m_tab3_figInstanceTree);
+            item->setText(0, inst.figType);
+            item->setText(1, QString::number(inst.index));
+            item->setText(2, QString("%1:%2").arg(inst.frameNum).arg(inst.subframe));
+            item->setText(3, QString::number(inst.cif));
+            item->setText(4, QString::number(inst.fib));
+            item->setText(5, QString::number(inst.length));
+            item->setText(6, QString::number(inst.itemCount));
+        }
+        
+        qDebug() << "[PHASE 8] FIG instance tree built";
+    }
+
+    // === PHASE 9: Tab 3 RIGHT Panel - FIG Item Details Tree ===
+    void buildFIGItemDetailsTree() {
+        if (!m_tab3_figItemDetailsTree) return;
+        
+        m_tab3_figItemDetailsTree->clear();
+        
+        if (!m_fileLoaded) {
+            auto* noDataItem = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
+            noDataItem->setText(0, "No FIG selected");
+            noDataItem->setText(1, "");
+            noDataItem->setText(2, "");
+            noDataItem->setText(3, "Select a FIG instance");
+            return;
+        }
+        
+        // TODO: Connect to actual bit-level FIG parser when available
+        // For now, show placeholder structure demonstrating 5-level hierarchy
+        // Real implementation needs: BitLevelFIGParser with bit offset/length tracking
+        
+        // Root level: FIG Type
+        auto* figTypeItem = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
+        figTypeItem->setText(0, "FIG Type");
+        figTypeItem->setText(1, "3 bits");
+        figTypeItem->setText(2, "0x0");
+        figTypeItem->setText(3, "Type 0: MCI and service data");
+        
+        // Level 2: Extension
+        auto* extensionItem = new QTreeWidgetItem(figTypeItem);
+        extensionItem->setText(0, "Extension");
+        extensionItem->setText(1, "5 bits");
+        extensionItem->setText(2, "0x02");
+        extensionItem->setText(3, "Extension 2: Service organization");
+        
+        // Level 3: Service ID
+        auto* serviceIdItem = new QTreeWidgetItem(extensionItem);
+        serviceIdItem->setText(0, "SId");
+        serviceIdItem->setText(1, "16 bits");
+        serviceIdItem->setText(2, "0xD201");
+        serviceIdItem->setText(3, "Service ID: 53761");
+        
+        // Level 4: TMId
+        auto* tmIdItem = new QTreeWidgetItem(serviceIdItem);
+        tmIdItem->setText(0, "TMId");
+        tmIdItem->setText(1, "2 bits");
+        tmIdItem->setText(2, "0x0");
+        tmIdItem->setText(3, "MSC stream mode");
+        
+        // Level 5: ASCTy (deepest level)
+        auto* asctyItem = new QTreeWidgetItem(tmIdItem);
+        asctyItem->setText(0, "ASCTy");
+        asctyItem->setText(1, "6 bits");
+        asctyItem->setText(2, "0x3F");
+        asctyItem->setText(3, "DAB+ (HE-AAC v2)");
+        
+        m_tab3_figItemDetailsTree->expandAll();
+        qDebug() << "[PHASE 9] FIG item details tree built";
+    }
+
     void updateTimingTable() {
         if (!m_timingTable) return;
         
@@ -4389,6 +4510,22 @@ private:
         // Note: Slider and spinbox widgets will be created by Agent 1
         // These connections will be activated when those widgets exist
         qDebug() << "[PHASE 3 AGENT 4] Frame navigation signal handlers ready";
+
+        // === PHASE 10: Tab 3 FIG Instance Selection Sync ===
+        if (m_tab3_figInstanceTree) {
+            connect(m_tab3_figInstanceTree, &QTreeWidget::itemSelectionChanged,
+                    this, [this]() {
+                        // When a FIG instance is selected in LEFT panel,
+                        // update the RIGHT panel with its details
+                        auto selectedItems = m_tab3_figInstanceTree->selectedItems();
+                        if (!selectedItems.isEmpty()) {
+                            // Rebuild details tree for selected FIG
+                            buildFIGItemDetailsTree();
+                            qDebug() << "[PHASE 10] FIG instance selected, details updated";
+                        }
+                    }, Qt::QueuedConnection);
+            qDebug() << "[PHASE 10] Tab 3 FIG selection sync connection established";
+        }
 
     }
 
