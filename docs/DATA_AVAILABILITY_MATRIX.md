@@ -13,7 +13,7 @@
 - **Tab 1 (DAB Ensemble & ETI Analysis):** 95% data available (G.703 fields removed)
 - **Tab 2 (FIC-Analyzer):** 95% data available
 - **Tab 3 (FIC-Extractor):** 80% data available (needs bit-level parsing UI)
-- **Live Stream Input:** 100% supported (NetworkStreamReceiver ready)
+- **Live Stream Input:** 100% supported (UDP, TCP, ZMQ with libzmq 4.3.5)
 
 ### Supported ETSI Standards (DAB/DAB+ Specific):
 ✅ **ETSI EN 300 799** - ETI-NI frame structure (complete for DAB)
@@ -100,7 +100,7 @@
 **Supported Protocols:**
 - ✅ UDP Multicast: `udp://239.192.0.1:9200`
 - ✅ TCP: `tcp://192.168.1.100:9200`
-- ⚠️ ZeroMQ: `zmq+tcp://localhost:9201` (needs ZMQ library)
+- ✅ ZeroMQ: `zmq+tcp://localhost:9201` (libzmq 4.3.5)
 
 **Implementation:** QStackedWidget switches between File and Network input pages. Network page includes quick examples dropdown and real-time statistics display.
 
@@ -411,7 +411,7 @@ struct BitField {
 
 ✅ **Multicast UDP** - Implemented in `NetworkStreamReceiver`
 ✅ **TCP** - Qt sockets support
-⚠️ **ZMQ (ZeroMQ)** - Needs ZMQ library integration
+✅ **ZMQ (ZeroMQ)** - libzmq 4.3.5 integrated via CMake
 
 ### URL Format Design
 

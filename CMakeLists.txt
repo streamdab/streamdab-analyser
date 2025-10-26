@@ -10,6 +10,11 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# ZeroMQ library (libzmq3-dev installed)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ZMQ REQUIRED libzmq)
+include_directories(${ZMQ_INCLUDE_DIRS})
+
 # Enhanced build flags (LTO disabled to avoid compiler internal error)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native -mtune=native -ffast-math -funroll-loops -finline-functions -DRELEASE_BUILD")
 set(CMAKE_BUILD_TYPE Release)
@@ -48,14 +53,18 @@ include_directories(src include)
 # Create executable
 add_executable(DABAnalyzer_Enhanced_FilteringBuild ${SOURCES} ${EDI_SOURCES})
 
-# Link Qt6 libraries
+# Link Qt6 and ZeroMQ libraries
 target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
     Qt6::Test
+    ${ZMQ_LIBRARIES}
     pthread
 )
+
+# Add ZeroMQ library directories
+target_link_directories(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${ZMQ_LIBRARY_DIRS})
 
 # Enable testing
 enable_testing()
