@@ -324,6 +324,9 @@ private slots:
         // Update ensemble tree with discovered services
         updateEnsembleTree();
         
+        // === PHASE 2.3: Update stream statistics ===
+        updateStreamStatistics(totalFrames, processingTimeMs);
+        
         // Validate frame count
         if (totalFrames == 5001) {
             m_systemMessages->append(QString("\n✅ ETI VALIDATION: SUCCESS!"));
@@ -2034,6 +2037,228 @@ private:
         qDebug() << "[PHASE 1.4] Ensemble tree rebuilt with" << services.size() << "services";
     }
 
+    // === HELPER: Get Current DAB Mode ===
+    uint8_t getCurrentDABMode() const {
+        // Try to get mode from most recent cached frame
+        if (!m_frameDataCache.empty()) {
+            // Get the last cached frame
+            auto it = m_frameDataCache.rbegin();
+            const QByteArray& frameData = it->second;
+            
+            if (frameData.size() >= 6) {
+                uint8_t mode_byte = static_cast<uint8_t>(frameData[5]);
+                uint8_t mode = (mode_byte >> 6) & 0x03;  // Bits 7-6: 0-3 → Mode 1-4
+                return mode + 1;  // Return 1-4
+            }
+        }
+        
+        // Fallback: Try to get from ETI processor
+        if (m_etiProcessor && m_fileLoaded) {
+            QByteArray frameData = m_etiProcessor->getRawFrameData(0);
+            if (frameData.size() >= 6) {
+                uint8_t mode_byte = static_cast<uint8_t>(frameData[5]);
+                uint8_t mode = (mode_byte >> 6) & 0x03;
+                return mode + 1;
+            }
+        }
+        
+        // Default to Mode 1 (most common)
+        return 1;
+    }
+
+    // === HELPER: Get Maximum CU for DAB Mode ===
+    // Per ETSI EN 300 401 Table 38: CU capacity by transmission mode
+    static constexpr uint16_t getMaxCUForMode(uint8_t mode) {
+        switch (mode) {
+            case 1: return 864;   // Mode I: 864 CUs
+            case 2: return 432;   // Mode II: 432 CUs
+            case 3: return 864;   // Mode III: 864 CUs
+            case 4: return 1728;  // Mode IV: 1728 CUs
+            default: return 864;  // Fallback to Mode I
+        }
+    }
+
+    // === PHASE 2.1: Subchannel Table Update ===
+    void updateSubchannelTable() {
+        if (!m_subchannelTable || !m_figAnalyzer) {
+            return;  // Table or analyzer not initialized
+        }
+        
+        // Get all subchannels from FIG analyzer
+        std::vector<SubChannelInfo> subchannels = m_figAnalyzer->getAllSubChannels();
+        
+        // FIX CRITICAL-001: Clear existing items to prevent memory leak
+        // Note: clearContents() deletes all items properly, preventing leaks
+        m_subchannelTable->clearContents();
+        
+        // Update table row count
+        m_subchannelTable->setRowCount(static_cast<int>(subchannels.size()));
+        
+        int row = 0;
+        for (const SubChannelInfo& subch : subchannels) {
+            // Column 0: Checkbox (create if not exists)
+            QTableWidgetItem* checkboxItem = m_subchannelTable->item(row, 0);
+            if (!checkboxItem) {
+                checkboxItem = new QTableWidgetItem();
+                checkboxItem->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled);
+                checkboxItem->setCheckState(Qt::Unchecked);
+                m_subchannelTable->setItem(row, 0, checkboxItem);
+            }
+            
+            // Column 1: Subch ID
+            m_subchannelTable->setItem(row, 1, new QTableWidgetItem(
+                QString::number(subch.sub_channel_id)));
+            
+            // Column 2: Type (UEP/EEP)
+            QString type = subch.short_form ? "EEP" : "UEP";
+            m_subchannelTable->setItem(row, 2, new QTableWidgetItem(type));
+            
+            // Column 3: Level (protection level)
+            QString level = subch.getProtectionLevel();
+            m_subchannelTable->setItem(row, 3, new QTableWidgetItem(level));
+            
+            // Column 4: Bitrate (kbps)
+            uint16_t bitrate = subch.getBitrate();
+            m_subchannelTable->setItem(row, 4, new QTableWidgetItem(
+                QString("%1 kbps").arg(bitrate)));
+            
+            // Column 5: SAD (Start Address)
+            m_subchannelTable->setItem(row, 5, new QTableWidgetItem(
+                QString::number(subch.start_address)));
+            
+            // Column 6: Size (CUs)
+            m_subchannelTable->setItem(row, 6, new QTableWidgetItem(
+                QString("%1 CU").arg(subch.sub_channel_size)));
+            
+            // Column 7: Errors (placeholder - integrate with error detector if available)
+            m_subchannelTable->setItem(row, 7, new QTableWidgetItem("0"));
+            
+            row++;
+        }
+        
+        qDebug() << "[PHASE 2.1] Subchannel table updated with" << subchannels.size() << "subchannels";
+    }
+
+    // === PHASE 2.2: CU Usage Update ===
+    void updateCUUsage() {
+        if (!m_cuUsageBar || !m_cuUsageLabel || !m_figAnalyzer) {
+            return;  // Widgets or analyzer not initialized
+        }
+        
+        // Get all subchannels to calculate total CU usage
+        std::vector<SubChannelInfo> subchannels = m_figAnalyzer->getAllSubChannels();
+        
+        // Calculate total CUs used
+        uint16_t totalCUs = 0;
+        for (const SubChannelInfo& subch : subchannels) {
+            totalCUs += subch.sub_channel_size;
+        }
+        
+        // FIX HIGH-002: Get mode-aware CU limit (ETSI EN 300 401 Table 38)
+        uint8_t dabMode = getCurrentDABMode();
+        uint16_t maxCUs = getMaxCUForMode(dabMode);
+        
+        // Calculate percentage (protect against division by zero)
+        int percentage = (maxCUs > 0) ? ((totalCUs * 100) / maxCUs) : 0;
+        
+        // Update progress bar
+        m_cuUsageBar->setValue(percentage);
+        
+        // Update label with mode-aware info
+        m_cuUsageLabel->setText(QString("CU Usage (Mode %1): %2 / %3 (%4%)")
+            .arg(dabMode)
+            .arg(totalCUs)
+            .arg(maxCUs)
+            .arg(percentage));
+        
+        qDebug() << "[PHASE 2.2] CU Usage updated (Mode" << dabMode << "):" 
+                 << totalCUs << "/" << maxCUs << "=" << percentage << "%";
+    }
+
+    // === PHASE 2.3: Stream Statistics Table Update ===
+    void updateStreamStatistics(int totalFrames, int processingTimeMs) {
+        if (!m_streamStatsTable || !m_figAnalyzer || !m_etiProcessor) {
+            return;  // Widgets or components not initialized
+        }
+        
+        // Ensure table has enough rows (10+ metrics per DATA_AVAILABILITY_MATRIX.md)
+        if (m_streamStatsTable->rowCount() < 10) {
+            m_streamStatsTable->setRowCount(10);
+            m_streamStatsTable->setColumnCount(2);
+            m_streamStatsTable->setHorizontalHeaderLabels({"Metric", "Value"});
+            
+            // Set metric labels (column 0 - these are static)
+            m_streamStatsTable->setItem(0, 0, new QTableWidgetItem("FIC Blocks Processed"));
+            m_streamStatsTable->setItem(1, 0, new QTableWidgetItem("Total FIG Count"));
+            m_streamStatsTable->setItem(2, 0, new QTableWidgetItem("Unique Services Found"));
+            m_streamStatsTable->setItem(3, 0, new QTableWidgetItem("Active Subchannels"));
+            m_streamStatsTable->setItem(4, 0, new QTableWidgetItem("Total CU Used / Max"));
+            m_streamStatsTable->setItem(5, 0, new QTableWidgetItem("DAB Services Count"));
+            m_streamStatsTable->setItem(6, 0, new QTableWidgetItem("DAB+ Services Count"));
+            m_streamStatsTable->setItem(7, 0, new QTableWidgetItem("Data Services Count"));
+            m_streamStatsTable->setItem(8, 0, new QTableWidgetItem("Average Frame Rate"));
+            m_streamStatsTable->setItem(9, 0, new QTableWidgetItem("Processing Time"));
+        }
+        
+        // FIX CRITICAL-001: Clear value column (column 1) to prevent memory leak
+        // Note: We only clear column 1 (values), keeping column 0 (labels) intact
+        for (int row = 0; row < 10; ++row) {
+            QTableWidgetItem* oldItem = m_streamStatsTable->item(row, 1);
+            if (oldItem) {
+                delete m_streamStatsTable->takeItem(row, 1);
+            }
+        }
+        
+        // Calculate statistics
+        int ficBlocksProcessed = totalFrames;  // Each frame has 1 FIC block
+        int totalFIGCount = m_figAnalyzer->getTotalFIGsProcessed();
+        int serviceCount = m_figAnalyzer->getServiceCount();
+        int subchannelCount = m_figAnalyzer->getSubChannelCount();
+        
+        // Calculate CU usage with mode awareness
+        std::vector<SubChannelInfo> subchannels = m_figAnalyzer->getAllSubChannels();
+        uint16_t totalCUs = 0;
+        for (const SubChannelInfo& subch : subchannels) {
+            totalCUs += subch.sub_channel_size;
+        }
+        
+        // FIX HIGH-002: Get mode-aware CU limit for display
+        uint8_t dabMode = getCurrentDABMode();
+        uint16_t maxCUs = getMaxCUForMode(dabMode);
+        
+        // Count service types
+        QList<ServiceInfo> services = m_figAnalyzer->getDiscoveredServices();
+        int dabCount = 0, dabPlusCount = 0, dataCount = 0;
+        for (const ServiceInfo& service : services) {
+            if (service.isData) {
+                dataCount++;
+            } else if (service.type.contains("DAB+")) {
+                dabPlusCount++;
+            } else if (service.isAudio) {
+                dabCount++;
+            }
+        }
+        
+        // Calculate performance metrics
+        double fps = (processingTimeMs > 0) ? (1000.0 * totalFrames / processingTimeMs) : 0.0;
+        double msPerFrame = (totalFrames > 0) ? (static_cast<double>(processingTimeMs) / totalFrames) : 0.0;
+        
+        // Update table values
+        m_streamStatsTable->setItem(0, 1, new QTableWidgetItem(QString::number(ficBlocksProcessed)));
+        m_streamStatsTable->setItem(1, 1, new QTableWidgetItem(QString::number(totalFIGCount)));
+        m_streamStatsTable->setItem(2, 1, new QTableWidgetItem(QString::number(serviceCount)));
+        m_streamStatsTable->setItem(3, 1, new QTableWidgetItem(QString::number(subchannelCount)));
+        m_streamStatsTable->setItem(4, 1, new QTableWidgetItem(QString("%1 / %2").arg(totalCUs).arg(maxCUs)));
+        m_streamStatsTable->setItem(5, 1, new QTableWidgetItem(QString::number(dabCount)));
+        m_streamStatsTable->setItem(6, 1, new QTableWidgetItem(QString::number(dabPlusCount)));
+        m_streamStatsTable->setItem(7, 1, new QTableWidgetItem(QString::number(dataCount)));
+        m_streamStatsTable->setItem(8, 1, new QTableWidgetItem(QString("%1 fps").arg(fps, 0, 'f', 1)));
+        m_streamStatsTable->setItem(9, 1, new QTableWidgetItem(QString("%1 ms").arg(processingTimeMs)));
+        
+        qDebug() << "[PHASE 2.3] Stream statistics updated: Services=" << serviceCount 
+                 << "Subchannels=" << subchannelCount << "FPS=" << fps;
+    }
+
     void setupUI()
     {
         // Create main vertical splitter (Tab area + Shared bottom panel)
@@ -2326,7 +2551,8 @@ private:
         
         // Initialize statistics timer (but don't start it)
         m_statsTimer = new QTimer(this);
-        connect(m_statsTimer, &QTimer::timeout, this, &DABAnalyzerWindow::updateStreamStatistics);
+        // NOTE: Stream statistics are updated from onProcessingComplete() with frame/time parameters
+        // No periodic timer update needed for file-based processing
         
         return panel;
     }
@@ -3764,6 +3990,13 @@ private:
 
         qDebug() << "[PHASE 3] Enhanced signal connections established";
 
+        // === PHASE 2: Tab 1 Data Widgets Signal Connections ===
+        connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::subChannelsUpdated,
+                this, &DABAnalyzerWindow::onSubChannelsUpdated,
+                Qt::QueuedConnection);
+
+        qDebug() << "[PHASE 2] Tab 1 data widget connections established";
+
         // === PHASE 3 AGENT 4: Frame Navigation Signal Connections ===
         // Note: Slider and spinbox widgets will be created by Agent 1
         // These connections will be activated when those widgets exist
@@ -4418,6 +4651,22 @@ private:
 
         // === PHASE 1.4: Rebuild ensemble tree ===
         buildEnsembleTree();
+    }
+
+    void onSubChannelsUpdated()
+    {
+        qDebug() << "[PHASE 2.1] Subchannels updated - updating table and CU usage";
+
+        // Get subchannel count for logging
+        int subchannelCount = m_figAnalyzer->getSubChannelCount();
+        m_systemMessages->append(QString("📊 Subchannels discovered: %1 subchannels")
+            .arg(subchannelCount));
+
+        // === PHASE 2.1: Update subchannel table ===
+        updateSubchannelTable();
+
+        // === PHASE 2.2: Update CU usage ===
+        updateCUUsage();
     }
 
 private:
