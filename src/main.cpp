@@ -353,6 +353,9 @@ private slots:
         // === PHASE 4: Final error statistics ===
         updateErrorCounterTable();
         
+        // === PHASE 5: Build FIC overview ===
+        buildFICOverviewTree();
+        
         // Validate frame count
         if (totalFrames == 5001) {
             m_systemMessages->append(QString("\n✅ ETI VALIDATION: SUCCESS!"));
@@ -2411,6 +2414,41 @@ private:
         }
         
         qDebug() << "[PHASE 4] Error counter table updated";
+    }
+
+    // === PHASE 5: FIC Overview Tree ===
+    void buildFICOverviewTree() {
+        if (!m_ficOverviewTree) return;
+        
+        m_ficOverviewTree->clear();
+        
+        // Root: FIC Overview
+        auto* rootItem = new QTreeWidgetItem(m_ficOverviewTree);
+        rootItem->setText(0, "FIC Overview");
+        rootItem->setText(1, m_fileLoaded ? "Data Available" : "No Data");
+        rootItem->setText(3, m_fileLoaded ? "OK" : "N/A");
+        
+        if (m_fileLoaded) {
+            // TODO: Connect to actual ensemble manager when available
+            // For now, show placeholder structure
+            auto* ensembleItem = new QTreeWidgetItem(rootItem);
+            ensembleItem->setText(0, "Ensemble");
+            ensembleItem->setText(1, "Ready for data");
+            ensembleItem->setText(3, "OK");
+            
+            auto* servicesItem = new QTreeWidgetItem(rootItem);
+            servicesItem->setText(0, "Services");
+            servicesItem->setText(1, "Ready for data");
+            servicesItem->setText(3, "OK");
+            
+            auto* subchannelsItem = new QTreeWidgetItem(rootItem);
+            subchannelsItem->setText(0, "Subchannels");
+            subchannelsItem->setText(1, "Ready for data");
+            subchannelsItem->setText(3, "OK");
+        }
+        
+        m_ficOverviewTree->expandAll();
+        qDebug() << "[PHASE 5] FIC overview tree built";
     }
 
     void updateTimingTable() {
