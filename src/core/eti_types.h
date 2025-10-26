@@ -4,6 +4,7 @@
 #include <QtCore/QByteArray>
 #include <QtCore/QString>
 #include <QtCore/QList>
+#include <QtCore/QDateTime>
 #include <cstdint>
 
 /**
@@ -74,16 +75,29 @@ struct ServiceInfo {
  */
 struct EnsembleInfo {
     uint32_t ensembleId;       // Ensemble Identifier (EID)
-    QString ensembleLabel;     // Ensemble label
-    QString countryCode;       // Country code (e.g., "TH" for Thailand)
+    QString ensembleLabel;     // Ensemble label (full)
+    QString shortLabel;        // Short label (8 chars max)
+    QString countryCode;       // Country code string (e.g., "TH" for Thailand)
+    uint8_t countryId;         // Country ID (numeric)
+    uint8_t extendedCountryCode; // Extended country code
+    uint8_t cifCount;          // Common Interleaved Frame count
     QList<ServiceInfo> services; // List of services in ensemble
     uint16_t serviceCount;     // Total number of services
     QString transmitterInfo;   // Transmitter identification
+    QDateTime lastUpdated;     // Last update timestamp
+    
+    // Backward compatibility alias
+    QString label;             // Alias for ensembleLabel (for compatibility)
     
     EnsembleInfo()
         : ensembleId(0)
+        , countryId(0)
+        , extendedCountryCode(0)
+        , cifCount(0)
         , serviceCount(0)
-    {}
+    {
+        label = ensembleLabel; // Keep alias in sync
+    }
 };
 
 /**
