@@ -271,6 +271,21 @@ private slots:
         // DO NOT call updateFrameDetails - causes crash
         // DO NOT call formatToString - causes crash in this context
         
+        
+        // === CRITICAL FIX: Pass FIC data to FIG analyzer ===
+        if (!frame.fic_data.isEmpty() && m_figAnalyzer) {
+            m_figAnalyzer->analyzeFICData(frame.fic_data);
+            // DEBUG: Log FIC processing
+            static int ficProcessCount = 0;
+            ficProcessCount++;
+            if (ficProcessCount <= 10 || ficProcessCount % 100 == 0) {
+                qDebug() << "[DEBUG] FIC data passed to analyzer, count:" << ficProcessCount
+                         << "frame:" << frame.frame_number << "size:" << frame.fic_data.size();
+                int svcCount = m_figAnalyzer->getServiceCount();
+                qDebug() << "[DEBUG] Current service count:" << svcCount;
+            }
+        }
+        
         // === PHASE 4: Throttled error counter updates (5 fps) ===
         if (++m_errorCounterUpdateCounter % ERROR_COUNTER_UPDATE_THROTTLE == 0) {
             updateErrorCounterTable();
@@ -5178,6 +5193,11 @@ private:
 
     void onServicesUpdated()
     {
+        qDebug() << "\n***** [DEBUG onServicesUpdated] SIGNAL RECEIVED *****";
+        if (m_figAnalyzer) {
+            int count = m_figAnalyzer->getServiceCount();
+            qDebug() << "[DEBUG onServicesUpdated] Service count:" << count;
+        }
         qDebug() << "[PHASE 3] Services updated - batch update received";
 
         // Get service count for logging
