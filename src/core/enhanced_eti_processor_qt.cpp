@@ -242,10 +242,14 @@ QByteArray ETIFrameParser::extractFIC(const uint8_t* data, bool ficf_flag, uint8
     }
 
     // ODR-DabMux ETI format (ETSI EN 300 799 with ODR byte ordering)
-    // FIC starts after: ERR(1) + FSYNC(3) + FCT(1) + NST/FICF(1) + FP/MID/FL(2) + StreamInfo(4*NST)
-    const size_t HEADER_SIZE = 8;  // Fixed header fields for ODR format
+    // FIC starts after: ERR(1) + FSYNC(3) + FC(4) + STC(4*NST) + EOH(4)
+    // FC = FCT(1) + NST/FICF(1) + FP/MID/FL(2)
+    // STC = Stream Characterization (4 bytes per stream)
+    // EOH = End of Header: MNSC(2) + CRC(2)
+    const size_t HEADER_SIZE = 8;  // ERR + FSYNC + FC
     const size_t STREAM_INFO_SIZE = 4 * nst;
-    const size_t FIC_OFFSET = HEADER_SIZE + STREAM_INFO_SIZE;
+    const size_t EOH_SIZE = 4;  // MNSC + CRC
+    const size_t FIC_OFFSET = HEADER_SIZE + STREAM_INFO_SIZE + EOH_SIZE;
     const size_t FIC_SIZE = 96;  // 3 FIBs × 32 bytes for Mode I
 
     // Bounds check
