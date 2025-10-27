@@ -573,7 +573,7 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
 
         bool try_32bit = false;
 
-        if (offset + 4 < data.size()) {
+        if (offset + 5 <= data.size()) {
             // Check if 32-bit encoding makes sense
             // For 32-bit: offset+4 should be NumComp byte (reasonable value: 1-15)
             uint8_t potential_numcomp_32 = (bytes[offset + 4] >> 4) & 0x0F;
@@ -590,7 +590,11 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
 
         if (try_32bit) {
             // 32-bit Service ID (data service)
-            if (offset + 4 > data.size()) break;
+            if (offset + 5 > data.size()) {
+                m_lastError = QString("FIG 0/2: Insufficient data for 32-bit SID+NumComp");
+                qWarning() << m_lastError;
+                break;
+            }
             service_id = (static_cast<uint32_t>(bytes[offset]) << 24) |
                         (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
                         (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
@@ -605,7 +609,11 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
                      << bytes[offset-4] << bytes[offset-3] << bytes[offset-2] << bytes[offset-1];
         } else {
             // 16-bit Service ID (programme service with P/D flag)
-            if (offset + 2 > data.size()) break;
+            if (offset + 3 > data.size()) {
+                m_lastError = QString("FIG 0/2: Insufficient data for 16-bit SID+NumComp");
+                qWarning() << m_lastError;
+                break;
+            }
 
             // P/D flag in bit 7, SId[14:8] in bits 6-0
             is_programme = (bytes[offset] & 0x80) != 0;
@@ -643,6 +651,7 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
 
         // Parse service components
         for (uint8_t i = 0; i < num_components; ++i) {
+            // SECURITY: Check bounds BEFORE accessing array
             if (offset + 2 > data.size()) {
                 m_lastError = QString("FIG 0/2: Incomplete component descriptor at offset %1").arg(offset);
                 qWarning() << m_lastError;
@@ -2968,6 +2977,47 @@ uint8_t AdvancedFIGAnalyzer::extractUInt8(const QByteArray& data, int offset)
 
 uint16_t AdvancedFIGAnalyzer::extractBits(const QByteArray& data, int bit_offset, int bit_count)
 {
+    // ========================================================================
+    // SECURITY FIX: Comprehensive input validation and overflow protection
+    // Issue: ISSUE-001 - Integer Overflow in extractBits()
+    // Date: 2025-10-27 | Agent: Agent 5
+    // ========================================================================
+    
+    // VALIDATION 1: bit_count must be positive and fit in return type
+    if (bit_count <= 0 || bit_count > 16) {
+        qWarning() << "extractBits: Invalid bit_count" << bit_count << "(must be 1-16)";
+        return 0;
+    }
+    
+    // VALIDATION 2: Data buffer must not be empty
+    if (data.isEmpty()) {
+        qWarning() << "extractBits: Empty data buffer";
+        return 0;
+    }
+    
+    // VALIDATION 3: bit_offset must be non-negative
+    if (bit_offset < 0) {
+        qWarning() << "extractBits: Negative bit_offset" << bit_offset;
+        return 0;
+    }
+    
+    // VALIDATION 4-7: Overflow-safe bounds checking
+    const size_t total_bits = static_cast<size_t>(data.size()) * 8;
+    if (static_cast<size_t>(bit_offset) >= total_bits) {
+        qWarning() << "extractBits: bit_offset exceeds buffer";
+        return 0;
+    }
+    
+    // CRITICAL: Cast to size_t BEFORE addition prevents signed overflow
+    const size_t bit_end = static_cast<size_t>(bit_offset) + static_cast<size_t>(bit_count);
+    if (bit_end > total_bits) {
+        qWarning() << "extractBits: Bit range exceeds buffer bounds";
+        return 0;
+    }
+    
+    // ========================================================================
+    // Original extraction logic (now validated as safe)
+    // ========================================================================
     uint16_t result = 0;
     int byte_offset = bit_offset / 8;
     int bit_in_byte = bit_offset % 8;
