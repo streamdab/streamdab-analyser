@@ -465,3 +465,30 @@ message(STATUS "Test execution: make && ctest")
 message(STATUS "GUI tests only: make build_gui_tests && make run_gui_tests")
 message(STATUS "Benchmark: make && ./tests/performance_benchmark")
 message(STATUS "===========================================")
+
+# === E2E GUI Tests for Service Discovery Issues ===
+add_executable(test_signal_slot_verification test_signal_slot_verification.cpp)
+target_link_libraries(test_signal_slot_verification 
+    Qt6::Test Qt6::Core
+    enhanced_eti_processor_qt
+    advanced_fig_analyzer
+)
+add_test(NAME SignalSlotVerification COMMAND test_signal_slot_verification)
+
+add_executable(test_gui_service_discovery_e2e test_gui_service_discovery_e2e.cpp)
+target_link_libraries(test_gui_service_discovery_e2e 
+    Qt6::Test Qt6::Widgets
+)
+add_test(NAME GUIServiceDiscoveryE2E COMMAND test_gui_service_discovery_e2e)
+
+message(STATUS "=== E2E GUI Tests Added ===")
+message(STATUS "  - test_signal_slot_verification: Verifies signal/slot connections")
+message(STATUS "  - test_gui_service_discovery_e2e: E2E service discovery flow")
+
+# Test for Bangkok ETI file loading
+add_executable(test_bkk_eti_loading test_bkk_eti_loading.cpp)
+target_link_libraries(test_bkk_eti_loading
+    Qt6::Core
+    enhanced_eti_processor_qt
+    advanced_fig_analyzer
+)

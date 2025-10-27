@@ -141,32 +141,38 @@ ETIHeader ETIFrameParser::parseHeader(const uint8_t* data)
 {
     ETIHeader header;
 
-    // SYNC pattern (bytes 0-3, big-endian)
+    // ODR-DabMux ETI format byte layout:
+    // Byte 0: ERR
+    // Bytes 1-3: FSYNC (24-bit)
+    // Byte 4: FCT
+    // Byte 5: NST (bits 0-6) + FICF (bit 7)
+    // Byte 6: FP + MID + FL_high
+    // Bytes 7-8: FL_low + additional
+
+    // SYNC: Combine all 4 bytes for validation
     header.sync = extractUInt32(data, 0);
 
-    // ERR field (byte 4)
-    header.err = data[4];
+    // ERR (byte 0)
+    header.err = data[0];
 
-    // Frame counter - FCT (byte 5)
-    header.frame_counter = data[5];
+    // FCT (byte 4)
+    header.frame_counter = data[4];
 
-    // FICF flag (byte 6, bit 7)
-    header.ficf = (data[6] >> 7) & 0x01;
+    // FICF (byte 5, bit 7)
+    header.ficf = (data[5] >> 7) & 0x01;
 
-    // NST - Number of streams (byte 6, bits 6-0)
-    header.nst = data[6] & 0x7F;
+    // NST (byte 5, bits 6-0)
+    header.nst = data[5] & 0x7F;
 
-    // FP - Frame phase (byte 7, bits 7-5)
-    header.fp = (data[7] >> 5) & 0x07;
+    // FP (byte 6, bits 7-5)
+    header.fp = (data[6] >> 5) & 0x07;
 
-    // MID - Mode identity (byte 7, bits 4-3)
-    header.mid = (data[7] >> 3) & 0x03;
+    // MID (byte 6, bits 4-3)
+    header.mid = (data[6] >> 3) & 0x03;
 
-    // FL - Frame length in words (bytes 8-10, 11 bits)
-    // Byte 8 bits 7-5 are reserved, bits 4-0 are FL bits 10-6
-    // Byte 9 bits 7-2 are FL bits 5-0
-    uint16_t fl_high = (data[8] & 0x1F) << 6;  // bits 10-6
-    uint16_t fl_low = (data[9] >> 2) & 0x3F;   // bits 5-0
+    // FL (bytes 7-8)
+    uint16_t fl_high = (data[7] & 0x1F) << 6;
+    uint16_t fl_low = (data[8] >> 2) & 0x3F;
     header.fl = fl_high | fl_low;
 
     // Validate sync pattern
@@ -235,9 +241,9 @@ QByteArray ETIFrameParser::extractFIC(const uint8_t* data, bool ficf_flag, uint8
         return QByteArray();
     }
 
-    // ETSI EN 300 799 Section 5.3.1
-    // FIC starts after: SYNC(4) + ERR(1) + FCT(1) + FICF/NST(1) + FP/MID(1) + FL(2) + StreamInfo(4*NST)
-    const size_t HEADER_SIZE = 10;  // Fixed header fields
+    // ODR-DabMux ETI format (ETSI EN 300 799 with ODR byte ordering)
+    // FIC starts after: ERR(1) + FSYNC(3) + FCT(1) + NST/FICF(1) + FP/MID/FL(2) + StreamInfo(4*NST)
+    const size_t HEADER_SIZE = 8;  // Fixed header fields for ODR format
     const size_t STREAM_INFO_SIZE = 4 * nst;
     const size_t FIC_OFFSET = HEADER_SIZE + STREAM_INFO_SIZE;
     const size_t FIC_SIZE = 96;  // 3 FIBs × 32 bytes for Mode I
