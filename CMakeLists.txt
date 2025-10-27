@@ -24,6 +24,7 @@ set(SOURCES
     src/main.cpp
     src/core/enhanced_eti_processor_qt.cpp
     src/core/advanced_fig_analyzer.cpp
+    src/core/charset_converter.cpp
     src/core/etsi_compliance_engine.cpp
     src/core/multi_stream_processor.cpp
     src/core/advanced_error_detection.cpp

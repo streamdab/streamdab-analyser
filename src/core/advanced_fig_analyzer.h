@@ -25,10 +25,11 @@
  * Bit 15 (MSB) = position 0, Bit 0 (LSB) = position 15.
  */
 struct DABLabel {
-    std::array<char, 16> full_label;  // Full 16-character label
+    std::array<char, 16> full_label;  // Full 16-character label (raw EBU Latin bytes)
     uint16_t character_flag;          // Character flag field (16 bits)
+    QString utf8_converted;           // UTF-8 converted label (for Thai and special chars)
 
-    QString getFullLabel() const;     // Get full label as QString
+    QString getFullLabel() const;     // Get full label as QString (UTF-8 converted)
     QString getShortLabel() const;    // Extract short label using character flag
     bool isValid() const;
     QString toString() const;

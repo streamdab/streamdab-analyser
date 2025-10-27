@@ -19,6 +19,7 @@
  */
 
 #include "advanced_fig_analyzer.h"
+#include "charset_converter.hpp"
 #include <QtCore/QDebug>
 #include <QtCore/QDateTime>
 #include <algorithm>
@@ -28,6 +29,13 @@
 // ============================================================================
 
 QString DABLabel::getFullLabel() const {
+    // CHARSET FIX: Return UTF-8 converted label if available (for Thai/special chars)
+    // Otherwise fall back to raw EBU Latin bytes
+    if (!utf8_converted.isEmpty()) {
+        return utf8_converted;
+    }
+    
+    // Fallback: return raw bytes as QString (legacy behavior)
     QString label;
     for (char c : full_label) {
         label.append(c);
@@ -188,6 +196,8 @@ void AdvancedFIGAnalyzer::analyzeFICData(const QByteArray& ficData)
 
         // Extract FIG data
         QByteArray figData = ficData.mid(offset + 2, figLength);
+        qDebug() << "FIG extracted: Type=" << figType << "Length=" << figLength 
+                 << "Data size=" << figData.size() << "bytes";
 
         // Process based on FIG type
         switch (figType) {
@@ -848,42 +858,27 @@ void AdvancedFIGAnalyzer::processFIG1_0(const QByteArray& data)
  */
 void AdvancedFIGAnalyzer::processFIG1_1(const QByteArray& data)
 {
-    // FIG 1/1: Service label
-    // Format: Header (1) + Charset/OE (1) + SId (2/4) + Label (16) + CharFlag (2)
+    // FIG 1/1: Programme service label
+    // ETSI EN 300 401 Section 8.1.14.1
+    // Format: Extension/Charset/OE (1) + SId (2) + Label (16) + CharFlag (2) = 21 bytes
+    // Reference: ODR-DabMux FIG1.cpp and etisnoop fig1.cpp
 
-    if (data.size() < 20) {
-        qWarning() << "FIG 1/1: Insufficient data";
+    // Minimum: 1 + 2 + 16 + 2 = 21 bytes
+    if (data.size() < 21) {
+        qWarning() << "FIG 1/1: Insufficient data (need 21, got" << data.size() << ")";
         return;
     }
 
     const uint8_t* raw_data = reinterpret_cast<const uint8_t*>(data.constData());
 
-    // Check P/D flag (bit 3 of byte 1) - actually OE bit inverted for programme/data
-    // In FIG 1/1, bit 3 of extension field indicates programme (0) or data (1) service
-    bool is_programme_service = !isBitSet(raw_data[1], 3);
-
-    uint32_t service_id;
-    int label_offset;
-
-    if (is_programme_service) {
-        // Programme service: 16-bit SId
-        service_id = extractUInt16(data, 2);
-        label_offset = 4;  // Label starts at byte 4
-
-        if (data.size() < 22) {  // 4 + 16 label + 2 char_flag
-            qWarning() << "FIG 1/1: Insufficient data for programme service";
-            return;
-        }
-    } else {
-        // Data service: 32-bit SId
-        service_id = extractUInt32(data, 2);
-        label_offset = 6;  // Label starts at byte 6
-
-        if (data.size() < 24) {  // 6 + 16 label + 2 char_flag
-            qWarning() << "FIG 1/1: Insufficient data for data service";
-            return;
-        }
-    }
+    // Byte 0 format: Charset(7-4) + OE(3) + Extension(2-0)
+    uint8_t charset = (raw_data[0] >> 4) & 0x0F;
+    uint8_t oe = (raw_data[0] >> 3) & 0x01;
+    
+    // FIG 1/1 always uses 16-bit Service ID (programme services)
+    // Data services use FIG 1/5 which has 32-bit SID
+    uint32_t service_id = extractUInt16(data, 1);  // Bytes 1-2
+    int label_offset = 3;  // Label starts at byte 3
 
     // Parse label
     DABLabel label = parseLabel(raw_data, label_offset);
@@ -1052,7 +1047,7 @@ DABLabel AdvancedFIGAnalyzer::parseLabel(const uint8_t* data, size_t offset)
 {
     DABLabel label;
 
-    // Copy 16 character label
+    // Copy 16 character label bytes (raw EBU Latin)
     for (int i = 0; i < 16; ++i) {
         label.full_label[i] = static_cast<char>(data[offset + i]);
     }
@@ -1060,6 +1055,16 @@ DABLabel AdvancedFIGAnalyzer::parseLabel(const uint8_t* data, size_t offset)
     // Extract character flag (2 bytes at offset+16)
     label.character_flag = (static_cast<uint16_t>(data[offset + 16]) << 8) |
                            static_cast<uint16_t>(data[offset + 17]);
+
+    // CHARSET FIX: Convert EBU Latin to UTF-8 for proper Thai character display
+    // EBU Latin uses control characters (0x01-0x1F) for special characters including Thai
+    // Reference: ETSI TS 101 756 Annex C, etisnoop charset.cpp
+    std::string ebu_label(label.full_label.data(), 16);
+    std::string utf8_label = convert_ebu_to_utf8(ebu_label);
+    
+    // Store both raw EBU and converted UTF-8 for reference
+    // Note: full_label keeps raw bytes, getFullLabel() returns UTF-8 converted string
+    label.utf8_converted = QString::fromStdString(utf8_label).trimmed();
 
     return label;
 }
