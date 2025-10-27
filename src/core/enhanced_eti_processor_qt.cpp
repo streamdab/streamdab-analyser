@@ -866,14 +866,22 @@ bool EnhancedETIProcessorQt::processEtiFrame(const QByteArray& frameData)
     // HIGH-007: Store frame using FIFO cleanup method
     storeFrame(frame);
 
-    // CRITICAL FIX: Only emit frameProcessed signal on intervals to prevent GUI crash
-    // Emit for: first frame, every 100th frame, and last frame
-    bool shouldEmit = (frame.frame_number == 1) || 
+    // CRITICAL FIX: Emit frameProcessed for ALL frames with FIC data to ensure
+    // service labels from frames 26+ are discovered (FIG 1/1 labels don't appear until frame 26)
+    // Also emit for key frames (first, every 100th, last) for progress tracking
+    bool hasValidFIC = !frame.fic_data.isEmpty() && !parsed_frame.fic_data.isEmpty();
+    bool isKeyFrame = (frame.frame_number == 1) || 
                       (frame.frame_number % 100 == 0) || 
                       (frame.frame_number == total_frames_);
     
+    bool shouldEmit = hasValidFIC || isKeyFrame;
+    
     if (shouldEmit) {
-        qDebug() << "EnhancedETIProcessorQt: Emitting frameProcessed signal for frame" << frame.frame_number;
+        // Log only key frames to avoid flooding console
+        if (isKeyFrame || frame.frame_number <= 30) {
+            qDebug() << "EnhancedETIProcessorQt: Emitting frameProcessed signal for frame" 
+                     << frame.frame_number << "FIC size:" << frame.fic_data.size();
+        }
         emit formatDetected(frame.format, formatToString(frame.format));
         emit frameProcessed(frame);
     }
