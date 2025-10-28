@@ -58,6 +58,33 @@ set_property(TARGET test_eti_frame_parsing_fix PROPERTY CXX_STANDARD 20)
 # Add as a test
 add_test(NAME ETIFrameParsingFix COMMAND test_eti_frame_parsing_fix)
 
+# === Week 1 Comprehensive Test Suite (NEW) ===
+# FIG 1/0 + FIG 0/18 TDD tests following PDCA methodology
+add_executable(test_fig_week1_comprehensive
+    test_fig_week1_comprehensive.cpp
+)
+
+# Link against required libraries
+target_link_libraries(test_fig_week1_comprehensive
+    PRIVATE
+    Qt6::Core
+    Qt6::Test
+    ETIStreamAnalyzer_lib
+)
+
+# Include directories
+target_include_directories(test_fig_week1_comprehensive
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/tests
+)
+
+# Set C++20 standard
+set_property(TARGET test_fig_week1_comprehensive PROPERTY CXX_STANDARD 20)
+
+# Add as a test
+add_test(NAME FigWeek1ComprehensiveTDD COMMAND test_fig_week1_comprehensive)
+
 # Also include existing core tests
 set(CORE_TEST_SOURCES
     test_eti_frame_parser.cpp

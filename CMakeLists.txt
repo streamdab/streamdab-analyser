@@ -26,6 +26,7 @@ set(SOURCES
     src/core/advanced_fig_analyzer.cpp
     src/core/charset_converter.cpp
     src/core/etsi_compliance_engine.cpp
+    src/core/etsi_registered_tables.cpp
     src/core/multi_stream_processor.cpp
     src/core/advanced_error_detection.cpp
     src/core/professional_logging_system.cpp

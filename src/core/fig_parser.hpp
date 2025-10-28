@@ -13,6 +13,9 @@
  * - FIG 0/3: Service component in packet mode
  * - FIG 0/4: Service component with conditional access
  * - FIG 0/5: Service component language
+ * - FIG 0/10: Date and time
+ * - FIG 0/18: Announcement support
+ * - FIG 0/19: Announcement switching
  * - FIG 1/0: Ensemble label
  * - FIG 1/1: Programme service label
  * - FIG 1/4: Service component label
@@ -31,6 +34,7 @@
 #include <QObject>
 #include <QString>
 #include <QByteArray>
+#include <QDateTime>
 #include <memory>
 #include <vector>
 #include <unordered_map>
@@ -167,6 +171,134 @@ struct Fig02ServiceInfo {
 };
 
 /**
+ * @brief FIG 0/10 Date and Time Structure
+ * Reference: ETSI EN 300 401 Section 8.1.7
+ */
+struct DateAndTime {
+    uint32_t mjd{0};                  // Modified Julian Date (17-bit)
+    uint8_t hour{0};                  // Hour (0-23)
+    uint8_t minute{0};                // Minute (0-59)
+    uint8_t second{0};                // Second (0-59, optional)
+    bool lsi{false};                  // Leap Second Indicator
+    bool conf_ind{false};             // Confidence Indicator
+    bool utc_flag{false};             // UTC flag
+    QDateTime datetime;               // Converted date/time
+    bool is_valid{false};
+
+    // Conversion utilities
+    static QDateTime mjdToDateTime(uint32_t mjd, uint8_t hour, uint8_t minute, uint8_t second = 0);
+    static uint32_t dateTimeToMjd(const QDateTime& dt);
+
+    // Validation helpers
+    bool validateTimeRanges() const {
+        return hour < 24 && minute < 60 && second < 60;
+    }
+
+    bool validateMjd() const {
+        return mjd <= 131071; // 17-bit maximum
+    }
+};
+
+/**
+ * @brief FIG 0/19 Announcement Switching Structure
+ * Reference: ETSI EN 300 401 Section 8.1.12
+ *
+ * Provides information about announcement switching for clustered announcement services.
+ * Works in conjunction with FIG 0/18 to enable dynamic announcement switching.
+ */
+/**
+ * @brief FIG 0/18 Announcement Support Structure
+ * Reference: ETSI EN 300 401 Section 8.1.11
+ *
+ * Provides information about announcement types supported by a service.
+ * Essential for Emergency Warning System (EWS) functionality.
+ */
+struct AnnouncementSupport {
+    uint32_t service_id{0};           // Service ID (24-bit for DAB+, 16-bit for DAB)
+    uint16_t asu_flags{0};            // Announcement Support flags (16-bit)
+    uint8_t cluster_count{0};         // Number of clusters
+    std::vector<uint8_t> cluster_ids; // Cluster IDs
+    bool is_valid{false};
+
+    /**
+     * @brief Check if service supports a specific announcement type
+     * @param type Announcement type (0-15)
+     * @return true if supported
+     */
+    bool supportsAnnouncementType(uint8_t type) const {
+        if (type > 15) return false;
+        return (asu_flags & (1 << type)) != 0;
+    }
+
+    /**
+     * @brief Get list of all supported announcement types
+     * @return Vector of supported type IDs
+     */
+    std::vector<uint8_t> getSupportedTypes() const {
+        std::vector<uint8_t> types;
+        for (uint8_t i = 0; i < 16; ++i) {
+            if (supportsAnnouncementType(i)) {
+                types.push_back(i);
+            }
+        }
+        return types;
+    }
+
+    /**
+     * @brief Check if service supports emergency announcements
+     * Emergency types: 0-6 (Alarm, Traffic, Transport, Warning, News, Weather, Event)
+     * @return true if any emergency type supported
+     */
+    bool isEmergencyCapable() const {
+        for (uint8_t i = 0; i <= 6; ++i) {
+            if (supportsAnnouncementType(i)) return true;
+        }
+        return false;
+    }
+};
+
+struct AnnouncementSwitching {
+    uint8_t cluster_id{0};            // Cluster ID (8-bit)
+    uint16_t asw_flags{0};            // Announcement Switching flags (16-bit)
+    bool new_flag{false};             // New announcement flag
+    bool region_flag{false};          // Regionalization flag
+    uint8_t subchannel_id{0};         // Sub-channel ID (6-bit)
+    std::vector<uint8_t> region_ids;  // Region IDs (if region_flag set)
+    bool is_valid{false};
+
+    /**
+     * @brief Check if any announcement is active
+     * @return true if ASw flags indicate active announcements
+     */
+    bool isActive() const {
+        return asw_flags != 0;
+    }
+
+    /**
+     * @brief Get list of active announcement types
+     * @return Vector of announcement type indices (0-15)
+     */
+    std::vector<uint8_t> getActiveTypes() const {
+        std::vector<uint8_t> types;
+        for (uint8_t i = 0; i < 16; ++i) {
+            if (asw_flags & (1 << i)) {
+                types.push_back(i);
+            }
+        }
+        return types;
+    }
+
+    /**
+     * @brief Check if this switching matches a specific cluster
+     * @param cluster Cluster ID to match
+     * @return true if cluster_id matches
+     */
+    bool matchesCluster(uint8_t cluster) const {
+        return cluster_id == cluster;
+    }
+};
+
+/**
  * @brief FIG 1/0 Ensemble Label Structure
  * Reference: ETSI EN 300 401 Section 8.1.13
  */
@@ -235,6 +367,9 @@ struct FigParsingResult {
     std::vector<Fig02ServiceInfo> service_info;
     std::vector<EnsembleLabel> ensemble_labels;
     std::vector<ServiceLabel> service_labels;
+    std::vector<DateAndTime> date_time_info;
+    std::vector<AnnouncementSupport> announcement_support;
+    std::vector<AnnouncementSwitching> announcement_switching;
 
     // ETSI compliance status
     bool etsi_compliant;
@@ -251,6 +386,9 @@ struct FigParsingResult {
         service_info.clear();
         ensemble_labels.clear();
         service_labels.clear();
+        date_time_info.clear();
+        announcement_support.clear();
+        announcement_switching.clear();
         etsi_compliant = false;
         compliance_violations.clear();
         compliance_warnings.clear();
@@ -314,6 +452,29 @@ public:
      * @return Vector of parsed service information
      */
     std::vector<Fig02ServiceInfo> parseFig02_ServiceOrganization(
+        const std::vector<uint8_t>& fig_data);
+
+    /**
+     * @brief Parse FIG 0/10 date and time
+     * @param fig_data FIG data payload
+     * @return Parsed date and time information
+     */
+    DateAndTime parseFig010_DateAndTime(const std::vector<uint8_t>& fig_data);
+
+    /**
+     * @brief Parse FIG 0/18 announcement support
+     * @param fig_data FIG data payload
+     * @return Parsed announcement support information
+     */
+    AnnouncementSupport parseFig018_AnnouncementSupport(const std::vector<uint8_t>& fig_data);
+
+    /**
+     * @brief Parse FIG 0/19 announcement switching
+     * @param fig_data FIG data payload
+     * @return Parsed announcement switching information
+     * Reference: ETSI EN 300 401 Section 8.1.12
+     */
+    AnnouncementSwitching parseFig019_AnnouncementSwitching(
         const std::vector<uint8_t>& fig_data);
 
     /**
@@ -394,6 +555,24 @@ signals:
     void serviceDiscovered(const Fig02ServiceInfo& service_info);
 
     /**
+     * @brief Emitted when date and time is discovered
+     * @param date_time Discovered date and time information
+     */
+    void dateTimeDiscovered(const DateAndTime& date_time);
+
+    /**
+     * @brief Emitted when announcement support is discovered
+     * @param announcement Discovered announcement support information
+     */
+    void announcementSupportDiscovered(const AnnouncementSupport& announcement);
+
+    /**
+     * @brief Emitted when announcement switching is detected
+     * @param announcement_switch Announcement switching information
+     */
+    void announcementSwitchingDetected(const AnnouncementSwitching& announcement_switch);
+
+    /**
      * @brief Emitted when ensemble label is discovered
      * @param ensemble_label Discovered ensemble label
      */
@@ -433,6 +612,7 @@ private:
     bool parseFig00_Internal(const std::vector<uint8_t>& data, Fig00EnsembleInfo& result);
     bool parseFig01_Internal(const std::vector<uint8_t>& data, std::vector<Fig01SubchannelInfo>& result);
     bool parseFig02_Internal(const std::vector<uint8_t>& data, std::vector<Fig02ServiceInfo>& result);
+    bool parseFig010_Internal(const std::vector<uint8_t>& data, DateAndTime& result);
     bool parseFig10_Internal(const std::vector<uint8_t>& data, EnsembleLabel& result);
     bool parseFig11_Internal(const std::vector<uint8_t>& data, std::vector<ServiceLabel>& result);
 
@@ -440,6 +620,8 @@ private:
     bool validateEnsembleCompliance(const Fig00EnsembleInfo& ensemble);
     bool validateSubchannelCompliance(const Fig01SubchannelInfo& subchannel);
     bool validateServiceCompliance(const Fig02ServiceInfo& service);
+    bool validateDateTimeCompliance(const DateAndTime& dt);
+    bool validateAnnouncementSupportCompliance(const AnnouncementSupport& announcement);
     bool validateEnsembleLabelCompliance(const EnsembleLabel& label);
     bool validateLabelCompliance(const ServiceLabel& label);
 
