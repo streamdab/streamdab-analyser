@@ -1,15 +1,15 @@
 /**
  * @file fig_parser.h
  * @brief Comprehensive ETSI-Compliant FIG Parser Engine
- * 
+ *
  * Implements complete Fast Information Group (FIG) parsing according to
  * ETSI EN 300 401 Section 5.2 and related standards. Designed for
  * high-performance real-time DAB stream analysis.
- * 
+ *
  * Supported FIG Types:
  * - FIG 0/0: Ensemble information
  * - FIG 0/1: Sub-channel organization
- * - FIG 0/2: Service organization  
+ * - FIG 0/2: Service organization
  * - FIG 0/3: Service component in packet mode
  * - FIG 0/4: Service component with conditional access
  * - FIG 0/5: Service component language
@@ -17,9 +17,9 @@
  * - FIG 1/1: Programme service label
  * - FIG 1/4: Service component label
  * - FIG 1/5: Data service label
- * 
+ *
  * Performance Target: >900 FPS frame processing with <5ms FIG latency
- * 
+ *
  * @author Standards Compliance Agent
  * @date September 22, 2025
  * @copyright StreamDAB Analyzer Project
@@ -37,7 +37,17 @@
 #include <chrono>
 #include <atomic>
 
+// Forward declarations from eti namespace
+namespace eti {
+    struct EtiFicField;
+    struct FigBlock;
+}
+
 namespace eti::fig {
+
+// Import types from parent eti namespace
+using ::eti::EtiFicField;
+using ::eti::FigBlock;
 
 /**
  * @brief FIG 0/0 Ensemble Information Structure
@@ -51,15 +61,15 @@ struct Fig00EnsembleInfo {
     uint8_t cif_count_high;         // CIF Count (high 2 bits)
     uint8_t cif_count_low;          // CIF Count (low 8 bits)
     bool is_valid;                  // Validation flag
-    
+
     uint16_t get_cif_count() const {
         return (static_cast<uint16_t>(cif_count_high) << 8) | cif_count_low;
     }
-    
+
     bool validate_country_id() const {
         return country_id != 0x0F;  // Reserved value
     }
-    
+
     bool is_thai_ensemble() const {
         return country_id == 0x0E && extended_country_code == 0xE1;  // Thailand
     }
@@ -74,31 +84,31 @@ struct Fig01SubchannelInfo {
         UEP = 0,  // Unequal Error Protection
         EEP = 1   // Equal Error Protection
     };
-    
+
     uint8_t subchannel_id;          // SubChId (6-bit)
     uint16_t start_address;         // Start Address (10-bit in CUs)
     bool short_form;                // Form flag (1=short, 0=long)
-    
+
     // Short form fields
     uint8_t table_switch;           // Table Switch (1-bit)
     uint8_t table_index;            // Table Index (6-bit)
-    
+
     // Long form fields
     uint8_t option;                 // Option (3-bit)
     uint8_t protection_level;       // Protection Level (2-bit)
     uint16_t subchannel_size;       // Sub-channel Size (10-bit in CUs)
-    
+
     bool is_valid;                  // Validation flag
-    
+
     bool validate_subchannel_id() const {
         return subchannel_id < 64;  // Maximum 64 sub-channels
     }
-    
+
     bool validate_boundaries() const {
         return start_address < 864 && // Maximum CUs per frame
                (short_form || (start_address + subchannel_size) <= 864);
     }
-    
+
     uint8_t get_protection_level() const {
         return short_form ? (table_index & 0x3F) : protection_level;
     }
@@ -115,7 +125,7 @@ struct Fig02ServiceInfo {
     bool local_flag;                // Local flag
     bool caid_flag;                 // CAID flag
     uint8_t number_of_components;   // Number of service components
-    
+
     struct ServiceComponent {
         uint8_t transport_mechanism_id; // TMId (2-bit)
         uint8_t audio_service_type;     // ASCTy/DSCTy (6-bit)
@@ -126,33 +136,60 @@ struct Fig02ServiceInfo {
         bool is_valid;
 
         // Default constructor to initialize all members
-        ServiceComponent() 
+        ServiceComponent()
             : transport_mechanism_id(0), audio_service_type(0), subchannel_id(0),
               packet_address(0), primary_flag(false), ca_flag(false), is_valid(false) {}
     };
-    
+
     std::vector<ServiceComponent> components;
     bool is_valid;
-    
+
     // Default constructor to initialize all members
-    Fig02ServiceInfo() 
-        : service_id(0), country_id(0), extended_country_code(0), 
+    Fig02ServiceInfo()
+        : service_id(0), country_id(0), extended_country_code(0),
           local_flag(false), caid_flag(false), number_of_components(0), is_valid(false) {}
-    
+
     bool validate_service_id() const {
         return service_id != 0;
     }
-    
+
     bool validate_components() const {
         return number_of_components == components.size() &&
                number_of_components <= 12;  // Maximum components per service
     }
-    
+
     bool is_audio_service() const {
         return std::any_of(components.begin(), components.end(),
             [](const ServiceComponent& comp) {
                 return comp.transport_mechanism_id == 0;  // Stream mode
             });
+    }
+};
+
+/**
+ * @brief FIG 1/0 Ensemble Label Structure
+ * Reference: ETSI EN 300 401 Section 8.1.13
+ */
+struct EnsembleLabel {
+    uint16_t ensemble_id;           // Ensemble identifier (EId)
+    std::string label;              // Ensemble label (up to 16 characters)
+    uint16_t character_flag_field;  // Character flag field
+    bool uses_utf8;                 // UTF-8 encoding flag
+    bool supports_thai;             // Thai character support
+    bool is_valid;                  // Validation flag
+
+    bool validate_label_length() const {
+        return label.length() <= 16;
+    }
+
+    bool validate_character_encoding() const {
+        // Validate proper UTF-8 encoding for Thai support
+        if (!supports_thai) return true;
+
+        // Check for valid Thai UTF-8 sequences
+        return std::all_of(label.begin(), label.end(), [](unsigned char c) {
+            return c < 0x80 || (c >= 0xE0 && c <= 0xEF);  // Thai Unicode range
+        });
     }
 };
 
@@ -167,15 +204,15 @@ struct ServiceLabel {
     bool uses_utf8;                 // UTF-8 encoding flag
     bool supports_thai;             // Thai character support
     bool is_valid;                  // Validation flag
-    
+
     bool validate_label_length() const {
         return label.length() <= 16;
     }
-    
+
     bool validate_character_encoding() const {
         // Validate proper UTF-8 encoding for Thai support
         if (!supports_thai) return true;
-        
+
         // Check for valid Thai UTF-8 sequences
         return std::all_of(label.begin(), label.end(), [](unsigned char c) {
             return c < 0x80 || (c >= 0xE0 && c <= 0xEF);  // Thai Unicode range
@@ -191,18 +228,19 @@ struct FigParsingResult {
     std::chrono::nanoseconds parsing_time;
     uint32_t figs_processed;
     uint32_t parsing_errors;
-    
+
     // Parsed FIG data
     std::vector<Fig00EnsembleInfo> ensemble_info;
     std::vector<Fig01SubchannelInfo> subchannel_info;
     std::vector<Fig02ServiceInfo> service_info;
+    std::vector<EnsembleLabel> ensemble_labels;
     std::vector<ServiceLabel> service_labels;
-    
+
     // ETSI compliance status
     bool etsi_compliant;
     std::vector<std::string> compliance_violations;
     std::vector<std::string> compliance_warnings;
-    
+
     void reset() {
         parsing_successful = false;
         parsing_time = std::chrono::nanoseconds::zero();
@@ -211,6 +249,7 @@ struct FigParsingResult {
         ensemble_info.clear();
         subchannel_info.clear();
         service_info.clear();
+        ensemble_labels.clear();
         service_labels.clear();
         etsi_compliant = false;
         compliance_violations.clear();
@@ -220,7 +259,7 @@ struct FigParsingResult {
 
 /**
  * @brief High-Performance ETSI-Compliant FIG Parser
- * 
+ *
  * Implements complete FIG parsing with optimized performance for
  * real-time DAB stream analysis. Designed to maintain >900 FPS
  * processing rate while providing comprehensive ETSI compliance.
@@ -278,6 +317,13 @@ public:
         const std::vector<uint8_t>& fig_data);
 
     /**
+     * @brief Parse FIG 1/0 ensemble label
+     * @param fig_data FIG data payload
+     * @return Parsed ensemble label
+     */
+    EnsembleLabel parseFig10_EnsembleLabel(const std::vector<uint8_t>& fig_data);
+
+    /**
      * @brief Parse FIG 1/1 programme service labels
      * @param fig_data FIG data payload
      * @return Vector of parsed service labels
@@ -299,18 +345,19 @@ public:
         uint64_t total_fics_processed;
         uint64_t total_figs_processed;
         uint64_t parsing_errors;
+        uint64_t ensemble_labels_processed;
         uint64_t service_labels_processed;
         std::chrono::nanoseconds total_parsing_time;
         double average_figs_per_second;
         double average_parsing_latency_ms;
-        
+
         double getFigProcessingRate() const {
             if (total_parsing_time.count() == 0) return 0.0;
-            return static_cast<double>(total_figs_processed) / 
+            return static_cast<double>(total_figs_processed) /
                    (static_cast<double>(total_parsing_time.count()) / 1e9);
         }
     };
-    
+
     ParsingStatistics getStatistics() const { return statistics_; }
     void resetStatistics();
 
@@ -347,6 +394,12 @@ signals:
     void serviceDiscovered(const Fig02ServiceInfo& service_info);
 
     /**
+     * @brief Emitted when ensemble label is discovered
+     * @param ensemble_label Discovered ensemble label
+     */
+    void ensembleLabelDiscovered(const EnsembleLabel& ensemble_label);
+
+    /**
      * @brief Emitted when service label is discovered
      * @param service_label Discovered service label
      */
@@ -371,28 +424,30 @@ private:
     std::vector<FigBlock> extractFigBlocks(const EtiFicField& fic_data);
     bool validateFigBlockStructure(const FigBlock& fig_block);
     bool validateFigTiming(uint8_t fig_type, uint8_t extension);
-    
+
     // FIG type parsing methods
     bool parseFigType0(const FigBlock& fig_block, uint8_t extension);
     bool parseFigType1(const FigBlock& fig_block, uint8_t extension);
-    
+
     // FIG type-specific parsers
     bool parseFig00_Internal(const std::vector<uint8_t>& data, Fig00EnsembleInfo& result);
     bool parseFig01_Internal(const std::vector<uint8_t>& data, std::vector<Fig01SubchannelInfo>& result);
     bool parseFig02_Internal(const std::vector<uint8_t>& data, std::vector<Fig02ServiceInfo>& result);
+    bool parseFig10_Internal(const std::vector<uint8_t>& data, EnsembleLabel& result);
     bool parseFig11_Internal(const std::vector<uint8_t>& data, std::vector<ServiceLabel>& result);
-    
+
     // ETSI compliance validation
     bool validateEnsembleCompliance(const Fig00EnsembleInfo& ensemble);
     bool validateSubchannelCompliance(const Fig01SubchannelInfo& subchannel);
     bool validateServiceCompliance(const Fig02ServiceInfo& service);
+    bool validateEnsembleLabelCompliance(const EnsembleLabel& label);
     bool validateLabelCompliance(const ServiceLabel& label);
-    
+
     // Thai character encoding support
     bool validateThaiCharacterEncoding(const std::string& text);
     bool isThaiUnicodeRange(uint32_t codepoint);
     std::string normalizeThaiText(const std::string& input);
-    
+
     // Performance optimization
     void updateStatistics(std::chrono::nanoseconds parsing_time, uint32_t figs_processed);
     bool shouldOptimizeForPerformance() const;
@@ -402,22 +457,22 @@ private:
     bool initialized_;
     bool thai_support_enabled_;
     bool strict_compliance_;
-    
+
     // FIG type enablement flags
     std::array<bool, 256> fig_types_enabled_;
-    
+
     // Performance tracking
     ParsingStatistics statistics_;
     std::chrono::steady_clock::time_point last_stats_update_;
-    
+
     // ETSI compliance tracking
     std::atomic<uint64_t> compliance_violations_count_;
     std::atomic<uint64_t> thai_encoding_issues_count_;
-    
+
     // Parsing optimization data
     std::unordered_map<uint8_t, uint64_t> fig_type_frequency_;
     std::chrono::steady_clock::time_point performance_optimization_time_;
-    
+
 private:
     // Constants for validation
     static constexpr uint32_t THAI_UNICODE_START = 0x0E00;
