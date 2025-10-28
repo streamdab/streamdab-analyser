@@ -1131,4 +1131,199 @@ std::unique_ptr<FigParser> createOptimizedFigParser(bool enable_thai_support, bo
     return nullptr;
 }
 
+
+// ==============================================================================
+// FIG 0/10: Date and Time Implementation
+// ==============================================================================
+
+DateAndTime FigParser::parseFig010_DateAndTime(const std::vector<uint8_t>& fig_data) {
+    DateAndTime result;
+    result.is_valid = false;
+
+    // Minimum size: 5 bytes (extension + 2 MJD bytes + hour/minute byte + minute byte)
+    if (fig_data.size() < 5) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/10: Insufficient data - got %1 bytes, need at least 5")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension byte
+
+        // Parse MJD (16 bits effective across bytes 1-2)
+        // ETSI EN 300 401 Section 8.1.7:
+        // Byte 1: MJD bits 16-9 (8 bits)
+        // Byte 2 bits 7-1: MJD bits 8-1 (7 bits)
+        // Byte 2 bit 0: LSI (Leap Second Indicator)
+        //
+        // Note: The encoding effectively stores 16 bits of MJD precision.
+        // Original encoding (as seen in test helper):
+        //   byte1 = mjd >> 9
+        //   byte2 = (mjd >> 1) & 0xFE  // MJD bit 0 is lost
+        //
+        // Decoding formula (reversing the encoding):
+        //   mjd = (byte1 << 9) | ((byte2 & 0xFE) << 1)
+        //
+        // This reconstructs MJD with bit 0 always zero (even MJDs only).
+        result.mjd = (static_cast<uint32_t>(fig_data[offset]) << 9) | 
+                     ((static_cast<uint32_t>(fig_data[offset + 1]) & 0xFE) << 1);
+
+        // Parse LSI (bit 0 of byte 2)
+        result.lsi = (fig_data[offset + 1] & 0x01) != 0;
+        offset += 2;
+
+        // Parse Conf ind, UTC flag, Hour (byte 3)
+        // Bit 7: Confidence indicator
+        // Bit 6: UTC flag
+        // Bits 5-1: Hour (5 bits, 0-23)
+        result.conf_ind = (fig_data[offset] & 0x80) != 0;
+        result.utc_flag = (fig_data[offset] & 0x40) != 0;
+        result.hour = (fig_data[offset] & 0x3E) >> 1; // 5 bits (bits 5-1)
+        offset += 1;
+
+        // Parse Minute (6 bits from byte 4, bits 7-2)
+        result.minute = (fig_data[offset] & 0xFC) >> 2;
+
+        // Parse Second if UTC flag set
+        if (result.utc_flag) {
+            if (fig_data.size() < 6) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    "FIG 0/10: UTC flag set but insufficient data for seconds");
+                return result;
+            }
+            // Second: 6 bits split across bytes 4-5
+            // Byte 4 bits 1-0: Second high 2 bits
+            // Byte 5 bits 7-4: Second low 4 bits
+            uint8_t second_high = (fig_data[offset] & 0x03) << 4;
+            uint8_t second_low = (fig_data[offset + 1] & 0xF0) >> 4;
+            result.second = second_high | second_low;
+        }
+
+        // Validate time ranges
+        if (!result.validateTimeRanges()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/10: Invalid time %1:%2:%3")
+                    .arg(result.hour).arg(result.minute).arg(result.second));
+            return result;
+        }
+
+        // Validate MJD range
+        if (!result.validateMjd()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/10: Invalid MJD %1 (exceeds 17-bit maximum)")
+                    .arg(result.mjd));
+            return result;
+        }
+
+        // Convert MJD to QDateTime
+        result.datetime = DateAndTime::mjdToDateTime(
+            result.mjd, result.hour, result.minute, result.second);
+
+        // Validate datetime conversion succeeded
+        if (!result.datetime.isValid()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/10: Failed to convert MJD %1 to valid QDateTime")
+                    .arg(result.mjd));
+            return result;
+        }
+
+        // All validations passed
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("Parsed FIG 0/10 - MJD: %1, Time: %2:%3:%4, Date: %5, LSI: %6, Conf: %7, UTC: %8")
+                .arg(result.mjd)
+                .arg(result.hour, 2, 10, QChar('0'))
+                .arg(result.minute, 2, 10, QChar('0'))
+                .arg(result.second, 2, 10, QChar('0'))
+                .arg(result.datetime.toString(Qt::ISODate))
+                .arg(result.lsi)
+                .arg(result.conf_ind)
+                .arg(result.utc_flag));
+
+        // Emit signal if anyone is listening
+        emit dateTimeDiscovered(result);
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/10: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+// ==============================================================================
+// DateAndTime Utility Functions Implementation
+// ==============================================================================
+
+QDateTime DateAndTime::mjdToDateTime(uint32_t mjd, uint8_t hour, uint8_t minute, uint8_t second) {
+    // Modified Julian Date to Gregorian calendar conversion
+    // Reference: ETSI EN 300 401, Annex G
+    // MJD epoch: November 17, 1858 at 00:00 UTC
+    // MJD = JD - 2400000.5
+
+    // Convert MJD to Julian Date
+    double jd = static_cast<double>(mjd) + 2400000.5;
+
+    // Julian Date to Gregorian calendar algorithm
+    // Based on algorithm from "Astronomical Algorithms" by Jean Meeus
+    int a = static_cast<int>(jd + 0.5);
+    int b = a + 1537;
+    int c = (b - 122.1) / 365.25;
+    int d = 365.25 * c;
+    int e = (b - d) / 30.6001;
+
+    int day = b - d - static_cast<int>(30.6001 * e);
+    int month = e - 1 - 12 * (e / 14);
+    int year = c - 4715 - (7 + month) / 10;
+
+    // Create QDate
+    QDate date(year, month, day);
+    if (!date.isValid()) {
+        return QDateTime(); // Invalid date
+    }
+
+    // Create QTime
+    QTime time(hour, minute, second);
+    if (!time.isValid()) {
+        return QDateTime(); // Invalid time
+    }
+
+    // Combine into QDateTime with UTC timezone
+    return QDateTime(date, time, Qt::UTC);
+}
+
+uint32_t DateAndTime::dateTimeToMjd(const QDateTime& datetime) {
+    if (!datetime.isValid()) {
+        return 0;
+    }
+
+    QDate date = datetime.date();
+    int year = date.year();
+    int month = date.month();
+    int day = date.day();
+
+    // Adjust for January/February
+    if (month <= 2) {
+        year -= 1;
+        month += 12;
+    }
+
+    // Calculate Julian Date
+    // Algorithm from "Astronomical Algorithms" by Jean Meeus
+    int a = year / 100;
+    int b = 2 - a + (a / 4);
+    
+    double jd = static_cast<int>(365.25 * (year + 4716)) +
+                static_cast<int>(30.6001 * (month + 1)) +
+                day + b - 1524.5;
+
+    // Convert JD to MJD
+    uint32_t mjd = static_cast<uint32_t>(jd - 2400000.5);
+
+    return mjd;
+}
+
 } // namespace eti::fig

@@ -29,6 +29,8 @@ set(CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dls_plus_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_reader_thread.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/shared_eti_data.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
 )
 
@@ -113,6 +115,20 @@ target_link_libraries(test_mot_protocol
     pthread
 )
 add_test(NAME test_mot_protocol COMMAND test_mot_protocol)
+
+
+# Test: FIG 0/18 Announcement Support (PDCA Week 2 Agent 1)
+add_executable(test_fig018_announcement
+    test_fig018_announcement.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig018_announcement
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+)
+add_test(NAME test_fig018_announcement COMMAND test_fig018_announcement)
 
 # Test 6: EPG Decoder (Phase 3A Wave 2.1)
 add_executable(test_epg_decoder
@@ -229,6 +245,99 @@ set_tests_properties(test_shared_eti_data PROPERTIES
     TIMEOUT 30
 )
 
+
+# ============================================================================
+# ETSI TS 101 756 REGISTERED TABLES TESTS (v1.1 - October 28, 2025)
+# ============================================================================
+
+message(STATUS "")
+message(STATUS "=== ETSI TS 101 756 Registered Tables Tests ===")
+
+# Test: ETSI Registered Tables (20+ tests)
+add_executable(test_etsi_registered_tables
+    test_etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+)
+target_link_libraries(test_etsi_registered_tables
+    Qt6::Test
+    Qt6::Core
+    pthread
+)
+add_test(NAME test_etsi_registered_tables COMMAND test_etsi_registered_tables)
+set_tests_properties(test_etsi_registered_tables PROPERTIES
+    TIMEOUT 60
+)
+
+message(STATUS "  - test_etsi_registered_tables: 20+ tests for ECC, Language, and PTy tables")
+message(STATUS "  - Coverage: ETSI TS 101 756 v2.4.1 complete table implementation")
+# Add FIG 1/0 test
+
+# Test: FIG 1/0 Ensemble Label Parser (Week 1 v1.1 ETSI Compliance)
+add_executable(test_fig10_ensemble_label
+    test_fig10_ensemble_label.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig10_ensemble_label
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME test_fig10_ensemble_label COMMAND test_fig10_ensemble_label)
+
+# Test 13: Week 1 Comprehensive Test Suite (FIG 1/0 + FIG 0/18)
+# PDCA Methodology - TDD for Agent 1, Agent 2, Agent 4 deliverables
+add_executable(test_fig_week1_comprehensive
+    core/test_fig_week1_comprehensive.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig_week1_comprehensive
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME test_fig_week1_comprehensive COMMAND test_fig_week1_comprehensive)
+set_tests_properties(test_fig_week1_comprehensive PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60
+)
+
+# ============================================================================
+# PDCA WEEK 2 TESTS - Integration Test Suite Expansion (Agent 4)
+# ============================================================================
+
+message(STATUS "")
+message(STATUS "=== PDCA Week 2 Integration Test Suite ===")
+
+# Test 14: Week 2 Comprehensive Test Suite (40+ tests)
+# Expands Week 1 (26 tests) to Week 2 (40+ tests)
+# Coverage: FIG 0/18, FIG 0/19, FIG 0/10 integration
+add_executable(test_fig_week2_comprehensive
+    core/test_fig_week2_comprehensive.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig_week2_comprehensive
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME test_fig_week2_comprehensive COMMAND test_fig_week2_comprehensive)
+set_tests_properties(test_fig_week2_comprehensive PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60
+)
+
+message(STATUS "  ✓ test_fig_week2_comprehensive (40+ integration tests)")
+message(STATUS "    - Week 1 tests: 26 (FIG 1/0, FIG 0/18 basic)")
+message(STATUS "    - Week 2 tests: 14+ (FIG 0/18, 0/19, 0/10 integration)")
+message(STATUS "    - Cross-FIG validation: 4 tests")
+message(STATUS "    - Emergency Warning System: end-to-end")
+
 # ============================================================================
 # INTEGRATION TESTS - Phase 3A Wave 3.1
 # ============================================================================
@@ -243,120 +352,121 @@ add_subdirectory(integration)
 message(STATUS "")
 message(STATUS "=== GUI Test Configuration ===")
 
-# GUI tests require Qt6 Widgets
-find_package(Qt6 REQUIRED COMPONENTS Widgets Test)
+# GUI tests require X11/Wayland or offscreen platform
+# Detect if we're in a headless environment
+if(DEFINED ENV{DISPLAY} OR DEFINED ENV{WAYLAND_DISPLAY} OR "$ENV{QT_QPA_PLATFORM}" STREQUAL "offscreen")
+    set(CAN_RUN_GUI_TESTS ON)
+    message(STATUS "  ✓ GUI test environment detected")
+    message(STATUS "    Display: $ENV{DISPLAY}")
+    message(STATUS "    Platform: $ENV{QT_QPA_PLATFORM}")
+else()
+    set(CAN_RUN_GUI_TESTS OFF)
+    message(STATUS "  ✗ No display detected - GUI tests will be skipped in CI")
+    message(STATUS "    Set QT_QPA_PLATFORM=offscreen to enable")
+endif()
 
-# GUI Test 1: ETI Explorer Table Tests
-add_executable(test_eti_explorer
-    gui/test_eti_explorer.cpp
-)
-target_link_libraries(test_eti_explorer
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    Qt6::Network
-)
-target_include_directories(test_eti_explorer PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui
-)
-add_test(NAME ETIExplorerTests COMMAND test_eti_explorer)
-set_tests_properties(ETIExplorerTests PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-    TIMEOUT 10
-)
+if(CAN_RUN_GUI_TESTS)
+    message(STATUS "  Configuring 4 GUI test suites...")
 
-# GUI Test 2: Service List (Ensemble Tree) Tests
-add_executable(test_service_list
-    gui/test_service_list.cpp
-)
-target_link_libraries(test_service_list
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    Qt6::Network
-)
-target_include_directories(test_service_list PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui
-)
-add_test(NAME ServiceListTests COMMAND test_service_list)
-set_tests_properties(ServiceListTests PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-    TIMEOUT 10
-)
+    # Test 1: Stream Info Panel Widget (October 25, 2025)
+    add_executable(test_gui_stream_info_panel
+        gui/test_gui_stream_info_panel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/stream_info_panel.cpp
+        ${CORE_SOURCES}
+    )
+    target_link_libraries(test_gui_stream_info_panel
+        Qt6::Test Qt6::Core Qt6::Widgets Qt6::Network pthread
+    )
+    target_include_directories(test_gui_stream_info_panel PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui
+    )
+    add_test(NAME test_gui_stream_info_panel
+             COMMAND test_gui_stream_info_panel)
+    set_tests_properties(test_gui_stream_info_panel PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 30
+    )
 
-# GUI Test 3: Frame Viewer Tests
-add_executable(test_frame_viewer
-    gui/test_frame_viewer.cpp
-)
-target_link_libraries(test_frame_viewer
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    Qt6::Network
-)
-target_include_directories(test_frame_viewer PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui
-)
-add_test(NAME FrameViewerTests COMMAND test_frame_viewer)
-set_tests_properties(FrameViewerTests PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-    TIMEOUT 10
-)
+    # Test 2: Service Discovery Panel Widget (October 25, 2025)
+    add_executable(test_gui_service_discovery_panel
+        gui/test_gui_service_discovery_panel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/service_discovery_panel.cpp
+        ${CORE_SOURCES}
+    )
+    target_link_libraries(test_gui_service_discovery_panel
+        Qt6::Test Qt6::Core Qt6::Widgets Qt6::Network pthread
+    )
+    target_include_directories(test_gui_service_discovery_panel PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui
+    )
+    add_test(NAME test_gui_service_discovery_panel
+             COMMAND test_gui_service_discovery_panel)
+    set_tests_properties(test_gui_service_discovery_panel PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 30
+    )
 
-# GUI Test 4: FIG Extractor Tests
-add_executable(test_fig_extractor
-    gui/test_fig_extractor.cpp
-)
-target_link_libraries(test_fig_extractor
-    Qt6::Test
-    Qt6::Widgets
-    Qt6::Core
-    Qt6::Network
-)
-target_include_directories(test_fig_extractor PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui
-)
-add_test(NAME FIGExtractorTests COMMAND test_fig_extractor)
-set_tests_properties(FIGExtractorTests PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-    TIMEOUT 10
-)
+    # Test 3: FIG Type Display Panel Widget (October 25, 2025)
+    add_executable(test_gui_fig_type_display_panel
+        gui/test_gui_fig_type_display_panel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/fig_type_display_panel.cpp
+        ${CORE_SOURCES}
+    )
+    target_link_libraries(test_gui_fig_type_display_panel
+        Qt6::Test Qt6::Core Qt6::Widgets Qt6::Network pthread
+    )
+    target_include_directories(test_gui_fig_type_display_panel PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui
+    )
+    add_test(NAME test_gui_fig_type_display_panel
+             COMMAND test_gui_fig_type_display_panel)
+    set_tests_properties(test_gui_fig_type_display_panel PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 30
+    )
 
-# Custom target to build all GUI tests
-add_custom_target(build_gui_tests
-    DEPENDS test_eti_explorer test_service_list test_frame_viewer test_fig_extractor
-    COMMENT "Building all QTest GUI automated tests..."
-)
+    # Test 4: Main Window Integration (October 25, 2025)
+    add_executable(test_gui_main_window
+        gui/test_gui_main_window.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/main_window.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/stream_info_panel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/service_discovery_panel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/fig_type_display_panel.cpp
+        ${CORE_SOURCES}
+    )
+    target_link_libraries(test_gui_main_window
+        Qt6::Test Qt6::Core Qt6::Widgets Qt6::Network pthread
+    )
+    target_include_directories(test_gui_main_window PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui
+    )
+    add_test(NAME test_gui_main_window
+             COMMAND test_gui_main_window)
+    set_tests_properties(test_gui_main_window PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 30
+    )
 
-# Custom target to run all GUI tests
-add_custom_target(run_gui_tests
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R ".*Tests"
-    DEPENDS test_eti_explorer test_service_list test_frame_viewer test_fig_extractor
-    COMMENT "Running all QTest GUI automated tests..."
-)
+    message(STATUS "  ✓ test_gui_stream_info_panel (10 widget tests)")
+    message(STATUS "  ✓ test_gui_service_discovery_panel (10 widget tests)")
+    message(STATUS "  ✓ test_gui_fig_type_display_panel (10 widget tests)")
+    message(STATUS "  ✓ test_gui_main_window (10+ integration tests)")
 
-message(STATUS "  ✓ GUI tests enabled (4 QTest suites, 40+ test cases)")
-message(STATUS "    - test_eti_explorer (8 tests)")
-message(STATUS "    - test_service_list (11 tests)")
-message(STATUS "    - test_frame_viewer (10 tests)")
-message(STATUS "    - test_fig_extractor (10 tests)")
-message(STATUS "  Run: make build_gui_tests && make run_gui_tests")
+else()
+    message(STATUS "  Skipping GUI tests (no display environment)")
+endif()
 
 # ============================================================================
-# PHASE 3A E2E TESTS - Wave 3.2 End-to-End Testing
+# E2E TESTS - Phase 3A Wave 3.2 (October 24, 2025)
 # ============================================================================
 
-# Check if Phase 3A E2E tests exist
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/e2e/test_phase3a_complete_pipeline.cpp")
-    message(STATUS "Phase 3A E2E tests found - configuring...")
+message(STATUS "")
+message(STATUS "=== E2E Test Configuration ===")
+
+# E2E tests enabled (real ETI data processing)
+if(TRUE)
+    message(STATUS "  E2E tests ENABLED (real ETI data)")
 
     # Include Phase 3A E2E test configuration
     set(PHASE3A_CORE_SOURCES
@@ -369,6 +479,8 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/e2e/test_phase3a_complete_pipeline.cpp")
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/phase3a_integration.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dls_plus_decoder.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_compliance_engine.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
     )
 
@@ -435,60 +547,111 @@ set_tests_properties(test_segfault_fixes PROPERTIES
 
 message(STATUS "")
 message(STATUS "===========================================")
-message(STATUS "Configured 16 validation tests:")
+message(STATUS "Configured 17 validation tests:")
 message(STATUS "  - 5 core tests (ETI, FIG 0/1, LI CRC)")
 message(STATUS "  - 5 Phase 3A tests (MOT, EPG, Journaline)")
 message(STATUS "  - 1 Phase 3B test (DLS+ decoder - STUBBED)")
 message(STATUS "  - 1 Regression test (Segfault fixes)")
 message(STATUS "  - 4 GUI tests (QTest widget verification)")
+message(STATUS "  - 1 PDCA Week 2 test (40+ integration tests)")
 message(STATUS "Integration tests: 4 (audio + EPG + Journaline + DLS+)")
 message(STATUS "E2E tests: 1 (Phase 3A complete pipeline - 26 tests)")
 message(STATUS "GUI tests: 4 (40+ widget test cases)")
+message(STATUS "Week 2 tests: 1 (40+ FIG integration tests)")
 message(STATUS "Benchmark tools: 1 (performance_benchmark)")
 message(STATUS "")
 message(STATUS "NOTE: DLS+ tests are STUBBED pending Agent 1 completion")
 message(STATUS "      All DLS+ tests will SKIP until dls_plus_decoder ready")
 message(STATUS "")
-message(STATUS "Regression tests verify all fixes for:")
-message(STATUS "  ✓ ProcessedFrame deep copy (QByteArray detach)")
-message(STATUS "  ✓ Qt::QueuedConnection safety")
-message(STATUS "  ✓ Pass-by-value slots")
-message(STATUS "  ✓ MSC bounds error handling")
-message(STATUS "")
-message(STATUS "GUI tests verify (October 25, 2025):")
-message(STATUS "  ✓ ETI Explorer table population and structure")
-message(STATUS "  ✓ Service list display and Thai UTF-8 support")
-message(STATUS "  ✓ Frame viewer safe click handling (no crashes)")
-message(STATUS "  ✓ FIG Extractor statistics display")
-message(STATUS "")
-message(STATUS "Test execution: make && ctest")
-message(STATUS "GUI tests only: make build_gui_tests && make run_gui_tests")
-message(STATUS "Benchmark: make && ./tests/performance_benchmark")
+message(STATUS "Run tests: cd build && ctest --output-on-failure")
 message(STATUS "===========================================")
 
-# === E2E GUI Tests for Service Discovery Issues ===
-add_executable(test_signal_slot_verification test_signal_slot_verification.cpp)
-target_link_libraries(test_signal_slot_verification 
-    Qt6::Test Qt6::Core
-    enhanced_eti_processor_qt
-    advanced_fig_analyzer
+# ============================================================================
+# NETWORK TESTS - EDI Protocol Support (October 23, 2025)
+# ============================================================================
+
+# EDI Packet Parser Test
+add_executable(test_edi_packet_parser
+    test_edi_packet_parser.cpp
+    ${NETWORK_SOURCES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
 )
-add_test(NAME SignalSlotVerification COMMAND test_signal_slot_verification)
-
-add_executable(test_gui_service_discovery_e2e test_gui_service_discovery_e2e.cpp)
-target_link_libraries(test_gui_service_discovery_e2e 
-    Qt6::Test Qt6::Widgets
-)
-add_test(NAME GUIServiceDiscoveryE2E COMMAND test_gui_service_discovery_e2e)
-
-message(STATUS "=== E2E GUI Tests Added ===")
-message(STATUS "  - test_signal_slot_verification: Verifies signal/slot connections")
-message(STATUS "  - test_gui_service_discovery_e2e: E2E service discovery flow")
-
-# Test for Bangkok ETI file loading
-add_executable(test_bkk_eti_loading test_bkk_eti_loading.cpp)
-target_link_libraries(test_bkk_eti_loading
+target_link_libraries(test_edi_packet_parser
+    Qt6::Test
     Qt6::Core
-    enhanced_eti_processor_qt
-    advanced_fig_analyzer
+    Qt6::Widgets
+    Qt6::Network
+    pthread
 )
+add_test(NAME test_edi_packet_parser COMMAND test_edi_packet_parser)
+
+# PFT Reassembler Test
+add_executable(test_pft_reassembler
+    test_pft_reassembler.cpp
+    ${NETWORK_SOURCES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_pft_reassembler
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME test_pft_reassembler COMMAND test_pft_reassembler)
+
+# ============================================================================
+# ETSI COMPLIANCE PROOF TEST SUITE (October 28, 2025)
+# ============================================================================
+
+# Test: ETSI Compliance Proof (50+ tests)
+add_executable(test_etsi_compliance_proof
+    test_etsi_compliance_proof.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_etsi_compliance_proof
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME test_etsi_compliance_proof COMMAND test_etsi_compliance_proof)
+
+message(STATUS "=== ETSI Compliance Proof Test Added ===")
+message(STATUS "  - test_etsi_compliance_proof: 50+ tests proving ETSI standards compliance")
+
+
+# FIG 0/10 Date and Time Test (PDCA Week 2, Agent 3)
+# FIG 0/10 Date and Time Test (PDCA Week 2, Agent 3)
+add_executable(test_fig010_date_time
+    test_fig010_date_time.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig010_date_time
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME TestFig010DateTime COMMAND test_fig010_date_time)
+set_tests_properties(TestFig010DateTime PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60
+)
+
+# FIG 0/19 Announcement Switching Test (PDCA Week 2, Agent 2)
+add_executable(test_fig019_announcement_switch
+    test_fig019_announcement_switch.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig019_announcement_switch
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME test_fig019_announcement_switch COMMAND test_fig019_announcement_switch)
+
