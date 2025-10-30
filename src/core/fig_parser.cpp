@@ -228,6 +228,15 @@ bool FigParser::parseFigType0(const FigBlock& fig_block, uint8_t extension) {
             break;
         }
 
+        case 17: { // FIG 0/17 - Programme type
+            auto programme_type = parseFig017_ProgrammeType(fig_block.data);
+            if (programme_type.is_valid) {
+                emit programmeTypeDiscovered(programme_type);
+                success = true;
+            }
+            break;
+        }
+
         default:
             Logger::instance().log(Logger::Warning, "FigParser",
                 QString("Unknown FIG 0 extension: %1").arg(extension));
@@ -1678,6 +1687,104 @@ ServiceComponentLanguage FigParser::parseFig005_ServiceComponentLanguage(
     } catch (const std::exception& e) {
         Logger::instance().log(Logger::Error, "FigParser",
             QString("Exception parsing FIG 0/5: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+// ==============================================================================
+// FIG 0/17: Programme Type Implementation
+// ==============================================================================
+
+ProgrammeType FigParser::parseFig017_ProgrammeType(const std::vector<uint8_t>& fig_data) {
+    ProgrammeType result;
+    result.is_valid = false;
+
+    // Minimum size check: ext + flags + 16-bit SId + PTy = 4 bytes minimum
+    if (fig_data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/17: Insufficient data - got %1 bytes, need at least 4")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension byte
+
+        // Parse first byte: [C/N][S/D][P/D][5 reserved]
+        uint8_t flags = fig_data[offset++];
+        bool is_static = (flags & 0x40) != 0;  // S/D flag (bit 6)
+        bool is_32bit_sid = (flags & 0x20) != 0;  // P/D flag (bit 5)
+
+        result.is_static = is_static;
+
+        // Determine required size
+        size_t required_size = 2 +  // extension + flags
+                              (is_32bit_sid ? 4 : 2) +  // SId
+                              1;  // PTy byte
+
+        if (!is_static) {
+            required_size += 1;  // Language byte for dynamic PTy
+        }
+
+        if (fig_data.size() < required_size) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/17: Insufficient data - got %1 bytes, need %2 (32-bit SId: %3, Dynamic: %4)")
+                .arg(fig_data.size())
+                .arg(required_size)
+                .arg(is_32bit_sid ? "Yes" : "No")
+                .arg(is_static ? "No" : "Yes"));
+            return result;
+        }
+
+        // Parse Service ID
+        if (is_32bit_sid) {
+            result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 24) |
+                               (static_cast<uint32_t>(fig_data[offset + 1]) << 16) |
+                               (static_cast<uint32_t>(fig_data[offset + 2]) << 8) |
+                               static_cast<uint32_t>(fig_data[offset + 3]);
+            offset += 4;
+        } else {
+            result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 8) |
+                               static_cast<uint32_t>(fig_data[offset + 1]);
+            offset += 2;
+        }
+
+        // Parse PTy byte: [CC flag][2 reserved][5 bits PTy code]
+        uint8_t pty_byte = fig_data[offset++];
+        result.cc_flag = (pty_byte & 0x80) != 0;  // CC flag (bit 7)
+        result.pty_code = pty_byte & 0x1F;  // PTy code (bits 4-0)
+
+        // Parse Language code for dynamic PTy
+        if (!is_static) {
+            result.language_code = fig_data[offset++];
+        } else {
+            result.language_code = 0;  // Not used for static PTy
+        }
+
+        // Validate PTy code range
+        if (result.pty_code > 31) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/17: Invalid PTy code %1 (> 31)").arg(result.pty_code));
+            return result;
+        }
+
+        // All validations passed - MUST set before return
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("Parsed FIG 0/17 - SId: 0x%1, PTy: %2 (%3), %4, CC: %5, Lang: 0x%6")
+                .arg(result.service_id, is_32bit_sid ? 8 : 4, 16, QChar('0'))
+                .arg(result.pty_code)
+                .arg(QString::fromStdString(result.getPtyName()))
+                .arg(result.is_static ? "Static" : "Dynamic")
+                .arg(result.cc_flag ? "Yes" : "No")
+                .arg(result.language_code, 2, 16, QChar('0')));
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/17: %1").arg(e.what()));
         result.is_valid = false;
     }
 

@@ -321,6 +321,68 @@ struct ServiceComponentLanguage {
 };
 
 /**
+ * @brief FIG 0/17 Programme Type Structure
+ * Reference: ETSI EN 300 401 Section 8.1.5 and ETSI TS 101 756 Table 10
+ *
+ * Provides programme type information for service content categorization.
+ * Supports both static and dynamic programme type signalling.
+ */
+struct ProgrammeType {
+    uint32_t service_id{0};        // SId (16-bit or 32-bit based on P/D flag)
+    uint8_t pty_code{0};           // Programme Type code (5 bits, 0-31)
+    uint8_t language_code{0};      // Language (8 bits, for dynamic PTy only)
+    bool is_static{true};          // True: static PTy, False: dynamic PTy
+    bool cc_flag{false};           // Continuity Check flag
+    bool is_valid{false};
+
+    /**
+     * @brief Get Programme Type name from PTy code
+     * @return Human-readable programme type name per ETSI TS 101 756 Table 10
+     */
+    std::string getPtyName() const {
+        static const std::string pty_names[32] = {
+            "No PTy",               // 0
+            "News",                 // 1
+            "Current Affairs",      // 2
+            "Information",          // 3
+            "Sport",                // 4
+            "Education",            // 5
+            "Drama",                // 6
+            "Culture",              // 7
+            "Science",              // 8
+            "Varied",               // 9
+            "Pop Music",            // 10
+            "Rock Music",           // 11
+            "Easy Listening Music", // 12
+            "Light Classical",      // 13
+            "Serious Classical",    // 14
+            "Other Music",          // 15
+            "Weather/meteorology",  // 16
+            "Finance/Business",     // 17
+            "Children's programmes",// 18
+            "Social Affairs",       // 19
+            "Religion",             // 20
+            "Phone In",             // 21
+            "Travel",               // 22
+            "Leisure",              // 23
+            "Jazz Music",           // 24
+            "Country Music",        // 25
+            "National Music",       // 26
+            "Oldies Music",         // 27
+            "Folk Music",           // 28
+            "Documentary",          // 29
+            "Reserved",             // 30
+            "Reserved"              // 31
+        };
+
+        if (pty_code < 32) {
+            return pty_names[pty_code];
+        }
+        return "Unknown";
+    }
+};
+
+/**
  * @brief FIG 1/0 Ensemble Label Structure
  * Reference: ETSI EN 300 401 Section 8.1.13
  */
@@ -393,6 +455,7 @@ struct FigParsingResult {
     std::vector<AnnouncementSupport> announcement_support;
     std::vector<AnnouncementSwitching> announcement_switching;
     std::vector<ServiceComponentLanguage> component_languages;
+    std::vector<ProgrammeType> programme_types;
 
     // ETSI compliance status
     bool etsi_compliant;
@@ -501,6 +564,14 @@ public:
         const std::vector<uint8_t>& fig_data);
 
     /**
+     * @brief Parse FIG 0/17 programme type
+     * @param fig_data FIG data payload
+     * @return Parsed programme type information
+     * Reference: ETSI EN 300 401 Section 8.1.5
+     */
+    ProgrammeType parseFig017_ProgrammeType(const std::vector<uint8_t>& fig_data);
+
+    /**
      * @brief Parse FIG 0/19 announcement switching
      * @param fig_data FIG data payload
      * @return Parsed announcement switching information
@@ -603,6 +674,12 @@ signals:
      * @param language_info Service component language information
      */
     void serviceComponentLanguageDiscovered(const ServiceComponentLanguage& language_info);
+
+    /**
+     * @brief Emitted when programme type is discovered
+     * @param programme_type Discovered programme type information
+     */
+    void programmeTypeDiscovered(const ProgrammeType& programme_type);
 
     /**
      * @brief Emitted when announcement switching is detected
