@@ -655,3 +655,17 @@ target_link_libraries(test_fig019_announcement_switch
 )
 add_test(NAME test_fig019_announcement_switch COMMAND test_fig019_announcement_switch)
 
+# FIG 0/5 Service Component Language Test (PDCA Week 3, Agent 8)
+add_executable(test_fig005_language
+    test_fig005_language.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig005_language
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME Test_FIG005_Language COMMAND test_fig005_language)
+
