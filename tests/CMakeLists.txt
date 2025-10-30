@@ -669,3 +669,17 @@ target_link_libraries(test_fig005_language
 )
 add_test(NAME Test_FIG005_Language COMMAND test_fig005_language)
 
+# FIG 0/17 Programme Type Test (PDCA Week 3, Agent 9)
+add_executable(test_fig017_programme_type
+    test_fig017_programme_type.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig017_programme_type
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME Test_FIG017_ProgrammeType COMMAND test_fig017_programme_type)
+
