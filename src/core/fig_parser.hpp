@@ -250,7 +250,8 @@ struct AnnouncementSupport {
      * @return true if any emergency type supported
      */
     bool isEmergencyCapable() const {
-        for (uint8_t i = 0; i <= 6; ++i) {
+        // Emergency types: 0-4 (Alarm, Road Traffic, Transport, Warning, News Flash)
+        for (uint8_t i = 0; i <= 4; ++i) {
             if (supportsAnnouncementType(i)) return true;
         }
         return false;
@@ -296,6 +297,27 @@ struct AnnouncementSwitching {
     bool matchesCluster(uint8_t cluster) const {
         return cluster_id == cluster;
     }
+};
+
+/**
+ * @brief FIG 0/5 Service Component Language Structure
+ * Reference: ETSI EN 300 401 Section 8.1.2, ETSI TS 101 756 Table 9
+ *
+ * Provides language information for service components (audio/data).
+ * Supports both short form (MSC stream audio) and long form (packet mode).
+ */
+struct ServiceComponentLanguage {
+    uint32_t service_id{0};        // SId (0 for short form, 16/32-bit for long form)
+    uint16_t sc_ids{0};            // Service Component ID (12 bits)
+    uint8_t language_code{0};      // ISO 639-2 language code (8 bits)
+    bool is_short_form{true};      // True: MSC stream audio, False: packet mode
+    bool is_valid{false};
+
+    /**
+     * @brief Get human-readable language name
+     * @return Language name from ISO 639-2 table (e.g., "English", "Thai", "French")
+     */
+    std::string getLanguageName() const;
 };
 
 /**
@@ -370,6 +392,7 @@ struct FigParsingResult {
     std::vector<DateAndTime> date_time_info;
     std::vector<AnnouncementSupport> announcement_support;
     std::vector<AnnouncementSwitching> announcement_switching;
+    std::vector<ServiceComponentLanguage> component_languages;
 
     // ETSI compliance status
     bool etsi_compliant;
@@ -469,6 +492,15 @@ public:
     AnnouncementSupport parseFig018_AnnouncementSupport(const std::vector<uint8_t>& fig_data);
 
     /**
+     * @brief Parse FIG 0/5: Service Component Language
+     * @param fig_data FIG data payload
+     * @return Parsed service component language information
+     * Reference: ETSI EN 300 401 Section 8.1.2, ETSI TS 101 756 Table 9
+     */
+    ServiceComponentLanguage parseFig005_ServiceComponentLanguage(
+        const std::vector<uint8_t>& fig_data);
+
+    /**
      * @brief Parse FIG 0/19 announcement switching
      * @param fig_data FIG data payload
      * @return Parsed announcement switching information
@@ -565,6 +597,12 @@ signals:
      * @param announcement Discovered announcement support information
      */
     void announcementSupportDiscovered(const AnnouncementSupport& announcement);
+
+    /**
+     * @brief Emitted when service component language is discovered
+     * @param language_info Service component language information
+     */
+    void serviceComponentLanguageDiscovered(const ServiceComponentLanguage& language_info);
 
     /**
      * @brief Emitted when announcement switching is detected

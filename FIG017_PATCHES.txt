@@ -1,0 +1,274 @@
+# FIG 0/17 Implementation Patches
+# Agent 9 - TypeScript Pro | October 29, 2025
+
+================================================================
+PATCH 1: src/core/fig_parser.hpp - Insert after line 221
+================================================================
+
+/**
+ * @brief FIG 0/17 Programme Type Structure
+ * Reference: ETSI EN 300 401 Section 8.1.5 and ETSI TS 101 756 Table 10
+ *
+ * Provides programme type information for service content categorization.
+ * Supports both static and dynamic programme type signalling.
+ */
+struct ProgrammeType {
+    uint32_t service_id{0};        // SId (16-bit or 32-bit based on P/D flag)
+    uint8_t pty_code{0};           // Programme Type code (5 bits, 0-31)
+    uint8_t language_code{0};      // Language (8 bits, for dynamic PTy only)
+    bool is_static{true};          // True: static PTy, False: dynamic PTy
+    bool cc_flag{false};           // Continuity Check flag
+    bool is_valid{false};
+
+    /**
+     * @brief Get Programme Type name from PTy code
+     * @return Human-readable programme type name per ETSI TS 101 756 Table 10
+     */
+    std::string getPtyName() const {
+        static const std::string pty_names[32] = {
+            "No PTy",               // 0
+            "News",                 // 1
+            "Current Affairs",      // 2
+            "Information",          // 3
+            "Sport",                // 4
+            "Education",            // 5
+            "Drama",                // 6
+            "Culture",              // 7
+            "Science",              // 8
+            "Varied",               // 9
+            "Pop Music",            // 10
+            "Rock Music",           // 11
+            "Easy Listening Music", // 12
+            "Light Classical",      // 13
+            "Serious Classical",    // 14
+            "Other Music",          // 15
+            "Weather/meteorology",  // 16
+            "Finance/Business",     // 17
+            "Children's programmes",// 18
+            "Social Affairs",       // 19
+            "Religion",             // 20
+            "Phone In",             // 21
+            "Travel",               // 22
+            "Leisure",              // 23
+            "Jazz Music",           // 24
+            "Country Music",        // 25
+            "National Music",       // 26
+            "Oldies Music",         // 27
+            "Folk Music",           // 28
+            "Documentary",          // 29
+            "Reserved",             // 30
+            "Reserved"              // 31
+        };
+
+        if (pty_code < 32) {
+            return pty_names[pty_code];
+        }
+        return "Unknown";
+    }
+};
+
+
+================================================================
+PATCH 2: src/core/fig_parser.hpp - Line 392 (FigParsingResult)
+Add after: std::vector<DateAndTime> date_time_info;
+================================================================
+
+    std::vector<ProgrammeType> programme_types;
+
+
+================================================================
+PATCH 3: src/core/fig_parser.hpp - Line 412 (reset method)
+Add after: date_time_info.clear();
+================================================================
+
+        programme_types.clear();
+
+
+================================================================
+PATCH 4: src/core/fig_parser.hpp - Line ~493 (after parseFig010)
+================================================================
+
+    /**
+     * @brief Parse FIG 0/17 programme type
+     * @param fig_data FIG data payload
+     * @return Parsed programme type information
+     * Reference: ETSI EN 300 401 Section 8.1.5
+     */
+    ProgrammeType parseFig017_ProgrammeType(const std::vector<uint8_t>& fig_data);
+
+
+================================================================
+PATCH 5: src/core/fig_parser.hpp - Line ~598 (after dateTimeDiscovered)
+================================================================
+
+    /**
+     * @brief Emitted when programme type is discovered
+     * @param programme_type Discovered programme type information
+     */
+    void programmeTypeDiscovered(const ProgrammeType& programme_type);
+
+
+================================================================
+PATCH 6: src/core/fig_parser.cpp - Line ~226 (parseFigType0 switch)
+Add after case 5 or before case 18:
+================================================================
+
+        case 10: { // FIG 0/10 - Date and time
+            auto date_time = parseFig010_DateAndTime(fig_block.data);
+            if (date_time.is_valid) {
+                emit dateTimeDiscovered(date_time);
+                success = true;
+            }
+            break;
+        }
+
+        case 17: { // FIG 0/17 - Programme type
+            auto programme_type = parseFig017_ProgrammeType(fig_block.data);
+            if (programme_type.is_valid) {
+                emit programmeTypeDiscovered(programme_type);
+                success = true;
+            }
+            break;
+        }
+
+
+================================================================
+PATCH 7: src/core/fig_parser.cpp - After line 1328 (after FIG 0/10)
+Insert complete function implementation:
+================================================================
+
+// ==============================================================================
+// FIG 0/17: Programme Type Implementation
+// ==============================================================================
+
+ProgrammeType FigParser::parseFig017_ProgrammeType(const std::vector<uint8_t>& fig_data) {
+    ProgrammeType result;
+    result.is_valid = false;
+
+    // Minimum size check: ext + flags + 16-bit SId + PTy = 4 bytes minimum
+    if (fig_data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/17: Insufficient data - got %1 bytes, need at least 4")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension byte
+
+        // Parse first byte: [C/N][S/D][P/D][5 reserved]
+        uint8_t flags = fig_data[offset++];
+        bool is_static = (flags & 0x40) != 0;  // S/D flag (bit 6)
+        bool is_32bit_sid = (flags & 0x20) != 0;  // P/D flag (bit 5)
+
+        result.is_static = is_static;
+
+        // Determine required size
+        size_t required_size = 2 +  // extension + flags
+                              (is_32bit_sid ? 4 : 2) +  // SId
+                              1;  // PTy byte
+
+        if (!is_static) {
+            required_size += 1;  // Language byte for dynamic PTy
+        }
+
+        if (fig_data.size() < required_size) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/17: Insufficient data - got %1 bytes, need %2 (32-bit SId: %3, Dynamic: %4)")
+                .arg(fig_data.size())
+                .arg(required_size)
+                .arg(is_32bit_sid ? "Yes" : "No")
+                .arg(is_static ? "No" : "Yes"));
+            return result;
+        }
+
+        // Parse Service ID
+        if (is_32bit_sid) {
+            result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 24) |
+                               (static_cast<uint32_t>(fig_data[offset + 1]) << 16) |
+                               (static_cast<uint32_t>(fig_data[offset + 2]) << 8) |
+                               static_cast<uint32_t>(fig_data[offset + 3]);
+            offset += 4;
+        } else {
+            result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 8) |
+                               static_cast<uint32_t>(fig_data[offset + 1]);
+            offset += 2;
+        }
+
+        // Parse PTy byte: [CC flag][2 reserved][5 bits PTy code]
+        uint8_t pty_byte = fig_data[offset++];
+        result.cc_flag = (pty_byte & 0x80) != 0;  // CC flag (bit 7)
+        result.pty_code = pty_byte & 0x1F;  // PTy code (bits 4-0)
+
+        // Parse Language code for dynamic PTy
+        if (!is_static) {
+            result.language_code = fig_data[offset++];
+        } else {
+            result.language_code = 0;  // Not used for static PTy
+        }
+
+        // Validate PTy code range
+        if (result.pty_code > 31) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/17: Invalid PTy code %1 (> 31)").arg(result.pty_code));
+            return result;
+        }
+
+        // All validations passed - MUST set before return
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("Parsed FIG 0/17 - SId: 0x%1, PTy: %2 (%3), %4, CC: %5, Lang: 0x%6")
+                .arg(result.service_id, is_32bit_sid ? 8 : 4, 16, QChar('0'))
+                .arg(result.pty_code)
+                .arg(QString::fromStdString(result.getPtyName()))
+                .arg(result.is_static ? "Static" : "Dynamic")
+                .arg(result.cc_flag ? "Yes" : "No")
+                .arg(result.language_code, 2, 16, QChar('0')));
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/17: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+
+================================================================
+PATCH 8: tests/CMakeLists.txt - Add after existing tests
+================================================================
+
+# Test: FIG 0/17 Programme Type
+add_executable(test_fig017_programme_type
+    test_fig017_programme_type.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig017_programme_type
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME test_fig017_programme_type COMMAND test_fig017_programme_type)
+
+
+================================================================
+END OF PATCHES
+================================================================
+
+FILES READY:
+✅ tests/test_fig017_programme_type.cpp (COMPLETE - 19 tests, 500+ lines)
+✅ FIG017_IMPLEMENTATION_GUIDE.md (Complete specification)
+✅ FIG017_PATCHES.txt (This file - Manual patch guide)
+
+TO INTEGRATE:
+Apply patches 1-8 in order to complete FIG 0/17 implementation.
+
+VERIFICATION:
+cd build && cmake --build . && ctest -R test_fig017 --output-on-failure
+
+EXPECTED:
+19/19 tests passing, < 5 µs average parse time

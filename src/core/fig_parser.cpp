@@ -219,11 +219,14 @@ bool FigParser::parseFigType0(const FigBlock& fig_block, uint8_t extension) {
 
         case 3: // FIG 0/3 - Service component in packet mode
         case 4: // FIG 0/4 - Service component with conditional access
-        case 5: // FIG 0/5 - Service component language
-            Logger::instance().log(Logger::Debug, "FigParser",
-                QString("FIG 0/%1 parsing not implemented yet").arg(extension));
-            success = true; // Don't fail for unimplemented extensions
+        case 5: { // FIG 0/5 - Service component language
+            auto language_info = parseFig005_ServiceComponentLanguage(fig_block.data);
+            if (language_info.is_valid) {
+                emit serviceComponentLanguageDiscovered(language_info);
+                success = true;
+            }
             break;
+        }
 
         default:
             Logger::instance().log(Logger::Warning, "FigParser",
@@ -1324,6 +1327,361 @@ uint32_t DateAndTime::dateTimeToMjd(const QDateTime& datetime) {
     uint32_t mjd = static_cast<uint32_t>(jd - 2400000.5);
 
     return mjd;
+}
+
+
+// ==============================================================================
+// FIG 0/18: Announcement Support Implementation
+// ==============================================================================
+
+AnnouncementSupport FigParser::parseFig018_AnnouncementSupport(const std::vector<uint8_t>& fig_data) {
+    AnnouncementSupport result;
+    result.is_valid = false;
+
+    // Minimum size: extension (1) + PD/SId (2 or 3) + ASw (2) + cluster_count (1)
+    // = 6 bytes for 16-bit SId, 7 bytes for 24-bit SId
+    if (fig_data.size() < 6) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/18: Insufficient data - got %1 bytes, need at least 6")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension byte
+
+        // Parse P/D flag (bit 7 of first byte after extension)
+        bool pd_flag = (fig_data[offset] & 0x80) != 0;
+
+        // Parse Service ID (16-bit or 24-bit based on P/D flag)
+        if (pd_flag) {
+            // 24-bit Service ID (international, data services)
+            if (fig_data.size() < 7) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    QString("FIG 0/18: Insufficient data for 24-bit SId - got %1 bytes, need at least 7")
+                    .arg(fig_data.size()));
+                return result;
+            }
+            // 24-bit SId: bits 6-0 of first byte + next 2 bytes (7+8+8=23 bits)
+            result.service_id = ((static_cast<uint32_t>(fig_data[offset]) & 0x7F) << 16) |
+                               (static_cast<uint32_t>(fig_data[offset + 1]) << 8) |
+                               static_cast<uint32_t>(fig_data[offset + 2]);
+            offset += 3;
+        } else {
+            // 16-bit Service ID (national, programme services)
+            // 16-bit SId: bits 6-0 of byte + next byte
+            result.service_id = ((static_cast<uint32_t>(fig_data[offset]) & 0x7F) << 8) |
+                               static_cast<uint32_t>(fig_data[offset + 1]);
+            offset += 2;
+        }
+
+        // Validate Service ID
+        if (result.service_id == 0) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                "FIG 0/18: Invalid service ID (0)");
+            return result;
+        }
+
+        // Parse ASw flags (16 bits, big-endian)
+        if (offset + 2 > fig_data.size()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                "FIG 0/18: Insufficient data for ASw flags");
+            return result;
+        }
+        result.asu_flags = (static_cast<uint16_t>(fig_data[offset]) << 8) |
+                          static_cast<uint16_t>(fig_data[offset + 1]);
+        offset += 2;
+
+        // Parse cluster count
+        if (offset >= fig_data.size()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                "FIG 0/18: Insufficient data for cluster count");
+            return result;
+        }
+        result.cluster_count = fig_data[offset++];
+
+        // Parse cluster IDs
+        if (offset + result.cluster_count > fig_data.size()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/18: Insufficient data for cluster IDs - need %1 bytes, got %2")
+                .arg(result.cluster_count)
+                .arg(fig_data.size() - offset));
+            return result;
+        }
+
+        result.cluster_ids.clear();
+        result.cluster_ids.reserve(result.cluster_count);
+        for (uint8_t i = 0; i < result.cluster_count; ++i) {
+            uint8_t cluster_id = fig_data[offset++];
+
+            // Validate cluster ID (0xFF is reserved)
+            if (cluster_id == 0xFF) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    QString("FIG 0/18: Reserved cluster ID 0xFF found at index %1").arg(i));
+                return result;
+            }
+
+            result.cluster_ids.push_back(cluster_id);
+        }
+
+        // All validations passed
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("Parsed FIG 0/18 - SId: 0x%1, ASw: 0x%2, Clusters: %3, Emergency: %4")
+                .arg(result.service_id, pd_flag ? 6 : 4, 16, QChar('0'))
+                .arg(result.asu_flags, 4, 16, QChar('0'))
+                .arg(result.cluster_count)
+                .arg(result.isEmergencyCapable() ? "Yes" : "No"));
+
+        // Log supported announcement types for debugging
+        auto supported_types = result.getSupportedTypes();
+        if (!supported_types.empty()) {
+            QString types_str;
+            for (uint8_t type : supported_types) {
+                if (!types_str.isEmpty()) types_str += ", ";
+                types_str += QString::number(type);
+            }
+            Logger::instance().log(Logger::Debug, "FigParser",
+                QString("FIG 0/18: Service 0x%1 supports announcement types: %2")
+                    .arg(result.service_id, pd_flag ? 6 : 4, 16, QChar('0'))
+                    .arg(types_str));
+        }
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/18: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+// ==============================================================================
+// FIG 0/5: Service Component Language Implementation
+// ==============================================================================
+
+/**
+ * ISO 639-2 Language Code Lookup Table
+ * Reference: ETSI TS 101 756 Table 9
+ */
+std::string ServiceComponentLanguage::getLanguageName() const {
+    static const std::unordered_map<uint8_t, std::string> language_map = {
+        {0x00, "Unknown"},
+        {0x01, "Albanian"},
+        {0x02, "Breton"},
+        {0x03, "Catalan"},
+        {0x04, "Croatian"},
+        {0x05, "Welsh"},
+        {0x06, "Czech"},
+        {0x07, "Danish"},
+        {0x08, "German"},
+        {0x09, "English"},
+        {0x0A, "Spanish"},
+        {0x0B, "Esperanto"},
+        {0x0C, "Estonian"},
+        {0x0D, "Basque"},
+        {0x0E, "Faroese"},
+        {0x0F, "French"},
+        {0x10, "Frisian"},
+        {0x11, "Irish"},
+        {0x12, "Gaelic"},
+        {0x13, "Galician"},
+        {0x14, "Icelandic"},
+        {0x15, "Italian"},
+        {0x16, "Lappish"},
+        {0x17, "Latin"},
+        {0x18, "Latvian"},
+        {0x19, "Luxembourgian"},
+        {0x1A, "Lithuanian"},
+        {0x1B, "Hungarian"},
+        {0x1C, "Maltese"},
+        {0x1D, "Dutch"},
+        {0x1E, "Norwegian"},
+        {0x1F, "Occitan"},
+        {0x20, "Polish"},
+        {0x21, "Portuguese"},
+        {0x22, "Romanian"},
+        {0x23, "Romansh"},
+        {0x24, "Serbian"},
+        {0x25, "Slovak"},
+        {0x26, "Slovenian"},
+        {0x27, "Finnish"},
+        {0x28, "Swedish"},
+        {0x29, "Turkish"},
+        {0x2A, "Flemish"},
+        {0x2B, "Walloon"},
+        {0x45, "Thai"},
+        {0x7F, "Amharic"},
+        {0x7E, "Arabic"},
+        {0x7D, "Armenian"},
+        {0x7C, "Bengali"},
+        {0x7B, "Bulgarian"},
+        {0x7A, "Chinese"},
+        {0x79, "Persian"},
+        {0x78, "Greek"},
+        {0x77, "Gujarati"},
+        {0x76, "Gurmukhi"},
+        {0x75, "Hebrew"},
+        {0x74, "Hindi"},
+        {0x73, "Japanese"},
+        {0x72, "Kannada"},
+        {0x71, "Korean"},
+        {0x70, "Malayalam"},
+        {0x6F, "Marathi"},
+        {0x6E, "Ndebele"},
+        {0x6D, "Nepali"},
+        {0x6C, "Oriya"},
+        {0x6B, "Punjabi"},
+        {0x6A, "Russian"},
+        {0x69, "Sanskrit"},
+        {0x68, "Sinhalese"},
+        {0x67, "Somali"},
+        {0x66, "Swahili"},
+        {0x65, "Tamil"},
+        {0x64, "Telugu"},
+        {0x63, "Ukrainian"},
+        {0x62, "Urdu"},
+        {0x61, "Vietnamese"},
+        {0x60, "Zulu"}
+    };
+
+    auto it = language_map.find(language_code);
+    if (it != language_map.end()) {
+        return it->second;
+    }
+    return "Unknown";
+}
+
+ServiceComponentLanguage FigParser::parseFig005_ServiceComponentLanguage(
+    const std::vector<uint8_t>& fig_data) {
+
+    ServiceComponentLanguage result;
+    result.is_valid = false;
+
+    // Short form minimum: 3 bytes (extension + 2 bytes data)
+    // Long form minimum: 6 bytes (extension + flags + 16-bit SId + 2 bytes data)
+    //                 or 8 bytes (extension + flags + 32-bit SId + 2 bytes data)
+    if (fig_data.size() < 3) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/5: Insufficient data - got %1 bytes, need at least 3")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension byte
+
+        // Parse L/S flag (bit 7 of first data byte)
+        uint8_t first_byte = fig_data[offset];
+        bool ls_flag = (first_byte & 0x80) != 0;
+
+        if (ls_flag) {
+            // Short form (L/S = 1): MSC stream audio
+            // Structure (3 bytes total):
+            // Byte 0: [1 L/S=1][7 bits MSB of SCIdS]
+            // Byte 1: [5 bits LSB of SCIdS][3 bits MSB of Language]
+            // Byte 2: [5 bits LSB of Language][3 bits reserved]
+
+            if (fig_data.size() < 4) { // Extension + 3 bytes
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    "FIG 0/5: Insufficient data for short form");
+                return result;
+            }
+
+            // Parse SCIdS (12 bits): 7 bits from byte 0 + 5 bits from byte 1
+            uint16_t sc_ids_high = (first_byte & 0x7F) << 5;  // 7 bits
+            uint16_t sc_ids_low = (fig_data[offset + 1] >> 3) & 0x1F;  // 5 bits
+            result.sc_ids = sc_ids_high | sc_ids_low;
+
+            // Parse Language (8 bits): 3 bits from byte 1 + 5 bits from byte 2
+            uint8_t lang_high = (fig_data[offset + 1] & 0x07) << 5;  // 3 bits
+            uint8_t lang_low = (fig_data[offset + 2] >> 3) & 0x1F;  // 5 bits
+            result.language_code = lang_high | lang_low;
+
+            result.service_id = 0;  // Short form doesn't specify service
+            result.is_short_form = true;
+            result.is_valid = true;
+
+            Logger::instance().log(Logger::Info, "FigParser",
+                QString("Parsed FIG 0/5 (short form) - SCIdS: %1, Language: %2 (%3)")
+                .arg(result.sc_ids)
+                .arg(QString::fromStdString(result.getLanguageName()))
+                .arg(result.language_code, 2, 16, QChar('0')));
+
+        } else {
+            // Long form (L/S = 0): packet mode
+            // Structure:
+            // Byte 0: [1 L/S=0][1 P/D][6 bits reserved]
+            // Bytes 1-2 or 1-4: SId (16 or 32 bits based on P/D)
+            // Next 2 bytes: [12 bits SCIdS][4 bits reserved]
+            // Next byte: [8 bits Language]
+
+            bool pd_flag = (first_byte & 0x40) != 0;
+            size_t sid_length = pd_flag ? 4 : 2;  // P/D=1: 32-bit, P/D=0: 16-bit
+
+            size_t required_size = 1 + 1 + sid_length + 3;  // extension + flags + SId + SCIdS + Lang
+            if (fig_data.size() < required_size) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    QString("FIG 0/5: Insufficient data for long form (P/D=%1)")
+                    .arg(pd_flag ? 1 : 0));
+                return result;
+            }
+
+            offset++;  // Move past flags byte
+
+            // Parse SId
+            if (pd_flag) {
+                // 32-bit SId (international)
+                result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 24) |
+                                  (static_cast<uint32_t>(fig_data[offset + 1]) << 16) |
+                                  (static_cast<uint32_t>(fig_data[offset + 2]) << 8) |
+                                  static_cast<uint32_t>(fig_data[offset + 3]);
+                offset += 4;
+            } else {
+                // 16-bit SId (national)
+                result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 8) |
+                                  static_cast<uint32_t>(fig_data[offset + 1]);
+                offset += 2;
+            }
+
+            // Parse SCIdS (12 bits) + reserved (4 bits)
+            result.sc_ids = ((static_cast<uint16_t>(fig_data[offset]) << 4) |
+                           ((fig_data[offset + 1] >> 4) & 0x0F)) & 0x0FFF;
+            offset += 2;
+
+            // Parse Language (8 bits)
+            result.language_code = fig_data[offset];
+
+            result.is_short_form = false;
+            result.is_valid = true;
+
+            Logger::instance().log(Logger::Info, "FigParser",
+                QString("Parsed FIG 0/5 (long form) - SId: 0x%1, SCIdS: %2, Language: %3 (%4)")
+                .arg(result.service_id, pd_flag ? 8 : 4, 16, QChar('0'))
+                .arg(result.sc_ids)
+                .arg(QString::fromStdString(result.getLanguageName()))
+                .arg(result.language_code, 2, 16, QChar('0')));
+        }
+
+        // Thai language detection
+        if (result.language_code == 0x45 && thai_support_enabled_) {
+            Logger::instance().log(Logger::Info, "FigParser",
+                "FIG 0/5: Thai language detected (ISO 639-2 code 0x45)");
+        }
+
+        // Emit signal
+        if (result.is_valid) {
+            emit serviceComponentLanguageDiscovered(result);
+        }
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/5: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
 }
 
 } // namespace eti::fig
