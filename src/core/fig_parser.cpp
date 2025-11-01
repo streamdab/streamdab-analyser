@@ -217,12 +217,41 @@ bool FigParser::parseFigType0(const FigBlock& fig_block, uint8_t extension) {
             break;
         }
 
-        case 3: // FIG 0/3 - Service component in packet mode
+        case 3: { // FIG 0/3 - Service component in packet mode (PDCA Week 4 - Agent 11)
+            auto packet_mode = parseFig003_ServiceComponentPacketMode(fig_block.data);
+            if (packet_mode.is_valid) {
+                emit serviceComponentPacketModeDiscovered(packet_mode);
+                success = true;
+            }
+            break;
+        }
+
         case 4: // FIG 0/4 - Service component with conditional access
+            // TODO: Implement FIG 0/4 (optional, Week 5)
+            break;
+
         case 5: { // FIG 0/5 - Service component language
             auto language_info = parseFig005_ServiceComponentLanguage(fig_block.data);
             if (language_info.is_valid) {
                 emit serviceComponentLanguageDiscovered(language_info);
+                success = true;
+            }
+            break;
+        }
+
+        case 6: { // FIG 0/6 - Service linking (PDCA Week 4 - Agent 12)
+            auto linking = parseFig006_ServiceLinking(fig_block.data);
+            if (linking.is_valid) {
+                emit serviceLinkingDiscovered(linking);
+                success = true;
+            }
+            break;
+        }
+
+        case 13: { // FIG 0/13 - User application information (PDCA Week 4 - Agent 13)
+            auto ua_info = parseFig013_UserApplicationInfo(fig_block.data);
+            if (ua_info.is_valid) {
+                emit userApplicationInfoDiscovered(ua_info);
                 success = true;
             }
             break;
@@ -1785,6 +1814,299 @@ ProgrammeType FigParser::parseFig017_ProgrammeType(const std::vector<uint8_t>& f
     } catch (const std::exception& e) {
         Logger::instance().log(Logger::Error, "FigParser",
             QString("Exception parsing FIG 0/17: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+/**
+ * @brief Parse FIG 0/3 - Service Component in Packet Mode
+ * Reference: ETSI EN 300 401 Section 8.1.3
+ * PDCA Week 4 - Agent 11 implementation
+ */
+ServiceComponentPacketMode FigParser::parseFig003_ServiceComponentPacketMode(
+    const std::vector<uint8_t>& fig_data) {
+
+    ServiceComponentPacketMode result;
+    result.is_valid = false;
+
+    // Minimum size check: FIG type/length (1) + SId flag byte (1) + SCId (2) + packet info (2) = 6 bytes minimum
+    if (fig_data.size() < 6) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/3: Insufficient data - got %1 bytes, need at least 6")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip FIG type/length byte
+
+        // Byte 1: P/D flag (bit 7), SCIdS high bits
+        uint8_t first_byte = fig_data[offset++];
+        bool pd_flag = (first_byte & 0x80) != 0; // P/D flag: 0=16-bit SId, 1=32-bit SId
+
+        // Extract SCId (Service Component ID) - 12 bits across 2 bytes
+        uint16_t scid_high = (first_byte & 0x0F) << 8;
+        uint16_t scid_low = fig_data[offset++];
+        result.sc_id = scid_high | scid_low;
+
+        // Extract SId (Service ID) - 16 or 32-bit
+        if (pd_flag) {
+            // 32-bit SId
+            if (fig_data.size() < offset + 6) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    "FIG 0/3: Insufficient data for 32-bit SId");
+                return result;
+            }
+            result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 24) |
+                                (static_cast<uint32_t>(fig_data[offset + 1]) << 16) |
+                                (static_cast<uint32_t>(fig_data[offset + 2]) << 8) |
+                                static_cast<uint32_t>(fig_data[offset + 3]);
+            offset += 4;
+        } else {
+            // 16-bit SId
+            if (fig_data.size() < offset + 4) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    "FIG 0/3: Insufficient data for 16-bit SId");
+                return result;
+            }
+            result.service_id = (static_cast<uint16_t>(fig_data[offset]) << 8) |
+                                static_cast<uint16_t>(fig_data[offset + 1]);
+            offset += 2;
+        }
+
+        // Next byte: DG flag, DSCTy, CA flag
+        uint8_t control_byte = fig_data[offset++];
+        result.dg_flag = (control_byte & 0x80) >> 7;  // DG flag (bit 7)
+        result.dscty = (control_byte & 0x3F);         // DSCTy (bits 5-0, 6 bits)
+        result.ca_flag = (control_byte & 0x40) != 0;  // CA flag (bit 6)
+
+        // Next 2 bytes: SubChId and Packet Address
+        uint8_t subch_byte = fig_data[offset++];
+        result.sub_ch_id = (subch_byte & 0x3F);  // SubChId (6 bits)
+
+        uint16_t packet_addr_high = (subch_byte & 0x03) << 8;  // Top 2 bits
+        uint16_t packet_addr_low = fig_data[offset++];
+        result.packet_address = packet_addr_high | packet_addr_low;
+
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("FIG 0/3: SId=0x%1, SCId=0x%2, DSCTy=%3 (%4), SubChId=%5, PacketAddr=%6, CA=%7")
+                .arg(result.service_id, pd_flag ? 8 : 4, 16, QChar('0'))
+                .arg(result.sc_id, 3, 16, QChar('0'))
+                .arg(result.dscty)
+                .arg(QString::fromStdString(result.getDSCTyName()))
+                .arg(result.sub_ch_id)
+                .arg(result.packet_address)
+                .arg(result.ca_flag ? "Yes" : "No"));
+
+        if (result.is_valid) {
+            emit serviceComponentPacketModeDiscovered(result);
+        }
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/3: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+/**
+ * @brief Parse FIG 0/6 - Service Linking
+ * Reference: ETSI EN 300 401 Section 8.1.15
+ * PDCA Week 4 - Agent 12 implementation
+ */
+ServiceLinking FigParser::parseFig006_ServiceLinking(
+    const std::vector<uint8_t>& fig_data) {
+
+    ServiceLinking result;
+    result.is_valid = false;
+
+    // Minimum size: FIG type (1) + flags (1) + SId (2) + LA/SH/IIS/LSN (2) = 6 bytes minimum
+    if (fig_data.size() < 6) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/6: Insufficient data - got %1 bytes, need at least 6")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip FIG type/length
+
+        // First byte: ID list flag and P/D flag
+        uint8_t first_byte = fig_data[offset++];
+        result.id_list_flag = (first_byte & 0x80) != 0;  // IdLQ flag
+        bool pd_flag = (first_byte & 0x40) != 0;          // P/D flag
+
+        // Extract SId (16 or 32-bit)
+        if (pd_flag) {
+            // 32-bit SId
+            if (fig_data.size() < offset + 4) return result;
+            result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 24) |
+                                (static_cast<uint32_t>(fig_data[offset + 1]) << 16) |
+                                (static_cast<uint32_t>(fig_data[offset + 2]) << 8) |
+                                static_cast<uint32_t>(fig_data[offset + 3]);
+            offset += 4;
+        } else {
+            // 16-bit SId
+            if (fig_data.size() < offset + 2) return result;
+            result.service_id = (static_cast<uint16_t>(fig_data[offset]) << 8) |
+                                static_cast<uint16_t>(fig_data[offset + 1]);
+            offset += 2;
+        }
+
+        // LA, SH, IIS flags and LSN
+        if (fig_data.size() < offset + 2) return result;
+        uint8_t flags_byte = fig_data[offset++];
+        result.la_flag = (flags_byte & 0x80) != 0;   // LA flag (bit 7)
+        result.sh_flag = (flags_byte & 0x40) != 0;   // SH flag (bit 6)
+        result.iis_flag = (flags_byte & 0x20) != 0;  // IIS flag (bit 5)
+
+        // LSN: 12-bit linkage set number
+        uint16_t lsn_high = (flags_byte & 0x0F) << 8;
+        uint16_t lsn_low = fig_data[offset++];
+        result.lsn = lsn_high | lsn_low;
+
+        // Parse linked service IDs
+        size_t sid_size = pd_flag ? 4 : 2;
+        while (offset + sid_size <= fig_data.size()) {
+            uint32_t linked_sid;
+            if (pd_flag) {
+                linked_sid = (static_cast<uint32_t>(fig_data[offset]) << 24) |
+                             (static_cast<uint32_t>(fig_data[offset + 1]) << 16) |
+                             (static_cast<uint32_t>(fig_data[offset + 2]) << 8) |
+                             static_cast<uint32_t>(fig_data[offset + 3]);
+                offset += 4;
+            } else {
+                linked_sid = (static_cast<uint16_t>(fig_data[offset]) << 8) |
+                             static_cast<uint16_t>(fig_data[offset + 1]);
+                offset += 2;
+            }
+            result.linked_service_ids.push_back(linked_sid);
+
+            // If international, read ECC
+            if (result.iis_flag && offset < fig_data.size()) {
+                uint8_t ecc = fig_data[offset++];
+                result.ecc_ids.push_back(ecc);
+            }
+        }
+
+        result.is_valid = !result.linked_service_ids.empty();
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("FIG 0/6: SId=0x%1, %2, LSN=%3, Linked services=%4")
+                .arg(result.service_id, pd_flag ? 8 : 4, 16, QChar('0'))
+                .arg(QString::fromStdString(result.getLinkageType()))
+                .arg(result.lsn)
+                .arg(result.linked_service_ids.size()));
+
+        if (result.is_valid) {
+            emit serviceLinkingDiscovered(result);
+        }
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/6: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+/**
+ * @brief Parse FIG 0/13 - User Application Information
+ * Reference: ETSI EN 300 401 Section 8.1.14
+ * PDCA Week 4 - Agent 13 implementation
+ */
+UserApplicationInfo FigParser::parseFig013_UserApplicationInfo(
+    const std::vector<uint8_t>& fig_data) {
+
+    UserApplicationInfo result;
+    result.is_valid = false;
+
+    // Minimum size: FIG type (1) + flags (1) + SId (2) + SCIdS (2) + UAType (2) + UA length (1) = 9 bytes minimum
+    if (fig_data.size() < 9) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/13: Insufficient data - got %1 bytes, need at least 9")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip FIG type/length
+
+        // First byte: P/D flag
+        uint8_t first_byte = fig_data[offset++];
+        bool pd_flag = (first_byte & 0x80) != 0;  // P/D flag
+
+        // Extract SId (16 or 32-bit)
+        if (pd_flag) {
+            // 32-bit SId
+            if (fig_data.size() < offset + 4) return result;
+            result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 24) |
+                                (static_cast<uint32_t>(fig_data[offset + 1]) << 16) |
+                                (static_cast<uint32_t>(fig_data[offset + 2]) << 8) |
+                                static_cast<uint32_t>(fig_data[offset + 3]);
+            offset += 4;
+        } else {
+            // 16-bit SId
+            if (fig_data.size() < offset + 2) return result;
+            result.service_id = (static_cast<uint16_t>(fig_data[offset]) << 8) |
+                                static_cast<uint16_t>(fig_data[offset + 1]);
+            offset += 2;
+        }
+
+        // SCIdS (12 bits) and CA flag
+        if (fig_data.size() < offset + 2) return result;
+        uint16_t scids_high = (fig_data[offset] & 0x0F) << 8;
+        uint16_t scids_low = fig_data[offset + 1];
+        result.sc_ids = scids_high | scids_low;
+        result.ca_flag = (fig_data[offset] & 0x10) >> 4;  // CA flag (bit 4)
+        offset += 2;
+
+        // UAType (11 bits) and UA data length (5 bits)
+        if (fig_data.size() < offset + 2) return result;
+        result.ua_type = ((static_cast<uint16_t>(fig_data[offset]) & 0x07) << 8) |
+                         static_cast<uint16_t>(fig_data[offset + 1]);
+        offset += 2;
+
+        uint8_t ua_len_byte = fig_data[offset++];
+        result.ua_data_length = ua_len_byte & 0x1F;  // 5 bits
+
+        // Extract UA data
+        if (result.ua_data_length > 0) {
+            if (fig_data.size() < offset + result.ua_data_length) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    QString("FIG 0/13: Insufficient data for UA data - need %1 bytes")
+                    .arg(result.ua_data_length));
+                return result;
+            }
+            result.ua_data.assign(fig_data.begin() + offset,
+                                  fig_data.begin() + offset + result.ua_data_length);
+        }
+
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("FIG 0/13: SId=0x%1, SCIdS=0x%2, UAType=0x%3 (%4), CA=%5, DataLen=%6")
+                .arg(result.service_id, pd_flag ? 8 : 4, 16, QChar('0'))
+                .arg(result.sc_ids, 3, 16, QChar('0'))
+                .arg(result.ua_type, 3, 16, QChar('0'))
+                .arg(QString::fromStdString(result.getUATypeName()))
+                .arg(result.ca_flag ? "Yes" : "No")
+                .arg(result.ua_data_length));
+
+        if (result.is_valid) {
+            emit userApplicationInfoDiscovered(result);
+        }
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/13: %1").arg(e.what()));
         result.is_valid = false;
     }
 
