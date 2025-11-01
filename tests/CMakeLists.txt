@@ -683,3 +683,69 @@ target_link_libraries(test_fig017_programme_type
 )
 add_test(NAME Test_FIG017_ProgrammeType COMMAND test_fig017_programme_type)
 
+# ============================================================================
+# PDCA WEEK 4 TESTS - Multi-Agent Parallel Development (Agent 11-14)
+# ============================================================================
+
+message(STATUS "")
+message(STATUS "=== PDCA Week 4 Test Suite ===")
+
+# Test: FIG 0/3 Service Component in Packet Mode (PDCA Week 4 - Agent 11)
+add_executable(test_fig003_packet_mode
+    test_fig003_packet_mode.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig003_packet_mode
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME Test_FIG003_PacketMode COMMAND test_fig003_packet_mode)
+set_tests_properties(Test_FIG003_PacketMode PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60
+)
+
+# Test: FIG 0/6 Service Linking (PDCA Week 4 - Agent 12)
+add_executable(test_fig006_service_linking
+    test_fig006_service_linking.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig006_service_linking
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME Test_FIG006_ServiceLinking COMMAND test_fig006_service_linking)
+set_tests_properties(Test_FIG006_ServiceLinking PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60
+)
+
+# Test: FIG 0/13 User Application Information (PDCA Week 4 - Agent 13)
+add_executable(test_fig013_user_application
+    test_fig013_user_application.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig013_user_application
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME Test_FIG013_UserApplication COMMAND test_fig013_user_application)
+set_tests_properties(Test_FIG013_UserApplication PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60
+)
+
+message(STATUS "  ✓ test_fig003_packet_mode (20 tests - ETSI EN 300 401 Section 8.1.3)")
+message(STATUS "  ✓ test_fig006_service_linking (20 tests - ETSI EN 300 401 Section 8.1.15)")
+message(STATUS "  ✓ test_fig013_user_application (20 tests - ETSI EN 300 401 Section 8.1.14)")
+message(STATUS "  Total Week 4 Tests: 60 comprehensive tests")
+
