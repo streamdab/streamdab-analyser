@@ -383,6 +383,113 @@ struct ProgrammeType {
 };
 
 /**
+ * @brief FIG 0/3 Service Component in Packet Mode Structure
+ * Reference: ETSI EN 300 401 Section 8.1.3
+ *
+ * Describes service components transmitted in packet mode, used for data services.
+ * PDCA Week 4 - Agent 11 implementation.
+ */
+struct ServiceComponentPacketMode {
+    uint32_t service_id{0};        // SId (16 or 32-bit based on P/D flag)
+    uint16_t sc_id{0};             // SCId: Service component identifier (12 bits)
+    uint8_t dg_flag{0};            // DG flag: Data group flag (1 bit)
+    uint8_t dscty{0};              // DSCTy: Data service component type (6 bits, 0-63)
+    uint16_t sub_ch_id{0};         // SubChId: Sub-channel ID (6 bits, 0-63)
+    uint16_t packet_address{0};    // Packet address (10 bits, 0-1023)
+    bool ca_flag{false};           // CA flag: Conditional access
+    bool is_valid{false};
+
+    /**
+     * @brief Get DSCTy (Data Service Component Type) name
+     * @return Human-readable name for DSCTy value
+     */
+    std::string getDSCTyName() const {
+        switch (dscty) {
+            case 0: return "Reserved";
+            case 1: return "TMC (Traffic Message Channel)";
+            case 5: return "TPEG";
+            case 24: return "MOT (Multimedia Object Transfer)";
+            case 44: return "Journaline";
+            case 60: return "User-defined 60";
+            case 61: return "User-defined 61";
+            case 62: return "User-defined 62";
+            case 63: return "User-defined 63";
+            default: return "Unknown DSCTy";
+        }
+    }
+};
+
+/**
+ * @brief FIG 0/6 Service Linking Structure
+ * Reference: ETSI EN 300 401 Section 8.1.15
+ *
+ * Provides linking information between services for seamless handover.
+ * PDCA Week 4 - Agent 12 implementation.
+ */
+struct ServiceLinking {
+    uint32_t service_id{0};                    // Linking service SId (16/32-bit)
+    bool id_list_flag{false};                  // IdLQ: 0=list, 1=single
+    bool la_flag{false};                       // LA: Linkage actuator
+    bool sh_flag{false};                       // SH: Soft(0)/Hard(1) link
+    bool iis_flag{false};                      // IIS: National(0)/International(1)
+    uint16_t lsn{0};                           // LSN: Linkage set number (12 bits, 0-4095)
+    std::vector<uint32_t> linked_service_ids;  // Linked service IDs
+    std::vector<uint16_t> ecc_ids;             // ECC for international linking
+    bool is_valid{false};
+
+    /**
+     * @brief Get linkage type description
+     * @return Human-readable linkage type
+     */
+    std::string getLinkageType() const {
+        std::string type;
+        type += sh_flag ? "Hard Link" : "Soft Link";
+        type += ", ";
+        type += iis_flag ? "International" : "National";
+        if (la_flag) type += " (Actuator Active)";
+        return type;
+    }
+};
+
+/**
+ * @brief FIG 0/13 User Application Information Structure
+ * Reference: ETSI EN 300 401 Section 8.1.14
+ *
+ * Signals user application types available on service components.
+ * PDCA Week 4 - Agent 13 implementation.
+ */
+struct UserApplicationInfo {
+    uint32_t service_id{0};               // SId (16 or 32-bit)
+    uint16_t sc_ids{0};                   // SCIdS: Service component ID (12 bits)
+    uint8_t ca_flag{0};                   // CA flag: Conditional access (1 bit)
+    uint16_t ua_type{0};                  // UAType: User application type (11 bits, 0-2047)
+    uint8_t ua_data_length{0};            // UA data length (5 bits, 0-31 bytes)
+    std::vector<uint8_t> ua_data;         // Application-specific data
+    bool is_valid{false};
+
+    /**
+     * @brief Get User Application Type name
+     * @return Human-readable UA type name per ETSI TS 101 756 Table 16
+     */
+    std::string getUATypeName() const {
+        switch (ua_type) {
+            case 0x001: return "Not used";
+            case 0x002: return "MOT SlideShow";
+            case 0x004: return "TPEG";
+            case 0x044: return "TPEG-SNI";
+            case 0x123: return "EPG (Electronic Programme Guide)";
+            case 0x441: return "Journaline";
+            default: return "Unknown UA Type";
+        }
+    }
+
+    bool isMOT() const { return ua_type == 0x002; }
+    bool isTPEG() const { return ua_type == 0x004; }
+    bool isJournaline() const { return ua_type == 0x441; }
+    bool isEPG() const { return ua_type == 0x123; }
+};
+
+/**
  * @brief FIG 1/0 Ensemble Label Structure
  * Reference: ETSI EN 300 401 Section 8.1.13
  */
@@ -572,6 +679,35 @@ public:
     ProgrammeType parseFig017_ProgrammeType(const std::vector<uint8_t>& fig_data);
 
     /**
+     * @brief Parse FIG 0/3 service component in packet mode
+     * @param fig_data FIG data payload
+     * @return Parsed service component packet mode information
+     * Reference: ETSI EN 300 401 Section 8.1.3
+     * PDCA Week 4 - Agent 11
+     */
+    ServiceComponentPacketMode parseFig003_ServiceComponentPacketMode(
+        const std::vector<uint8_t>& fig_data);
+
+    /**
+     * @brief Parse FIG 0/6 service linking
+     * @param fig_data FIG data payload
+     * @return Parsed service linking information
+     * Reference: ETSI EN 300 401 Section 8.1.15
+     * PDCA Week 4 - Agent 12
+     */
+    ServiceLinking parseFig006_ServiceLinking(const std::vector<uint8_t>& fig_data);
+
+    /**
+     * @brief Parse FIG 0/13 user application information
+     * @param fig_data FIG data payload
+     * @return Parsed user application information
+     * Reference: ETSI EN 300 401 Section 8.1.14
+     * PDCA Week 4 - Agent 13
+     */
+    UserApplicationInfo parseFig013_UserApplicationInfo(
+        const std::vector<uint8_t>& fig_data);
+
+    /**
      * @brief Parse FIG 0/19 announcement switching
      * @param fig_data FIG data payload
      * @return Parsed announcement switching information
@@ -680,6 +816,27 @@ signals:
      * @param programme_type Discovered programme type information
      */
     void programmeTypeDiscovered(const ProgrammeType& programme_type);
+
+    /**
+     * @brief Emitted when service component packet mode is discovered
+     * @param packet_mode Discovered service component packet mode information
+     * PDCA Week 4 - Agent 11
+     */
+    void serviceComponentPacketModeDiscovered(const ServiceComponentPacketMode& packet_mode);
+
+    /**
+     * @brief Emitted when service linking is discovered
+     * @param linking Discovered service linking information
+     * PDCA Week 4 - Agent 12
+     */
+    void serviceLinkingDiscovered(const ServiceLinking& linking);
+
+    /**
+     * @brief Emitted when user application information is discovered
+     * @param ua_info Discovered user application information
+     * PDCA Week 4 - Agent 13
+     */
+    void userApplicationInfoDiscovered(const UserApplicationInfo& ua_info);
 
     /**
      * @brief Emitted when announcement switching is detected
