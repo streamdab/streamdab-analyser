@@ -13,6 +13,7 @@
  * - FIG 0/3: Service component in packet mode
  * - FIG 0/4: Service component with conditional access
  * - FIG 0/5: Service component language
+ * - FIG 0/8: Service component global definition
  * - FIG 0/10: Date and time
  * - FIG 0/18: Announcement support
  * - FIG 0/19: Announcement switching
@@ -452,6 +453,42 @@ struct ServiceLinking {
 };
 
 /**
+ * @brief FIG 0/8 Service Component Global Definition Structure
+ * Reference: ETSI EN 300 401 Section 8.1.6
+ *
+ * Provides global service component definitions linking SCIdS to SubChId/FIDCId.
+ * Essential for data services and packet mode component identification.
+ * PDCA Week 4 - Agent 19 implementation.
+ */
+struct ServiceComponentGlobal {
+    uint16_t sc_ids{0};          // Service Component Identifier (12-bit)
+    uint8_t rfa{0};              // Reserved for future addition (4-bit)
+    bool ext_flag{false};        // Extension flag
+    uint16_t sc_id{0};           // Service Component Id (12-bit)
+    bool ls_flag{false};         // Long/Short form flag
+    bool msc_fic_flag{false};    // MSC (true) or FIC (false)
+    uint8_t sub_ch_id{0};        // Sub-channel Id (6-bit, if MSC)
+    uint8_t fidc_id{0};          // FIC Data Channel Id (8-bit, if FIC)
+    bool is_valid{false};
+
+    /**
+     * @brief Get transport type description
+     * @return Human-readable transport type
+     */
+    std::string getTransportType() const {
+        return msc_fic_flag ? "MSC (Main Service Channel)" : "FIC (Fast Information Channel)";
+    }
+
+    /**
+     * @brief Get channel ID based on transport type
+     * @return SubChId if MSC, FIDCId if FIC
+     */
+    uint8_t getChannelId() const {
+        return msc_fic_flag ? sub_ch_id : fidc_id;
+    }
+};
+
+/**
  * @brief FIG 0/13 User Application Information Structure
  * Reference: ETSI EN 300 401 Section 8.1.14
  *
@@ -698,6 +735,16 @@ public:
     ServiceLinking parseFig006_ServiceLinking(const std::vector<uint8_t>& fig_data);
 
     /**
+     * @brief Parse FIG 0/8 service component global definition
+     * @param fig_data FIG data payload
+     * @return Parsed service component global definition
+     * Reference: ETSI EN 300 401 Section 8.1.6
+     * PDCA Week 4 - Agent 19
+     */
+    ServiceComponentGlobal parseFig008_ServiceComponentGlobal(
+        const std::vector<uint8_t>& fig_data);
+
+    /**
      * @brief Parse FIG 0/13 user application information
      * @param fig_data FIG data payload
      * @return Parsed user application information
@@ -830,6 +877,13 @@ signals:
      * PDCA Week 4 - Agent 12
      */
     void serviceLinkingDiscovered(const ServiceLinking& linking);
+
+    /**
+     * @brief Emitted when service component global definition is discovered
+     * @param global_def Discovered service component global definition
+     * PDCA Week 4 - Agent 19
+     */
+    void serviceComponentGlobalDiscovered(const ServiceComponentGlobal& global_def);
 
     /**
      * @brief Emitted when user application information is discovered

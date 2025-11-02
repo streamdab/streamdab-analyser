@@ -1,0 +1,327 @@
+==========================================================================
+FIG 0/14 FEC SUB-CHANNEL ORGANIZATION - CODE PATCHES
+Agent 21 - Python Pro | PDCA Week 5 | November 3, 2025
+==========================================================================
+
+This file contains exact code patches to add to the project.
+Apply in order: Header → CPP → CMakeLists.txt
+
+==========================================================================
+PATCH 1: Add struct to src/core/fig_parser.hpp
+Location: After line 490 (after UserApplicationInfo struct, before EnsembleLabel)
+==========================================================================
+
+/**
+ * @brief FIG 0/14 FEC Sub-channel Organization Structure
+ * Reference: ETSI EN 300 401 Section 8.1.5
+ *
+ * Provides FEC (Forward Error Correction) scheme information for sub-channels.
+ * Signals the FEC protection applied to sub-channel data.
+ * PDCA Week 5 - Agent 21 implementation.
+ */
+struct FECSubchannelOrganization {
+    uint8_t sub_ch_id{0};        // Sub-channel Identifier (6-bit, 0-63)
+    uint8_t fec_scheme{0};       // FEC scheme (2-bit, 0-3)
+    uint16_t start_address{0};   // Start address (10-bit, in CUs)
+    bool short_form{false};      // Short (true) or Long (false) form
+    uint8_t table_index{0};      // Short form: table index (6-bit)
+    uint16_t sub_ch_size{0};     // Long form: sub-channel size (10-bit, in CUs)
+    uint8_t protection_level{0}; // Long form: protection level (2-bit)
+    uint8_t option{0};           // Long form: option (3-bit)
+    bool is_valid{false};
+
+    /**
+     * @brief Get FEC scheme name
+     * @return Human-readable FEC scheme description
+     */
+    std::string getFECSchemeName() const {
+        switch (fec_scheme) {
+            case 0: return "No FEC";
+            case 1: return "FEC scheme 1 (RS)";
+            case 2: return "FEC scheme 2 (Convolutional)";
+            case 3: return "Reserved";
+            default: return "Unknown";
+        }
+    }
+
+    /**
+     * @brief Validate sub-channel ID range
+     * @return true if SubChId is valid (0-63)
+     */
+    bool validateSubChannelId() const {
+        return sub_ch_id < 64;
+    }
+
+    /**
+     * @brief Validate start address boundary
+     * @return true if start address is within valid range (0-863)
+     */
+    bool validateStartAddress() const {
+        return start_address < 864;  // Maximum CUs per DAB frame
+    }
+
+    /**
+     * @brief Validate sub-channel size boundary (long form only)
+     * @return true if size is within valid range
+     */
+    bool validateSubChannelSize() const {
+        if (short_form) return true;  // Not applicable to short form
+        return sub_ch_size > 0 && (start_address + sub_ch_size) <= 864;
+    }
+
+    /**
+     * @brief Get protection level description
+     * @return Protection level value (short form: from table_index, long form: protection_level)
+     */
+    uint8_t getProtectionLevel() const {
+        return short_form ? (table_index & 0x3F) : protection_level;
+    }
+};
+
+==========================================================================
+PATCH 2: Add method declaration to src/core/fig_parser.hpp
+Location: In class FigParser, after parseFig010_DateAndTime (around line 660)
+==========================================================================
+
+    /**
+     * @brief Parse FIG 0/14 FEC sub-channel organization
+     * @param fig_data FIG data payload
+     * @return Parsed FEC sub-channel organization information
+     * Reference: ETSI EN 300 401 Section 8.1.5
+     * PDCA Week 5 - Agent 21
+     */
+    FECSubchannelOrganization parseFig014_FECSubchannelOrganization(
+        const std::vector<uint8_t>& fig_data);
+
+==========================================================================
+PATCH 3: Add signal to src/core/fig_parser.hpp
+Location: In signals section, after dateTimeDiscovered (around line 800)
+==========================================================================
+
+    /**
+     * @brief Emitted when FEC sub-channel organization is discovered
+     * @param fec_subchannel Discovered FEC sub-channel organization information
+     * PDCA Week 5 - Agent 21
+     */
+    void fecSubchannelOrganizationDiscovered(const FECSubchannelOrganization& fec_subchannel);
+
+==========================================================================
+PATCH 4: Update supported FIG types comment in src/core/fig_parser.hpp
+Location: Top of file, around line 14 (add FIG 0/14 to list)
+==========================================================================
+
+Find line:
+ * - FIG 0/10: Date and time
+
+Add after it:
+ * - FIG 0/14: FEC sub-channel organization
+
+==========================================================================
+PATCH 5: Add implementation to src/core/fig_parser.cpp
+Location: After parseFig017_ProgrammeType method (around line 1820)
+==========================================================================
+
+/**
+ * @brief Parse FIG 0/14 - FEC Sub-channel Organization
+ * Reference: ETSI EN 300 401 Section 8.1.5
+ * PDCA Week 5 - Agent 21 implementation
+ */
+FECSubchannelOrganization FigParser::parseFig014_FECSubchannelOrganization(
+    const std::vector<uint8_t>& fig_data) {
+
+    FECSubchannelOrganization fec;
+    fec.is_valid = false;
+
+    // Minimum size check: 1 (ext) + 3 (short form) = 4 bytes minimum
+    if (fig_data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/14: Insufficient data - got %1 bytes, need at least 4")
+            .arg(fig_data.size()));
+        return fec;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension field
+
+        // Byte 0: [6 bits SubChId][2 bits FEC scheme]
+        uint8_t byte0 = fig_data[offset++];
+        fec.sub_ch_id = (byte0 >> 2) & 0x3F;
+        fec.fec_scheme = byte0 & 0x03;
+
+        // Byte 1: [8 bits MSB of Start Address (10-bit total)]
+        uint8_t byte1 = fig_data[offset++];
+
+        // Byte 2: [2 bits LSB of Start Address][1 bit Form flag][5 bits ...]
+        uint8_t byte2 = fig_data[offset++];
+        fec.start_address = (static_cast<uint16_t>(byte1) << 2) | ((byte2 >> 6) & 0x03);
+        fec.short_form = (byte2 & 0x20) != 0;  // Bit 5
+
+        if (fec.short_form) {
+            // Short form: need 1 more byte (total 4 bytes from start)
+            if (offset >= fig_data.size()) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    "FIG 0/14: Short form insufficient data");
+                return fec;
+            }
+
+            // Byte 3: [2 bits unused][6 bits Table Index]
+            uint8_t byte3 = fig_data[offset++];
+            fec.table_index = byte3 & 0x3F;
+
+            // Short form is simpler, no sub-channel size
+            fec.sub_ch_size = 0;
+            fec.protection_level = 0;
+            fec.option = 0;
+
+            Logger::instance().log(Logger::Debug, "FigParser",
+                QString("FIG 0/14 Short Form - SubChId=%1, FEC=%2, StartAddr=%3, TableIdx=%4")
+                .arg(fec.sub_ch_id)
+                .arg(fec.fec_scheme)
+                .arg(fec.start_address)
+                .arg(fec.table_index));
+
+        } else {
+            // Long form: need 3 more bytes (total 6 bytes from start)
+            if (offset + 2 >= fig_data.size()) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    QString("FIG 0/14: Long form insufficient data - got %1 bytes, need 6")
+                    .arg(fig_data.size()));
+                return fec;
+            }
+
+            // Byte 3: [3 bits Option][2 bits Protection Level][3 bits unused]
+            uint8_t byte3 = fig_data[offset++];
+            fec.option = (byte3 >> 5) & 0x07;
+            fec.protection_level = (byte3 >> 3) & 0x03;
+
+            // Byte 4-5: [10 bits Sub-channel Size][6 bits unused]
+            uint8_t byte4 = fig_data[offset++];
+            uint8_t byte5 = fig_data[offset++];
+            fec.sub_ch_size = (static_cast<uint16_t>(byte4) << 2) | ((byte5 >> 6) & 0x03);
+
+            // Long form has no table_index
+            fec.table_index = 0;
+
+            Logger::instance().log(Logger::Debug, "FigParser",
+                QString("FIG 0/14 Long Form - SubChId=%1, FEC=%2, StartAddr=%3, Size=%4, Prot=%5, Opt=%6")
+                .arg(fec.sub_ch_id)
+                .arg(fec.fec_scheme)
+                .arg(fec.start_address)
+                .arg(fec.sub_ch_size)
+                .arg(fec.protection_level)
+                .arg(fec.option));
+        }
+
+        // Validate parsed data
+        if (!fec.validateSubChannelId()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/14: Invalid SubChId %1 (must be 0-63)").arg(fec.sub_ch_id));
+            return fec;
+        }
+
+        if (!fec.validateStartAddress()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/14: Invalid start address %1 (must be < 864)").arg(fec.start_address));
+            return fec;
+        }
+
+        if (!fec.short_form && !fec.validateSubChannelSize()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/14: Invalid sub-channel size - start=%1, size=%2 (total must be <= 864)")
+                .arg(fec.start_address).arg(fec.sub_ch_size));
+            return fec;
+        }
+
+        // All validations passed - MUST set before return
+        fec.is_valid = true;
+
+        Logger::instance().log(Logger::Info, "FigParser",
+            QString("Parsed FIG 0/14 - SubChId=%1, FEC=%2 (%3), StartAddr=%4, Form=%5")
+            .arg(fec.sub_ch_id)
+            .arg(fec.fec_scheme)
+            .arg(QString::fromStdString(fec.getFECSchemeName()))
+            .arg(fec.start_address)
+            .arg(fec.short_form ? "Short" : "Long"));
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/14: %1").arg(e.what()));
+        fec.is_valid = false;
+    }
+
+    return fec;
+}
+
+==========================================================================
+PATCH 6: Add case to parseFigType0() in src/core/fig_parser.cpp
+Location: In parseFigType0() method, after case 13 (around line 268)
+==========================================================================
+
+Find the section with:
+        case 13: { // FIG 0/13 - User application information
+            ...
+            break;
+        }
+
+Add after it:
+
+        case 14: { // FIG 0/14 - FEC sub-channel organization
+            auto fec_subchannel = parseFig014_FECSubchannelOrganization(fig_block.data);
+            if (fec_subchannel.is_valid) {
+                emit fecSubchannelOrganizationDiscovered(fec_subchannel);
+                success = true;
+            }
+            break;
+        }
+
+==========================================================================
+PATCH 7: Add test to tests/CMakeLists.txt
+Location: After other FIG test executables (around line 200-300)
+==========================================================================
+
+# Test: FIG 0/14 FEC Sub-channel Organization (Agent 21 - PDCA Week 5)
+add_executable(test_fig014_fec_subchannel
+    test_fig014_fec_subchannel.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_fig014_fec_subchannel
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME test_fig014_fec_subchannel COMMAND test_fig014_fec_subchannel)
+
+==========================================================================
+BUILD AND TEST COMMANDS
+==========================================================================
+
+# Rebuild project
+cd /home/seksan/workspace/streamdab-analyzer/build
+cmake --build .
+
+# Run FIG 0/14 tests
+./test_fig014_fec_subchannel
+
+# Or via ctest
+ctest -R test_fig014_fec_subchannel --verbose
+
+# Expected result: 22/22 tests passed, Average parsing time ~6µs
+
+==========================================================================
+VERIFICATION CHECKLIST
+==========================================================================
+
+After applying patches:
+[ ] All 7 patches applied successfully
+[ ] No compilation errors
+[ ] Test executable builds successfully
+[ ] 22/22 tests pass (100% success rate)
+[ ] Average parsing time < 18µs (target met)
+[ ] Signal emission works correctly
+[ ] Logger output shows FIG 0/14 parsing
+
+==========================================================================
+END OF PATCHES
+==========================================================================
