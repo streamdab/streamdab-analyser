@@ -2030,9 +2030,11 @@ UserApplicationInfo FigParser::parseFig013_UserApplicationInfo(
     result.is_valid = false;
 
     // Minimum size: FIG type (1) + flags (1) + SId (2) + SCIdS (2) + UAType (2) + UA length (1) = 9 bytes minimum
-    if (fig_data.size() < 9) {
+    // However, for cases where P/D=0 (16-bit SId) and UA data length=0, minimum can be 8 bytes
+    // Relaxing to 8 bytes minimum to handle edge cases
+    if (fig_data.size() < 8) {
         Logger::instance().log(Logger::Warning, "FigParser",
-            QString("FIG 0/13: Insufficient data - got %1 bytes, need at least 9")
+            QString("FIG 0/13: Insufficient data - got %1 bytes, need at least 8")
             .arg(fig_data.size()));
         return result;
     }
@@ -2067,17 +2069,23 @@ UserApplicationInfo FigParser::parseFig013_UserApplicationInfo(
         }
 
         // Next 2 bytes: CA flag + UAType (12 bits total: CA=1 bit + UAType=11 bits)
-        if (fig_data.size() < offset + 3) return result;
+        // Check if we have at least the UAType bytes
+        if (fig_data.size() < offset + 2) return result;
 
         // Combine two bytes into 16-bit value
-        // Format: CA flag (bit 15) + UAType (bits 14-5, 10 bits) + UA data length hint (bits 4-0, 5 bits)
+        // Format: CA flag (bit 15) + UAType (bits 14-5, 10 bits) + reserved (bits 4-0, 5 bits)
         uint16_t ca_and_uatype = (static_cast<uint16_t>(fig_data[offset]) << 8) | fig_data[offset + 1];
         result.ca_flag = (ca_and_uatype & 0x8000) >> 15;  // CA flag is bit 15
-        result.ua_type = (ca_and_uatype >> 5) & 0x7FF;  // UAType is bits [15:5], shifted right by 5, masked to 11 bits
+        result.ua_type = (ca_and_uatype >> 5) & 0x7FF;  // UAType is bits [14:5], shifted right by 5, masked to 11 bits
         offset += 2;
 
-        // Next byte: UA data length (5 bits)
-        result.ua_data_length = fig_data[offset++] & 0x1F;
+        // Next byte: UA data length (5 bits) - this byte might not exist if data is exactly 8 bytes
+        if (fig_data.size() > offset) {
+            result.ua_data_length = fig_data[offset++] & 0x1F;
+        } else {
+            // No length byte, assume zero length
+            result.ua_data_length = 0;
+        }
 
         // Extract UA data
         if (result.ua_data_length > 0) {
