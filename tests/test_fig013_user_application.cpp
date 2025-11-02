@@ -100,7 +100,7 @@ private slots:
 
         std::vector<uint8_t> fig_data = {
             0x0D, 0x02, 0x34, 0x11, 0x22,
-            0x02, 0x46,  // UAType = 0x123 (EPG)
+            0x24, 0x60,  // UAType = 0x123 (EPG) - 0x123 << 5 = 0x2460
             0x04,        // UA data length = 4 bytes
             0x01, 0x02, 0x03, 0x04
         };
@@ -119,7 +119,7 @@ private slots:
 
         std::vector<uint8_t> fig_data = {
             0x0D, 0x03, 0x45, 0x33, 0x44,
-            0x00, 0xC2,  // UAType = 0x002, CA=1
+            0x80, 0x40,  // UAType = 0x002, CA=1 - (0x8000 | (0x002 << 5)) = 0x8040
             0x01,        // UA data length = 1 byte
             0xFF
         };
@@ -191,7 +191,7 @@ private slots:
 
         std::vector<uint8_t> fig_data = {
             0x0D, 0x06, 0x78, 0xCC, 0xDD,
-            0x0F, 0xFE,  // UAType = 0x7FF (2047, max 11-bit)
+            0xFF, 0xE0,  // UAType = 0x7FF (2047, max 11-bit) - 0x7FF << 5 = 0xFFE0
             0x00
         };
 
@@ -263,7 +263,7 @@ private slots:
 
         std::vector<uint8_t> fig_data = {
             0x0D, 0x08, 0x9A, 0x11, 0x22,
-            0x03, 0xFE,  // UAType = 0x1FF (unknown)
+            0x3F, 0xE0,  // UAType = 0x1FF (unknown) - 0x1FF << 5 = 0x3FE0
             0x00
         };
 
@@ -367,7 +367,7 @@ private slots:
 
         // EPG
         std::vector<uint8_t> epg_data = {
-            0x0D, 0x0E, 0xF0, 0xDD, 0xEE, 0x02, 0x46, 0x00
+            0x0D, 0x0E, 0xF0, 0xDD, 0xEE, 0x24, 0x60, 0x00  // UAType = 0x123 (EPG)
         };
         auto epg_result = parser->parseFig013_UserApplicationInfo(epg_data);
         QVERIFY(!epg_result.isMOT());
