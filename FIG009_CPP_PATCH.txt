@@ -1,0 +1,110 @@
+===============================================================================
+PATCH 1: Add case 9 to parseFigType0() - fig_parser.cpp
+===============================================================================
+
+Location: In parseFigType0() method (around line ~240, after case 5)
+
+INSERT THE FOLLOWING CODE after case 6 (or appropriate location in switch):
+
+        case 9: { // FIG 0/9 - Country, LTO, International table
+            auto country_lto = parseFig009_CountryLTO(fig_block.data);
+            if (country_lto.is_valid) {
+                emit countryLTODiscovered(country_lto);
+                success = true;
+            }
+            break;
+        }
+
+===============================================================================
+PATCH 2: Implementation - fig_parser.cpp
+===============================================================================
+
+Location: Insert BEFORE FIG 0/10 implementation (around line ~1175)
+
+INSERT THE FOLLOWING CODE:
+
+// ==============================================================================
+// FIG 0/9: Country/LTO/International Table Implementation
+// ==============================================================================
+
+CountryLTOInfo FigParser::parseFig009_CountryLTO(const std::vector<uint8_t>& fig_data) {
+    CountryLTOInfo result;
+    result.is_valid = false;
+
+    // Minimum size: 4 bytes (extension + LTO byte + ECC + table ID)
+    if (fig_data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/9: Insufficient data - got %1 bytes, need at least 4")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension byte
+
+        // ETSI EN 300 401 Section 8.1.8:
+        // Byte 1: [Ext 1-bit][LTO 5/6 bits]
+        // - If Ext=0: LTO is 5 bits (bits 6-2), range -16 to +15 half-hours
+        // - If Ext=1: LTO is 6 bits (bits 5-0), range -32 to +31 half-hours
+
+        uint8_t byte1 = fig_data[offset];
+        result.ext_flag = (byte1 & 0x80) != 0;
+
+        if (result.ext_flag) {
+            // 6-bit LTO (bits 5-0)
+            uint8_t lto_unsigned = byte1 & 0x3F;
+            // Sign extension: if bit 5 is set, extend to negative
+            if (lto_unsigned & 0x20) {
+                // Negative: extend sign bits
+                result.lto = static_cast<int8_t>(lto_unsigned | 0xC0);
+            } else {
+                // Positive
+                result.lto = static_cast<int8_t>(lto_unsigned);
+            }
+        } else {
+            // 5-bit LTO (bits 6-2)
+            uint8_t lto_unsigned = (byte1 >> 2) & 0x1F;
+            // Sign extension: if bit 4 is set, extend to negative
+            if (lto_unsigned & 0x10) {
+                // Negative: extend sign bits
+                result.lto = static_cast<int8_t>(lto_unsigned | 0xE0);
+            } else {
+                // Positive
+                result.lto = static_cast<int8_t>(lto_unsigned);
+            }
+        }
+        offset++;
+
+        // Byte 2: ECC (Extended Country Code)
+        result.ecc = fig_data[offset];
+        offset++;
+
+        // Byte 3: International table ID
+        result.international_table_id = fig_data[offset];
+
+        // All fields extracted successfully
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("Parsed FIG 0/9 - Ext: %1, LTO: %2 (%3h), ECC: 0x%4, Table: 0x%5")
+                .arg(result.ext_flag)
+                .arg(result.lto)
+                .arg(result.getLTOHours(), 0, 'f', 1)
+                .arg(result.ecc, 2, 16, QChar('0'))
+                .arg(result.international_table_id, 2, 16, QChar('0')));
+
+        // Emit signal
+        emit countryLTODiscovered(result);
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/9: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+===============================================================================
+END OF CPP PATCHES
+===============================================================================

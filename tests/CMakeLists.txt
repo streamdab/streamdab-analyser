@@ -323,6 +323,20 @@ target_link_libraries(test_fig017_programme_type
 )
 add_test(NAME test_fig017_programme_type COMMAND test_fig017_programme_type)
 
+# FIG 0/8 Service Component Global Definition Test (PDCA Week 4 - Agent 19)
+add_executable(test_fig008_service_component_global
+    test_fig008_service_component_global.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_fig008_service_component_global
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_fig008_service_component_global COMMAND test_fig008_service_component_global)
+
 # FIG Week 2 Comprehensive Integration Test
 add_executable(test_fig_week2_comprehensive
     core/test_fig_week2_comprehensive.cpp

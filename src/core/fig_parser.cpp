@@ -248,6 +248,15 @@ bool FigParser::parseFigType0(const FigBlock& fig_block, uint8_t extension) {
             break;
         }
 
+        case 8: { // FIG 0/8 - Service component global definition (PDCA Week 4 - Agent 19)
+            auto global_def = parseFig008_ServiceComponentGlobal(fig_block.data);
+            if (global_def.is_valid) {
+                emit serviceComponentGlobalDiscovered(global_def);
+                success = true;
+            }
+            break;
+        }
+
         case 13: { // FIG 0/13 - User application information (PDCA Week 4 - Agent 13)
             auto ua_info = parseFig013_UserApplicationInfo(fig_block.data);
             if (ua_info.is_valid) {
@@ -2012,6 +2021,115 @@ ServiceLinking FigParser::parseFig006_ServiceLinking(
     } catch (const std::exception& e) {
         Logger::instance().log(Logger::Error, "FigParser",
             QString("Exception parsing FIG 0/6: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+/**
+ * @brief Parse FIG 0/8 - Service Component Global Definition
+ * Reference: ETSI EN 300 401 Section 8.1.6
+ * PDCA Week 4 - Agent 19 implementation
+ */
+ServiceComponentGlobal FigParser::parseFig008_ServiceComponentGlobal(
+    const std::vector<uint8_t>& fig_data) {
+
+    ServiceComponentGlobal result;
+    result.is_valid = false;
+
+    // Minimum size: FIG type (1) + SCIdS (2) + Rfa/Ext/SCId (2) + LS/MSC/FIC/SubChId or FIDCId (1) = 6 bytes
+    if (fig_data.size() < 6) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/8: Insufficient data - got %1 bytes, need at least 6")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip FIG type/length byte
+
+        // Bytes 0-1: SCIdS (Service Component Identifier, 12 bits big-endian)
+        // First byte contains bits 11-8, second byte contains bits 7-0
+        uint16_t scids_high = (fig_data[offset] & 0x0F) << 8;  // Upper 4 bits (bits 11-8)
+        uint16_t scids_low = fig_data[offset + 1];             // Lower 8 bits (bits 7-0)
+        result.sc_ids = scids_high | scids_low;
+        offset += 2;
+
+        // Byte 2: Rfa (4 bits) + Ext Flag (1 bit) + other control bits
+        uint8_t control_byte = fig_data[offset++];
+        result.rfa = (control_byte >> 4) & 0x0F;     // Rfa: bits 7-4
+        result.ext_flag = (control_byte & 0x08) != 0; // Ext flag: bit 3
+
+        // Byte 3: SCId high byte (upper 4 bits of 12-bit SCId)
+        uint8_t scid_byte1 = fig_data[offset++];
+        uint16_t scid_high = (scid_byte1 & 0x0F) << 8;  // SCId bits 11-8
+
+        // Byte 4: SCId low byte
+        uint8_t scid_byte2 = fig_data[offset++];
+        // Byte 5: Transport byte containing LS/MSC flags and SubChId or FIDCId
+        if (fig_data.size() > offset) {
+            uint8_t transport_byte = fig_data[offset++];
+            
+            // Always extract LS flag (bit 7) and MSC/FIC flag (bit 6)
+            result.ls_flag = (transport_byte & 0x80) != 0;      // LS flag: bit 7
+            result.msc_fic_flag = (transport_byte & 0x40) != 0; // MSC/FIC flag: bit 6
+
+            if (result.msc_fic_flag) {
+                // MSC mode: SubChId in bits 5-0
+                result.sub_ch_id = transport_byte & 0x3F;   // SubChId: bits 5-0
+                result.fidc_id = 0;
+            } else {
+                // FIC mode: FIDCId in bits 5-0 (per ETSI EN 300 401 §8.1.6)
+                result.fidc_id = transport_byte & 0x3F;     // FIDCId: bits 5-0
+                result.sub_ch_id = 0;
+            }
+        }
+                result.ls_flag = (transport_byte & 0x80) != 0;  // Extract LS flag for informational purposes
+                result.sub_ch_id = 0;
+            }
+        }
+
+        // Validation
+        if (result.sc_ids > 0xFFF) {  // 12-bit maximum
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/8: Invalid SCIdS value: 0x%1 (exceeds 12-bit)")
+                .arg(result.sc_ids, 3, 16, QChar('0')));
+            return result;
+        }
+
+        if (result.sc_id > 0xFFF) {  // 12-bit maximum
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/8: Invalid SCId value: 0x%1 (exceeds 12-bit)")
+                .arg(result.sc_id, 3, 16, QChar('0')));
+            return result;
+        }
+
+        if (result.msc_fic_flag && result.sub_ch_id >= 64) {  // 6-bit SubChId
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/8: Invalid SubChId value: %1 (exceeds 6-bit)")
+                .arg(result.sub_ch_id));
+            return result;
+        }
+
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("FIG 0/8: SCIdS=0x%1, SCId=0x%2, Ext=%3, LS=%4, Transport=%5, ChId=%6")
+                .arg(result.sc_ids, 3, 16, QChar('0'))
+                .arg(result.sc_id, 3, 16, QChar('0'))
+                .arg(result.ext_flag ? "Yes" : "No")
+                .arg(result.ls_flag ? "Long" : "Short")
+                .arg(QString::fromStdString(result.getTransportType()))
+                .arg(result.getChannelId()));
+
+        if (result.is_valid) {
+            emit serviceComponentGlobalDiscovered(result);
+        }
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/8: %1").arg(e.what()));
         result.is_valid = false;
     }
 
