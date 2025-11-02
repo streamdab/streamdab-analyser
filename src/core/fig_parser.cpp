@@ -1882,13 +1882,14 @@ ServiceComponentPacketMode FigParser::parseFig003_ServiceComponentPacketMode(
         result.dscty = (control_byte & 0x3F);         // DSCTy (bits 5-0, 6 bits)
         result.ca_flag = (control_byte & 0x40) != 0;  // CA flag (bit 6)
 
-        // Next 2 bytes: SubChId and Packet Address
+        // Next byte: SubChId (6 bits in lower part)
         uint8_t subch_byte = fig_data[offset++];
         result.sub_ch_id = (subch_byte & 0x3F);  // SubChId (6 bits)
 
-        uint16_t packet_addr_high = (subch_byte & 0x03) << 8;  // Top 2 bits
+        // Next 2 bytes: Packet Address (10 bits, big-endian)
+        uint16_t packet_addr_high = fig_data[offset++];
         uint16_t packet_addr_low = fig_data[offset++];
-        result.packet_address = packet_addr_high | packet_addr_low;
+        result.packet_address = ((packet_addr_high << 8) | packet_addr_low) & 0x3FF;  // 10-bit mask
 
         result.is_valid = true;
 
@@ -2039,11 +2040,16 @@ UserApplicationInfo FigParser::parseFig013_UserApplicationInfo(
     try {
         size_t offset = 1; // Skip FIG type/length
 
-        // First byte: P/D flag
+        // First byte: P/D flag (bit 7) + SCIdS high (bits 3-0)
         uint8_t first_byte = fig_data[offset++];
         bool pd_flag = (first_byte & 0x80) != 0;  // P/D flag
 
-        // Extract SId (16 or 32-bit)
+        // Extract SCIdS (12 bits total: 4 bits from first_byte + 8 bits from next byte)
+        uint16_t scids_high = (first_byte & 0x0F) << 8;
+        uint16_t scids_low = fig_data[offset++];
+        result.sc_ids = scids_high | scids_low;
+
+        // Extract SId (16 or 32-bit based on P/D flag)
         if (pd_flag) {
             // 32-bit SId
             if (fig_data.size() < offset + 4) return result;
@@ -2060,22 +2066,18 @@ UserApplicationInfo FigParser::parseFig013_UserApplicationInfo(
             offset += 2;
         }
 
-        // SCIdS (12 bits) and CA flag
-        if (fig_data.size() < offset + 2) return result;
-        uint16_t scids_high = (fig_data[offset] & 0x0F) << 8;
-        uint16_t scids_low = fig_data[offset + 1];
-        result.sc_ids = scids_high | scids_low;
-        result.ca_flag = (fig_data[offset] & 0x10) >> 4;  // CA flag (bit 4)
+        // Next 2 bytes: CA flag + UAType (12 bits total: CA=1 bit + UAType=11 bits)
+        if (fig_data.size() < offset + 3) return result;
+
+        // Combine two bytes into 16-bit value
+        // Format: CA flag (bit 15) + UAType (bits 14-5, 10 bits) + UA data length hint (bits 4-0, 5 bits)
+        uint16_t ca_and_uatype = (static_cast<uint16_t>(fig_data[offset]) << 8) | fig_data[offset + 1];
+        result.ca_flag = (ca_and_uatype & 0x8000) >> 15;  // CA flag is bit 15
+        result.ua_type = (ca_and_uatype >> 5) & 0x7FF;  // UAType is bits [15:5], shifted right by 5, masked to 11 bits
         offset += 2;
 
-        // UAType (11 bits) and UA data length (5 bits)
-        if (fig_data.size() < offset + 2) return result;
-        result.ua_type = ((static_cast<uint16_t>(fig_data[offset]) & 0x07) << 8) |
-                         static_cast<uint16_t>(fig_data[offset + 1]);
-        offset += 2;
-
-        uint8_t ua_len_byte = fig_data[offset++];
-        result.ua_data_length = ua_len_byte & 0x1F;  // 5 bits
+        // Next byte: UA data length (5 bits)
+        result.ua_data_length = fig_data[offset++] & 0x1F;
 
         // Extract UA data
         if (result.ua_data_length > 0) {
