@@ -310,6 +310,14 @@ bool FigParser::parseFigType0(const FigBlock& fig_block, uint8_t extension) {
             }
             break;
         }
+        case 19: { // FIG 0/19 - Announcement switching (PDCA Week 7 - Batch 2 / Agent 22)
+            auto announcement_switch = parseFig019_AnnouncementSwitching(fig_block.data);
+            if (announcement_switch.is_valid) {
+                emit announcementSwitchingDetected(announcement_switch);
+                success = true;
+            }
+            break;
+        }
 
         default:
             Logger::instance().log(Logger::Warning, "FigParser",
@@ -2490,6 +2498,91 @@ FECSubchannelOrganization FigParser::parseFig014_FECSubchannel(
 
     return fec;
 }
+/**
+ * @brief Parse FIG 0/19 - Announcement Switching
+ * Reference: ETSI EN 300 401 Section 8.1.12
+ * PDCA Week 7 - Agent 22 implementation
+ */
+AnnouncementSwitching FigParser::parseFig019_AnnouncementSwitching(
+    const std::vector<uint8_t>& fig_data) {
+
+    AnnouncementSwitching result;
+    result.is_valid = false;
+
+    // Minimum size: 1 (ext) + 1 (cluster) + 2 (ASw flags) + 1 (new/region flags) = 5 bytes minimum
+    if (fig_data.size() < 5) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/19: Insufficient data - got %1 bytes, need at least 5")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension field
+
+        // Byte 0: Cluster ID (8-bit)
+        result.cluster_id = fig_data[offset++];
+
+        // Bytes 1-2: ASw flags (16-bit big-endian announcement switching flags)
+        result.asw_flags = (static_cast<uint16_t>(fig_data[offset]) << 8) |
+                           static_cast<uint16_t>(fig_data[offset + 1]);
+        offset += 2;
+
+        // Byte 3: [New flag][Region flag valid][SubChId 6-bit OR Region ID lower 6-bit]
+        uint8_t flags_byte = fig_data[offset++];
+        result.new_flag = (flags_byte & 0x80) != 0;        // Bit 7
+        result.region_flag = (flags_byte & 0x40) != 0;     // Bit 6
+
+        if (result.new_flag) {
+            // New announcement: bits 5-0 contain SubChId
+            result.subchannel_id = flags_byte & 0x3F;
+            result.region_ids.clear();
+        } else if (result.region_flag) {
+            // Region valid: bits 5-0 contain first Region ID
+            uint8_t region_id = flags_byte & 0x3F;
+            result.region_ids.clear();
+            result.region_ids.push_back(region_id);
+            result.subchannel_id = 0;
+        } else {
+            // Neither new nor region - just flags
+            result.subchannel_id = 0;
+            result.region_ids.clear();
+        }
+
+        // All fields extracted successfully
+        result.is_valid = true;
+
+        // Build region IDs string for logging
+        QString region_str = "[]";
+        if (!result.region_ids.empty()) {
+            QStringList ids;
+            for (uint8_t id : result.region_ids) {
+                ids << QString::number(id);
+            }
+            region_str = "[" + ids.join(", ") + "]";
+        }
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("FIG 0/19: ClusterID=%1, ASw=0x%2, New=%3, Region=%4, SubChId=%5, RegionIDs=%6")
+                .arg(result.cluster_id)
+                .arg(result.asw_flags, 4, 16, QChar('0'))
+                .arg(result.new_flag ? "Yes" : "No")
+                .arg(result.region_flag ? "Yes" : "No")
+                .arg(result.subchannel_id)
+                .arg(region_str));
+
+        // Emit signal
+        emit announcementSwitchingDetected(result);
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/19: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
 
 
 } // namespace eti::fig
