@@ -395,6 +395,20 @@ target_link_libraries(test_fig014_fec_subchannel
 )
 add_test(NAME test_fig014_fec_subchannel COMMAND test_fig014_fec_subchannel)
 
+# FIG 0/19 Announcement Switching Test (PDCA Week 7 - Batch 2 / Agent 22)
+add_executable(test_fig019_announcement_switching
+    test_fig019_announcement_switching.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_fig019_announcement_switching
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_fig019_announcement_switching COMMAND test_fig019_announcement_switching)
+
 # FIG Week 2 Comprehensive Integration Test
 add_executable(test_fig_week2_comprehensive
     core/test_fig_week2_comprehensive.cpp
