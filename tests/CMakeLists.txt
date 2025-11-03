@@ -325,6 +325,20 @@ target_link_libraries(test_fig017_programme_type
 )
 add_test(NAME test_fig017_programme_type COMMAND test_fig017_programme_type)
 
+# FIG 0/18 Announcement Support Test (Python Pro Agent - November 3, 2025)
+add_executable(test_fig018_announcement
+    test_fig018_announcement.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_fig018_announcement
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_fig018_announcement COMMAND test_fig018_announcement)
+
 # FIG 0/8 Service Component Global Definition Test (PDCA Week 4 - Agent 19)
 add_executable(test_fig008_service_component_global
     test_fig008_service_component_global.cpp
@@ -352,6 +366,20 @@ target_link_libraries(test_fig009_country_lto_table
     Qt6::Core
 )
 add_test(NAME test_fig009_country_lto_table COMMAND test_fig009_country_lto_table)
+
+# FIG 0/10 Date and Time Test (PDCA Week 2 - Python Pro)
+add_executable(test_fig010_date_time
+    test_fig010_date_time.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_fig010_date_time
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_fig010_date_time COMMAND test_fig010_date_time)
 
 # FIG 0/14 FEC Sub-channel Organization Test (PDCA Week 6 - Agent 21)
 add_executable(test_fig014_fec_subchannel
@@ -562,7 +590,7 @@ message(STATUS "  Phase 3B Tests: 1 (DLS+)")
 message(STATUS "  Phase 4 Tests: 3 (Live streaming, recording)")
 message(STATUS "  Security Tests: 1 (Code review fixes)")
 message(STATUS "  PDCA Week 1 Tests: 3 (FIG 1/0, TS 101 756, integration)")
-message(STATUS "  PDCA Week 2 Tests: 3 (FIG 0/5, 0/17, integration)")
+message(STATUS "  PDCA Week 2 Tests: 4 (FIG 0/5, 0/17, 0/18, integration)")
 if(CAN_RUN_GUI_TESTS)
     message(STATUS "  GUI Tests: 4 (Widgets and main window)")
 else()
@@ -572,8 +600,8 @@ message(STATUS "  E2E Tests: 3 (Full pipeline validation)")
 message(STATUS "  Network/EDI Tests: 2 (EDI, PFT)")
 message(STATUS "")
 if(CAN_RUN_GUI_TESTS)
-    message(STATUS "  Total Test Executables: 30")
+    message(STATUS "  Total Test Executables: 31")
 else()
-    message(STATUS "  Total Test Executables: 26")
+    message(STATUS "  Total Test Executables: 27")
 endif()
 message(STATUS "==============================================")

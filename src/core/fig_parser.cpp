@@ -266,6 +266,15 @@ bool FigParser::parseFigType0(const FigBlock& fig_block, uint8_t extension) {
             break;
         }
 
+        case 10: { // FIG 0/10 - Date and time (PDCA Week 7 - Batch 1)
+            auto date_time = parseFig010_DateAndTime(fig_block.data);
+            if (date_time.is_valid) {
+                emit dateTimeDiscovered(date_time);
+                success = true;
+            }
+            break;
+        }
+
         case 13: { // FIG 0/13 - User application information (PDCA Week 4 - Agent 13)
             auto ua_info = parseFig013_UserApplicationInfo(fig_block.data);
             if (ua_info.is_valid) {
@@ -288,6 +297,15 @@ bool FigParser::parseFigType0(const FigBlock& fig_block, uint8_t extension) {
             auto programme_type = parseFig017_ProgrammeType(fig_block.data);
             if (programme_type.is_valid) {
                 emit programmeTypeDiscovered(programme_type);
+                success = true;
+            }
+            break;
+        }
+
+        case 18: { // FIG 0/18 - Announcement support (PDCA Week 7 - Batch 1)
+            auto announcement_support = parseFig018_AnnouncementSupport(fig_block.data);
+            if (announcement_support.is_valid) {
+                emit announcementSupportDiscovered(announcement_support);
                 success = true;
             }
             break;
