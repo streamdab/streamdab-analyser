@@ -16,7 +16,9 @@
  * - FIG 0/8: Service component global definition
  * - FIG 0/10: Date and time
  * - FIG 0/18: Announcement support
+ * - FIG 0/11: Region definition
  * - FIG 0/19: Announcement switching
+ * - FIG 0/21: Frequency information
  * - FIG 1/0: Ensemble label
  * - FIG 1/1: Programme service label
  * - FIG 1/4: Service component label
@@ -501,6 +503,27 @@ struct ServiceLinking {
 };
 
 /**
+ * @brief FIG 0/7 Service Component Stream Mode Structure
+ * Reference: ETSI EN 300 401 Section 8.1.4
+ *
+ * Provides service component information for stream mode audio/data services.
+ * Links Service Component ID to Sub-channel ID with CA and Data Group flags.
+ * PDCA Week 7 - Batch 3 / Agent 23 implementation.
+ */
+struct ServiceComponentStreamMode {
+    uint16_t service_component_id{0};
+    uint8_t sub_ch_id{0};
+    bool ca_flag{false};
+    bool dg_flag{false};
+    bool is_valid{false};
+
+    bool isCaProtected() const { return ca_flag; }
+    bool hasDataGroups() const { return dg_flag; }
+    bool validateServiceComponentId() const { return service_component_id < 4096; }
+    bool validateSubChannelId() const { return sub_ch_id < 64; }
+};
+
+/**
  * @brief FIG 0/8 Service Component Global Definition Structure
  * Reference: ETSI EN 300 401 Section 8.1.6
  *
@@ -638,6 +661,117 @@ struct FECSubchannelOrganization {
      */
     uint8_t getProtectionLevel() const {
         return short_form ? (table_index & 0x3F) : protection_level;
+    }
+};
+/**
+ * @brief FIG 0/11 Region Definition Structure
+ * Reference: ETSI EN 300 401 Section 8.1.9
+ *
+ * Provides regional service information for service area definition.
+ * Enables region-based service differentiation within an ensemble.
+ * PDCA Week 7 - Batch 3 / Agent 24 implementation.
+ */
+struct RegionDefinition {
+    uint8_t region_id{0};        // Region ID (8-bit, 0-255)
+    bool region_flag{false};     // Region flag (1-bit): 0=SubChId, 1=EId
+    uint8_t sub_ch_id{0};        // Sub-channel ID (6-bit, 0-63) if region_flag=0
+    uint16_t ensemble_id{0};     // Ensemble ID (16-bit) if region_flag=1
+    bool is_valid{false};        // Validation flag
+
+    /**
+     * @brief Check if region is active
+     * @return true if region_flag is set (ensemble-level region)
+     */
+    bool isActive() const {
+        return region_flag;
+    }
+
+    /**
+     * @brief Get region scope description
+     * @return Human-readable region scope
+     */
+    std::string getRegionScope() const {
+        if (region_flag) {
+            return "Ensemble-level (EId: 0x" +
+                   std::to_string(ensemble_id) + ")";
+        } else {
+            return "Sub-channel level (SubChId: " +
+                   std::to_string(sub_ch_id) + ")";
+        }
+    }
+
+    /**
+     * @brief Validate region ID range
+     * @return true if region_id is valid (0-255)
+     */
+    bool validateRegionId() const {
+        return true;  // All 8-bit values valid
+    }
+
+    /**
+     * @brief Validate sub-channel ID range (if applicable)
+     * @return true if SubChId is valid (0-63) when region_flag=0
+     */
+    bool validateSubChannelId() const {
+        if (region_flag) return true;  // Not applicable
+        return sub_ch_id < 64;
+    }
+};
+
+
+/**
+ * @brief FIG 0/21 Frequency Information Structure
+ * Reference: ETSI EN 300 401 Section 8.1.16
+ *
+ * Provides alternative frequency information for DAB services.
+ * Used for seamless frequency handover and service continuity.
+ * PDCA Week 7 - Batch 3 / Agent 25 implementation.
+ */
+struct FrequencyInformation {
+    uint8_t region_id{0};                  // Region ID (8-bit, optional)
+    std::vector<uint32_t> frequency_list;  // Frequency list in Hz
+    uint8_t length_indicator{0};           // Length indicator (number of frequencies)
+    bool is_valid{false};                  // Validation flag
+
+    /**
+     * @brief Get number of frequencies in the list
+     * @return Number of frequencies
+     */
+    size_t getFrequencyCount() const {
+        return frequency_list.size();
+    }
+
+    /**
+     * @brief Get frequency at specific index
+     * @param index Index of frequency to retrieve
+     * @return Frequency in Hz (0 if index out of range)
+     */
+    uint32_t getFrequencyAt(size_t index) const {
+        if (index < frequency_list.size()) {
+            return frequency_list[index];
+        }
+        return 0;
+    }
+
+    /**
+     * @brief Validate frequency range (Band III: 174-240 MHz)
+     * @param freq Frequency in Hz
+     * @return true if frequency is within valid DAB Band III range
+     */
+    static bool isValidBandIIIFrequency(uint32_t freq) {
+        return freq >= 174000000 && freq <= 240000000;  // 174-240 MHz
+    }
+
+    /**
+     * @brief Get frequency in MHz for display
+     * @param index Index of frequency
+     * @return Frequency in MHz as double (e.g., 225.648)
+     */
+    double getFrequencyMHz(size_t index) const {
+        if (index < frequency_list.size()) {
+            return static_cast<double>(frequency_list[index]) / 1000000.0;
+        }
+        return 0.0;
     }
 };
 
@@ -849,6 +983,9 @@ public:
      */
     ServiceLinking parseFig006_ServiceLinking(const std::vector<uint8_t>& fig_data);
 
+    ServiceComponentStreamMode parseFig007_ServiceComponentStreamMode(
+        const std::vector<uint8_t>& fig_data);
+
     /**
      * @brief Parse FIG 0/8 service component global definition
      * @param fig_data FIG data payload
@@ -867,6 +1004,15 @@ public:
      * PDCA Week 6 - Agent 20
      */
     CountryLTOInfo parseFig009_CountryLTO(const std::vector<uint8_t>& fig_data);
+
+    /**
+     * @brief Parse FIG 0/11 region definition
+     * @param fig_data FIG data payload
+     * @return Parsed region definition information
+     * Reference: ETSI EN 300 401 Section 8.1.9
+     * PDCA Week 7 - Batch 3 / Agent 24
+     */
+    RegionDefinition parseFig011_RegionDefinition(const std::vector<uint8_t>& fig_data);
 
     /**
      * @brief Parse FIG 0/13 user application information
@@ -894,6 +1040,16 @@ public:
      * Reference: ETSI EN 300 401 Section 8.1.12
      */
     AnnouncementSwitching parseFig019_AnnouncementSwitching(
+        const std::vector<uint8_t>& fig_data);
+
+    /**
+     * @brief Parse FIG 0/21 frequency information
+     * @param fig_data FIG data payload
+     * @return Parsed frequency information
+     * Reference: ETSI EN 300 401 Section 8.1.16
+     * PDCA Week 7 - Batch 3 / Agent 25
+     */
+    FrequencyInformation parseFig021_FrequencyInformation(
         const std::vector<uint8_t>& fig_data);
 
     /**
@@ -1011,6 +1167,8 @@ signals:
      */
     void serviceLinkingDiscovered(const ServiceLinking& linking);
 
+    void serviceComponentStreamModeDiscovered(const ServiceComponentStreamMode& stream_mode);
+
     /**
      * @brief Emitted when service component global definition is discovered
      * @param global_def Discovered service component global definition
@@ -1033,6 +1191,13 @@ signals:
     void fecSubchannelDiscovered(const FECSubchannelOrganization& fec_subchannel);
 
     /**
+     * @brief Emitted when region definition is discovered
+     * @param region_def Region definition information
+     * PDCA Week 7 - Batch 3 / Agent 24
+     */
+    void regionDefinitionDiscovered(const RegionDefinition& region_def);
+
+    /**
      * @brief Emitted when user application information is discovered
      * @param ua_info Discovered user application information
      * PDCA Week 4 - Agent 13
@@ -1044,6 +1209,13 @@ signals:
      * @param announcement_switch Announcement switching information
      */
     void announcementSwitchingDetected(const AnnouncementSwitching& announcement_switch);
+
+    /**
+     * @brief Emitted when frequency information is discovered
+     * @param freq_info Frequency information
+     * PDCA Week 7 - Batch 3 / Agent 25
+     */
+    void frequencyInformationDiscovered(const FrequencyInformation& freq_info);
 
     /**
      * @brief Emitted when ensemble label is discovered

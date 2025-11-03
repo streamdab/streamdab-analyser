@@ -248,6 +248,15 @@ bool FigParser::parseFigType0(const FigBlock& fig_block, uint8_t extension) {
             break;
         }
 
+        case 7: { // FIG 0/7 - Service component stream mode (PDCA Week 7 - Batch 3 / Agent 23)
+            auto stream_mode = parseFig007_ServiceComponentStreamMode(fig_block.data);
+            if (stream_mode.is_valid) {
+                emit serviceComponentStreamModeDiscovered(stream_mode);
+                success = true;
+            }
+            break;
+        }
+
         case 8: { // FIG 0/8 - Service component global definition (PDCA Week 4 - Agent 19)
             auto global_def = parseFig008_ServiceComponentGlobal(fig_block.data);
             if (global_def.is_valid) {
@@ -318,6 +327,16 @@ bool FigParser::parseFigType0(const FigBlock& fig_block, uint8_t extension) {
             }
             break;
         }
+
+        case 21: { // FIG 0/21 - Frequency information (PDCA Week 7 - Batch 3 / Agent 25)
+            auto freq_info = parseFig021_FrequencyInformation(fig_block.data);
+            if (freq_info.is_valid) {
+                emit frequencyInformationDiscovered(freq_info);
+                success = true;
+            }
+            break;
+        }
+
 
         default:
             Logger::instance().log(Logger::Warning, "FigParser",
@@ -1432,6 +1451,91 @@ DateAndTime FigParser::parseFig010_DateAndTime(const std::vector<uint8_t>& fig_d
 }
 
 // ==============================================================================
+// FIG 0/11 Parser Implementation - Region Definition
+// ==============================================================================
+
+RegionDefinition FigParser::parseFig011_RegionDefinition(const std::vector<uint8_t>& fig_data) {
+    RegionDefinition result;
+    result.is_valid = false;
+
+    // Validate minimum size: 1 byte (extension) + 1 byte (region ID) + 1 byte (flags) = 3 bytes minimum
+    if (fig_data.size() < 3) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/11 data too short: %1 bytes (minimum 3 required)")
+                .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension field (already parsed)
+
+        // Parse Region ID (8-bit) from byte 1
+        result.region_id = fig_data[offset++];
+
+        // Parse Region flag (1-bit) and SubChId/EId from byte 2
+        uint8_t flags_byte = fig_data[offset++];
+        result.region_flag = (flags_byte & 0x80) != 0; // Bit 7: Region flag
+
+        if (result.region_flag) {
+            // Region flag = 1: Next bytes contain Ensemble ID (16-bit)
+            if (fig_data.size() < 5) { // Need 2 more bytes for EId
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    QString("FIG 0/11: Insufficient data for EId (region_flag=1), size: %1")
+                        .arg(fig_data.size()));
+                return result;
+            }
+
+            // Extract Ensemble ID (16-bit big-endian)
+            result.ensemble_id = (static_cast<uint16_t>(flags_byte & 0x3F) << 10) |
+                               (static_cast<uint16_t>(fig_data[offset]) << 2) |
+                               (static_cast<uint16_t>((fig_data[offset + 1] >> 6) & 0x03));
+            result.sub_ch_id = 0; // Not applicable
+
+        } else {
+            // Region flag = 0: Bits 0-5 contain SubChId (6-bit)
+            result.sub_ch_id = flags_byte & 0x3F;
+            result.ensemble_id = 0; // Not applicable
+
+            // Validate SubChId range (0-63)
+            if (!result.validateSubChannelId()) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    QString("FIG 0/11: Invalid SubChId %1 (must be 0-63)")
+                        .arg(result.sub_ch_id));
+                return result;
+            }
+        }
+
+        // Validate Region ID (always valid for 8-bit values)
+        if (!result.validateRegionId()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/11: Invalid Region ID %1").arg(result.region_id));
+            return result;
+        }
+
+        // All validations passed
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("Parsed FIG 0/11 - Region ID: %1, Flag: %2, Scope: %3")
+                .arg(result.region_id)
+                .arg(result.region_flag ? "EId" : "SubChId")
+                .arg(result.region_flag ?
+                     QString("EId=0x%1").arg(result.ensemble_id, 4, 16, QChar('0')) :
+                     QString("SubChId=%1").arg(result.sub_ch_id)));
+
+        statistics_.total_figs_processed++;
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/11: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+
+// ==============================================================================
 // DateAndTime Utility Functions Implementation
 // ==============================================================================
 
@@ -2154,6 +2258,55 @@ ServiceLinking FigParser::parseFig006_ServiceLinking(
     return result;
 }
 
+ServiceComponentStreamMode FigParser::parseFig007_ServiceComponentStreamMode(
+    const std::vector<uint8_t>& fig_data) {
+
+    ServiceComponentStreamMode result;
+    result.is_valid = false;
+
+    if (fig_data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/7: Insufficient data - got %1 bytes, need at least 4")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1;
+
+        uint16_t scid_byte1 = static_cast<uint16_t>(fig_data[offset]);
+        uint16_t scid_byte2 = static_cast<uint16_t>(fig_data[offset + 1]);
+        result.service_component_id = ((scid_byte1 << 4) | (scid_byte2 >> 4)) & 0x0FFF;
+        result.ca_flag = (scid_byte2 & 0x04) != 0;
+        result.dg_flag = (scid_byte2 & 0x08) != 0;
+        offset += 2;
+
+        result.sub_ch_id = (fig_data[offset] >> 2) & 0x3F;
+
+        if (!result.validateServiceComponentId() || !result.validateSubChannelId()) {
+            return result;
+        }
+
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("FIG 0/7: SCId=%1, SubChId=%2, CA=%3, DG=%4")
+                .arg(result.service_component_id)
+                .arg(result.sub_ch_id)
+                .arg(result.ca_flag ? "Yes" : "No")
+                .arg(result.dg_flag ? "Yes" : "No"));
+
+        emit serviceComponentStreamModeDiscovered(result);
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/7: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
 /**
  * @brief Parse FIG 0/8 - Service Component Global Definition
  * Reference: ETSI EN 300 401 Section 8.1.6
@@ -2577,6 +2730,121 @@ AnnouncementSwitching FigParser::parseFig019_AnnouncementSwitching(
     } catch (const std::exception& e) {
         Logger::instance().log(Logger::Error, "FigParser",
             QString("Exception parsing FIG 0/19: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+
+/**
+ * @brief Parse FIG 0/21 - Frequency Information
+ * Reference: ETSI EN 300 401 Section 8.1.16
+ * PDCA Week 7 - Batch 3 / Agent 25 implementation
+ */
+FrequencyInformation FigParser::parseFig021_FrequencyInformation(
+    const std::vector<uint8_t>& fig_data) {
+
+    FrequencyInformation result;
+    result.is_valid = false;
+
+    // Minimum size: 1 (ext) + 1 (region ID, optional) + 1 (LI) + 2 (at least one frequency) = 4-5 bytes minimum
+    if (fig_data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/21: Insufficient data - got %1 bytes, need at least 4")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension field
+
+        // Check if Region ID is present (optional field)
+        // According to ETSI EN 300 401 Section 8.1.16, Region ID may be present
+        // For simplicity, we'll try to parse it if data suggests it's there
+
+        // Byte 0: Region ID (8-bit, optional - implementation specific)
+        // For this implementation, we assume Region ID is NOT present for simplicity
+        // If needed, can be extended based on P/D flag or other indicators
+
+        // Byte 0 (or 1 if region present): Length Indicator (LI) - number of frequencies
+        result.length_indicator = fig_data[offset++];
+
+        // Validate LI
+        if (result.length_indicator == 0) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                "FIG 0/21: Length Indicator is 0 (no frequencies)");
+            return result;
+        }
+
+        // Calculate required bytes: LI * 2 (16-bit per frequency)
+        size_t required_bytes = result.length_indicator * 2;
+        if (offset + required_bytes > fig_data.size()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/21: Insufficient data for frequencies - need %1 bytes, got %2")
+                .arg(required_bytes)
+                .arg(fig_data.size() - offset));
+            return result;
+        }
+
+        // Parse frequency list
+        result.frequency_list.clear();
+        result.frequency_list.reserve(result.length_indicator);
+
+        for (uint8_t i = 0; i < result.length_indicator; ++i) {
+            // Each frequency is 16-bit big-endian
+            uint16_t freq_code = (static_cast<uint16_t>(fig_data[offset]) << 8) |
+                                  static_cast<uint16_t>(fig_data[offset + 1]);
+            offset += 2;
+
+            // Convert frequency code to Hz
+            // According to ETSI EN 300 401 Section 8.1.16:
+            // Band III (174-240 MHz): Frequency = 16kHz * N + 144 MHz (for EU)
+            // For simplicity, using common DAB Band III calculation:
+            // Frequency (Hz) = 174000000 + (freq_code * 16000)
+            uint32_t frequency_hz = 174000000 + (static_cast<uint32_t>(freq_code) * 16000);
+
+            // Validate frequency range (Band III: 174-240 MHz)
+            if (FrequencyInformation::isValidBandIIIFrequency(frequency_hz)) {
+                result.frequency_list.push_back(frequency_hz);
+            } else {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    QString("FIG 0/21: Frequency %1 Hz out of Band III range (174-240 MHz) at index %2")
+                    .arg(frequency_hz)
+                    .arg(i));
+                // Continue parsing other frequencies, don't fail entirely
+            }
+        }
+
+        // Check if we got at least one valid frequency
+        if (result.frequency_list.empty()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                "FIG 0/21: No valid frequencies found");
+            return result;
+        }
+
+        // All validations passed
+        result.is_valid = true;
+
+        // Build frequency list string for logging
+        QStringList freq_list_str;
+        for (size_t i = 0; i < result.frequency_list.size(); ++i) {
+            freq_list_str << QString("%1 MHz")
+                .arg(result.getFrequencyMHz(i), 0, 'f', 3);
+        }
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("FIG 0/21: RegionID=%1, LI=%2, Frequencies: [%3]")
+                .arg(result.region_id)
+                .arg(result.length_indicator)
+                .arg(freq_list_str.join(", ")));
+
+        // Emit signal
+        emit frequencyInformationDiscovered(result);
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/21: %1").arg(e.what()));
         result.is_valid = false;
     }
 
