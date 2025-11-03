@@ -225,7 +225,7 @@ void TestFig008ServiceComponentGlobal::test_valid_fic_component() {
     QVERIFY(result.ls_flag);
     QVERIFY(!result.msc_fic_flag);  // FIC mode
     QCOMPARE(result.sub_ch_id, static_cast<uint8_t>(0x00));
-    QCOMPARE(result.fidc_id, static_cast<uint8_t>(0x42));
+    QCOMPARE(result.fidc_id, static_cast<uint8_t>(0x02));
 }
 
 void TestFig008ServiceComponentGlobal::test_fic_component_various_fidcids() {
@@ -239,7 +239,7 @@ void TestFig008ServiceComponentGlobal::test_fic_component_various_fidcids() {
 
         QVERIFY(result.is_valid);
         QVERIFY(!result.msc_fic_flag);
-        QCOMPARE(result.fidc_id, fidcid);
+        QCOMPARE(result.fidc_id, static_cast<uint8_t>(fidcid & 0x3F));
     }
 }
 
@@ -254,13 +254,13 @@ void TestFig008ServiceComponentGlobal::test_fic_component_zero_fidcid() {
 }
 
 void TestFig008ServiceComponentGlobal::test_fic_component_max_fidcid() {
-    qDebug() << "TEST: FIC component with FIDCId = 255 (8-bit max)";
+    qDebug() << "TEST: FIC component with FIDCId = 63 (6-bit max)";
 
-    auto fig_data = createFig008Data(0x700, 0x0, false, 0x800, false, false, 0x00, 0xFF);
+    auto fig_data = createFig008Data(0x700, 0x0, false, 0x800, false, false, 0x00, 0x3F);
     auto result = parser_->parseFig008_ServiceComponentGlobal(fig_data);
 
     QVERIFY(result.is_valid);
-    QCOMPARE(result.fidc_id, static_cast<uint8_t>(0xFF));
+    QCOMPARE(result.fidc_id, static_cast<uint8_t>(0x3F));
 }
 
 // ============================================================================
