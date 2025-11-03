@@ -201,6 +201,54 @@ struct DateAndTime {
 };
 
 /**
+ * @brief FIG 0/9 Country, LTO, and International Table Structure
+ * Reference: ETSI EN 300 401 Section 8.1.8
+ *
+ * Provides ensemble country identification, local time offset, and character encoding table.
+ * Essential for proper time zone handling and character set interpretation.
+ */
+struct CountryLTOInfo {
+    bool ext_flag{false};              // Extension flag (1 bit)
+    int8_t lto{0};                     // Local Time Offset in half-hour units (5/6 bits, signed)
+    uint8_t ecc{0};                    // Extended Country Code (8 bits)
+    uint8_t international_table_id{0}; // Character encoding table ID (8 bits)
+    bool is_valid{false};              // Validation flag
+
+    /**
+     * @brief Convert LTO to hours (floating point)
+     * @return LTO in hours (e.g., +7.0 for Thailand, -5.5 for India)
+     */
+    float getLTOHours() const {
+        return lto * 0.5f;
+    }
+
+    /**
+     * @brief Get LTO in minutes
+     * @return LTO in minutes (e.g., +420 for Thailand UTC+7)
+     */
+    int16_t getLTOMinutes() const {
+        return static_cast<int16_t>(lto) * 30;
+    }
+
+    /**
+     * @brief Validate LTO range
+     * LTO range: -12.0 to +14.0 hours (-24 to +28 in half-hour units)
+     * @return true if LTO within valid range
+     */
+    bool validateLTO() const {
+        return lto >= -24 && lto <= 28;
+    }
+
+    /**
+     * @brief Check if this is Thai ensemble
+     * @return true if ECC indicates Thailand (0xE1)
+     */
+    bool isThaiEnsemble() const {
+        return ecc == 0xE1;
+    }
+};
+
+/**
  * @brief FIG 0/19 Announcement Switching Structure
  * Reference: ETSI EN 300 401 Section 8.1.12
  *
@@ -527,6 +575,73 @@ struct UserApplicationInfo {
 };
 
 /**
+ * @brief FIG 0/14 FEC Sub-channel Organization Structure
+ * Reference: ETSI EN 300 401 Section 8.1.5
+ *
+ * Provides FEC (Forward Error Correction) scheme information for sub-channels.
+ * Signals the FEC protection applied to sub-channel data.
+ * PDCA Week 6 - Agent 21 implementation.
+ */
+struct FECSubchannelOrganization {
+    uint8_t sub_ch_id{0};        // Sub-channel Identifier (6-bit, 0-63)
+    uint8_t fec_scheme{0};       // FEC scheme (2-bit, 0-3)
+    uint16_t start_address{0};   // Start address (10-bit, in CUs)
+    bool short_form{false};      // Short (true) or Long (false) form
+    uint8_t table_index{0};      // Short form: table index (6-bit)
+    uint16_t sub_ch_size{0};     // Long form: sub-channel size (10-bit, in CUs)
+    uint8_t protection_level{0}; // Long form: protection level (2-bit)
+    uint8_t option{0};           // Long form: option (3-bit)
+    bool is_valid{false};
+
+    /**
+     * @brief Get FEC scheme name
+     * @return Human-readable FEC scheme description
+     */
+    std::string getFECSchemeName() const {
+        switch (fec_scheme) {
+            case 0: return "No FEC";
+            case 1: return "FEC scheme 1 (RS)";
+            case 2: return "FEC scheme 2 (Convolutional)";
+            case 3: return "Reserved";
+            default: return "Unknown";
+        }
+    }
+
+    /**
+     * @brief Validate sub-channel ID range
+     * @return true if SubChId is valid (0-63)
+     */
+    bool validateSubChannelId() const {
+        return sub_ch_id < 64;
+    }
+
+    /**
+     * @brief Validate start address boundary
+     * @return true if start address is within valid range (0-863)
+     */
+    bool validateStartAddress() const {
+        return start_address < 864;  // Maximum CUs per DAB frame
+    }
+
+    /**
+     * @brief Validate sub-channel size boundary (long form only)
+     * @return true if size is within valid range
+     */
+    bool validateSubChannelSize() const {
+        if (short_form) return true;  // Not applicable to short form
+        return sub_ch_size > 0 && (start_address + sub_ch_size) <= 864;
+    }
+
+    /**
+     * @brief Get protection level description
+     * @return Protection level value (short form: from table_index, long form: protection_level)
+     */
+    uint8_t getProtectionLevel() const {
+        return short_form ? (table_index & 0x3F) : protection_level;
+    }
+};
+
+/**
  * @brief FIG 1/0 Ensemble Label Structure
  * Reference: ETSI EN 300 401 Section 8.1.13
  */
@@ -745,6 +860,15 @@ public:
         const std::vector<uint8_t>& fig_data);
 
     /**
+     * @brief Parse FIG 0/9 country, LTO, and international table
+     * @param fig_data FIG data payload
+     * @return Parsed country/LTO information
+     * Reference: ETSI EN 300 401 Section 8.1.8
+     * PDCA Week 6 - Agent 20
+     */
+    CountryLTOInfo parseFig009_CountryLTO(const std::vector<uint8_t>& fig_data);
+
+    /**
      * @brief Parse FIG 0/13 user application information
      * @param fig_data FIG data payload
      * @return Parsed user application information
@@ -753,6 +877,15 @@ public:
      */
     UserApplicationInfo parseFig013_UserApplicationInfo(
         const std::vector<uint8_t>& fig_data);
+
+    /**
+     * @brief Parse FIG 0/14 FEC sub-channel organization
+     * @param fig_data FIG data payload
+     * @return Parsed FEC sub-channel information
+     * Reference: ETSI EN 300 401 Section 8.1.5
+     * PDCA Week 6 - Agent 21
+     */
+    FECSubchannelOrganization parseFig014_FECSubchannel(const std::vector<uint8_t>& fig_data);
 
     /**
      * @brief Parse FIG 0/19 announcement switching
@@ -884,6 +1017,20 @@ signals:
      * PDCA Week 4 - Agent 19
      */
     void serviceComponentGlobalDiscovered(const ServiceComponentGlobal& global_def);
+
+    /**
+     * @brief Emitted when country/LTO information is discovered
+     * @param country_lto Country, LTO, and international table information
+     * PDCA Week 6 - Agent 20
+     */
+    void countryLTODiscovered(const CountryLTOInfo& country_lto);
+
+    /**
+     * @brief Emitted when FEC sub-channel organization is discovered
+     * @param fec_subchannel FEC sub-channel organization information
+     * PDCA Week 6 - Agent 21
+     */
+    void fecSubchannelDiscovered(const FECSubchannelOrganization& fec_subchannel);
 
     /**
      * @brief Emitted when user application information is discovered

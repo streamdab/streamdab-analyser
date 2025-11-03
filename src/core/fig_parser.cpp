@@ -257,10 +257,28 @@ bool FigParser::parseFigType0(const FigBlock& fig_block, uint8_t extension) {
             break;
         }
 
+        case 9: { // FIG 0/9 - Country, LTO, International table (PDCA Week 6 - Agent 20)
+            auto country_lto = parseFig009_CountryLTO(fig_block.data);
+            if (country_lto.is_valid) {
+                emit countryLTODiscovered(country_lto);
+                success = true;
+            }
+            break;
+        }
+
         case 13: { // FIG 0/13 - User application information (PDCA Week 4 - Agent 13)
             auto ua_info = parseFig013_UserApplicationInfo(fig_block.data);
             if (ua_info.is_valid) {
                 emit userApplicationInfoDiscovered(ua_info);
+                success = true;
+            }
+            break;
+        }
+
+        case 14: { // FIG 0/14 - FEC sub-channel organization (PDCA Week 6 - Agent 21)
+            auto fec_subchannel = parseFig014_FECSubchannel(fig_block.data);
+            if (fec_subchannel.is_valid) {
+                emit fecSubchannelDiscovered(fec_subchannel);
                 success = true;
             }
             break;
@@ -1183,6 +1201,89 @@ std::unique_ptr<FigParser> createOptimizedFigParser(bool enable_thai_support, bo
 
 
 // ==============================================================================
+// FIG 0/9: Country/LTO/International Table Implementation
+// ==============================================================================
+
+CountryLTOInfo FigParser::parseFig009_CountryLTO(const std::vector<uint8_t>& fig_data) {
+    CountryLTOInfo result;
+    result.is_valid = false;
+
+    // Minimum size: 4 bytes (extension + LTO byte + ECC + table ID)
+    if (fig_data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/9: Insufficient data - got %1 bytes, need at least 4")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension byte
+
+        // ETSI EN 300 401 Section 8.1.8:
+        // Byte 1: [Ext 1-bit][LTO 5/6 bits]
+        // - If Ext=0: LTO is 5 bits (bits 6-2), range -16 to +15 half-hours
+        // - If Ext=1: LTO is 6 bits (bits 5-0), range -32 to +31 half-hours
+
+        uint8_t byte1 = fig_data[offset];
+        result.ext_flag = (byte1 & 0x80) != 0;
+
+        if (result.ext_flag) {
+            // 6-bit LTO (bits 5-0)
+            uint8_t lto_unsigned = byte1 & 0x3F;
+            // Sign extension: if bit 5 is set, extend to negative
+            if (lto_unsigned & 0x20) {
+                // Negative: extend sign bits
+                result.lto = static_cast<int8_t>(lto_unsigned | 0xC0);
+            } else {
+                // Positive
+                result.lto = static_cast<int8_t>(lto_unsigned);
+            }
+        } else {
+            // 5-bit LTO (bits 6-2)
+            uint8_t lto_unsigned = (byte1 >> 2) & 0x1F;
+            // Sign extension: if bit 4 is set, extend to negative
+            if (lto_unsigned & 0x10) {
+                // Negative: extend sign bits
+                result.lto = static_cast<int8_t>(lto_unsigned | 0xE0);
+            } else {
+                // Positive
+                result.lto = static_cast<int8_t>(lto_unsigned);
+            }
+        }
+        offset++;
+
+        // Byte 2: ECC (Extended Country Code)
+        result.ecc = fig_data[offset];
+        offset++;
+
+        // Byte 3: International table ID
+        result.international_table_id = fig_data[offset];
+
+        // All fields extracted successfully
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("Parsed FIG 0/9 - Ext: %1, LTO: %2 (%3h), ECC: 0x%4, Table: 0x%5")
+                .arg(result.ext_flag)
+                .arg(result.lto)
+                .arg(result.getLTOHours(), 0, 'f', 1)
+                .arg(result.ecc, 2, 16, QChar('0'))
+                .arg(result.international_table_id, 2, 16, QChar('0')));
+
+        // Emit signal
+        emit countryLTODiscovered(result);
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/9: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+
+// ==============================================================================
 // FIG 0/10: Date and Time Implementation
 // ==============================================================================
 
@@ -2067,6 +2168,7 @@ ServiceComponentGlobal FigParser::parseFig008_ServiceComponentGlobal(
 
         // Byte 4: SCId low byte
         uint8_t scid_byte2 = fig_data[offset++];
+        result.sc_id = scid_high | scid_byte2;  // Combine SCId (12-bit)
         // Byte 5: Transport byte containing LS/MSC flags and SubChId or FIDCId
         if (fig_data.size() > offset) {
             uint8_t transport_byte = fig_data[offset++];
@@ -2082,10 +2184,6 @@ ServiceComponentGlobal FigParser::parseFig008_ServiceComponentGlobal(
             } else {
                 // FIC mode: FIDCId in bits 5-0 (per ETSI EN 300 401 §8.1.6)
                 result.fidc_id = transport_byte & 0x3F;     // FIDCId: bits 5-0
-                result.sub_ch_id = 0;
-            }
-        }
-                result.ls_flag = (transport_byte & 0x80) != 0;  // Extract LS flag for informational purposes
                 result.sub_ch_id = 0;
             }
         }
@@ -2240,5 +2338,140 @@ UserApplicationInfo FigParser::parseFig013_UserApplicationInfo(
 
     return result;
 }
+
+/**
+ * @brief Parse FIG 0/14 - FEC Sub-channel Organization
+ * Reference: ETSI EN 300 401 Section 8.1.5
+ * PDCA Week 6 - Agent 21 implementation
+ */
+FECSubchannelOrganization FigParser::parseFig014_FECSubchannel(
+    const std::vector<uint8_t>& fig_data) {
+
+    FECSubchannelOrganization fec;
+    fec.is_valid = false;
+
+    // Minimum size check: 1 (ext) + 3 (short form) = 4 bytes minimum
+    if (fig_data.size() < 4) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/14: Insufficient data - got %1 bytes, need at least 4")
+            .arg(fig_data.size()));
+        return fec;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension field
+
+        // Byte 0: [6 bits SubChId][2 bits FEC scheme]
+        uint8_t byte0 = fig_data[offset++];
+        fec.sub_ch_id = (byte0 >> 2) & 0x3F;
+        fec.fec_scheme = byte0 & 0x03;
+
+        // Byte 1: [8 bits MSB of Start Address (10-bit total)]
+        uint8_t byte1 = fig_data[offset++];
+
+        // Byte 2: [2 bits LSB of Start Address][1 bit Form flag][5 bits ...]
+        uint8_t byte2 = fig_data[offset++];
+        fec.start_address = (static_cast<uint16_t>(byte1) << 2) | ((byte2 >> 6) & 0x03);
+        fec.short_form = (byte2 & 0x20) != 0;  // Bit 5
+
+        if (fec.short_form) {
+            // Short form: need 1 more byte (total 4 bytes from start)
+            if (offset >= fig_data.size()) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    "FIG 0/14: Short form insufficient data");
+                return fec;
+            }
+
+            // Byte 3: [2 bits unused][6 bits Table Index]
+            uint8_t byte3 = fig_data[offset++];
+            fec.table_index = byte3 & 0x3F;
+
+            // Short form is simpler, no sub-channel size
+            fec.sub_ch_size = 0;
+            fec.protection_level = 0;
+            fec.option = 0;
+
+            Logger::instance().log(Logger::Debug, "FigParser",
+                QString("FIG 0/14 Short Form - SubChId=%1, FEC=%2, StartAddr=%3, TableIdx=%4")
+                .arg(fec.sub_ch_id)
+                .arg(fec.fec_scheme)
+                .arg(fec.start_address)
+                .arg(fec.table_index));
+
+        } else {
+            // Long form: need 3 more bytes (total 6 bytes from start)
+            if (offset + 2 >= fig_data.size()) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    QString("FIG 0/14: Long form insufficient data - got %1 bytes, need 6")
+                    .arg(fig_data.size()));
+                return fec;
+            }
+
+            // Byte 3: [3 bits Option][2 bits Protection Level][3 bits unused]
+            uint8_t byte3 = fig_data[offset++];
+            fec.option = (byte3 >> 5) & 0x07;
+            fec.protection_level = (byte3 >> 3) & 0x03;
+
+            // Byte 4-5: [10 bits Sub-channel Size][6 bits unused]
+            uint8_t byte4 = fig_data[offset++];
+            uint8_t byte5 = fig_data[offset++];
+            fec.sub_ch_size = (static_cast<uint16_t>(byte4) << 2) | ((byte5 >> 6) & 0x03);
+
+            // Long form has no table_index
+            fec.table_index = 0;
+
+            Logger::instance().log(Logger::Debug, "FigParser",
+                QString("FIG 0/14 Long Form - SubChId=%1, FEC=%2, StartAddr=%3, Size=%4, Prot=%5, Opt=%6")
+                .arg(fec.sub_ch_id)
+                .arg(fec.fec_scheme)
+                .arg(fec.start_address)
+                .arg(fec.sub_ch_size)
+                .arg(fec.protection_level)
+                .arg(fec.option));
+        }
+
+        // Validate parsed data
+        if (!fec.validateSubChannelId()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/14: Invalid SubChId %1 (must be 0-63)").arg(fec.sub_ch_id));
+            return fec;
+        }
+
+        if (!fec.validateStartAddress()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/14: Invalid start address %1 (must be < 864)").arg(fec.start_address));
+            return fec;
+        }
+
+        if (!fec.short_form && !fec.validateSubChannelSize()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/14: Invalid sub-channel size - start=%1, size=%2 (total must be <= 864)")
+                .arg(fec.start_address).arg(fec.sub_ch_size));
+            return fec;
+        }
+
+        // All validations passed - MUST set before return
+        fec.is_valid = true;
+
+        Logger::instance().log(Logger::Info, "FigParser",
+            QString("Parsed FIG 0/14 - SubChId=%1, FEC=%2 (%3), StartAddr=%4, Form=%5")
+            .arg(fec.sub_ch_id)
+            .arg(fec.fec_scheme)
+            .arg(QString::fromStdString(fec.getFECSchemeName()))
+            .arg(fec.start_address)
+            .arg(fec.short_form ? "Short" : "Long"));
+
+        // Emit signal
+        emit fecSubchannelDiscovered(fec);
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/14: %1").arg(e.what()));
+        fec.is_valid = false;
+    }
+
+    return fec;
+}
+
 
 } // namespace eti::fig

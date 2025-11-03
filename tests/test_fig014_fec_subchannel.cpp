@@ -167,7 +167,7 @@ void TestFig014FECSubchannel::test_short_form_basic() {
     qDebug() << "TEST: Short form basic parsing";
 
     auto fig_data = createShortFormFig014(10, 1, 100, 25);
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+    auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
     QVERIFY(fec.is_valid);
     QCOMPARE(fec.sub_ch_id, static_cast<uint8_t>(10));
@@ -182,7 +182,7 @@ void TestFig014FECSubchannel::test_short_form_fec_scheme_0() {
     qDebug() << "TEST: Short form with FEC scheme 0 (No FEC)";
 
     auto fig_data = createShortFormFig014(5, 0, 50, 10);
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+    auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
     QVERIFY(fec.is_valid);
     QCOMPARE(fec.fec_scheme, static_cast<uint8_t>(0));
@@ -193,7 +193,7 @@ void TestFig014FECSubchannel::test_short_form_fec_scheme_1() {
     qDebug() << "TEST: Short form with FEC scheme 1 (Reed-Solomon)";
 
     auto fig_data = createShortFormFig014(15, 1, 200, 30);
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+    auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
     QVERIFY(fec.is_valid);
     QCOMPARE(fec.fec_scheme, static_cast<uint8_t>(1));
@@ -205,13 +205,13 @@ void TestFig014FECSubchannel::test_short_form_table_index_boundary() {
 
     // Test minimum (0)
     auto fig_min = createShortFormFig014(10, 1, 100, 0);
-    auto fec_min = parser_->parseFig014_FECSubchannelOrganization(fig_min);
+    auto fec_min = parser_->parseFig014_FECSubchannel(fig_min);
     QVERIFY(fec_min.is_valid);
     QCOMPARE(fec_min.table_index, static_cast<uint8_t>(0));
 
     // Test maximum (63)
     auto fig_max = createShortFormFig014(10, 1, 100, 63);
-    auto fec_max = parser_->parseFig014_FECSubchannelOrganization(fig_max);
+    auto fec_max = parser_->parseFig014_FECSubchannel(fig_max);
     QVERIFY(fec_max.is_valid);
     QCOMPARE(fec_max.table_index, static_cast<uint8_t>(63));
 }
@@ -220,7 +220,7 @@ void TestFig014FECSubchannel::test_short_form_start_address_max() {
     qDebug() << "TEST: Short form start address maximum value";
 
     auto fig_data = createShortFormFig014(10, 1, 863, 25);  // Max CUs = 863
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+    auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
     QVERIFY(fec.is_valid);
     QCOMPARE(fec.start_address, static_cast<uint16_t>(863));
@@ -231,7 +231,7 @@ void TestFig014FECSubchannel::test_short_form_insufficient_data() {
     qDebug() << "TEST: Short form insufficient data";
 
     std::vector<uint8_t> short_data = {0x0E, 0x28, 0x64};  // Only 3 bytes
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(short_data);
+    auto fec = parser_->parseFig014_FECSubchannel(short_data);
 
     QVERIFY(!fec.is_valid);
 }
@@ -244,7 +244,7 @@ void TestFig014FECSubchannel::test_long_form_basic() {
     qDebug() << "TEST: Long form basic parsing";
 
     auto fig_data = createLongFormFig014(20, 2, 150, 50, 1, 3);
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+    auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
     QVERIFY(fec.is_valid);
     QCOMPARE(fec.sub_ch_id, static_cast<uint8_t>(20));
@@ -260,7 +260,7 @@ void TestFig014FECSubchannel::test_long_form_fec_scheme_2() {
     qDebug() << "TEST: Long form with FEC scheme 2 (Convolutional)";
 
     auto fig_data = createLongFormFig014(25, 2, 200, 100, 2, 5);
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+    auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
     QVERIFY(fec.is_valid);
     QCOMPARE(fec.fec_scheme, static_cast<uint8_t>(2));
@@ -273,7 +273,7 @@ void TestFig014FECSubchannel::test_long_form_protection_levels() {
 
     for (uint8_t pl = 0; pl < 4; ++pl) {
         auto fig_data = createLongFormFig014(10, 1, 100, 50, pl, 0);
-        auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+        auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
         QVERIFY(fec.is_valid);
         QCOMPARE(fec.protection_level, pl);
@@ -286,7 +286,7 @@ void TestFig014FECSubchannel::test_long_form_sub_ch_size_max() {
 
     // Max size to fit within 864 CUs
     auto fig_data = createLongFormFig014(10, 1, 100, 764, 1, 0);
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+    auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
     QVERIFY(fec.is_valid);
     QCOMPARE(fec.sub_ch_size, static_cast<uint16_t>(764));
@@ -298,7 +298,7 @@ void TestFig014FECSubchannel::test_long_form_option_field() {
 
     for (uint8_t opt = 0; opt < 8; ++opt) {
         auto fig_data = createLongFormFig014(10, 1, 100, 50, 1, opt);
-        auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+        auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
         QVERIFY(fec.is_valid);
         QCOMPARE(fec.option, opt);
@@ -309,7 +309,7 @@ void TestFig014FECSubchannel::test_long_form_insufficient_data() {
     qDebug() << "TEST: Long form insufficient data";
 
     std::vector<uint8_t> short_data = {0x0E, 0x50, 0x96, 0x00, 0x28};  // Only 5 bytes
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(short_data);
+    auto fec = parser_->parseFig014_FECSubchannel(short_data);
 
     QVERIFY(!fec.is_valid);
 }
@@ -322,7 +322,7 @@ void TestFig014FECSubchannel::test_fec_scheme_0_no_fec() {
     qDebug() << "TEST: FEC scheme 0 (No FEC)";
 
     auto fig_data = createShortFormFig014(10, 0, 100, 20);
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+    auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
     QVERIFY(fec.is_valid);
     QCOMPARE(fec.fec_scheme, static_cast<uint8_t>(0));
@@ -333,7 +333,7 @@ void TestFig014FECSubchannel::test_fec_scheme_1_reed_solomon() {
     qDebug() << "TEST: FEC scheme 1 (Reed-Solomon)";
 
     auto fig_data = createShortFormFig014(10, 1, 100, 20);
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+    auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
     QVERIFY(fec.is_valid);
     QCOMPARE(fec.fec_scheme, static_cast<uint8_t>(1));
@@ -344,7 +344,7 @@ void TestFig014FECSubchannel::test_fec_scheme_2_convolutional() {
     qDebug() << "TEST: FEC scheme 2 (Convolutional)";
 
     auto fig_data = createShortFormFig014(10, 2, 100, 20);
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+    auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
     QVERIFY(fec.is_valid);
     QCOMPARE(fec.fec_scheme, static_cast<uint8_t>(2));
@@ -356,7 +356,7 @@ void TestFig014FECSubchannel::test_fec_scheme_3_reserved() {
     qDebug() << "TEST: FEC scheme 3 (Reserved)";
 
     auto fig_data = createShortFormFig014(10, 3, 100, 20);
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+    auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
     QVERIFY(fec.is_valid);
     QCOMPARE(fec.fec_scheme, static_cast<uint8_t>(3));
@@ -373,7 +373,7 @@ void TestFig014FECSubchannel::test_validate_sub_ch_id() {
     // Valid: 0-63
     for (uint8_t id = 0; id < 64; ++id) {
         auto fig_data = createShortFormFig014(id, 1, 100, 20);
-        auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+        auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
         QVERIFY(fec.is_valid);
         QCOMPARE(fec.sub_ch_id, id);
@@ -386,13 +386,13 @@ void TestFig014FECSubchannel::test_validate_start_address() {
 
     // Valid: 0-863
     auto fig_valid = createShortFormFig014(10, 1, 863, 20);
-    auto fec_valid = parser_->parseFig014_FECSubchannelOrganization(fig_valid);
+    auto fec_valid = parser_->parseFig014_FECSubchannel(fig_valid);
     QVERIFY(fec_valid.is_valid);
     QVERIFY(fec_valid.validateStartAddress());
 
     // Test boundary
     auto fig_boundary = createShortFormFig014(10, 1, 0, 20);
-    auto fec_boundary = parser_->parseFig014_FECSubchannelOrganization(fig_boundary);
+    auto fec_boundary = parser_->parseFig014_FECSubchannel(fig_boundary);
     QVERIFY(fec_boundary.is_valid);
     QVERIFY(fec_boundary.validateStartAddress());
 }
@@ -402,13 +402,13 @@ void TestFig014FECSubchannel::test_validate_sub_ch_size() {
 
     // Valid: start_address + sub_ch_size <= 864
     auto fig_valid = createLongFormFig014(10, 1, 100, 764, 1, 0);
-    auto fec_valid = parser_->parseFig014_FECSubchannelOrganization(fig_valid);
+    auto fec_valid = parser_->parseFig014_FECSubchannel(fig_valid);
     QVERIFY(fec_valid.is_valid);
     QVERIFY(fec_valid.validateSubChannelSize());
 
     // Edge case: exactly 864
     auto fig_edge = createLongFormFig014(10, 1, 0, 864, 1, 0);
-    auto fec_edge = parser_->parseFig014_FECSubchannelOrganization(fig_edge);
+    auto fec_edge = parser_->parseFig014_FECSubchannel(fig_edge);
     // Note: Parser may or may not accept size=864 depending on implementation
     // We test that validation function works
     if (fec_edge.is_valid) {
@@ -420,7 +420,7 @@ void TestFig014FECSubchannel::test_validate_all_fields() {
     qDebug() << "TEST: Validate all fields together";
 
     auto fig_data = createLongFormFig014(30, 1, 200, 150, 2, 5);
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+    auto fec = parser_->parseFig014_FECSubchannel(fig_data);
 
     QVERIFY(fec.is_valid);
     QVERIFY(fec.validateSubChannelId());
@@ -436,7 +436,7 @@ void TestFig014FECSubchannel::test_empty_data() {
     qDebug() << "TEST: Empty data handling";
 
     std::vector<uint8_t> empty_data;
-    auto fec = parser_->parseFig014_FECSubchannelOrganization(empty_data);
+    auto fec = parser_->parseFig014_FECSubchannel(empty_data);
 
     QVERIFY(!fec.is_valid);
 }
@@ -445,15 +445,15 @@ void TestFig014FECSubchannel::test_minimal_invalid_data() {
     qDebug() << "TEST: Minimal invalid data (1-3 bytes)";
 
     std::vector<uint8_t> one_byte = {0x0E};
-    auto fec1 = parser_->parseFig014_FECSubchannelOrganization(one_byte);
+    auto fec1 = parser_->parseFig014_FECSubchannel(one_byte);
     QVERIFY(!fec1.is_valid);
 
     std::vector<uint8_t> two_bytes = {0x0E, 0x28};
-    auto fec2 = parser_->parseFig014_FECSubchannelOrganization(two_bytes);
+    auto fec2 = parser_->parseFig014_FECSubchannel(two_bytes);
     QVERIFY(!fec2.is_valid);
 
     std::vector<uint8_t> three_bytes = {0x0E, 0x28, 0x64};
-    auto fec3 = parser_->parseFig014_FECSubchannelOrganization(three_bytes);
+    auto fec3 = parser_->parseFig014_FECSubchannel(three_bytes);
     QVERIFY(!fec3.is_valid);
 }
 
@@ -468,7 +468,7 @@ void TestFig014FECSubchannel::test_parsing_performance() {
 
     // Warm-up
     for (int i = 0; i < 10; ++i) {
-        parser_->parseFig014_FECSubchannelOrganization(fig_data);
+        parser_->parseFig014_FECSubchannel(fig_data);
     }
 
     // Benchmark
@@ -476,7 +476,7 @@ void TestFig014FECSubchannel::test_parsing_performance() {
     auto start_time = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < iterations; ++i) {
-        auto fec = parser_->parseFig014_FECSubchannelOrganization(fig_data);
+        auto fec = parser_->parseFig014_FECSubchannel(fig_data);
         QVERIFY(fec.is_valid);
     }
 
