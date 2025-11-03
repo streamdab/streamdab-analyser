@@ -311,6 +311,20 @@ target_link_libraries(test_fig005_language
 )
 add_test(NAME test_fig005_language COMMAND test_fig005_language)
 
+# FIG 0/7 Service Component Stream Mode Test
+add_executable(test_fig007_stream_mode
+    test_fig007_stream_mode.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_fig007_stream_mode
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_fig007_stream_mode COMMAND test_fig007_stream_mode)
+
 # FIG 0/17 Programme Type Test
 add_executable(test_fig017_programme_type
     test_fig017_programme_type.cpp
@@ -408,6 +422,34 @@ target_link_libraries(test_fig019_announcement_switching
     Qt6::Core
 )
 add_test(NAME test_fig019_announcement_switching COMMAND test_fig019_announcement_switching)
+
+# FIG 0/21 Frequency Information Test (PDCA Week 7 - Batch 3 / Agent 25)
+add_executable(test_fig021_frequency_information
+    test_fig021_frequency_information.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_fig021_frequency_information
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_fig021_frequency_information COMMAND test_fig021_frequency_information)
+
+# FIG 0/11 Region Definition Test (PDCA Week 7 - Batch 3 / Agent 24)
+add_executable(test_fig011_region_definition
+    test_fig011_region_definition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_fig011_region_definition
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_fig011_region_definition COMMAND test_fig011_region_definition)
 
 # FIG Week 2 Comprehensive Integration Test
 add_executable(test_fig_week2_comprehensive
