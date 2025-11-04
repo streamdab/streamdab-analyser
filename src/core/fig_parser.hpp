@@ -434,6 +434,55 @@ struct ProgrammeType {
 };
 
 /**
+ * @brief FIG 0/20 Service Component Information Structure
+ * Reference: ETSI EN 300 401 Section 8.1.15
+ *
+ * Provides service component information including CA protection and component lists.
+ * Used for detailed service component configuration and conditional access signaling.
+ * PDCA Week 7 - Batch 4 / Agent 30 implementation.
+ */
+struct ServiceComponentInfo {
+    uint32_t service_id{0};               // Service ID (16-bit or 32-bit)
+    uint16_t sc_id{0};                    // Service Component ID (12-bit, 0-4095)
+    bool ca_flag{false};                  // Conditional Access flag
+    uint8_t num_components{0};            // Number of components
+    std::vector<uint8_t> component_list;  // Component list (variable length)
+    bool is_valid{false};                 // Validation flag
+
+    /**
+     * @brief Get number of components in the list
+     * @return Number of components
+     */
+    size_t getComponentCount() const {
+        return component_list.size();
+    }
+
+    /**
+     * @brief Check if service component is CA protected
+     * @return true if conditional access is applied
+     */
+    bool isProtected() const {
+        return ca_flag;
+    }
+
+    /**
+     * @brief Validate service component ID range
+     * @return true if SCId is valid (0-4095, 12-bit)
+     */
+    bool validateSCId() const {
+        return sc_id < 4096;
+    }
+
+    /**
+     * @brief Validate service ID
+     * @return true if service_id is non-zero
+     */
+    bool validateServiceId() const {
+        return service_id != 0;
+    }
+};
+
+/**
  * @brief FIG 0/3 Service Component in Packet Mode Structure
  * Reference: ETSI EN 300 401 Section 8.1.3
  *
@@ -663,6 +712,141 @@ struct FECSubchannelOrganization {
         return short_form ? (table_index & 0x3F) : protection_level;
     }
 };
+
+/**
+ * @brief FIG 0/15 Programme Number Structure
+ * Reference: ETSI EN 300 401 Section 8.1.13
+ *
+ * Provides programme number information for services.
+ * Links services to programme numbers for EPG and content identification.
+ * PDCA Week 7 - Batch 4 / Agent 28 implementation.
+ */
+struct ProgrammeNumber {
+    uint32_t service_id{0};           // Service ID (16-bit or 32-bit)
+    uint16_t programme_number{0};     // Programme Number (16-bit, 0-65535)
+    bool continuation_flag{false};    // Continuation flag (1-bit)
+    bool update_flag{false};          // Update flag (1-bit)
+    bool is_valid{false};             // Validation flag
+
+    /**
+     * @brief Check if programme has continuation
+     * @return true if continuation_flag is set
+     */
+    bool isContinuation() const {
+        return continuation_flag;
+    }
+
+    /**
+     * @brief Check if programme has updates
+     * @return true if update_flag is set
+     */
+    bool hasUpdate() const {
+        return update_flag;
+    }
+
+    /**
+     * @brief Validate service ID
+     * @return true if service_id is non-zero
+     */
+    bool validateServiceId() const {
+        return service_id != 0;
+    }
+
+    /**
+     * @brief Validate programme number
+     * @return true if programme_number is non-zero
+     */
+    bool validateProgrammeNumber() const {
+        return programme_number != 0;
+    }
+};
+
+/**
+ * @brief FIG 0/16 Programme Type International Structure
+ * Reference: ETSI EN 300 401 Section 8.1.14
+ *
+ * Provides international programme type categorization for cross-border services.
+ * Supports RDS PTy compatibility, RBDS (North America), and proprietary regional schemes.
+ * PDCA Week 7 - Batch 4 / Agent 29 implementation.
+ */
+struct ProgrammeTypeInternational {
+    uint32_t service_id{0};           // Service ID (16-bit in practice, 32-bit field)
+    uint8_t international_code{0};    // International code (8-bit, 0-255)
+    uint8_t programme_type{0};        // Programme type (5-bit, 0-31)
+    uint8_t language_code{0};         // Language code (8-bit)
+    bool is_valid{false};             // Validation flag
+
+    /**
+     * @brief Get international type name
+     * @return Human-readable international code description
+     */
+    std::string getInternationalTypeName() const {
+        if (international_code == 0x00) {
+            return "RDS PTy Compatible";
+        } else if (international_code == 0x01) {
+            return "RBDS (North America)";
+        } else if (international_code >= 0x80 && international_code <= 0xFF) {
+            return "Proprietary/Regional";
+        } else {
+            return "Reserved";
+        }
+    }
+
+    /**
+     * @brief Validate international code
+     * @return true (all 8-bit values are valid)
+     */
+    bool isValidCode() const {
+        return true;  // All 8-bit values (0-255) are valid
+    }
+
+    /**
+     * @brief Get programme type name
+     * @return Human-readable programme type name (same as FIG 0/17)
+     */
+    std::string getProgrammeTypeName() const {
+        static const std::string pty_names[32] = {
+            "No PTy",               // 0
+            "News",                 // 1
+            "Current Affairs",      // 2
+            "Information",          // 3
+            "Sport",                // 4
+            "Education",            // 5
+            "Drama",                // 6
+            "Culture",              // 7
+            "Science",              // 8
+            "Varied",               // 9
+            "Pop Music",            // 10
+            "Rock Music",           // 11
+            "Easy Listening Music", // 12
+            "Light Classical",      // 13
+            "Serious Classical",    // 14
+            "Other Music",          // 15
+            "Weather/meteorology",  // 16
+            "Finance/Business",     // 17
+            "Children's programmes",// 18
+            "Social Affairs",       // 19
+            "Religion",             // 20
+            "Phone In",             // 21
+            "Travel",               // 22
+            "Leisure",              // 23
+            "Jazz Music",           // 24
+            "Country Music",        // 25
+            "National Music",       // 26
+            "Oldies Music",         // 27
+            "Folk Music",           // 28
+            "Documentary",          // 29
+            "Reserved",             // 30
+            "Reserved"              // 31
+        };
+
+        if (programme_type < 32) {
+            return pty_names[programme_type];
+        }
+        return "Unknown";
+    }
+};
+
 /**
  * @brief FIG 0/11 Region Definition Structure
  * Reference: ETSI EN 300 401 Section 8.1.9
@@ -772,6 +956,62 @@ struct FrequencyInformation {
             return static_cast<double>(frequency_list[index]) / 1000000.0;
         }
         return 0.0;
+    }
+};
+
+/**
+ * @brief FIG 0/12 MPEG-2 TS Streaming Structure
+ * Reference: ETSI EN 300 401 Section 8.1.10
+ *
+ * Provides MPEG-2 Transport Stream configuration for DVB services over DAB.
+ * Used for hybrid DVB-T/DAB systems with MPEG-2 TS multiplexing.
+ * PDCA Week 7 - Batch 4 / Agent 27 implementation.
+ */
+struct Mpeg2TsStreaming {
+    uint32_t service_id{0};         // Service ID (32-bit)
+    bool msc_flag{false};           // MSC flag: true=MSC transport, false=reserved
+    uint8_t sub_ch_id{0};           // Sub-channel ID (6-bit, 0-63)
+    uint16_t mpeg_frame_size{0};    // MPEG-2 TS frame size (16-bit)
+    bool is_valid{false};           // Validation flag
+
+    /**
+     * @brief Check if using MSC transport
+     * @return true if MSC transport is used
+     */
+    bool isMscTransport() const {
+        return msc_flag;
+    }
+
+    /**
+     * @brief Get MPEG-2 TS frame size
+     * @return Frame size in bytes
+     */
+    uint16_t getFrameSize() const {
+        return mpeg_frame_size;
+    }
+
+    /**
+     * @brief Validate sub-channel ID range
+     * @return true if SubChId is valid (0-63)
+     */
+    bool validateSubChannelId() const {
+        return sub_ch_id < 64;
+    }
+
+    /**
+     * @brief Validate frame size (typical MPEG-2 TS packet is 188 bytes)
+     * @return true if frame size is non-zero
+     */
+    bool validateFrameSize() const {
+        return mpeg_frame_size > 0;
+    }
+
+    /**
+     * @brief Validate service ID (must be non-zero)
+     * @return true if service ID is valid
+     */
+    bool validateServiceId() const {
+        return service_id != 0;
     }
 };
 
@@ -1015,6 +1255,23 @@ public:
     RegionDefinition parseFig011_RegionDefinition(const std::vector<uint8_t>& fig_data);
 
     /**
+     * @brief Parse FIG 0/12 MPEG-2 TS streaming
+     * @param fig_data FIG data payload
+     * @return Parsed MPEG-2 TS streaming information
+     * Reference: ETSI EN 300 401 Section 8.1.10
+     * PDCA Week 7 - Batch 4 / Agent 27
+     */
+
+    /**
+     * @brief Parse FIG 0/12 MPEG-2 TS streaming
+     * @param fig_data FIG data payload
+     * @return Parsed MPEG-2 TS streaming information
+     * Reference: ETSI EN 300 401 Section 8.1.10
+     * PDCA Week 7 - Batch 4 / Agent 27
+     */
+    Mpeg2TsStreaming parseFig012_Mpeg2TsStreaming(const std::vector<uint8_t>& fig_data);
+
+    /**
      * @brief Parse FIG 0/13 user application information
      * @param fig_data FIG data payload
      * @return Parsed user application information
@@ -1034,6 +1291,25 @@ public:
     FECSubchannelOrganization parseFig014_FECSubchannel(const std::vector<uint8_t>& fig_data);
 
     /**
+     * @brief Parse FIG 0/15 programme number
+     * @param fig_data FIG data payload
+     * @return Parsed programme number information
+     * Reference: ETSI EN 300 401 Section 8.1.13
+     * PDCA Week 7 - Batch 4 / Agent 28
+     */
+    ProgrammeNumber parseFig015_ProgrammeNumber(const std::vector<uint8_t>& fig_data);
+
+    /**
+     * @brief Parse FIG 0/16 programme type international
+     * @param fig_data FIG data payload
+     * @return Parsed programme type international information
+     * Reference: ETSI EN 300 401 Section 8.1.14
+     * PDCA Week 7 - Batch 4 / Agent 29
+     */
+    ProgrammeTypeInternational parseFig016_ProgrammeTypeInternational(
+        const std::vector<uint8_t>& fig_data);
+
+    /**
      * @brief Parse FIG 0/19 announcement switching
      * @param fig_data FIG data payload
      * @return Parsed announcement switching information
@@ -1041,6 +1317,16 @@ public:
      */
     AnnouncementSwitching parseFig019_AnnouncementSwitching(
         const std::vector<uint8_t>& fig_data);
+    /**
+     * @brief Parse FIG 0/20 service component information
+     * @param fig_data FIG data payload
+    //      * @return Parsed service component information
+    //      * Reference: ETSI EN 300 401 Section 8.1.15
+          * PDCA Week 7 - Batch 4 / Agent 30
+          */
+    ServiceComponentInfo parseFig020_ServiceComponentInfo(
+        const std::vector<uint8_t>& fig_data);
+
 
     /**
      * @brief Parse FIG 0/21 frequency information
@@ -1191,6 +1477,20 @@ signals:
     void fecSubchannelDiscovered(const FECSubchannelOrganization& fec_subchannel);
 
     /**
+     * @brief Emitted when programme number is discovered
+     * @param programme_number Programme number information
+     * PDCA Week 7 - Batch 4 / Agent 28
+     */
+    void programmeNumberDiscovered(const ProgrammeNumber& programme_number);
+
+    /**
+     * @brief Emitted when programme type international is discovered
+     * @param pty_intl Programme type international information
+     * PDCA Week 7 - Batch 4 / Agent 29
+     */
+    void programmeTypeInternationalDiscovered(const ProgrammeTypeInternational& pty_intl);
+
+    /**
      * @brief Emitted when region definition is discovered
      * @param region_def Region definition information
      * PDCA Week 7 - Batch 3 / Agent 24
@@ -1215,7 +1515,21 @@ signals:
      * @param freq_info Frequency information
      * PDCA Week 7 - Batch 3 / Agent 25
      */
+    /**
+     * @brief Emitted when service component information is discovered
+     * @param sc_info Service component information
+     * PDCA Week 7 - Batch 4 / Agent 30
+     */
+    void serviceComponentInfoDiscovered(const ServiceComponentInfo& sc_info);
+
     void frequencyInformationDiscovered(const FrequencyInformation& freq_info);
+
+    /**
+     * @brief Emitted when MPEG-2 TS streaming is discovered
+     * @param mpeg2_ts MPEG-2 TS streaming information
+     * PDCA Week 7 - Batch 4 / Agent 27
+     */
+    void mpeg2TsStreamingDiscovered(const Mpeg2TsStreaming& mpeg2_ts);
 
     /**
      * @brief Emitted when ensemble label is discovered

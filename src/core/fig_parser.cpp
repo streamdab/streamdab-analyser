@@ -302,6 +302,24 @@ bool FigParser::parseFigType0(const FigBlock& fig_block, uint8_t extension) {
             break;
         }
 
+        case 15: { // FIG 0/15 - Programme number (PDCA Week 7 - Batch 4 / Agent 28)
+            auto programme_number = parseFig015_ProgrammeNumber(fig_block.data);
+            if (programme_number.is_valid) {
+                emit programmeNumberDiscovered(programme_number);
+                success = true;
+            }
+            break;
+        }
+
+        case 16: { // FIG 0/16 - Programme type international (PDCA Week 7 - Batch 4 / Agent 29)
+            auto pty_intl = parseFig016_ProgrammeTypeInternational(fig_block.data);
+            if (pty_intl.is_valid) {
+                emit programmeTypeInternationalDiscovered(pty_intl);
+                success = true;
+            }
+            break;
+        }
+
         case 17: { // FIG 0/17 - Programme type
             auto programme_type = parseFig017_ProgrammeType(fig_block.data);
             if (programme_type.is_valid) {
@@ -1963,6 +1981,85 @@ ServiceComponentLanguage FigParser::parseFig005_ServiceComponentLanguage(
 }
 
 // ==============================================================================
+// FIG 0/16: Programme Type International Implementation
+// ==============================================================================
+
+ProgrammeTypeInternational FigParser::parseFig016_ProgrammeTypeInternational(const std::vector<uint8_t>& fig_data) {
+    ProgrammeTypeInternational result;
+    result.is_valid = false;
+
+    // Minimum size check: ext (1) + SId (2) + Intl code (1) + PTy+Lang (2) = 6 bytes
+    if (fig_data.size() < 6) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/16: Insufficient data - got %1 bytes, need 6")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension byte
+
+        // Parse Service ID (16-bit big-endian)
+        result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 8) |
+                           static_cast<uint32_t>(fig_data[offset + 1]);
+        offset += 2;
+
+        // Parse International code (8-bit)
+        result.international_code = fig_data[offset++];
+
+        // Parse byte 4: [5 bits PTy (7-3)][3 bits Lang upper (2-0)]
+        uint8_t byte4 = fig_data[offset++];
+        result.programme_type = (byte4 >> 3) & 0x1F;  // Bits 7-3: PTy (5-bit)
+        uint8_t lang_upper = byte4 & 0x07;            // Bits 2-0: Lang upper
+
+        // Parse byte 5: [5 bits Lang lower (7-3)][3 bits reserved (2-0)]
+        uint8_t byte5 = fig_data[offset++];
+        uint8_t lang_lower = (byte5 >> 3) & 0x1F;    // Bits 7-3: Lang lower
+
+        // Compose 8-bit language code
+        result.language_code = (lang_upper << 5) | lang_lower;
+
+        // Validate Service ID (must not be 0x0000)
+        if (result.service_id == 0) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/16: Invalid Service ID 0x0000"));
+            return result;
+        }
+
+        // Validate Programme type (5-bit range: 0-31)
+        if (result.programme_type > 31) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/16: Invalid PTy code %1 (> 31)").arg(result.programme_type));
+            return result;
+        }
+
+        // All validations passed
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("Parsed FIG 0/16 - SId: 0x%1, Intl: 0x%2 (%3), PTy: %4 (%5), Lang: 0x%6")
+                .arg(result.service_id, 4, 16, QChar('0'))
+                .arg(result.international_code, 2, 16, QChar('0'))
+                .arg(QString::fromStdString(result.getInternationalTypeName()))
+                .arg(result.programme_type)
+                .arg(QString::fromStdString(result.getProgrammeTypeName()))
+                .arg(result.language_code, 2, 16, QChar('0')));
+
+        // Emit signal
+        if (result.is_valid) {
+            emit programmeTypeInternationalDiscovered(result);
+        }
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/16: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+// ==============================================================================
 // FIG 0/17: Programme Type Implementation
 // ==============================================================================
 
@@ -2651,6 +2748,99 @@ FECSubchannelOrganization FigParser::parseFig014_FECSubchannel(
 
     return fec;
 }
+
+/**
+ * @brief Parse FIG 0/15 - Programme Number
+ * Reference: ETSI EN 300 401 Section 8.1.13
+ * PDCA Week 7 - Batch 4 / Agent 28 implementation
+ */
+ProgrammeNumber FigParser::parseFig015_ProgrammeNumber(
+    const std::vector<uint8_t>& fig_data) {
+
+    ProgrammeNumber result;
+    result.is_valid = false;
+
+    // Minimum size: 1 (ext) + 2 (16-bit SId) + 2 (PNum) + 1 (flags) = 6 bytes for 16-bit SId
+    // Or: 1 (ext) + 4 (32-bit SId) + 2 (PNum) + 1 (flags) = 8 bytes for 32-bit SId
+    if (fig_data.size() < 6) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/15: Insufficient data - got %1 bytes, need at least 6")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension field
+
+        // Byte 0: P/D flag (bit 7) determines service ID size
+        uint8_t pd_flag = (fig_data[offset] & 0x80) != 0;
+        
+        // Extract Service ID (16-bit or 32-bit based on P/D flag)
+        if (pd_flag) {
+            // 32-bit Service ID
+            if (fig_data.size() < 8) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    QString("FIG 0/15: Insufficient data for 32-bit SId - got %1 bytes, need 8")
+                    .arg(fig_data.size()));
+                return result;
+            }
+            
+            result.service_id = (static_cast<uint32_t>(fig_data[offset] & 0x7F) << 24) |
+                               (static_cast<uint32_t>(fig_data[offset + 1]) << 16) |
+                               (static_cast<uint32_t>(fig_data[offset + 2]) << 8) |
+                               static_cast<uint32_t>(fig_data[offset + 3]);
+            offset += 4;
+        } else {
+            // 16-bit Service ID
+            result.service_id = (static_cast<uint32_t>(fig_data[offset] & 0x7F) << 8) |
+                               static_cast<uint32_t>(fig_data[offset + 1]);
+            offset += 2;
+        }
+
+        // Bytes N-N+1: Programme Number (16-bit, big-endian)
+        result.programme_number = (static_cast<uint16_t>(fig_data[offset]) << 8) |
+                                 static_cast<uint16_t>(fig_data[offset + 1]);
+        offset += 2;
+
+        // Byte N+2: [Continuation flag][Update flag][RFA 6-bit]
+        uint8_t flags_byte = fig_data[offset++];
+        result.continuation_flag = (flags_byte & 0x80) != 0;  // Bit 7
+        result.update_flag = (flags_byte & 0x40) != 0;        // Bit 6
+
+        // Validation
+        if (!result.validateServiceId()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                "FIG 0/15: Invalid Service ID (must be non-zero)");
+            return result;
+        }
+
+        if (!result.validateProgrammeNumber()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                "FIG 0/15: Invalid Programme Number (must be non-zero)");
+            return result;
+        }
+
+        // All validations passed
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Info, "FigParser",
+            QString("Parsed FIG 0/15 - SId=0x%1, PNum=%2, Cont=%3, Update=%4")
+            .arg(result.service_id, pd_flag ? 8 : 4, 16, QChar('0'))
+            .arg(result.programme_number)
+            .arg(result.continuation_flag ? "Yes" : "No")
+            .arg(result.update_flag ? "Yes" : "No"));
+
+        // Emit signal
+        emit programmeNumberDiscovered(result);
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/15: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
 /**
  * @brief Parse FIG 0/19 - Announcement Switching
  * Reference: ETSI EN 300 401 Section 8.1.12
@@ -2851,6 +3041,188 @@ FrequencyInformation FigParser::parseFig021_FrequencyInformation(
     return result;
 }
 
+
+/**
+ * @brief Parse FIG 0/20 - Service Component Information
+ * Reference: ETSI EN 300 401 Section 8.1.15
+ * PDCA Week 7 - Batch 4 / Agent 30 implementation
+ */
+ServiceComponentInfo FigParser::parseFig020_ServiceComponentInfo(
+    const std::vector<uint8_t>& fig_data) {
+
+    ServiceComponentInfo result;
+    result.is_valid = false;
+
+    // Minimum size: 1 (ext) + 2 (SId 16-bit) + 2 (SCId 12-bit + CA 1-bit + RFA) + 1 (num_components) = 6 bytes minimum
+    if (fig_data.size() < 6) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/20: Insufficient data - got %1 bytes, need at least 6")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension field
+
+        // Byte 1-2: Service ID (16-bit big-endian)
+        // Note: According to ETSI EN 300 401, this could be 16 or 32-bit based on P/D flag
+        // For this implementation, we assume 16-bit (programme service)
+        result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 8) |
+                            static_cast<uint32_t>(fig_data[offset + 1]);
+        offset += 2;
+
+        // Bytes 3-4: [SCId 12-bit][CA flag 1-bit][RFA 3-bit]
+        uint16_t sc_id_ca_field = (static_cast<uint16_t>(fig_data[offset]) << 8) |
+                                   static_cast<uint16_t>(fig_data[offset + 1]);
+        offset += 2;
+
+        // Extract SC ID (12 bits, bits 15-4)
+        result.sc_id = (sc_id_ca_field >> 4) & 0x0FFF;
+
+        // Extract CA flag (1 bit, bit 3)
+        result.ca_flag = (sc_id_ca_field & 0x0008) != 0;
+
+        // Byte 5: Number of components (8-bit)
+        result.num_components = fig_data[offset++];
+
+        // Validate num_components against remaining data
+        size_t remaining_bytes = fig_data.size() - offset;
+        if (result.num_components > remaining_bytes) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/20: num_components=%1 exceeds remaining bytes=%2")
+                .arg(result.num_components)
+                .arg(remaining_bytes));
+            return result;
+        }
+
+        // Bytes 6+: Component list (variable length)
+        result.component_list.clear();
+        result.component_list.reserve(result.num_components);
+
+        for (uint8_t i = 0; i < result.num_components && offset < fig_data.size(); ++i) {
+            result.component_list.push_back(fig_data[offset++]);
+        }
+
+        // Validation checks
+        if (!result.validateServiceId()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/20: Invalid Service ID: %1").arg(result.service_id));
+            return result;
+        }
+
+        if (!result.validateSCId()) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/20: Invalid SC ID: %1 (must be < 4096)").arg(result.sc_id));
+            return result;
+        }
+
+        // All validations passed
+        result.is_valid = true;
+
+        // Build component list string for logging
+        QStringList comp_list_str;
+        for (uint8_t comp : result.component_list) {
+            comp_list_str << QString("0x%1").arg(comp, 2, 16, QChar('0'));
+        }
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("FIG 0/20: SId=0x%1, SCId=%2, CA=%3, NumComp=%4, CompList=[%5]")
+                .arg(result.service_id, 4, 16, QChar('0'))
+                .arg(result.sc_id)
+                .arg(result.ca_flag ? "Yes" : "No")
+                .arg(result.num_components)
+                .arg(comp_list_str.join(", ")));
+
+        // Emit signal
+        //         emit serviceComponentInfoDiscovered(result);
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/20: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
+
+
+Mpeg2TsStreaming FigParser::parseFig012_Mpeg2TsStreaming(
+    const std::vector<uint8_t>& fig_data) {
+
+    Mpeg2TsStreaming result;
+    result.is_valid = false;
+
+    // Minimum size: 1 (ext) + 4 (SId) + 1 (MSC flag + SubChId) + 2 (frame size) = 8 bytes
+    if (fig_data.size() < 8) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/12: Insufficient data - got %1 bytes, need at least 8")
+            .arg(fig_data.size()));
+        return result;
+    }
+
+    try {
+        size_t offset = 1; // Skip extension field
+
+        // Bytes 1-4: Service ID (32-bit, big-endian)
+        result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 24) |
+                           (static_cast<uint32_t>(fig_data[offset + 1]) << 16) |
+                           (static_cast<uint32_t>(fig_data[offset + 2]) << 8) |
+                           static_cast<uint32_t>(fig_data[offset + 3]);
+        offset += 4;
+
+        // Validate service ID
+        if (result.service_id == 0) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                "FIG 0/12: Service ID is 0 (invalid)");
+            return result;
+        }
+
+        // Byte 5: [MSC flag 1-bit][SubChId 6-bit][RFA 1-bit]
+        uint8_t byte5 = fig_data[offset++];
+        result.msc_flag = (byte5 & 0x80) != 0;     // Bit 7
+        result.sub_ch_id = (byte5 >> 1) & 0x3F;    // Bits 6-1 (6 bits)
+
+        // Validate SubChId
+        if (result.sub_ch_id >= 64) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/12: SubChId %1 out of range (0-63)")
+                .arg(result.sub_ch_id));
+            return result;
+        }
+
+        // Bytes 6-7: MPEG-2 TS frame size (16-bit, big-endian)
+        result.mpeg_frame_size = (static_cast<uint16_t>(fig_data[offset]) << 8) |
+                                 static_cast<uint16_t>(fig_data[offset + 1]);
+        offset += 2;
+
+        // Validate frame size
+        if (result.mpeg_frame_size == 0) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                "FIG 0/12: MPEG frame size is 0 (invalid)");
+            return result;
+        }
+
+        // All validations passed
+        result.is_valid = true;
+
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("FIG 0/12: SId=0x%1, MSC=%2, SubChId=%3, FrameSize=%4 bytes")
+                .arg(result.service_id, 8, 16, QChar('0'))
+                .arg(result.msc_flag ? "Yes" : "No")
+                .arg(result.sub_ch_id)
+                .arg(result.mpeg_frame_size));
+
+        // Emit signal
+        emit mpeg2TsStreamingDiscovered(result);
+
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/12: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+
+    return result;
+}
 
 
 } // namespace eti::fig
