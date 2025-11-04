@@ -325,6 +325,20 @@ target_link_libraries(test_fig007_stream_mode
 )
 add_test(NAME test_fig007_stream_mode COMMAND test_fig007_stream_mode)
 
+# FIG 0/16 Programme Type International Test (Python Pro Agent 29 - November 4, 2025)
+add_executable(test_fig016_programme_type_intl
+    test_fig016_programme_type_intl.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_fig016_programme_type_intl
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_fig016_programme_type_intl COMMAND test_fig016_programme_type_intl)
+
 # FIG 0/17 Programme Type Test
 add_executable(test_fig017_programme_type
     test_fig017_programme_type.cpp
@@ -409,6 +423,20 @@ target_link_libraries(test_fig014_fec_subchannel
 )
 add_test(NAME test_fig014_fec_subchannel COMMAND test_fig014_fec_subchannel)
 
+# FIG 0/15 Programme Number Test (PDCA Week 7 - Batch 4 / Agent 28)
+add_executable(test_fig015_programme_number
+    test_fig015_programme_number.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_fig015_programme_number
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_fig015_programme_number COMMAND test_fig015_programme_number)
+
 # FIG 0/19 Announcement Switching Test (PDCA Week 7 - Batch 2 / Agent 22)
 add_executable(test_fig019_announcement_switching
     test_fig019_announcement_switching.cpp
@@ -436,6 +464,20 @@ target_link_libraries(test_fig021_frequency_information
     Qt6::Core
 )
 add_test(NAME test_fig021_frequency_information COMMAND test_fig021_frequency_information)
+
+# FIG 0/12 MPEG-2 TS Streaming Test (PDCA Week 7 - Batch 4 / Agent 27)
+add_executable(test_fig012_mpeg2_ts
+    test_fig012_mpeg2_ts.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_fig012_mpeg2_ts
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_fig012_mpeg2_ts COMMAND test_fig012_mpeg2_ts)
 
 # FIG 0/11 Region Definition Test (PDCA Week 7 - Batch 3 / Agent 24)
 add_executable(test_fig011_region_definition
@@ -661,3 +703,17 @@ else()
     message(STATUS "  Total Test Executables: 27")
 endif()
 message(STATUS "==============================================")
+
+# FIG 0/20 Service Component Information Test (PDCA Week 7 - Batch 4 / Agent 30)
+add_executable(test_fig020_service_component_info
+    test_fig020_service_component_info.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_fig020_service_component_info
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_fig020_service_component_info COMMAND test_fig020_service_component_info)
