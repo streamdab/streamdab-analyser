@@ -1,0 +1,252 @@
+/**
+ * @file cli_main.cpp
+ * @brief CLI Mode Entry Point and Orchestration for StreamDAB Analyzer
+ *
+ * Implements the complete CLI workflow:
+ * 1. Parse command-line arguments (CLIArgumentParser)
+ * 2. Process ETI file (HeadlessETIProcessor)
+ * 3. Generate YAML output (YAMLOutputGenerator)
+ * 4. Return appropriate exit code
+ *
+ * @author Agent 36 - CLI Main Integration
+ * @date 2025-11-05
+ * @copyright StreamDAB Analyzer Project - PDCA Week 8
+ */
+
+#include "cli_main.hpp"
+#include "cli_argument_parser.hpp"
+#include "yaml_output_generator.hpp"
+#include "../core/headless_eti_processor.hpp"
+#include "../utils/logger.h"
+#include <QFile>
+#include <QElapsedTimer>
+#include <QCoreApplication>
+#include <QTextStream>
+#include <iostream>
+#include <stdexcept>
+
+namespace cli {
+
+namespace {
+    // Exit codes as per PDCA Week 8 specification
+    constexpr int CLI_EXIT_SUCCESS = 0;
+    constexpr int CLI_EXIT_INVALID_ARGS = 1;
+    constexpr int CLI_EXIT_FILE_NOT_FOUND = 2;
+    constexpr int CLI_EXIT_PROCESSING_ERROR = 3;
+    constexpr int CLI_EXIT_WRITE_ERROR = 4;
+
+    /**
+     * @brief Configure logging based on verbosity flags
+     * @param quiet Quiet mode (errors only)
+     * @param verbose Verbose mode (debug output)
+     */
+    void configureLogging(bool quiet, bool verbose) {
+        Logger::LogLevel logLevel;
+        if (quiet) {
+            logLevel = Logger::LogLevel::Error;
+        } else if (verbose) {
+            logLevel = Logger::LogLevel::Debug;
+        } else {
+            logLevel = Logger::LogLevel::Info;
+        }
+        Logger::instance().setLogLevel(logLevel);
+    }
+
+    /**
+     * @brief Print progress message to stdout (respects quiet mode)
+     * @param message Progress message
+     * @param quiet Quiet mode flag
+     */
+    void printProgress(const QString& message, bool quiet) {
+        if (!quiet) {
+            std::cout << message.toStdString() << std::endl;
+        }
+    }
+
+    /**
+     * @brief Print processing summary (respects quiet mode)
+     * @param result Processing result from HeadlessETIProcessor
+     * @param totalTimeMs Total processing time in milliseconds
+     * @param quiet Quiet mode flag
+     */
+    void printSummary(const HeadlessETIProcessor::ProcessingResult& result,
+                      qint64 totalTimeMs, bool quiet) {
+        if (quiet) return;
+
+        std::cout << "\n========================================\n";
+        std::cout << "Processing Summary\n";
+        std::cout << "========================================\n";
+        std::cout << "Status:          " << (result.success ? "SUCCESS" : "FAILED") << "\n";
+        std::cout << "Frames:          " << result.processedFrames << " / " << result.totalFrames << "\n";
+        std::cout << "Errors:          " << result.errorFrames << "\n";
+        std::cout << "Processing Time: " << QString::number(totalTimeMs / 1000.0, 'f', 2).toStdString() << " seconds\n";
+        std::cout << "Average FPS:     " << QString::number(result.averageFPS, 'f', 2).toStdString() << "\n";
+        std::cout << "Ensembles:       " << result.ensemblesFound;
+        if (!result.ensembleName.isEmpty()) {
+            std::cout << " (" << result.ensembleName.toStdString() << ")";
+        }
+        std::cout << "\n";
+        std::cout << "Services:        " << result.servicesFound << "\n";
+        std::cout << "ETSI Compliant:  " << (result.etsiCompliant ? "YES" : "NO") << "\n";
+        std::cout << "========================================\n\n";
+    }
+}
+
+int cli_main(int argc, char** argv) {
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+
+    try {
+        // Parse command-line arguments
+        CLIOptions options = CLIArgumentParser::parse(argc, argv);
+
+        // Handle help
+        if (options.show_help) {
+            CLIArgumentParser::printUsage();
+            return CLI_EXIT_SUCCESS;
+        }
+
+        // Handle version
+        if (options.show_version) {
+            CLIArgumentParser::printVersion();
+            return CLI_EXIT_SUCCESS;
+        }
+
+        // Configure logging based on verbosity
+        configureLogging(options.quiet, options.verbose);
+
+        // Verify input file exists (should be validated by parser, but double-check)
+        QFile inputFile(options.input_file);
+        if (!inputFile.exists()) {
+            std::cerr << "ERROR: Input file not found: " << options.input_file.toStdString() << "\n";
+            return CLI_EXIT_FILE_NOT_FOUND;
+        }
+
+        // Print initial status
+        printProgress(QString("Processing ETI file: %1").arg(options.input_file), options.quiet);
+        if (!options.output_file.isEmpty()) {
+            printProgress(QString("Output YAML file: %1").arg(options.output_file), options.quiet);
+        } else {
+            printProgress("Output: stdout", options.quiet);
+        }
+
+        // Create headless ETI processor
+        HeadlessETIProcessor processor;
+
+        // Connect progress signals for non-quiet mode
+        if (!options.quiet) {
+            QObject::connect(&processor, &HeadlessETIProcessor::status_changed,
+                             [](const QString& status) {
+                                 std::cout << "\r" << status.toStdString() << std::flush;
+                             });
+        }
+
+        // Start ETI processing
+        printProgress("\nStarting ETI processing...", options.quiet);
+
+        QElapsedTimer processingTimer;
+        processingTimer.start();
+
+        // Note: HeadlessETIProcessor::process_file requires output file parameter
+        // We'll use a temporary output if only stdout is desired
+        QString tempOutputFile = options.output_file;
+        if (tempOutputFile.isEmpty()) {
+            tempOutputFile = "/tmp/streamdab_temp_output.yaml";
+        }
+
+        HeadlessETIProcessor::ProcessingResult result =
+            processor.process_file(options.input_file, tempOutputFile);
+
+        qint64 processingTimeMs = processingTimer.elapsed();
+
+        // Check processing result
+        if (!result.success) {
+            std::cerr << "\nERROR: ETI processing failed: "
+                      << result.errorMessage.toStdString() << "\n";
+            return CLI_EXIT_PROCESSING_ERROR;
+        }
+
+        printProgress("\nETI processing completed successfully.", options.quiet);
+
+        // Generate YAML output using YAMLOutputGenerator
+        printProgress("Generating YAML output...", options.quiet);
+
+        YAMLOutputGenerator yamlGenerator;
+
+        // Set input file and processing time
+        yamlGenerator.setInputFile(options.input_file);
+        yamlGenerator.setProcessingTime(processingTimeMs);
+
+        // Set ETI stream info
+        yamlGenerator.setETIStreamInfo(
+            result.totalFrames,
+            result.processedFrames,
+            result.errorFrames,
+            0  // CRC errors - HeadlessETIProcessor doesn't provide this yet
+        );
+
+        // Set ETSI compliance
+        yamlGenerator.setETSICompliance(
+            result.etsiCompliant,
+            result.complianceWarnings
+        );
+
+        // Set performance metrics
+        yamlGenerator.setPerformanceMetrics(processingTimeMs, result.averageFPS);
+
+        // Note: Ensemble and service info would be added here if available
+        // from HeadlessETIProcessor. For now, we'll generate basic output.
+
+        // Generate YAML
+        QString yamlContent = yamlGenerator.generateYAML();
+
+        // Write output (file or stdout)
+        bool writeSuccess = false;
+        if (options.output_file.isEmpty()) {
+            // Write to stdout
+            writeSuccess = yamlGenerator.writeToStdout();
+        } else {
+            // Write to file
+            writeSuccess = yamlGenerator.writeToFile(options.output_file);
+        }
+
+        if (!writeSuccess) {
+            std::cerr << "ERROR: Failed to write YAML output\n";
+            return CLI_EXIT_WRITE_ERROR;
+        }
+
+        if (!options.output_file.isEmpty()) {
+            printProgress(QString("YAML output written to: %1").arg(options.output_file), options.quiet);
+        }
+
+        // Print summary
+        qint64 totalTimeMs = totalTimer.elapsed();
+        printSummary(result, totalTimeMs, options.quiet);
+
+        // Log final status
+        Logger::instance().logInfo(
+            QString("CLI processing completed successfully in %1 ms").arg(totalTimeMs),
+            "CLIMain"
+        );
+
+        return CLI_EXIT_SUCCESS;
+
+    } catch (const std::invalid_argument& e) {
+        // Argument parsing error
+        std::cerr << "ERROR: " << e.what() << "\n";
+        std::cerr << "Use --help for usage information.\n";
+        return CLI_EXIT_INVALID_ARGS;
+
+    } catch (const std::runtime_error& e) {
+        // File validation or runtime error
+        std::cerr << "ERROR: " << e.what() << "\n";
+        return CLI_EXIT_FILE_NOT_FOUND;
+
+    } catch (const std::exception& e) {
+        // Other exceptions
+        std::cerr << "FATAL ERROR: " << e.what() << "\n";
+        return CLI_EXIT_PROCESSING_ERROR;
+    }
+}
+
+} // namespace cli
