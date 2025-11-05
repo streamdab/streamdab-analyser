@@ -40,6 +40,14 @@ set(SOURCES
     src/core/network_stream_receiver.cpp
     src/core/eti_reader_thread.cpp
     src/core/shared_eti_data.cpp
+    src/core/headless_eti_processor.cpp
+    src/core/eti_processor.cpp
+    src/core/modern_eti_frame_parser.cpp
+    src/core/enhanced_fig_analyzer.cpp
+    src/core/comprehensive_etsi_validator.cpp
+    src/core/ensemble_manager.cpp
+    src/core/dab_service_discovery_engine.cpp
+    src/core/fig_parser.cpp
     src/utils/logger.cpp
 )
 
@@ -49,11 +57,18 @@ set(EDI_SOURCES
     src/network/pft_reassembler.cpp
 )
 
+# CLI Mode sources (PDCA Week 8)
+set(CLI_SOURCES
+    src/cli/cli_argument_parser.cpp
+    src/cli/yaml_output_generator.cpp
+    src/cli/cli_main.cpp
+)
+
 # Include directories
 include_directories(src include)
 
 # Create executable
-add_executable(DABAnalyzer_Enhanced_FilteringBuild ${SOURCES} ${EDI_SOURCES})
+add_executable(DABAnalyzer_Enhanced_FilteringBuild ${SOURCES} ${EDI_SOURCES} ${CLI_SOURCES})
 
 # Link Qt6 and ZeroMQ libraries
 target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild

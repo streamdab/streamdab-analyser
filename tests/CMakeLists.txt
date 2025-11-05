@@ -730,3 +730,72 @@ target_link_libraries(test_fig024_oe_services
     Qt6::Core
 )
 add_test(NAME test_fig024_oe_services COMMAND test_fig024_oe_services)
+
+# ============================================================================
+# PDCA Week 8 - CLI Mode Tests (Agent 36: CLI Main Integration)
+# ============================================================================
+
+# Agent 36: CLI Main Integration Test
+add_executable(test_cli_main_integration
+    test_cli_main_integration.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/cli/cli_main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/cli/cli_argument_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/cli/yaml_output_generator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/headless_eti_processor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_eti_processor_qt.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/ensemble_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_service_discovery_engine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_cli_main_integration
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_cli_main_integration COMMAND test_cli_main_integration)
+
+# Agent 34: CLI Argument Parser Test
+add_executable(test_cli_argument_parser
+    test_cli_argument_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/cli/cli_argument_parser.cpp
+)
+target_link_libraries(test_cli_argument_parser
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_cli_argument_parser COMMAND test_cli_argument_parser)
+
+# Agent 35: YAML Output Generator Test
+add_executable(test_yaml_output_generator
+    test_yaml_output_generator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/cli/yaml_output_generator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/ensemble_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_service_discovery_engine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_yaml_output_generator
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_yaml_output_generator COMMAND test_yaml_output_generator)
+
+# Agent 37: CLI Functional Tests (E2E)
+add_executable(test_cli_mode_functional
+    test_cli_mode_functional.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_cli_mode_functional
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_cli_mode_functional COMMAND test_cli_mode_functional)

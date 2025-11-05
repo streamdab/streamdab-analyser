@@ -54,6 +54,7 @@
 #include "core/network_stream_receiver.hpp"  // Phase 4: ETI-over-IP live streaming
 #include "core/eti_reader_thread.hpp"  // Phase A: Pattern 3 - Worker Thread
 #include "core/shared_eti_data.hpp"  // Phase A: Pattern 5 - Shared Data Model
+#include "cli/cli_main.hpp"  // PDCA Week 8: CLI mode integration
 
 // Note: gui/main_window.h exists for GUI testing purposes only
 // Do NOT include it here to avoid redefinition conflicts
@@ -5497,108 +5498,29 @@ DABAnalyzerWindow::~DABAnalyzerWindow()
 }
 
 // CLI Mode: Process ETI file without GUI
-int runCLIMode(const QString& etiFilePath)
-{
-    qInfo() << "=== DAB Analyzer CLI Mode ===";
-    qInfo() << "Processing ETI file:" << etiFilePath;
-    
-    // Create processor without GUI
-    auto processor = std::make_unique<EnhancedETIProcessorQt>();
-    
-    // Connect to debug output
-    int framesProcessed = 0;
-    int totalFrames = 0;
-    
-    QObject::connect(processor.get(), &EnhancedETIProcessorQt::processingStarted,
-                    [&totalFrames](const QString& fileName, int estimated) {
-                        totalFrames = estimated;
-                        qInfo() << "Starting processing of" << estimated << "frames from" << fileName;
-                    });
-    
-    QObject::connect(processor.get(), &EnhancedETIProcessorQt::frameProcessed,
-                    [&framesProcessed, &totalFrames](const ProcessedFrame& frame) {
-                        framesProcessed++;
-                        if (framesProcessed % 500 == 0 || framesProcessed == 1) {
-                            qInfo() << "Processed frame" << framesProcessed << "/" << totalFrames
-                                   << "- Format:" << (frame.format == ETIFormat::ETI_LI_A ? "ETI-LI-A" : "OTHER")
-                                   << "Valid:" << frame.is_valid;
-                        }
-                    });
-    
-    QObject::connect(processor.get(), &EnhancedETIProcessorQt::processingComplete,
-                    [&framesProcessed](int total, int timeMs) {
-                        qInfo() << "✅ Processing complete!" << total << "frames in" << timeMs << "ms";
-                        qInfo() << "   Successfully processed:" << framesProcessed << "frames";
-                    });
-    
-    QObject::connect(processor.get(), &EnhancedETIProcessorQt::processingError,
-                    [](const QString& error) {
-                        qCritical() << "❌ Processing Error:" << error;
-                    });
-    
-    QObject::connect(processor.get(), &EnhancedETIProcessorQt::frameError,
-                    [](int frameNum, const QString& error, const QString& details) {
-                        qWarning() << "Frame" << frameNum << "error:" << error << "-" << details;
-                    });
-    
-    // Process the file
-    if (!processor->processETIFile(etiFilePath)) {
-        qCritical() << "Failed to process ETI file";
-        return 1;
-    }
-    
-    qInfo() << "\n=== CLI Processing Summary ===";
-    qInfo() << "Total frames:" << totalFrames;
-    qInfo() << "Processed:" << framesProcessed;
-    qInfo() << "Status:" << (framesProcessed == totalFrames ? "✅ SUCCESS" : "⚠️  INCOMPLETE");
-    
-    return 0;
-}
-
 // Only compile main() function when not in GUI test mode
 #ifndef GUI_TEST_MODE
 int main(int argc, char *argv[])
 {
-    // Check for CLI mode
-    bool cliMode = false;
-    QString etiFilePath;
+    // Check for CLI mode flags
+    bool cli_mode = false;
     
     for (int i = 1; i < argc; i++) {
         QString arg = QString::fromUtf8(argv[i]);
-        if (arg == "--cli") {
-            cliMode = true;
-        } else if (arg == "-i" && i + 1 < argc) {
-            etiFilePath = QString::fromUtf8(argv[i + 1]);
-            i++; // Skip next argument
-        } else if (arg == "--help" || arg == "-h") {
-            qInfo() << "DAB Analyzer - ETI Stream Analysis Tool";
-            qInfo() << "";
-            qInfo() << "Usage:";
-            qInfo() << "  GUI mode:  " << argv[0];
-            qInfo() << "  CLI mode:  " << argv[0] << " --cli -i <eti_file>";
-            qInfo() << "";
-            qInfo() << "Options:";
-            qInfo() << "  --cli          Run in command-line mode (no GUI)";
-            qInfo() << "  -i <file>      Input ETI file to process";
-            qInfo() << "  --help, -h     Show this help message";
-            qInfo() << "";
-            qInfo() << "Example:";
-            qInfo() << "  " << argv[0] << " --cli -i /path/to/file.eti";
-            return 0;
+        if (arg == "--cli" || arg == "-c" || arg == "--help" || arg == "-h" ||
+            arg == "--version" || arg == "-v" || arg == "--input" || arg == "-i" ||
+            arg == "--quiet" || arg == "--verbose") {
+            cli_mode = true;
+            break;
         }
     }
     
-    // CLI Mode
-    if (cliMode) {
-        if (etiFilePath.isEmpty()) {
-            qCritical() << "Error: No input file specified. Use -i <file>";
-            qCritical() << "Run with --help for usage information";
-            return 1;
-        }
-        
-        // Use QCoreApplication for CLI (no GUI)
+    if (cli_mode) {
+        // CLI mode - no GUI (QCoreApplication)
         QCoreApplication app(argc, argv);
-        return runCLIMode(etiFilePath);
+        app.setApplicationName("StreamDAB Analyzer");
+        app.setApplicationVersion("1.1");
+        return cli::cli_main(argc, argv);
     }
     
     // GUI Mode (default)
