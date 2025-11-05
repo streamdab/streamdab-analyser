@@ -349,11 +349,15 @@ QString YAMLOutputGenerator::escapeYAMLString(const QString& str) const {
 }
 
 QString YAMLOutputGenerator::formatHex(quint16 value) const {
-    return QString("0x%1").arg(value, 4, 16, QChar('0')).toUpper();
+    // Format as 0xABCD (lowercase 'x', uppercase hex digits)
+    QString hex = QString::number(value, 16).toUpper().rightJustified(4, '0');
+    return QString("0x") + hex;
 }
 
 QString YAMLOutputGenerator::formatHex(quint32 value) const {
-    return QString("0x%1").arg(value, 8, 16, QChar('0')).toUpper();
+    // Format as 0x12345678 (lowercase 'x', uppercase hex digits)
+    QString hex = QString::number(value, 16).toUpper().rightJustified(8, '0');
+    return QString("0x") + hex;
 }
 
 QString YAMLOutputGenerator::formatProtectionLevel(const eti::fig::Fig01SubchannelInfo& subchannel) const {

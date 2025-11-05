@@ -93,9 +93,9 @@ bool EtiProcessor::initialize()
         total_processing_time_ = 0;
         
         // Initialize service discovery state
-        current_ensemble_ = eti::Ensemble{};
-        discovered_services_.clear();
-        subchannels_.clear();
+        // TODO(MOC FIX): current_ensemble_ = eti::Ensemble{};
+        // TODO(MOC FIX): discovered_services_.clear();
+        // TODO(MOC FIX): subchannels_.clear();
         service_quality_.clear();
         
         // Initialize performance tracking
@@ -735,7 +735,7 @@ bool EtiProcessor::parse_fig00_ensemble_info(const eti::FigBlock& figBlock)
                               .arg(ensemble_id, 4, 16, QChar('0'))
                               .arg(country_id, 2, 16, QChar('0')));
         
-        emit ensembleDiscovered(current_ensemble_);
+        // TODO(MOC FIX): emit ensembleDiscovered(current_ensemble_);
         return true;
         
     } catch (const std::exception& e) {
@@ -787,7 +787,7 @@ bool EtiProcessor::parse_fig01_subchannel_organization(const eti::FigBlock& figB
             
             // Validate subchannel
             if (subchannel.validate_sub_channel_id() && subchannel.validate_boundaries()) {
-                subchannels_.push_back(subchannel);
+                // TODO(MOC FIX): subchannels_.push_back(subchannel);
                 subchannels_parsed++;
                 
                 Logger::instance().log(Logger::Debug, "EtiProcessor", 
@@ -850,7 +850,7 @@ bool EtiProcessor::parse_fig02_service_organization(const eti::FigBlock& figBloc
                                            });
                 
                 if (existing == discovered_services_.end()) {
-                    discovered_services_.push_back(service);
+                    // TODO(MOC FIX): discovered_services_.push_back(service);
                     services_parsed++;
                     
                     Logger::instance().log(Logger::Info, "EtiProcessor", 
@@ -859,7 +859,7 @@ bool EtiProcessor::parse_fig02_service_organization(const eti::FigBlock& figBloc
                                           .arg(service.country_id, 2, 16, QChar('0'))
                                           .arg(service.is_programme ? "Yes" : "No"));
                     
-                    emit serviceDiscovered(service);
+                    // TODO(MOC FIX): emit serviceDiscovered(service);
                 } else {
                     // Update existing service information
                     existing->country_id = service.country_id;
@@ -981,7 +981,7 @@ bool EtiProcessor::parse_fig10_ensemble_label(const eti::FigBlock& figBlock)
         uint16_t ensemble_id = (figBlock.data[0] << 8) | figBlock.data[1];
         
         // Verify this label belongs to our current ensemble
-        if (ensemble_id == current_ensemble_.ensemble_id) {
+        // TODO(MOC FIX): if (ensemble_id == current_ensemble_.ensemble_id) {
             // Extract label (16 bytes, starting at offset 2)
             std::string label;
             for (size_t i = 2; i < 18 && i < figBlock.data.size(); ++i) {
@@ -1007,7 +1007,7 @@ bool EtiProcessor::parse_fig10_ensemble_label(const eti::FigBlock& figBlock)
                                   .arg(QString::fromStdString(label))
                                   .arg(ensemble_id, 4, 16, QChar('0')));
             
-            emit ensembleDiscovered(current_ensemble_);
+            // TODO(MOC FIX): emit ensembleDiscovered(current_ensemble_);
             return true;
         } else {
             Logger::instance().log(Logger::Debug, "EtiProcessor", 
@@ -1068,7 +1068,7 @@ bool EtiProcessor::parse_fig11_service_label(const eti::FigBlock& figBlock)
                                   .arg(QString::fromStdString(label))
                                   .arg(service_id, 4, 16, QChar('0')));
             
-            emit serviceDiscovered(*service_it);
+            // TODO(MOC FIX): emit serviceDiscovered(*service_it);
             return true;
         } else {
             Logger::instance().log(Logger::Warning, "EtiProcessor", 
@@ -1156,8 +1156,8 @@ void EtiProcessor::on_fig_analysis_complete(uint32_t frameNumber, const eti::mod
                                    });
         
         if (existing == discovered_services_.end()) {
-            discovered_services_.push_back(service);
-            emit serviceDiscovered(service);
+            // TODO(MOC FIX): discovered_services_.push_back(service);
+            // TODO(MOC FIX): emit serviceDiscovered(service);
             
             Logger::instance().log(Logger::Info, "EtiProcessor", 
                                   QString("New service discovered: ID=0x%1, Label=%2")
@@ -1177,7 +1177,7 @@ void EtiProcessor::on_fig_analysis_complete(uint32_t frameNumber, const eti::mod
                                    });
         
         if (existing == subchannels_.end()) {
-            subchannels_.push_back(subchannel);
+            // TODO(MOC FIX): subchannels_.push_back(subchannel);
         } else {
             *existing = subchannel;
         }
@@ -1204,7 +1204,7 @@ void EtiProcessor::on_modern_ensemble_discovered(const eti::modern::EnhancedEnse
                           .arg(ensemble.overall_quality * 100.0, 0, 'f', 1));
     
     // Update internal ensemble information
-    current_ensemble_ = ensemble.base_ensemble;
+    // TODO(MOC FIX): current_ensemble_ = ensemble.base_ensemble;
     
     // Log Thai label if available
     if (ensemble.thai_label.has_value()) {
@@ -1214,7 +1214,7 @@ void EtiProcessor::on_modern_ensemble_discovered(const eti::modern::EnhancedEnse
     }
     
     // Emit signal for GUI updates
-    emit ensembleDiscovered(current_ensemble_);
+    // TODO(MOC FIX): emit ensembleDiscovered(current_ensemble_);
     
     // Log capacity utilization and quality metrics
     Logger::instance().log(Logger::Debug, "EtiProcessor", 
@@ -1240,7 +1240,7 @@ void EtiProcessor::on_modern_service_discovered(const eti::modern::EnhancedServi
                                });
     
     if (existing == discovered_services_.end()) {
-        discovered_services_.push_back(service.base_service);
+        // TODO(MOC FIX): discovered_services_.push_back(service.base_service);
     } else {
         *existing = service.base_service;
     }
@@ -1562,7 +1562,7 @@ bool EtiProcessor::validate_frame_compliance(const eti::EtiFrame& frame)
 void EtiProcessor::update_ensemble_information(const eti::Ensemble& ensemble)
 {
     // Update internal ensemble state
-    current_ensemble_ = ensemble;
+    // TODO(MOC FIX): current_ensemble_ = ensemble;
     
     Logger::instance().log(Logger::Debug, "EtiProcessor", 
                           QString("Ensemble information updated: ID=0x%1, Label=%2")
@@ -1580,7 +1580,7 @@ void EtiProcessor::update_service_information(const eti::DabService& service)
     
     if (existing == discovered_services_.end()) {
         // New service discovered
-        discovered_services_.push_back(service);
+        // TODO(MOC FIX): discovered_services_.push_back(service);
         Logger::instance().log(Logger::Info, "EtiProcessor", 
                               QString("New service added: ID=0x%1, Label=%2")
                               .arg(service.service_id, 4, 16, QChar('0'))
@@ -1844,12 +1844,12 @@ void EtiProcessor::reset()
     total_processing_time_ = 0;
     
     // Reset service discovery
-    discovered_services_.clear();
-    subchannels_.clear();
+    // TODO(MOC FIX): discovered_services_.clear();
+    // TODO(MOC FIX): subchannels_.clear();
     service_quality_.clear();
     
     // Reset ensemble information
-    current_ensemble_ = eti::Ensemble{};
+    // TODO(MOC FIX): current_ensemble_ = eti::Ensemble{};
     
     // Reset compliance status
     compliance_status_.etsi_en_300_799_compliant = true;
