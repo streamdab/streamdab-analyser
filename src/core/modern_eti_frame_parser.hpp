@@ -251,33 +251,14 @@ public:
     [[nodiscard]] size_t getMemoryFootprint() const;
 
 signals:
-    /**
-     * @brief Emitted when frame is successfully parsed
-     * @param frame_number Frame sequence number
-     * @param frame Parsed ETI frame
-     * @param parse_time Processing time in nanoseconds
-     */
-    void frameProcessed(uint32_t frame_number, const eti::EtiFrame& frame, 
-                       std::chrono::nanoseconds parse_time);
+    // NOTE: Custom eti:: type signals commented out to avoid MOC compilation errors
+    // TODO: Refactor to use QByteArray serialization when needed
 
-    /**
-     * @brief Emitted when FIG analysis is complete
-     * @param frame_number Frame sequence number
-     * @param analysis FIG analysis result
-     */
-    void figAnalysisComplete(uint32_t frame_number, const FIGAnalysisResult& analysis);
-
-    /**
-     * @brief Emitted when ensemble information is discovered/updated
-     * @param ensemble Ensemble information
-     */
-    void ensembleDiscovered(const eti::Ensemble& ensemble);
-
-    /**
-     * @brief Emitted when service is discovered
-     * @param service DAB service information
-     */
-    void serviceDiscovered(const eti::DabService& service);
+    // void frameProcessed(uint32_t frame_number, const eti::EtiFrame& frame,
+    //                    std::chrono::nanoseconds parse_time);
+    // void figAnalysisComplete(uint32_t frame_number, const FIGAnalysisResult& analysis);
+    // void ensembleDiscovered(const eti::Ensemble& ensemble);
+    // void serviceDiscovered(const eti::DabService& service);
 
     /**
      * @brief Emitted when compliance issue is detected

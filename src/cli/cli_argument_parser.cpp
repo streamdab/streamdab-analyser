@@ -15,23 +15,22 @@ CLIOptions CLIArgumentParser::parse(int argc, char** argv) {
         return options;
     }
 
-    // Parse arguments
+    // First pass: Check for help/version flags which override everything
     for (int i = 1; i < argc; ++i) {
         QString arg = QString::fromUtf8(argv[i]);
-
-        // Help flags
         if (arg == "--help" || arg == "-h") {
             options.show_help = true;
-            // Help overrides all other options
             return options;
         }
-
-        // Version flags
         if (arg == "--version" || arg == "-v") {
             options.show_version = true;
-            // Version overrides all other options except help
             return options;
         }
+    }
+
+    // Second pass: Parse all other arguments
+    for (int i = 1; i < argc; ++i) {
+        QString arg = QString::fromUtf8(argv[i]);
 
         // CLI mode flag
         if (arg == "--cli") {

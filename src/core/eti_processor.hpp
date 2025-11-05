@@ -362,17 +362,10 @@ signals:
      */
     void statusChanged(const QString& status);
     
-    /**
-     * @brief Emitted when ensemble information is discovered
-     * @param ensemble Ensemble information
-     */
-    void ensembleDiscovered(const eti::Ensemble& ensemble);
-    
-    /**
-     * @brief Emitted when service is discovered
-     * @param service Service information
-     */
-    void serviceDiscovered(const eti::DabService& service);
+    // NOTE: Custom eti:: type signals commented out to avoid MOC compilation errors
+    // TODO: Refactor to use QByteArray serialization when needed
+    // void ensembleDiscovered(const eti::Ensemble& ensemble);
+    // void serviceDiscovered(const eti::DabService& service);
     
     /**
      * @brief Emitted when service quality changes
@@ -388,25 +381,17 @@ signals:
      */
     void frameError(quint64 frameNumber);
 
-    /**
-     * @brief Phase 1.1: Signal emitted when ETI frame is processed
-     * @param frame Processed frame information
-     */
-    void frameProcessed(const eti::ProcessedFrame& frame);
-
-    /**
-     * @brief Phase 1.1: Signal emitted when FIG is discovered
-     * @param fig FIG information
-     */
-    void figDiscovered(const eti::FIGInfo& fig);
+    // NOTE: Custom eti:: type signals commented out to avoid MOC compilation errors
+    // void frameProcessed(const eti::ProcessedFrame& frame);
+    // void figDiscovered(const eti::FIGInfo& fig);
 
 private slots:
-    // Modern ETI Core Engine signal handlers
-    void on_modern_frame_processed(uint32_t frameNumber, const eti::EtiFrame& frame, 
-                                  std::chrono::nanoseconds parseTime);
-    void on_fig_analysis_complete(uint32_t frameNumber, const eti::modern::FIGAnalysisResult& analysis);
-    void on_modern_ensemble_discovered(const eti::modern::EnhancedEnsembleInfo& ensemble);
-    void on_modern_service_discovered(const eti::modern::EnhancedServiceInfo& service);
+    // NOTE: Modern ETI Core Engine signal handlers commented out to avoid MOC errors
+    // void on_modern_frame_processed(uint32_t frameNumber, const eti::EtiFrame& frame,
+    //                               std::chrono::nanoseconds parseTime);
+    // void on_fig_analysis_complete(uint32_t frameNumber, const eti::modern::FIGAnalysisResult& analysis);
+    // void on_modern_ensemble_discovered(const eti::modern::EnhancedEnsembleInfo& ensemble);
+    // void on_modern_service_discovered(const eti::modern::EnhancedServiceInfo& service);
     void on_compliance_issue_detected(const QString& standard, const QString& issue, const QString& severity);
     void on_performance_target_result(bool targetMet, double currentFps, double targetFps);
 
