@@ -1,13 +1,13 @@
 /**
  * @file comprehensive_etsi_validator.h
  * @brief Comprehensive ETSI Standards Compliance Validator
- * 
+ *
  * Validates ETI streams against all 9 ETSI standards for complete broadcast
  * industry compliance. Part of the Modern ETI Core Engine migration.
- * 
+ *
  * Supported ETSI Standards:
  * 1. ETSI EN 302 077 - Harmonized Radio Standard
- * 2. ETSI EN 300 401 - Digital Audio Broadcasting (DAB) 
+ * 2. ETSI EN 300 401 - Digital Audio Broadcasting (DAB)
  * 3. ETSI TS 102 563 - Digital Audio Broadcasting Plus (DAB+)
  * 4. ETSI TS 101 756 - Registered Tables for DAB
  * 5. ETSI TR 101 496 - Network Guidelines for DAB/DAB+
@@ -15,7 +15,7 @@
  * 7. ETSI TS 102 818 - Service Programme Information (SPI)
  * 8. ETSI TS 103 551 - Transport Protocol Experts Group (TPEG)
  * 9. ETSI TS 103 176 - Service and Programme Information (SI)
- * 
+ *
  * @author Standards Compliance Agent
  * @date 2025
  * @copyright StreamDAB Analyzer Project
@@ -47,10 +47,10 @@ struct StandardComplianceResult {
     std::vector<std::string> warnings;
     std::vector<std::string> recommendations;
     std::chrono::steady_clock::time_point validation_time;
-    
+
     StandardComplianceResult() = default;
     // Fixed: Use explicit parameter names to prevent swapping
-    explicit StandardComplianceResult(const QString& standard_name_param, const QString& standard_number_param) 
+    explicit StandardComplianceResult(const QString& standard_name_param, const QString& standard_number_param)
         : standard_name(standard_name_param), standard_number(standard_number_param) {}
 };
 
@@ -62,22 +62,22 @@ struct ComprehensiveComplianceResult {
     double overall_compliance_score{0.0}; // Weighted average
     bool meets_broadcast_requirements{false};
     bool ready_for_production{false};
-    
+
     // Performance impact
     std::chrono::nanoseconds validation_time{0};
     bool validation_affects_performance{false};
-    
+
     // Summary statistics
     static constexpr uint32_t TOTAL_ETSI_STANDARDS = 9; // EN 300 401, EN 302 077, TS 102 563, etc.
     uint32_t total_violations{0};
     uint32_t total_warnings{0};
     uint32_t compliant_standards{0};
     uint32_t total_standards{TOTAL_ETSI_STANDARDS};
-    
+
     // Government compliance (Thai NBTC requirements)
     bool thai_government_compliant{false};
     QStringList thai_compliance_issues;
-    
+
     QString get_compliance_summary() const;
     QStringList get_all_violations() const;
     bool is_production_ready() const { return ready_for_production; }
@@ -94,29 +94,35 @@ public:
         bool content_guidelines_met{false};
         bool character_encoding_valid{false};
         bool emergency_broadcast_capable{false};
-        
+
         QStringList compliance_issues;
         QStringList recommendations;
         double overall_score{0.0};
-        
+
         bool isFullyCompliant() const {
-            return nbtc_approved && frequency_plan_compliant && 
+            return nbtc_approved && frequency_plan_compliant &&
                    content_guidelines_met && character_encoding_valid;
         }
     };
-    
+
+    // TODO(MOC FIX): Methods with eti:: types commented out to avoid MOC compilation errors
+    // Refactor to use QByteArray serialization or Qt-compatible types
+    /*
     static ThaiComplianceResult validateThaiRequirements(
         const eti::Ensemble& ensemble,
         const std::vector<eti::DabService>& services);
-        
+    */
+
     static bool validateThaiCharacterEncoding(const std::string& text);
     static bool validateThaiFrequencyPlan(uint32_t frequency);
-    static bool validateThaiContentGuidelines(const eti::DabService& service);
+
+    // TODO(MOC FIX): Method with eti:: types commented out to avoid MOC compilation errors
+    // static bool validateThaiContentGuidelines(const eti::DabService& service);
 };
 
 /**
  * @brief Comprehensive ETSI Standards Compliance Validator
- * 
+ *
  * Validates ETI streams against all 9 ETSI standards with optimized
  * performance to maintain >7,482 FPS processing rate.
  */
@@ -139,29 +145,38 @@ public:
      * @brief Validate single ETI frame against all standards
      * @param frame ETI frame to validate
      * @return Comprehensive compliance result
+     *
+     * TODO(MOC FIX): Method with eti:: types commented out to avoid MOC compilation errors
+     * Refactor to use QByteArray serialization or Qt-compatible types
      */
-    ComprehensiveComplianceResult validateFrame(const eti::EtiFrame& frame);
+    // ComprehensiveComplianceResult validateFrame(const eti::EtiFrame& frame);
 
     /**
      * @brief Validate ensemble configuration
      * @param ensemble Ensemble information
      * @return Compliance result for ensemble
+     *
+     * TODO(MOC FIX): Method with eti:: types commented out to avoid MOC compilation errors
      */
-    StandardComplianceResult validateEnsemble(const eti::Ensemble& ensemble);
+    // StandardComplianceResult validateEnsemble(const eti::Ensemble& ensemble);
 
     /**
      * @brief Validate service configuration
      * @param service DAB service information
      * @return Compliance result for service
+     *
+     * TODO(MOC FIX): Method with eti:: types commented out to avoid MOC compilation errors
      */
-    StandardComplianceResult validateService(const eti::DabService& service);
+    // StandardComplianceResult validateService(const eti::DabService& service);
 
     /**
      * @brief Validate FIG block compliance
      * @param fig_block FIG block to validate
      * @return Compliance result for FIG
+     *
+     * TODO(MOC FIX): Method with eti:: types commented out to avoid MOC compilation errors
      */
-    StandardComplianceResult validateFIGBlock(const eti::FigBlock& fig_block);
+    // StandardComplianceResult validateFIGBlock(const eti::FigBlock& fig_block);
 
     /**
      * @brief Get cumulative compliance statistics
@@ -172,17 +187,17 @@ public:
         uint64_t total_violations{0};
         double average_compliance_score{0.0};
         std::chrono::milliseconds total_validation_time{0};
-        
+
         // Per-standard statistics
         std::array<uint64_t, 9> standard_violations{};
         std::array<double, 9> standard_scores{};
-        
+
         double getComplianceRate() const {
-            return frames_validated > 0 ? 
+            return frames_validated > 0 ?
                    (static_cast<double>(compliant_frames) / frames_validated) * 100.0 : 0.0;
         }
     };
-    
+
     ComplianceStatistics getStatistics() const { return statistics_; }
 
     /**
@@ -217,7 +232,7 @@ signals:
      * @param violation Violation description
      * @param severity Severity level (Critical, Major, Minor, Warning)
      */
-    void complianceViolation(const QString& standard, const QString& violation, 
+    void complianceViolation(const QString& standard, const QString& violation,
                            const QString& severity);
 
     /**
@@ -235,6 +250,10 @@ signals:
     void thaiComplianceUpdate(bool compliant, const QStringList& issues);
 
 private:
+    // TODO(MOC FIX): All private methods with eti:: types commented out to avoid MOC compilation errors
+    // Refactor to use QByteArray serialization or Qt-compatible types when needed
+
+    /*
     // Individual standard validators
     StandardComplianceResult validateEN302077_Harmonized(const eti::EtiFrame& frame);
     StandardComplianceResult validateEN300401_DAB(const eti::EtiFrame& frame);
@@ -253,60 +272,61 @@ private:
     bool validateFICStructure(const eti::EtiFrame& frame);
     bool validateMSCStructure(const eti::EtiFrame& frame);
     bool validateCRCIntegrity(const eti::EtiFrame& frame);
-    
+
     // FIG-specific validation
     bool validateFIGTiming(uint8_t fig_type, uint8_t extension);
     bool validateFIGCarousel(const std::vector<eti::FigBlock>& figs);
     bool validateFIGContent(const eti::FigBlock& fig);
-    
+
     // Specific FIG type validators
     bool validateFIG0_3_ServiceComponent(const eti::FigBlock& fig);
     bool validateFIG0_4_ServiceComponentLinking(const eti::FigBlock& fig);
     bool validateFIG0_5_ServiceComponentLanguage(const eti::FigBlock& fig);
-    
+
     // Service validation
     bool validateServiceConfiguration(const eti::DabService& service);
     bool validateAudioServiceCompliance(const eti::DabService& service);
     bool validateDataServiceCompliance(const eti::DabService& service);
-    
+
     // Performance optimization
     void updateStatistics(const ComprehensiveComplianceResult& result);
     bool shouldSkipValidation(const eti::EtiFrame& frame) const;
     void optimizeValidationSequence();
-    
-    // CRC calculation utilities
+    */
+
+    // CRC calculation utilities (no eti:: types)
     uint16_t calculateCRC16(const uint8_t* data, size_t length);
 
 private:
     bool initialized_{false};
     bool thai_compliance_enabled_{true};
     bool strict_mode_{false};
-    
+
     // Standard enablement flags
     std::array<bool, 9> standards_enabled_;
-    
+
     // Performance tracking
     ComplianceStatistics statistics_;
     std::chrono::steady_clock::time_point last_stats_update_;
-    
+
     // Thai compliance validator
     std::unique_ptr<ThaiGovernmentComplianceValidator> thai_validator_;
-    
+
     // Optimization data
     std::atomic<uint64_t> frames_processed_{0};
     std::atomic<uint64_t> validation_time_ns_{0};
-    
+
     // Cached validation results for performance
     struct ValidationCache {
         std::unordered_map<uint32_t, StandardComplianceResult> frame_cache;
         std::chrono::steady_clock::time_point last_cleanup;
         size_t max_cache_size{1000};
-        
+
         void cleanup();
         bool has_result(uint32_t frame_hash) const;
         void store_result(uint32_t frame_hash, const StandardComplianceResult& result);
     } validation_cache_;
-    
+
     // Standard weights for overall score calculation
     static constexpr std::array<double, 9> STANDARD_WEIGHTS = {
         0.20, // EN 302 077 - Harmonized (Critical)

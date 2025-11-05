@@ -10,6 +10,7 @@
  *
  * @author Agent 35 - YAML Output Generator
  * @date 2025-11-05
+ * @updated 2025-11-06 - Agent 40 - Fixed hex formatting issues
  */
 
 #include <QtTest/QtTest>
