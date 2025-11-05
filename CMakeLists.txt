@@ -42,7 +42,7 @@ set(SOURCES
     src/core/shared_eti_data.cpp
     src/core/headless_eti_processor.cpp
     src/core/eti_processor.cpp
-    src/core/modern_eti_frame_parser.cpp
+    # src/core/modern_eti_frame_parser.cpp  # Temporarily excluded - MOC compilation issue with eti:: types
     src/core/enhanced_fig_analyzer.cpp
     src/core/comprehensive_etsi_validator.cpp
     src/core/ensemble_manager.cpp
@@ -82,6 +82,26 @@ target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
 
 # Add ZeroMQ library directories
 target_link_directories(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${ZMQ_LIBRARY_DIRS})
+
+# === CLI-Only Executable (for testing without GUI/MOC issues) ===
+# Minimal dependencies - only what's needed for CLI mode
+set(CLI_ONLY_SOURCES
+    src/streamdab-cli.cpp
+    src/cli/cli_argument_parser.cpp
+    src/cli/yaml_output_generator.cpp
+    src/cli/cli_main.cpp
+    src/core/headless_eti_processor.cpp
+    src/core/fig_parser.cpp
+    src/core/ensemble_manager.cpp
+    src/core/dab_service_discovery_engine.cpp
+    src/core/etsi_registered_tables.cpp
+    src/core/charset_converter.cpp
+    src/utils/logger.cpp
+)
+
+add_executable(streamdab-cli ${CLI_ONLY_SOURCES})
+target_link_libraries(streamdab-cli Qt6::Core)
+target_include_directories(streamdab-cli PRIVATE src include)
 
 # Enable testing
 enable_testing()

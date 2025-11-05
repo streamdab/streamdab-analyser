@@ -883,4 +883,10 @@ private:
 
 } // namespace eti
 
+// Qt Metatype declarations for signal/slot usage
+Q_DECLARE_METATYPE(eti::EtiFrame)
+Q_DECLARE_METATYPE(eti::Ensemble)
+Q_DECLARE_METATYPE(eti::DabService)
+Q_DECLARE_METATYPE(eti::ValidationResult)
+
 #endif // ETI_TYPES_H
