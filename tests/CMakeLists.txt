@@ -717,3 +717,16 @@ target_link_libraries(test_fig020_service_component_info
     Qt6::Core
 )
 add_test(NAME test_fig020_service_component_info COMMAND test_fig020_service_component_info)
+# FIG 0/24 Other Ensemble Services Test (PDCA Week 7 - Final / Agent 33)
+add_executable(test_fig024_oe_services
+    test_fig024_oe_services.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_fig024_oe_services
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_fig024_oe_services COMMAND test_fig024_oe_services)
