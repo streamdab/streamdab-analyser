@@ -19,6 +19,7 @@
  * - FIG 0/11: Region definition
  * - FIG 0/19: Announcement switching
  * - FIG 0/21: Frequency information
+ * - FIG 0/24: Other ensemble services
  * - FIG 1/0: Ensemble label
  * - FIG 1/1: Programme service label
  * - FIG 1/4: Service component label
@@ -471,6 +472,53 @@ struct ServiceComponentInfo {
      */
     bool validateSCId() const {
         return sc_id < 4096;
+    }
+
+    /**
+     * @brief Validate service ID
+     * @return true if service_id is non-zero
+     */
+    bool validateServiceId() const {
+        return service_id != 0;
+    }
+};
+
+/**
+ * @brief FIG 0/24 Other Ensemble Services Structure
+ * Reference: ETSI EN 300 401 Section 8.1.18
+ *
+ * Provides information about services available in other ensembles.
+ * Used for cross-ensemble service discovery and inter-ensemble linking.
+ * PDCA Week 7 - Final / Agent 33 implementation.
+ */
+struct OEServices {
+    uint16_t ensemble_id{0};      // Other Ensemble ID (16-bit)
+    uint32_t service_id{0};       // Service ID (32-bit)
+    bool ca_flag{false};          // Conditional Access flag (1-bit)
+    bool is_valid{false};         // Validation flag
+
+    /**
+     * @brief Check if service is CA protected
+     * @return true if conditional access is applied
+     */
+    bool isProtected() const {
+        return ca_flag;
+    }
+
+    /**
+     * @brief Get ensemble ID
+     * @return Other ensemble ID (16-bit)
+     */
+    uint16_t getEnsembleId() const {
+        return ensemble_id;
+    }
+
+    /**
+     * @brief Validate ensemble ID
+     * @return true if ensemble_id is non-zero
+     */
+    bool validateEnsembleId() const {
+        return ensemble_id != 0;
     }
 
     /**
@@ -1339,6 +1387,15 @@ public:
         const std::vector<uint8_t>& fig_data);
 
     /**
+     * @brief Parse FIG 0/24 other ensemble services
+     * @param fig_data FIG data payload
+     * @return Parsed other ensemble services information
+     * Reference: ETSI EN 300 401 Section 8.1.18
+     * PDCA Week 7 - Final / Agent 33
+     */
+    OEServices parseFig024_OEServices(const std::vector<uint8_t>& fig_data);
+
+    /**
      * @brief Parse FIG 1/0 ensemble label
      * @param fig_data FIG data payload
      * @return Parsed ensemble label
@@ -1530,6 +1587,13 @@ signals:
      * PDCA Week 7 - Batch 4 / Agent 27
      */
     void mpeg2TsStreamingDiscovered(const Mpeg2TsStreaming& mpeg2_ts);
+
+    /**
+     * @brief Emitted when other ensemble services is discovered
+     * @param oe_services Other ensemble services information
+     * PDCA Week 7 - Final / Agent 33
+     */
+    void oeServicesDiscovered(const OEServices& oe_services);
 
     /**
      * @brief Emitted when ensemble label is discovered

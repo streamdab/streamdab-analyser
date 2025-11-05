@@ -355,6 +355,15 @@ bool FigParser::parseFigType0(const FigBlock& fig_block, uint8_t extension) {
             break;
         }
 
+        case 24: { // FIG 0/24 - Other ensemble services (PDCA Week 7 - Final / Agent 33)
+            auto oe_services = parseFig024_OEServices(fig_block.data);
+            if (oe_services.is_valid) {
+                emit oeServicesDiscovered(oe_services);
+                success = true;
+            }
+            break;
+        }
+
 
         default:
             Logger::instance().log(Logger::Warning, "FigParser",
@@ -1354,7 +1363,7 @@ DateAndTime FigParser::parseFig010_DateAndTime(const std::vector<uint8_t>& fig_d
     DateAndTime result;
     result.is_valid = false;
 
-    // Minimum size: 5 bytes (extension + 2 MJD bytes + hour/minute byte + minute byte)
+    // Minimum size: 5 bytes (extension + 3 MJD/time bytes + minute byte)
     if (fig_data.size() < 5) {
         Logger::instance().log(Logger::Warning, "FigParser",
             QString("FIG 0/10: Insufficient data - got %1 bytes, need at least 5")
@@ -1365,39 +1374,51 @@ DateAndTime FigParser::parseFig010_DateAndTime(const std::vector<uint8_t>& fig_d
     try {
         size_t offset = 1; // Skip extension byte
 
-        // Parse MJD (16 bits effective across bytes 1-2)
-        // ETSI EN 300 401 Section 8.1.7:
-        // Byte 1: MJD bits 16-9 (8 bits)
-        // Byte 2 bits 7-1: MJD bits 8-1 (7 bits)
-        // Byte 2 bit 0: LSI (Leap Second Indicator)
-        //
-        // Note: The encoding effectively stores 16 bits of MJD precision.
-        // Original encoding (as seen in test helper):
-        //   byte1 = mjd >> 9
-        //   byte2 = (mjd >> 1) & 0xFE  // MJD bit 0 is lost
-        //
-        // Decoding formula (reversing the encoding):
-        //   mjd = (byte1 << 9) | ((byte2 & 0xFE) << 1)
-        //
-        // This reconstructs MJD with bit 0 always zero (even MJDs only).
-        result.mjd = (static_cast<uint32_t>(fig_data[offset]) << 9) | 
-                     ((static_cast<uint32_t>(fig_data[offset + 1]) & 0xFE) << 1);
+        // Parse MJD (17 bits across bytes 1-3)
+        // ETSI EN 300 401 Section 8.1.7/8.1.8:
+        // Updated encoding to preserve all 17 bits:
+        //   Byte 1: MJD bits 16-9 (8 bits)
+        //   Byte 2: MJD bits 8-1 (8 bits)
+        //   Byte 3 bit 7: MJD bit 0 (1 bit)
+        //   Byte 3 bit 6: LSI (Leap Second Indicator)
+        //   Byte 3 bit 5: Confidence Indicator
+        //   Byte 3 bit 4: UTC flag
+        //   Byte 3 bits 3-0: Hour high 4 bits
+        //   Byte 4 bit 7: Hour low 1 bit
+        //   Byte 4 bits 6-1: Minute (6 bits)
+        //   Byte 4 bit 0: Second high 1 bit (if UTC)
+        //   Byte 5 bits 7-3: Second low 5 bits (if UTC)
 
-        // Parse LSI (bit 0 of byte 2)
-        result.lsi = (fig_data[offset + 1] & 0x01) != 0;
-        offset += 2;
+        // Extract MJD bits 16-9 from byte 1
+        uint32_t mjd_high = static_cast<uint32_t>(fig_data[offset]) << 9;
 
-        // Parse Conf ind, UTC flag, Hour (byte 3)
-        // Bit 7: Confidence indicator
-        // Bit 6: UTC flag
-        // Bits 5-1: Hour (5 bits, 0-23)
-        result.conf_ind = (fig_data[offset] & 0x80) != 0;
-        result.utc_flag = (fig_data[offset] & 0x40) != 0;
-        result.hour = (fig_data[offset] & 0x3E) >> 1; // 5 bits (bits 5-1)
-        offset += 1;
+        // Extract MJD bits 8-1 from byte 2
+        uint32_t mjd_mid = static_cast<uint32_t>(fig_data[offset + 1]) << 1;
 
-        // Parse Minute (6 bits from byte 4, bits 7-2)
-        result.minute = (fig_data[offset] & 0xFC) >> 2;
+        // Extract MJD bit 0 from byte 3 bit 7
+        uint32_t mjd_low = (static_cast<uint32_t>(fig_data[offset + 2]) & 0x80) >> 7;
+
+        // Combine all MJD bits (17 bits total)
+        result.mjd = mjd_high | mjd_mid | mjd_low;
+
+        // Parse LSI (bit 6 of byte 3)
+        result.lsi = (fig_data[offset + 2] & 0x40) != 0;
+
+        // Parse Conf ind (bit 5 of byte 3)
+        result.conf_ind = (fig_data[offset + 2] & 0x20) != 0;
+
+        // Parse UTC flag (bit 4 of byte 3)
+        result.utc_flag = (fig_data[offset + 2] & 0x10) != 0;
+
+        // Parse Hour (bits 3-0 of byte 3 as high 4 bits, bit 7 of byte 4 as low bit = 5 bits total)
+        uint8_t hour_high = (fig_data[offset + 2] & 0x0F) << 1;
+        uint8_t hour_low = (fig_data[offset + 3] & 0x80) >> 7;
+        result.hour = hour_high | hour_low;
+
+        // Parse Minute (6 bits from byte 4, bits 6-1)
+        result.minute = (fig_data[offset + 3] & 0x7E) >> 1;
+
+        offset += 3;
 
         // Parse Second if UTC flag set
         if (result.utc_flag) {
@@ -1407,10 +1428,10 @@ DateAndTime FigParser::parseFig010_DateAndTime(const std::vector<uint8_t>& fig_d
                 return result;
             }
             // Second: 6 bits split across bytes 4-5
-            // Byte 4 bits 1-0: Second high 2 bits
-            // Byte 5 bits 7-4: Second low 4 bits
-            uint8_t second_high = (fig_data[offset] & 0x03) << 4;
-            uint8_t second_low = (fig_data[offset + 1] & 0xF0) >> 4;
+            // Byte 4 bit 0: Second high 1 bit
+            // Byte 5 bits 7-3: Second low 5 bits
+            uint8_t second_high = (fig_data[offset] & 0x01) << 5;
+            uint8_t second_low = (fig_data[offset + 1] & 0xF8) >> 3;
             result.second = second_high | second_low;
         }
 
@@ -1467,6 +1488,7 @@ DateAndTime FigParser::parseFig010_DateAndTime(const std::vector<uint8_t>& fig_d
 
     return result;
 }
+
 
 // ==============================================================================
 // FIG 0/11 Parser Implementation - Region Definition
@@ -2378,7 +2400,7 @@ ServiceComponentStreamMode FigParser::parseFig007_ServiceComponentStreamMode(
         result.dg_flag = (scid_byte2 & 0x08) != 0;
         offset += 2;
 
-        result.sub_ch_id = (fig_data[offset] >> 2) & 0x3F;
+        result.sub_ch_id = fig_data[offset] & 0x3F;
 
         if (!result.validateServiceComponentId() || !result.validateSubChannelId()) {
             return result;
@@ -3144,6 +3166,73 @@ ServiceComponentInfo FigParser::parseFig020_ServiceComponentInfo(
 
     return result;
 }
+
+OEServices FigParser::parseFig024_OEServices(const std::vector<uint8_t>& fig_data) {
+    OEServices result;
+    result.is_valid = false;
+    
+    // Minimum size: 1 (ext) + 2 (EId 16-bit) + 4 (SId 32-bit) + 1 (CA flag + RFA) = 8 bytes minimum
+    if (fig_data.size() < 8) {
+        Logger::instance().log(Logger::Warning, "FigParser",
+            QString("FIG 0/24: Insufficient data - got %1 bytes, need at least 8")
+            .arg(fig_data.size()));
+        return result;
+    }
+    
+    try {
+        size_t offset = 1; // Skip extension field
+        
+        // Bytes 1-2: Ensemble ID (16-bit big-endian)
+        result.ensemble_id = (static_cast<uint16_t>(fig_data[offset]) << 8) |
+                            static_cast<uint16_t>(fig_data[offset + 1]);
+        offset += 2;
+        
+        // Bytes 3-6: Service ID (32-bit big-endian)
+        result.service_id = (static_cast<uint32_t>(fig_data[offset]) << 24) |
+                           (static_cast<uint32_t>(fig_data[offset + 1]) << 16) |
+                           (static_cast<uint32_t>(fig_data[offset + 2]) << 8) |
+                           static_cast<uint32_t>(fig_data[offset + 3]);
+        offset += 4;
+        
+        // Byte 7: [CA flag bit 7][RFA bits 6-0]
+        result.ca_flag = (fig_data[offset] & 0x80) != 0;
+        
+        // Validation checks
+        if (result.ensemble_id == 0) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/24: Invalid Ensemble ID: 0x%1 (must be non-zero)")
+                .arg(result.ensemble_id, 4, 16, QChar('0')));
+            return result;
+        }
+        
+        if (result.service_id == 0) {
+            Logger::instance().log(Logger::Warning, "FigParser",
+                QString("FIG 0/24: Invalid Service ID: 0x%1 (must be non-zero)")
+                .arg(result.service_id, 8, 16, QChar('0')));
+            return result;
+        }
+        
+        // All validations passed
+        result.is_valid = true;
+        
+        Logger::instance().log(Logger::Debug, "FigParser",
+            QString("FIG 0/24: EId=0x%1, SId=0x%2, CA=%3")
+                .arg(result.ensemble_id, 4, 16, QChar('0'))
+                .arg(result.service_id, 8, 16, QChar('0'))
+                .arg(result.ca_flag ? "Yes" : "No"));
+        
+        // Emit signal
+        emit oeServicesDiscovered(result);
+        
+    } catch (const std::exception& e) {
+        Logger::instance().log(Logger::Error, "FigParser",
+            QString("Exception parsing FIG 0/24: %1").arg(e.what()));
+        result.is_valid = false;
+    }
+    
+    return result;
+}
+
 
 
 Mpeg2TsStreaming FigParser::parseFig012_Mpeg2TsStreaming(
