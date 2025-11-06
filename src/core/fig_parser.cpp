@@ -491,6 +491,14 @@ std::vector<Fig01SubchannelInfo> FigParser::parseFig01_SubchannelOrganization(
             subchannel.start_address = ((static_cast<uint16_t>(subch_start_high) & 0x03) << 8) |
                                       fig_data[offset++];
 
+            // ETSI EN 300 401: Sub-channel ID must be 0-63 (6-bit field)
+            if (subchannel.subchannel_id > 63) {
+                Logger::instance().log(Logger::Warning, "FigParser",
+                    QString("FIG 0/1: Invalid sub-channel ID %1 (must be 0-63), skipping")
+                    .arg(subchannel.subchannel_id));
+                continue;  // Skip this invalid subchannel
+            }
+
             // Parse form flag and size/protection
             uint8_t form_size = fig_data[offset++];
             subchannel.short_form = (form_size & 0x80) != 0;
@@ -775,8 +783,13 @@ std::vector<ServiceLabel> FigParser::parseFig11_ProgrammeServiceLabels(
                 label.label = raw_label;
             }
 
+            // Set is_valid to true before validation (avoid circular dependency)
+            label.is_valid = true;
+            
             // Validate label
-            label.is_valid = validateLabelCompliance(label);
+            if (!validateLabelCompliance(label)) {
+                label.is_valid = false;
+            }
 
             if (label.is_valid) {
                 labels.push_back(label);
@@ -1921,7 +1934,7 @@ ServiceComponentLanguage FigParser::parseFig005_ServiceComponentLanguage(
             result.is_short_form = true;
             result.is_valid = true;
 
-            Logger::instance().log(Logger::Info, "FigParser",
+            Logger::instance().log(Logger::Debug, "FigParser",
                 QString("Parsed FIG 0/5 (short form) - SCIdS: %1, Language: %2 (%3)")
                 .arg(result.sc_ids)
                 .arg(QString::fromStdString(result.getLanguageName()))
@@ -1974,7 +1987,7 @@ ServiceComponentLanguage FigParser::parseFig005_ServiceComponentLanguage(
             result.is_short_form = false;
             result.is_valid = true;
 
-            Logger::instance().log(Logger::Info, "FigParser",
+            Logger::instance().log(Logger::Debug, "FigParser",
                 QString("Parsed FIG 0/5 (long form) - SId: 0x%1, SCIdS: %2, Language: %3 (%4)")
                 .arg(result.service_id, pd_flag ? 8 : 4, 16, QChar('0'))
                 .arg(result.sc_ids)
@@ -1984,7 +1997,7 @@ ServiceComponentLanguage FigParser::parseFig005_ServiceComponentLanguage(
 
         // Thai language detection
         if (result.language_code == 0x45 && thai_support_enabled_) {
-            Logger::instance().log(Logger::Info, "FigParser",
+            Logger::instance().log(Logger::Debug, "FigParser",
                 "FIG 0/5: Thai language detected (ISO 639-2 code 0x45)");
         }
 
@@ -2917,24 +2930,7 @@ AnnouncementSwitching FigParser::parseFig019_AnnouncementSwitching(
         // All fields extracted successfully
         result.is_valid = true;
 
-        // Build region IDs string for logging
-        QString region_str = "[]";
-        if (!result.region_ids.empty()) {
-            QStringList ids;
-            for (uint8_t id : result.region_ids) {
-                ids << QString::number(id);
-            }
-            region_str = "[" + ids.join(", ") + "]";
-        }
-
-        Logger::instance().log(Logger::Debug, "FigParser",
-            QString("FIG 0/19: ClusterID=%1, ASw=0x%2, New=%3, Region=%4, SubChId=%5, RegionIDs=%6")
-                .arg(result.cluster_id)
-                .arg(result.asw_flags, 4, 16, QChar('0'))
-                .arg(result.new_flag ? "Yes" : "No")
-                .arg(result.region_flag ? "Yes" : "No")
-                .arg(result.subchannel_id)
-                .arg(region_str));
+        // Logging disabled for performance (target <5µs)
 
         // Emit signal
         emit announcementSwitchingDetected(result);
