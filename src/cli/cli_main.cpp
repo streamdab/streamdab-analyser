@@ -10,6 +10,11 @@
  *
  * @author Agent 36 - CLI Main Integration
  * @date 2025-11-05
+ *
+ * AGENT 45 FIX (2025-11-08): Pass aggregated data to YAMLOutputGenerator
+ * Previously: Only basic statistics sent to YAML generator
+ * Now: Ensemble, services, subchannels, and FIG counts properly forwarded
+ *
  * @copyright StreamDAB Analyzer Project - PDCA Week 8
  */
 
@@ -87,6 +92,7 @@ namespace {
         }
         std::cout << "\n";
         std::cout << "Services:        " << result.servicesFound << "\n";
+        std::cout << "Subchannels:     " << result.subchannels.size() << "\n";  // AGENT 45 FIX
         std::cout << "ETSI Compliant:  " << (result.etsiCompliant ? "YES" : "NO") << "\n";
         std::cout << "========================================\n\n";
     }
@@ -168,7 +174,9 @@ int cli_main(int argc, char** argv) {
 
         printProgress("\nETI processing completed successfully.", options.quiet);
 
-        // Generate YAML output using YAMLOutputGenerator
+        // ============================================================================
+        // AGENT 45 FIX: Generate YAML output with aggregated data
+        // ============================================================================
         printProgress("Generating YAML output...", options.quiet);
 
         YAMLOutputGenerator yamlGenerator;
@@ -185,6 +193,24 @@ int cli_main(int argc, char** argv) {
             0  // CRC errors - HeadlessETIProcessor doesn't provide this yet
         );
 
+        // AGENT 45 FIX: Set ensemble info from aggregated data
+        if (result.ensemblesFound > 0) {
+            yamlGenerator.setEnsembleInfo(result.ensemble);
+        }
+
+        // AGENT 45 FIX: Add all discovered services
+        for (const auto& service : result.services) {
+            yamlGenerator.addService(service);
+        }
+
+        // AGENT 45 FIX: Add all discovered subchannels
+        for (const auto& subchannel : result.subchannels) {
+            yamlGenerator.addSubchannel(subchannel);
+        }
+
+        // AGENT 45 FIX: Set FIG type statistics
+        yamlGenerator.setFIGStatistics(result.fig_type_counts);
+
         // Set ETSI compliance
         yamlGenerator.setETSICompliance(
             result.etsiCompliant,
@@ -193,9 +219,6 @@ int cli_main(int argc, char** argv) {
 
         // Set performance metrics
         yamlGenerator.setPerformanceMetrics(processingTimeMs, result.averageFPS);
-
-        // Note: Ensemble and service info would be added here if available
-        // from HeadlessETIProcessor. For now, we'll generate basic output.
 
         // Generate YAML
         QString yamlContent = yamlGenerator.generateYAML();

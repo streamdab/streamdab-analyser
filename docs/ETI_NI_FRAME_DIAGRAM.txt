@@ -1,0 +1,185 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    ETI-NI FRAME STRUCTURE DIAGRAM
+                     (6144 bytes total per frame)
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ HEADER (8 bytes)                                                            │
+├──────┬────────┬─────────────────────────────────────────────────────────────┤
+│ 0x00 │ 2 bytes│ SYNC: 0xFF 0xF8 (even) or 0xFF 0x07 (odd)                  │
+│ 0x02 │ 1 byte │ ERR: Error status flags (varies)                            │
+│ 0x03 │ 1 byte │ FRAMEP: Frame position                                      │
+│ 0x04 │ 1 byte │ FC: [NST5][NST4][FICF][FCT(5 bits)]                        │
+│ 0x05 │ 1 byte │ [NST3-0(4 bits)][MID(2)][FP(2)]                            │
+│ 0x06 │ 2 bytes│ RFA: Reserved for Future Applications                       │
+└──────┴────────┴─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LIDATA (4 × N bytes, where N = NST+1)                                      │
+├──────┬────────┬─────────────────────────────────────────────────────────────┤
+│ 0x08 │ 4 bytes│ STC[0]: [SCId(6)][SAD9-8][SAD7-0][TPL(6)][STL9-8][STL7-0]  │
+│ 0x0C │ 4 bytes│ STC[1]: ...                                                 │
+│  ... │   ...  │ ...                                                         │
+│ 0xXX │ 4 bytes│ STC[N-1]: Last subchannel                                   │
+└──────┴────────┴─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ FIC (32 bytes, present only if FICF=1)                                     │
+├──────┬────────┬─────────────────────────────────────────────────────────────┤
+│ 0xYY │ 32 bytes│ Fast Information Channel (FIGs)                            │
+│      │        │ Offset YY = 8 + (N × 4)                                    │
+└──────┴────────┴─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ MSC (Main Service Channel - remainder of frame)                            │
+├──────┬────────┬─────────────────────────────────────────────────────────────┤
+│ 0xZZ │ ~6060 B│ Audio/data for all subchannels (interleaved)               │
+│      │        │ Offset ZZ = YY + 32 (if FICF=1) or YY (if FICF=0)         │
+└──────┴────────┴─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ EOF/TIST (4 bytes)                                                          │
+├──────┬────────┬─────────────────────────────────────────────────────────────┤
+│0x17FC│ 4 bytes│ End of frame / Timestamp (often padding: 0x55555555)        │
+└──────┴────────┴─────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                        BANGKOK FILE EXAMPLE (NST=9)
+═══════════════════════════════════════════════════════════════════════════════
+
+Frame 0 Layout:
+┌──────┬────────┬──────────────────────────────────────────────────────────┐
+│Offset│  Size  │ Content                                                   │
+├──────┼────────┼──────────────────────────────────────────────────────────┤
+│ 0x00 │   2    │ SYNC: 0xFF 0xF8 (ETI-NI even frame)                      │
+│ 0x02 │   1    │ ERR: 0xC5                                                 │
+│ 0x03 │   1    │ FRAMEP: 0x49                                              │
+│ 0x04 │   1    │ FC: 0x1B (FCT=27, FICF=0, NST[5:4]=0)                    │
+│ 0x05 │   1    │ 0x90 (NST[3:0]=9 → 10 streams!, MID=0, FP=0)             │
+│ 0x06 │   2    │ RFA: 0xEA 0xE7                                            │
+├──────┼────────┼──────────────────────────────────────────────────────────┤
+│ 0x08 │  40    │ LIDATA: 10 subchannels × 4 bytes                          │
+│      │        │   SCId 0-9, all 64 kbps EEP 3-A                           │
+├──────┼────────┼──────────────────────────────────────────────────────────┤
+│ 0x30 │  32    │ FIC: (only in frames with FICF=1)                         │
+│      │        │   Frame 0: FICF=0, so NO FIC here                         │
+│      │        │   Frames 5+: FICF=1, FIC present                          │
+├──────┼────────┼──────────────────────────────────────────────────────────┤
+│ 0x30 │ 6068   │ MSC: Audio/data for 10 subchannels                        │
+│(or   │        │ (Offset 0x30 if FICF=0, 0x50 if FICF=1)                  │
+│0x50) │        │                                                            │
+├──────┼────────┼──────────────────────────────────────────────────────────┤
+│0x17FC│   4    │ EOF: 0x55555555 (padding)                                 │
+└──────┴────────┴──────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                          CRITICAL PARSING RULES
+═══════════════════════════════════════════════════════════════════════════════
+
+1. NST-1 ENCODING (MOST IMPORTANT!)
+   ═══════════════════════════════════════════════════════════════════════════
+   NST field value:  0   1   2   3  ...  9  ... 63
+   Actual streams:   1   2   3   4  ... 10  ... 64
+   
+   Formula: actual_streams = nst_field + 1
+   
+   Example from Bangkok file:
+   - NST field extracted: 9
+   - Actual subchannels: 9 + 1 = 10 ✓
+
+2. SYNC ALTERNATION
+   ═══════════════════════════════════════════════════════════════════════════
+   Frame 0: 0xFF 0xF8 (even)
+   Frame 1: 0xFF 0x07 (odd)
+   Frame 2: 0xFF 0xF8 (even)
+   ...
+   
+   Both values are valid ETI-NI sync. Must handle both!
+
+3. DYNAMIC FIC OFFSET
+   ═══════════════════════════════════════════════════════════════════════════
+   fic_offset = 8 + (actual_streams × 4)
+   
+   NOT a fixed offset! Depends on number of subchannels.
+   
+   Bangkok file: 8 + (10 × 4) = 48 (0x30)
+
+4. STC BIT EXTRACTION
+   ═══════════════════════════════════════════════════════════════════════════
+   Given STC bytes [B0, B1, B2, B3]:
+   
+   SCId = B0[7:2]              (upper 6 bits)
+   SAD  = B0[1:0] || B1[7:0]   (10 bits total)
+   TPL  = B2[7:2]              (upper 6 bits)
+   STL  = B2[1:0] || B3[7:0]   (10 bits total)
+   
+   Example: [0x00, 0x00, 0x88, 0x18]
+   - SCId = 0x00 >> 2 = 0
+   - SAD  = 0
+   - TPL  = 0x88 >> 2 = 34 (0x22)
+   - STL  = (0x88 & 0x03) << 8 | 0x18 = 24
+
+5. FICF FLAG HANDLING
+   ═══════════════════════════════════════════════════════════════════════════
+   FICF = (FC >> 5) & 0x01
+   
+   If FICF = 0: NO FIC in this frame
+                MSC starts immediately after LIDATA
+                
+   If FICF = 1: FIC present (32 bytes)
+                MSC starts after FIC
+
+═══════════════════════════════════════════════════════════════════════════════
+                           COMPARISON: ETI-LI vs ETI-NI
+═══════════════════════════════════════════════════════════════════════════════
+
+Feature               ETI-LI                    ETI-NI
+────────────────────  ────────────────────────  ──────────────────────────────
+SYNC                  0x49 0x93 0x1E 0x03       0xFF 0xF8 / 0xFF 0x07
+SYNC size             4 bytes                   2 bytes (smaller)
+Header size           12 bytes                  8 bytes (more compact)
+LIDATA offset         0x0C                      0x08 (earlier)
+NST encoding          Direct (0-63)             NST-1 (field + 1)
+FIC presence          Always included           Conditional (FICF flag)
+Sync alternation      Same every frame          Alternates even/odd
+Network use           Internal multiplexer      Transmission/storage
+File format           Rare                      Common (Bangkok file)
+
+═══════════════════════════════════════════════════════════════════════════════
+                      IMPLEMENTATION QUICK REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+// 1. Detect ETI-NI format
+if (frame[0] == 0xFF && (frame[1] == 0xF8 || frame[1] == 0x07)) {
+    format = ETI_NI;
+}
+
+// 2. Extract NST with NST-1 decoding
+uint8_t fc = frame[4];
+uint8_t byte5 = frame[5];
+uint8_t nst_field = ((fc >> 6) & 0x03) << 4 | ((byte5 >> 4) & 0x0F);
+uint8_t actual_streams = nst_field + 1;  // ADD 1!
+
+// 3. Parse LIDATA
+for (uint8_t i = 0; i < actual_streams; i++) {
+    uint16_t offset = 8 + (i * 4);
+    scid = (frame[offset] >> 2) & 0x3F;
+    sad = ((frame[offset] & 0x03) << 8) | frame[offset+1];
+    tpl = (frame[offset+2] >> 2) & 0x3F;
+    stl = ((frame[offset+2] & 0x03) << 8) | frame[offset+3];
+}
+
+// 4. Find FIC
+uint16_t fic_offset = 8 + (actual_streams * 4);
+uint8_t ficf = (fc >> 5) & 0x01;
+if (ficf) {
+    // Parse FIC at fic_offset (32 bytes)
+}
+
+// 5. Find MSC
+uint16_t msc_offset = fic_offset + (ficf ? 32 : 0);
+uint16_t msc_size = 6144 - msc_offset - 4;
+
+═══════════════════════════════════════════════════════════════════════════════
+                           END OF DIAGRAM
+═══════════════════════════════════════════════════════════════════════════════
