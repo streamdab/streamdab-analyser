@@ -1,0 +1,46 @@
+# StreamDAB Analyzer CLI Output
+version: "1.0"
+generator: "StreamDAB Analyzer v1.1"
+timestamp: "2025-11-08T02:45:20Z"
+input_file: "eti/bkk_20062022_141637.eti"
+analysis_duration_ms: 2030
+
+eti_stream:
+  format: "ETI-LI"
+  frame_size: 6144
+  total_frames: 5001
+  valid_frames: 5001
+  error_frames: 3
+  frame_rate: 250.0
+  duration_seconds: 20.0
+  crc_errors: 0
+
+ensemble:
+  ensemble_id: 0x5800
+  ensemble_label: ""
+  country_id: 0x0068
+  country_name: "Unknown"
+  extended_country_code: 0x00C0
+  alarm_flag: false
+
+services:
+  []
+
+subchannels:
+  []
+
+fig_statistics:
+  total_figs_processed: 0
+  fig_type_counts:
+    {}
+
+etsi_compliance:
+  overall_compliance: false
+  warnings:
+    - "3 frames failed parsing"
+    - "No services discovered (unusual for valid ETI)"
+    - "No subchannels discovered (unusual for valid ETI)"
+
+performance:
+  total_processing_time_ms: 2030
+  frames_per_second: 2463.5

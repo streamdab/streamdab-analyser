@@ -3,9 +3,15 @@
 #include <QObject>
 #include <QString>
 #include <QElapsedTimer>
+#include <QMap>
 #include <memory>
+#include <vector>
 
-// Forward declarations
+// Include full definitions needed
+#include "eti_types.hpp"
+#include "fig_parser.hpp"
+
+// Forward declarations for Qt classes only
 class EtiProcessor;
 namespace eti {
 namespace modern {
@@ -20,11 +26,11 @@ namespace compliance {
 /**
  * @class HeadlessETIProcessor
  * @brief Headless ETI processing engine for batch operations
- * 
+ *
  * This class provides ETI processing capabilities without GUI dependencies,
  * suitable for command-line batch processing, server deployments, and
  * automated analysis workflows.
- * 
+ *
  * Features:
  * - Complete ETI frame analysis without GUI
  * - ETSI compliance validation
@@ -43,20 +49,27 @@ public:
     struct ProcessingResult {
         bool success = false;
         QString errorMessage;
-        
+
         // Statistics
         quint64 totalFrames = 0;
         quint64 processedFrames = 0;
         quint64 errorFrames = 0;
         double processingTimeMs = 0.0;
         double averageFPS = 0.0;
-        
-        // Analysis results
+
+        // Analysis results (basic counts)
         quint32 servicesFound = 0;
         quint32 ensemblesFound = 0;
         QString ensembleName;
         QStringList serviceNames;
-        
+
+        // AGENT 45 FIX: Add aggregated data structures for YAML output
+        // Using std::vector to avoid Qt container restrictions
+        eti::Ensemble ensemble;  // Primary ensemble info
+        std::vector<eti::DabService> services;  // Discovered services
+        std::vector<eti::fig::Fig01SubchannelInfo> subchannels;  // Discovered subchannels
+        QMap<QString, int> fig_type_counts;  // FIG type statistics
+
         // ETSI compliance
         bool etsiCompliant = true;
         QStringList complianceWarnings;
@@ -131,7 +144,8 @@ private:  // NOLINTNEXTLINE(readability-redundant-access-specifiers) - Required 
     std::unique_ptr<EtiProcessor> m_etiProcessor;
     std::unique_ptr<eti::modern::ModernETIFrameParser> m_frameParser;
     std::unique_ptr<eti::modern::EnhancedFIGAnalyzer> m_figAnalyzer;
-    std::unique_ptr<eti::compliance::ComprehensiveETSIValidator> m_etsiValidator;
+    // DISABLED FOR CLI BUILD: ComprehensiveETSIValidator all methods commented out
+    // std::unique_ptr<eti::compliance::ComprehensiveETSIValidator> m_etsiValidator;
 
     // Processing state
     double m_progress = 0.0;

@@ -101,6 +101,32 @@ target_link_libraries(test_eti_li_crc_validation
 )
 add_test(NAME test_eti_li_crc_validation COMMAND test_eti_li_crc_validation)
 
+# Test 4.5: ETI Format Auto-Detection (Agent 43 - November 7, 2025)
+add_executable(test_eti_format_detection
+    test_eti_format_detection.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
+)
+target_link_libraries(test_eti_format_detection
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_eti_format_detection COMMAND test_eti_format_detection)
+
+# Test 4.6: ETI-NI Parser Unit Tests (Agent 46 - November 8, 2025)
+add_executable(test_eti_ni_parser
+    test_eti_ni_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_eti_ni_parser
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_eti_ni_parser COMMAND test_eti_ni_parser)
+
 # Test 5: Service Discovery
 #add_executable(test_service_discovery
 #    test_service_discovery.cpp
@@ -682,7 +708,7 @@ message(STATUS "  ✓ test_pft_reassembler (Protocol FEC Transport)")
 
 message(STATUS "")
 message(STATUS "=== Test Framework Summary ===")
-message(STATUS "  Core Tests: 6 (ETI processing, FIG parsing, service discovery)")
+message(STATUS "  Core Tests: 7 (ETI processing, FIG parsing, ETI-NI parser)")
 message(STATUS "  Phase 3A Tests: 4 (DAB+, MOT, EPG, Journaline)")
 message(STATUS "  Phase 3B Tests: 1 (DLS+)")
 message(STATUS "  Phase 4 Tests: 3 (Live streaming, recording)")
@@ -698,9 +724,9 @@ message(STATUS "  E2E Tests: 3 (Full pipeline validation)")
 message(STATUS "  Network/EDI Tests: 2 (EDI, PFT)")
 message(STATUS "")
 if(CAN_RUN_GUI_TESTS)
-    message(STATUS "  Total Test Executables: 31")
+    message(STATUS "  Total Test Executables: 32")
 else()
-    message(STATUS "  Total Test Executables: 27")
+    message(STATUS "  Total Test Executables: 28")
 endif()
 message(STATUS "==============================================")
 

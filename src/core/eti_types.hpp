@@ -1,11 +1,11 @@
 /**
  * @file eti_types.h
  * @brief ETSI-Compliant ETI data type definitions and constants
- * 
+ *
  * This file contains the fundamental data types, structures, and constants
  * used throughout the ETI Stream Analyzer for DAB/DAB+ processing.
  * Fully compliant with ETSI EN 300 799 and ETSI EN 300 401 specifications.
- * 
+ *
  * @author Standards Compliance Agent
  * @date 2025
  * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
@@ -56,7 +56,7 @@ constexpr size_t MAX_CAPACITY_UNITS = 864;                 // Maximum CUs per fr
 struct ProcessedFrame {
     quint64 frame_number;           // Sequential frame number
     uint32_t sync_pattern;          // SYNC field (4 bytes)
-    uint32_t lidata;               // LIDATA field (4 bytes) 
+    uint32_t lidata;               // LIDATA field (4 bytes)
     QByteArray fic_data;           // FIC field (32 bytes)
     QByteArray msc_data;           // MSC field (variable size)
     uint32_t crc;                  // CRC field (4 bytes)
@@ -83,6 +83,41 @@ constexpr size_t FIG_HEADER_SIZE = 1;                      // bytes
 // Sync pattern for ETI frames (ETSI EN 300 799)
 constexpr std::array<uint8_t, 4> ETI_SYNC_PATTERN = {0x49, 0x93, 0x1E, 0x03};
 
+/**
+ * @brief ETI Format Types
+ *
+ * Automatic detection of ETI format based on sync patterns.
+ * Reference: ETSI EN 300 799 Section 5.1
+ */
+enum class ETIFormat {
+    ETI_LI,    // Linear (0x49 0x93 0x1E 0x03) - Most common format
+    ETI_NI,    // Network Independent (0xFF 0xF8 or 0xFF 0x07) - Alternative format
+    ETI_NA,    // Network Adapted (future support)
+    UNKNOWN    // Invalid/unsupported sync pattern
+};
+
+/**
+ * @brief Detect ETI format from frame data
+ *
+ * Analyzes the sync pattern to determine the ETI format variant.
+ *
+ * @param data Pointer to frame data (at least 4 bytes)
+ * @param size Size of data buffer
+ * @return ETIFormat Detected format type
+ *
+ * @note ETI-LI: 0x49 0x93 0x1E 0x03 (standard)
+ * @note ETI-NI: 0xFF 0xF8 or 0xFF 0x07 (network independent variants)
+ */
+ETIFormat detectETIFormat(const uint8_t* data, size_t size);
+
+/**
+ * @brief Convert ETI format to string representation
+ *
+ * @param format ETI format enum value
+ * @return const char* String name of format
+ */
+const char* formatToString(ETIFormat format);
+
 // Forward declarations
 struct EtiFrame;
 struct FigBlock;
@@ -96,7 +131,7 @@ struct ServiceInfo;
 
 /**
  * @brief Concept for ETI stream processing types
- * 
+ *
  * Ensures types used for ETI stream processing have required interface
  * for frame data access, ensemble information, and validation.
  */
@@ -110,7 +145,7 @@ concept eti_stream_type = requires(T t) {
 
 /**
  * @brief Concept for DAB service types
- * 
+ *
  * Ensures service types provide required service identification,
  * bitrate information, and activity status.
  */
@@ -124,7 +159,7 @@ concept service_type = requires(T t) {
 
 /**
  * @brief Concept for ensemble container types
- * 
+ *
  * Ensures ensemble containers support iteration over services
  * and provide ensemble-level information.
  */
@@ -139,7 +174,7 @@ concept ensemble_container = requires(T t) {
 
 /**
  * @brief Concept for ETI frame validation
- * 
+ *
  * Ensures frame validation types provide comprehensive
  * ETSI compliance checking capabilities.
  */
@@ -153,7 +188,7 @@ concept frame_validator = requires(T t, const EtiFrame& frame) {
 
 /**
  * @brief Concept for memory pool allocators
- * 
+ *
  * Ensures memory pool types provide efficient allocation
  * and deallocation for ETI frame processing.
  */
@@ -171,15 +206,15 @@ concept memory_allocator = requires(T t, size_t size, void* ptr) {
  */
 struct eti_sync_field {
     std::array<uint8_t, 4> sync_bytes{};
-    
+
     eti_sync_field() {
         set_sync_pattern();
     }
-    
+
     bool is_valid() const {
         return std::memcmp(sync_bytes.data(), ETI_SYNC_PATTERN.data(), 4) == 0;
     }
-    
+
     void set_sync_pattern() {
         std::memcpy(sync_bytes.data(), ETI_SYNC_PATTERN.data(), 4);
     }
@@ -197,20 +232,20 @@ struct EtiLidataField {
     uint8_t mid : 2;           // Mode Identity (1-4)
     uint16_t fl : 11;          // Frame Length (11 bits fits in uint16_t)
     uint32_t tist;             // Time Stamp (32-bit)
-    
+
     bool validate_frame_count(uint8_t expected_fc) const {
         return fc == expected_fc || fc == ((expected_fc + 1) % 250);
     }
-    
+
     bool validate_mode(uint8_t expected_mode) const {
         return mid == expected_mode;
     }
-    
+
     std::chrono::microseconds get_timestamp_us() const {
         // TIST is in units of 16.384 MHz clock periods
         return std::chrono::microseconds(static_cast<uint64_t>(tist) * 1000000 / 16384000);
     }
-    
+
     bool validate_nst() const {
         return nst <= MAX_SUBCHANNEL_COUNT;
     }
@@ -222,14 +257,14 @@ struct EtiLidataField {
  */
 struct EtiFicField {
     std::array<uint8_t, 32> fic_data;
-    
+
     EtiFicField() : fic_data{} {
         fic_data.fill(0);
     }
-    
+
     explicit EtiFicField(const std::array<uint8_t, 32>& data) : fic_data(data) {
     }
-    
+
     std::vector<FigBlock> decode_fig_blocks() const;
     bool validate_fic_crc() const;
     bool contains_fig_type(uint8_t fig_type) const;
@@ -245,12 +280,12 @@ struct FigBlock {
     bool continuation_flag = false;     // C: Continuation flag
     bool other_ensemble_flag = false;   // OE: Other Ensemble flag
     std::vector<uint8_t> data;    // FIG data field
-    
+
     bool is_valid() const {
-        return length <= MAX_FIG_LENGTH && 
+        return length <= MAX_FIG_LENGTH &&
                data.size() == length;
     }
-    
+
     uint8_t get_extension() const {
         return data.empty() ? 0 : (data[0] & 0x1F);
     }
@@ -266,19 +301,19 @@ struct SubChannelInfo {
     uint16_t size;              // Size in CUs
     uint8_t protection_level;   // Protection level (1-5)
     bool uep_flag;             // Unequal Error Protection flag
-    
+
     uint16_t get_end_address() const {
         return start_address + size - 1;
     }
-    
+
     bool validate_boundaries() const {
         return (start_address + size) <= MAX_CAPACITY_UNITS;
     }
-    
+
     bool validate_sub_channel_id() const {
         return sub_channel_id < MAX_SUBCHANNEL_COUNT;
     }
-    
+
     bool validate_protection_level() const {
         return protection_level >= 1 && protection_level <= 5;
     }
@@ -290,17 +325,17 @@ struct SubChannelInfo {
  */
 struct EtiMscField {
     std::array<uint8_t, ETI_MSC_SIZE> msc_data;
-    
+
     EtiMscField() : msc_data{} {
         msc_data.fill(0);
     }
-    
+
     explicit EtiMscField(const std::array<uint8_t, ETI_MSC_SIZE>& data) : msc_data(data) {
     }
-    
+
     std::vector<uint8_t> extract_subchannel_data(const SubChannelInfo& subchannel) const;
     bool validate_subchannel_organization(const std::vector<SubChannelInfo>& subchannels) const;
-    
+
     size_t get_capacity_units_count() const {
         return ETI_MSC_SIZE / CAPACITY_UNIT_SIZE;  // 762 CUs
     }
@@ -312,11 +347,11 @@ struct EtiMscField {
  */
 struct EtiCrcField {
     std::array<uint8_t, 4> crc_bytes{};
-    
+
     EtiCrcField() {
         crc_bytes.fill(0);
     }
-    
+
     bool validate_frame(const EtiFrame& frame) const;
     void calculate_crc(const EtiFrame& frame);
     uint32_t get_crc_value() const {
@@ -325,7 +360,7 @@ struct EtiCrcField {
                (static_cast<uint32_t>(crc_bytes[2]) << 8) |
                static_cast<uint32_t>(crc_bytes[3]);
     }
-    
+
 private:
     uint32_t calculate_frame_crc(const EtiFrame& frame) const;
 };
@@ -344,18 +379,18 @@ struct ServiceComponent {
     bool ca_flag{false};              // Conditional Access flag
     uint8_t protection_level{0};   // Error protection level (0-31)
     std::string label;          // Component label
-    
+
     // Default constructor with proper initialization
     ServiceComponent() = default;
-    
+
     bool validate_tmid() const {
         return tmid <= 3;
     }
-    
+
     bool validate_asc_ty() const {
         return asc_ty <= 63;
     }
-    
+
     bool validate_sub_channel_id() const {
         return sub_channel_id < MAX_SUBCHANNEL_COUNT;
     }
@@ -373,20 +408,20 @@ struct DabService {
     std::vector<ServiceComponent> components;
     bool is_programme;                 // Programme/Data service flag
     uint16_t character_flag;           // Character definition field
-    
+
     bool validate_service_id() const {
         return service_id != 0x0000 && service_id != 0xFFFF;
     }
-    
+
     bool validate_country_code() const {
         return country_id != 0x00 && country_id != 0xFF;
     }
-    
+
     bool has_primary_component() const {
         return std::any_of(components.begin(), components.end(),
                           [](const ServiceComponent& comp) { return comp.primary; });
     }
-    
+
     std::vector<uint8_t> get_subchannel_ids() const {
         std::vector<uint8_t> subchannel_ids;
         subchannel_ids.reserve(components.size()); // Pre-allocate for performance
@@ -412,15 +447,15 @@ struct Ensemble {
     uint16_t cif_count;               // Current CIF count
     uint8_t occurrence_change;         // Occurrence change field
     bool alarm_flag;                   // Alarm announcement flag
-    
+
     bool validate_ensemble_id() const {
         return ensemble_id != 0x0000 && ensemble_id != 0xFFFF;
     }
-    
+
     bool validate_country_code() const {
         return country_id != 0x00 && country_id != 0xFF;
     }
-    
+
     bool validate_subchannel_organization() const {
         // Check for overlapping sub-channels
         for (size_t i = 0; i < sub_channels.size(); ++i) {
@@ -435,7 +470,7 @@ struct Ensemble {
         }
         return true;
     }
-    
+
     uint16_t calculate_total_capacity() const {
         uint16_t total = 0;
         for (const auto& sub_ch : sub_channels) {
@@ -443,7 +478,7 @@ struct Ensemble {
         }
         return total;
     }
-    
+
     std::vector<uint16_t> get_service_ids() const {
         std::vector<uint16_t> service_ids;
         service_ids.reserve(services.size()); // Pre-allocate for performance
@@ -462,29 +497,29 @@ struct EtiFrame {
     std::array<uint8_t, ETI_FRAME_SIZE> frame_data;
     bool frame_valid;
     std::chrono::system_clock::time_point receive_timestamp;
-    
+
     EtiFrame() : frame_valid(false) {
         frame_data.fill(0);
         receive_timestamp = std::chrono::system_clock::now();
     }
-    
-    explicit EtiFrame(const std::array<uint8_t, ETI_FRAME_SIZE>& data) 
+
+    explicit EtiFrame(const std::array<uint8_t, ETI_FRAME_SIZE>& data)
         : frame_data(data), frame_valid(false) {
         receive_timestamp = std::chrono::system_clock::now();
         initialize_frame_validation();
     }
-    
+
     // Field accessors
     eti_sync_field get_sync_field() const {
         eti_sync_field sync;
         std::memcpy(sync.sync_bytes.data(), frame_data.data(), 4);
         return sync;
     }
-    
+
     EtiLidataField get_lidata_field() const {
         EtiLidataField lidata{};
         const uint8_t* data = frame_data.data() + 4;
-        
+
         // Parse LIDATA field according to ETSI EN 300 799 Section 5.2
         lidata.fc = data[0];                    // Frame Count
         lidata.ficf = (data[1] & 0x80) ? 1 : 0; // FIC Flag
@@ -492,40 +527,40 @@ struct EtiFrame {
         lidata.fp = (data[2] >> 5) & 0x07;      // Frame Phase
         lidata.mid = (data[2] >> 3) & 0x03;     // Mode Identity
         lidata.fl = ((data[2] & 0x07) << 8) | data[3]; // Frame Length
-        
+
         // Time Stamp (TIST) - 32-bit value
         lidata.tist = (static_cast<uint32_t>(data[4]) << 24) |
                       (static_cast<uint32_t>(data[5]) << 16) |
                       (static_cast<uint32_t>(data[6]) << 8) |
                       static_cast<uint32_t>(data[7]);
-        
+
         return lidata;
     }
-    
+
     EtiFicField get_fic_field() const {
         EtiFicField fic;
         std::memcpy(fic.fic_data.data(), frame_data.data() + 12, 32);
         return fic;
     }
-    
+
     EtiMscField get_msc_field() const {
         EtiMscField msc;
         std::memcpy(msc.msc_data.data(), frame_data.data() + 44, ETI_MSC_SIZE);
         return msc;
     }
-    
+
     EtiCrcField get_crc_field() const {
         EtiCrcField crc;
         std::memcpy(crc.crc_bytes.data(), frame_data.data() + ETI_FRAME_SIZE - 4, 4);
         return crc;
     }
-    
+
     // Validation methods
     bool validate_sync_pattern() const {
         auto sync = get_sync_field();
         return sync.is_valid();
     }
-    
+
     bool validate_frame_structure() const {
         bool valid = validate_sync_pattern();
         if (valid) {
@@ -534,53 +569,53 @@ struct EtiFrame {
         }
         return valid;
     }
-    
-    bool is_valid() const { 
-        return frame_valid; 
+
+    bool is_valid() const {
+        return frame_valid;
     }
-    
+
     // Frame analysis
     std::vector<FigBlock> decode_fic_blocks() const {
         auto fic = get_fic_field();
         return fic.decode_fig_blocks();
     }
-    
+
     std::vector<SubChannelInfo> get_subchannel_info() const;
     Ensemble extract_ensemble_info() const;
-    
+
     // Raw data access
-    const uint8_t* data() const { 
-        return frame_data.data(); 
+    const uint8_t* data() const {
+        return frame_data.data();
     }
-    
-    uint8_t* data() { 
-        return frame_data.data(); 
+
+    uint8_t* data() {
+        return frame_data.data();
     }
-    
-    size_t size() const { 
-        return frame_data.size(); 
+
+    size_t size() const {
+        return frame_data.size();
     }
-    
+
     // Timing information
     void set_receive_timestamp(std::chrono::system_clock::time_point timestamp) {
         receive_timestamp = timestamp;
     }
-    
+
     std::chrono::system_clock::time_point get_receive_timestamp() const {
         return receive_timestamp;
     }
-    
+
     std::chrono::microseconds get_frame_timestamp() const {
         auto lidata = get_lidata_field();
         return lidata.get_timestamp_us();
     }
-    
+
 private:
     void initialize_frame_validation() {
         // Basic validation - check if frame has minimum required size
         frame_valid = (frame_data.size() >= ETI_SYNC_SIZE + ETI_LIDATA_SIZE);
     }
-    
+
     // FIG parsing helper methods
     void parse_fig_0_0(const FigBlock& fig, Ensemble& ensemble) const;
     void parse_fig_0_1(const FigBlock& fig, std::vector<SubChannelInfo>& subchannels) const;
@@ -602,7 +637,7 @@ struct EtiFrameData {
     QTime timestamp;
     QByteArray data;
     bool isValid{false};
-    
+
     EtiFrameData() = default;
 };
 
@@ -613,22 +648,22 @@ struct ValidationResult {
     bool valid;
     std::vector<std::string> errors;
     std::vector<std::string> warnings;
-    
+
     ValidationResult(bool v = true) : valid(v) {}
-    
+
     void add_error(const std::string& error) {
         errors.push_back(error);
         valid = false;
     }
-    
+
     void add_warning(const std::string& warning) {
         warnings.push_back(warning);
     }
-    
+
     bool has_errors() const {
         return !errors.empty();
     }
-    
+
     bool has_warnings() const {
         return !warnings.empty();
     }
@@ -659,9 +694,9 @@ struct ServiceInfo {
     ServiceType service_type;   // Type of service
     uint16_t bitrate;          // Service bitrate in kbps
     uint8_t protection_level;   // Protection level (1-5)
-    
+
     // Constructor with default values
-    ServiceInfo() 
+    ServiceInfo()
         : service_id(0)
         , label()
         , service_type(ServiceType::UNKNOWN)
@@ -669,9 +704,9 @@ struct ServiceInfo {
         , protection_level(1)
     {
     }
-    
+
     // Constructor for easy initialization in tests
-    ServiceInfo(uint16_t sid, const std::string& service_label, 
+    ServiceInfo(uint16_t sid, const std::string& service_label,
                 ServiceType type, uint16_t br, uint8_t protection)
         : service_id(sid)
         , label(service_label)
@@ -680,31 +715,31 @@ struct ServiceInfo {
         , protection_level(protection)
     {
     }
-    
+
     // Validation methods
     bool is_valid() const {
-        return service_id != 0 && 
+        return service_id != 0 &&
                service_type != ServiceType::UNKNOWN &&
                protection_level >= 1 && protection_level <= 5;
     }
-    
+
     // Type checking methods
     bool is_audio_service() const {
-        return service_type == ServiceType::DAB_AUDIO || 
+        return service_type == ServiceType::DAB_AUDIO ||
                service_type == ServiceType::DAB_PLUS_AUDIO;
     }
-    
+
     bool is_data_service() const {
         return service_type == ServiceType::DATA_SERVICE ||
                service_type == ServiceType::PACKET_MODE ||
                service_type == ServiceType::MSC_DATA ||
                service_type == ServiceType::FIDC;
     }
-    
+
     bool is_dab_plus() const {
         return service_type == ServiceType::DAB_PLUS_AUDIO;
     }
-    
+
     // Convert to full DabService structure
     DabService to_dab_service() const {
         DabService service;
@@ -713,39 +748,39 @@ struct ServiceInfo {
         service.is_programme = is_audio_service();
         return service;
     }
-    
+
     // ============================================================================
     // C++20 STRUCTURED BINDINGS SUPPORT
     // ============================================================================
-    
+
     /**
      * @brief Get service identification tuple for structured bindings
      * @return [service_id, label] tuple
-     * 
+     *
      * Usage: auto [id, name] = service.get_identification();
      */
     [[nodiscard]] auto get_identification() const noexcept -> std::pair<uint16_t, std::string> {
         return {service_id, label};
     }
-    
+
     /**
      * @brief Get service characteristics tuple for structured bindings
      * @return [service_type, bitrate, protection_level] tuple
-     * 
+     *
      * Usage: auto [type, rate, protection] = service.get_characteristics();
      */
-    [[nodiscard]] auto get_characteristics() const noexcept 
+    [[nodiscard]] auto get_characteristics() const noexcept
         -> std::tuple<ServiceType, uint16_t, uint8_t> {
         return {service_type, bitrate, protection_level};
     }
-    
+
     /**
      * @brief Validate service data with detailed error reporting
      * @return [is_valid, error_message] pair
-     * 
+     *
      * Usage: auto [valid, error] = service.validate_with_details();
      */
-    [[nodiscard]] auto validate_with_details() const noexcept 
+    [[nodiscard]] auto validate_with_details() const noexcept
         -> std::pair<bool, std::string> {
         if (service_id == 0) {
             return {false, "Invalid service ID: cannot be zero"};
@@ -799,82 +834,82 @@ struct ETSIComplianceResult {
     std::vector<std::string> warnings;    // Compliance warnings
     std::string etsi_standard{"EN 300 401"};           // ETSI standard reference (e.g., "EN 300 401")
     std::string test_date;               // ISO date string of test
-    
+
     // Constructor
     ETSIComplianceResult() = default;
-    
+
     // Add error with automatic compliance status update
     void add_error(const std::string& error) {
         errors.push_back(error);
         is_compliant = false;
         recalculate_score();
     }
-    
+
     // Add warning
     void add_warning(const std::string& warning) {
         warnings.push_back(warning);
         recalculate_score();
     }
-    
+
     // Set compliance with score
     void set_compliance(bool compliant, double score = 100.0) {
         is_compliant = compliant;
         compliance_score = score;
     }
-    
+
     // Calculate compliance percentage
     double get_compliance_percentage() const {
         return compliance_score;
     }
-    
+
     // Check if fully compliant (100%)
     bool is_fully_compliant() const {
         return is_compliant && compliance_score >= 100.0 && errors.empty();
     }
-    
+
     // ============================================================================
     // C++20 STRUCTURED BINDINGS SUPPORT FOR COMPLIANCE RESULTS
     // ============================================================================
-    
+
     /**
      * @brief Get compliance status for structured bindings
      * @return [is_compliant, compliance_score] pair
-     * 
+     *
      * Usage: auto [compliant, score] = result.get_compliance_status();
      */
-    [[nodiscard]] auto get_compliance_status() const noexcept 
+    [[nodiscard]] auto get_compliance_status() const noexcept
         -> std::pair<bool, double> {
         return {is_compliant, compliance_score};
     }
-    
+
     /**
      * @brief Get error and warning counts for structured bindings
      * @return [error_count, warning_count] pair
-     * 
+     *
      * Usage: auto [errors, warnings] = result.get_issue_counts();
      */
-    [[nodiscard]] auto get_issue_counts() const noexcept 
+    [[nodiscard]] auto get_issue_counts() const noexcept
         -> std::pair<size_t, size_t> {
         return {errors.size(), warnings.size()};
     }
-    
+
     /**
      * @brief Get compliance summary for structured bindings
      * @return [is_compliant, score, error_count, warning_count] tuple
-     * 
+     *
      * Usage: auto [compliant, score, err_count, warn_count] = result.get_summary();
      */
-    [[nodiscard]] auto get_summary() const noexcept 
+    [[nodiscard]] auto get_summary() const noexcept
         -> std::tuple<bool, double, size_t, size_t> {
         return {is_compliant, compliance_score, errors.size(), warnings.size()};
     }
-    
+
 private:
     void recalculate_score() {
         // Simple scoring: start at 100, subtract for each error/warning
         compliance_score = 100.0 - (static_cast<double>(errors.size()) * 10.0) - (static_cast<double>(warnings.size()) * 2.0);
         compliance_score = std::max(0.0, compliance_score);
-        
+
         if (compliance_score < 100.0) {
             is_compliant = false;
         }
