@@ -10,6 +10,7 @@
 // Include full definitions needed
 #include "eti_types.hpp"
 #include "fig_parser.hpp"
+#include "../cli/yaml_output_generator.hpp"  // Need full definition for Qt MOC
 
 // Forward declarations for Qt classes only
 class EtiProcessor;
@@ -37,6 +38,7 @@ namespace compliance {
  * - Service discovery and enumeration
  * - Performance metrics and statistics
  * - YAML/JSON output for integration
+ * - VERBOSE MODE: Frame-by-frame detailed analysis
  */
 class HeadlessETIProcessor : public QObject
 {
@@ -70,6 +72,10 @@ public:
         std::vector<eti::fig::Fig01SubchannelInfo> subchannels;  // Discovered subchannels
         QMap<QString, int> fig_type_counts;  // FIG type statistics
 
+        // VERBOSE FRAMES: Frame-by-frame detailed analysis
+        bool verbose_mode = false;
+        std::vector<cli::FrameAnalysisData> frame_analyses;  // Per-frame data
+
         // ETSI compliance
         bool etsiCompliant = true;
         QStringList complianceWarnings;
@@ -86,6 +92,12 @@ public:
      * @return Processing result with statistics and analysis
      */
     ProcessingResult process_file(const QString& inputFile, const QString& outputFile);
+
+    /**
+     * @brief Enable verbose frame-by-frame output mode
+     * @param verbose Enable verbose mode
+     */
+    void setVerboseMode(bool verbose) { m_verbose_mode = verbose; }
 
     /**
      * @brief Get processing progress (0.0 to 1.0)
@@ -152,6 +164,7 @@ private:  // NOLINTNEXTLINE(readability-redundant-access-specifiers) - Required 
     QString m_statusText;
     ProcessingResult m_currentResult;
     QElapsedTimer m_processingTimer;
+    bool m_verbose_mode = false;  // Verbose frame-by-frame output
 
     // Private methods
     bool initialize_components();

@@ -56,6 +56,12 @@ CLIOptions CLIArgumentParser::parse(int argc, char** argv) {
             continue;
         }
 
+        // Verbose frames flag (frame-by-frame output)
+        if (arg == "--verbose-frames") {
+            options.verbose_frames = true;
+            continue;
+        }
+
         // Input file (requires value)
         if (arg == "--input") {
             if (i + 1 >= argc) {
@@ -74,7 +80,7 @@ CLIOptions CLIArgumentParser::parse(int argc, char** argv) {
         }
 
         // Output file (requires value)
-        if (arg == "--output") {
+        if (arg == "--output" || arg == "-o") {
             if (i + 1 >= argc) {
                 throw std::invalid_argument("--output requires a file path");
             }
@@ -145,9 +151,10 @@ void CLIArgumentParser::printUsage() {
     out << "  --input <file>          ETI file to analyze (.eti format)\n\n";
 
     out << "OPTIONAL ARGUMENTS:\n";
-    out << "  --output <file>         YAML output file (default: stdout)\n";
+    out << "  -o, --output <file>     YAML output file (default: stdout)\n";
     out << "  --quiet                 Minimal console output (errors only)\n";
     out << "  --verbose               Detailed progress logging\n";
+    out << "  --verbose-frames        Frame-by-frame detailed output (LARGE files)\n";
     out << "  --max-frames <n>        Process first N frames only (default: all)\n";
     out << "  --cli                   Explicitly enable CLI mode (auto-detected)\n\n";
 
@@ -160,25 +167,30 @@ void CLIArgumentParser::printUsage() {
     out << "  streamdab-analyzer --input sample.eti\n\n";
 
     out << "  # Save analysis to file with quiet mode\n";
-    out << "  streamdab-analyzer --input sample.eti --output report.yaml --quiet\n\n";
+    out << "  streamdab-analyzer --input sample.eti -o report.yaml --quiet\n\n";
 
     out << "  # Analyze first 1000 frames with verbose logging\n";
     out << "  streamdab-analyzer --input stream.eti --max-frames 1000 --verbose\n\n";
+
+    out << "  # Frame-by-frame detailed output (WARNING: produces LARGE files)\n";
+    out << "  streamdab-analyzer --input sample.eti --verbose-frames -o detailed.yaml\n\n";
 
     out << "EXIT CODES:\n";
     out << "  0   Success\n";
     out << "  1   Invalid arguments\n";
     out << "  2   File not found or not readable\n";
-    out << "  3   Processing error\n\n";
+    out << "  3   Processing error\n";
+    out << "  4   Write error\n\n";
 
     out << "SUPPORTED FEATURES:\n";
     out << "  - ETSI EN 300 401 compliant ETI frame parsing\n";
-    out << "  - FIG Type 0/0 through 0/19 decoding (20 types)\n";
+    out << "  - FIG Type 0/0 through 0/24 decoding (22 types)\n";
     out << "  - FIG Type 1/0, 1/1, 1/4, 1/5 (ensemble/service labels)\n";
     out << "  - Service discovery and metadata extraction\n";
     out << "  - DAB+ stream validation (ETSI TS 102 563)\n";
     out << "  - ETSI TS 101 756 registered tables (458 entries)\n";
-    out << "  - Thai UTF-8 support throughout\n\n";
+    out << "  - Thai UTF-8 support throughout\n";
+    out << "  - Frame-by-frame FIG decoding (--verbose-frames)\n\n";
 
     out << "For more information, visit: https://github.com/seksan/streamdab-analyzer\n";
     out.flush();

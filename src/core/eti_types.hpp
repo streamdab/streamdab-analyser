@@ -124,6 +124,8 @@ struct FigBlock;
 struct Ensemble;
 struct DabService;
 struct ServiceInfo;
+struct ServiceComponent;
+struct SubChannelInfo;
 
 // ============================================================================
 // C++20 CONCEPTS FOR TYPE SAFETY AND TEMPLATE CONSTRAINTS
@@ -919,9 +921,14 @@ private:
 } // namespace eti
 
 // Qt Metatype declarations for signal/slot usage
+// CRITICAL: All eti:: types used in Qt signals/slots MUST be registered here
 Q_DECLARE_METATYPE(eti::EtiFrame)
 Q_DECLARE_METATYPE(eti::Ensemble)
 Q_DECLARE_METATYPE(eti::DabService)
 Q_DECLARE_METATYPE(eti::ValidationResult)
+Q_DECLARE_METATYPE(eti::SubChannelInfo)
+Q_DECLARE_METATYPE(eti::ServiceComponent)
+Q_DECLARE_METATYPE(eti::ServiceInfo)
+Q_DECLARE_METATYPE(eti::FigBlock)
 
 #endif // ETI_TYPES_H

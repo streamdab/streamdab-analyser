@@ -139,7 +139,7 @@ struct EnhancedEnsemble {
     uint16_t cif_count;                     // Common Interleaved Frame count
     
     // Sub-channel organization
-    std::vector<eti::SubChannelInfo> subchannels;
+    std::vector<::eti::SubChannelInfo> subchannels;
     
     // Services in this ensemble
     std::vector<EnhancedDabService> services;
@@ -252,14 +252,14 @@ public:
      * @param eti_frames Vector of ETI frames to process
      * @return Complete service discovery result
      */
-    ServiceDiscoveryResult discoverCompleteEnsemble(const std::vector<eti::EtiFrame>& eti_frames);
+    ServiceDiscoveryResult discoverCompleteEnsemble(const std::vector<::eti::EtiFrame>& eti_frames);
 
     /**
      * @brief Process single ETI frame for incremental discovery
      * @param frame ETI frame to process
      * @return true if frame processed successfully
      */
-    bool processFrameForDiscovery(const eti::EtiFrame& frame);
+    bool processFrameForDiscovery(const ::eti::EtiFrame& frame);
 
     /**
      * @brief Get current ensemble information
@@ -374,18 +374,18 @@ signals:
 
 private slots:
     // FIG parser signal handlers
-    void onEnsembleInfoDiscovered(const eti::fig::Fig00EnsembleInfo& ensemble_info);
-    void onSubchannelOrganizationUpdated(const std::vector<eti::fig::Fig01SubchannelInfo>& subchannel_info);
-    void onServiceDiscovered(const eti::fig::Fig02ServiceInfo& service_info);
-    void onServiceLabelDiscovered(const eti::fig::ServiceLabel& service_label);
+    void onEnsembleInfoDiscovered(const ::eti::fig::Fig00EnsembleInfo& ensemble_info);
+    void onSubchannelOrganizationUpdated(const std::vector<::eti::fig::Fig01SubchannelInfo>& subchannel_info);
+    void onServiceDiscovered(const ::eti::fig::Fig02ServiceInfo& service_info);
+    void onServiceLabelDiscovered(const ::eti::fig::ServiceLabel& service_label);
     void onComplianceViolationDetected(const QString& violation_description, uint8_t fig_type);
 
 private:
     // Core discovery methods
-    bool processEnsembleInformation(const eti::fig::Fig00EnsembleInfo& ensemble_info);
-    bool processSubchannelOrganization(const std::vector<eti::fig::Fig01SubchannelInfo>& subchannel_info);
-    bool processServiceInformation(const eti::fig::Fig02ServiceInfo& service_info);
-    bool processServiceLabel(const eti::fig::ServiceLabel& service_label);
+    bool processEnsembleInformation(const ::eti::fig::Fig00EnsembleInfo& ensemble_info);
+    bool processSubchannelOrganization(const std::vector<::eti::fig::Fig01SubchannelInfo>& subchannel_info);
+    bool processServiceInformation(const ::eti::fig::Fig02ServiceInfo& service_info);
+    bool processServiceLabel(const ::eti::fig::ServiceLabel& service_label);
     
     // Service analysis and validation
     bool analyzeServiceComponents(EnhancedDabService& service);
@@ -414,7 +414,7 @@ private:
     std::unordered_map<uint32_t, size_t> service_index_map_;
     
     // FIG parser integration
-    std::unique_ptr<eti::fig::FigParser> fig_parser_;
+    std::unique_ptr<::eti::fig::FigParser> fig_parser_;
     
     // Discovery progress tracking
     std::atomic<double> discovery_progress_;
