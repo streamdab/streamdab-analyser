@@ -1,0 +1,433 @@
+# StreamDAB Analyzer CLI Output
+version: "1.0"
+generator: "StreamDAB Analyzer v1.1"
+timestamp: "2025-11-08T04:45:04Z"
+input_file: "eti/bkk_20062022_141637.eti"
+analysis_duration_ms: 4117
+
+eti_stream:
+  format: "ETI-LI"
+  frame_size: 6144
+  total_frames: 5001
+  valid_frames: 5001
+  error_frames: 3
+  frame_rate: 250.0
+  duration_seconds: 20.0
+  crc_errors: 0
+
+ensemble:
+  ensemble_id: 0x0000
+  ensemble_label: ""
+  country_id: 0x00B0
+  country_name: "Unknown"
+  extended_country_code: 0x0040
+  alarm_flag: false
+
+services:
+  []
+
+subchannels:
+  - subchannel_id: 0
+    start_address: 0x0000
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 1
+    start_address: 0x0030
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 2
+    start_address: 0x0060
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 3
+    start_address: 0x0090
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 4
+    start_address: 0x00C0
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 5
+    start_address: 0x00F0
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 6
+    start_address: 0x0120
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 7
+    start_address: 0x0150
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 8
+    start_address: 0x0180
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 9
+    start_address: 0x01B0
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 10
+    start_address: 0x01E0
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 11
+    start_address: 0x0210
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 12
+    start_address: 0x0240
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 13
+    start_address: 0x0270
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 14
+    start_address: 0x02A0
+    size: 8
+    protection_form: "UEP"
+    protection_level: 1
+    bitrate: 64
+  - subchannel_id: 15
+    start_address: 0x0306
+    size: 267
+    protection_form: "EEP-2A"
+    protection_level: 2
+    bitrate: 2136
+  - subchannel_id: 16
+    start_address: 0x0253
+    size: 69
+    protection_form: "EEP-1A"
+    protection_level: 1
+    bitrate: 552
+  - subchannel_id: 17
+    start_address: 0x0069
+    size: 872
+    protection_form: "UEP"
+    protection_level: 45
+    bitrate: 6976
+  - subchannel_id: 18
+    start_address: 0x0049
+    size: 88
+    protection_form: "UEP"
+    protection_level: 11
+    bitrate: 704
+  - subchannel_id: 19
+    start_address: 0x0265
+    size: 120
+    protection_form: "UEP"
+    protection_level: 15
+    bitrate: 960
+  - subchannel_id: 20
+    start_address: 0x0042
+    size: 800
+    protection_form: "UEP"
+    protection_level: 36
+    bitrate: 6400
+  - subchannel_id: 21
+    start_address: 0x0043
+    size: 96
+    protection_form: "UEP"
+    protection_level: 12
+    bitrate: 768
+  - subchannel_id: 22
+    start_address: 0x02B8
+    size: 0
+    protection_form: "UEP"
+    protection_level: 0
+    bitrate: 0
+  - subchannel_id: 23
+    start_address: 0x0357
+    size: 328
+    protection_form: "UEP"
+    protection_level: 41
+    bitrate: 2624
+  - subchannel_id: 24
+    start_address: 0x016E
+    size: 32
+    protection_form: "UEP"
+    protection_level: 4
+    bitrate: 256
+  - subchannel_id: 25
+    start_address: 0x0069
+    size: 848
+    protection_form: "UEP"
+    protection_level: 42
+    bitrate: 6784
+  - subchannel_id: 26
+    start_address: 0x0061
+    size: 360
+    protection_form: "UEP"
+    protection_level: 45
+    bitrate: 2880
+  - subchannel_id: 27
+    start_address: 0x036B
+    size: 112
+    protection_form: "UEP"
+    protection_level: 14
+    bitrate: 896
+  - subchannel_id: 28
+    start_address: 0x026B
+    size: 768
+    protection_form: "UEP"
+    protection_level: 32
+    bitrate: 6144
+  - subchannel_id: 29
+    start_address: 0x0061
+    size: 256
+    protection_form: "UEP"
+    protection_level: 32
+    bitrate: 2048
+  - subchannel_id: 30
+    start_address: 0x0107
+    size: 768
+    protection_form: "UEP"
+    protection_level: 32
+    bitrate: 6144
+  - subchannel_id: 31
+    start_address: 0x034F
+    size: 360
+    protection_form: "UEP"
+    protection_level: 45
+    bitrate: 2880
+  - subchannel_id: 32
+    start_address: 0x0003
+    size: 267
+    protection_form: "EEP-2A"
+    protection_level: 2
+    bitrate: 2136
+  - subchannel_id: 33
+    start_address: 0x007E
+    size: 272
+    protection_form: "UEP"
+    protection_level: 34
+    bitrate: 2176
+  - subchannel_id: 34
+    start_address: 0x0030
+    size: 625
+    protection_form: "EEP-6A"
+    protection_level: 6
+    bitrate: 5000
+  - subchannel_id: 35
+    start_address: 0x032A
+    size: 8
+    protection_form: "UEP"
+    protection_level: 1
+    bitrate: 64
+  - subchannel_id: 36
+    start_address: 0x027A
+    size: 896
+    protection_form: "UEP"
+    protection_level: 48
+    bitrate: 7168
+  - subchannel_id: 37
+    start_address: 0x0342
+    size: 496
+    protection_form: "UEP"
+    protection_level: 62
+    bitrate: 3968
+  - subchannel_id: 38
+    start_address: 0x0193
+    size: 768
+    protection_form: "UEP"
+    protection_level: 32
+    bitrate: 6144
+  - subchannel_id: 39
+    start_address: 0x0348
+    size: 8
+    protection_form: "UEP"
+    protection_level: 1
+    bitrate: 64
+  - subchannel_id: 40
+    start_address: 0x03F8
+    size: 24
+    protection_form: "UEP"
+    protection_level: 3
+    bitrate: 192
+  - subchannel_id: 41
+    start_address: 0x03A6
+    size: 8
+    protection_form: "UEP"
+    protection_level: 1
+    bitrate: 64
+  - subchannel_id: 42
+    start_address: 0x0210
+    size: 409
+    protection_form: "EEP-7A"
+    protection_level: 7
+    bitrate: 3272
+  - subchannel_id: 43
+    start_address: 0x00DB
+    size: 8
+    protection_form: "UEP"
+    protection_level: 1
+    bitrate: 64
+  - subchannel_id: 44
+    start_address: 0x005C
+    size: 67
+    protection_form: "EEP-5A"
+    protection_level: 5
+    bitrate: 536
+  - subchannel_id: 45
+    start_address: 0x034C
+    size: 782
+    protection_form: "EEP-6A"
+    protection_level: 6
+    bitrate: 6256
+  - subchannel_id: 46
+    start_address: 0x0374
+    size: 336
+    protection_form: "UEP"
+    protection_level: 42
+    bitrate: 2688
+  - subchannel_id: 47
+    start_address: 0x0101
+    size: 823
+    protection_form: "EEP-8A"
+    protection_level: 8
+    bitrate: 6584
+  - subchannel_id: 48
+    start_address: 0x0002
+    size: 512
+    protection_form: "UEP"
+    protection_level: 0
+    bitrate: 4096
+  - subchannel_id: 49
+    start_address: 0x035B
+    size: 8
+    protection_form: "UEP"
+    protection_level: 1
+    bitrate: 64
+  - subchannel_id: 50
+    start_address: 0x019E
+    size: 872
+    protection_form: "UEP"
+    protection_level: 45
+    bitrate: 6976
+  - subchannel_id: 51
+    start_address: 0x0188
+    size: 8
+    protection_form: "UEP"
+    protection_level: 1
+    bitrate: 64
+  - subchannel_id: 52
+    start_address: 0x0224
+    size: 856
+    protection_form: "UEP"
+    protection_level: 43
+    bitrate: 6848
+  - subchannel_id: 53
+    start_address: 0x00B7
+    size: 159
+    protection_form: "EEP-7A"
+    protection_level: 7
+    bitrate: 1272
+  - subchannel_id: 54
+    start_address: 0x02E8
+    size: 384
+    protection_form: "UEP"
+    protection_level: 48
+    bitrate: 3072
+  - subchannel_id: 55
+    start_address: 0x0077
+    size: 680
+    protection_form: "UEP"
+    protection_level: 21
+    bitrate: 5440
+  - subchannel_id: 56
+    start_address: 0x0001
+    size: 557
+    protection_form: "EEP-1A"
+    protection_level: 1
+    bitrate: 4456
+  - subchannel_id: 57
+    start_address: 0x03B9
+    size: 56
+    protection_form: "UEP"
+    protection_level: 7
+    bitrate: 448
+  - subchannel_id: 58
+    start_address: 0x03C0
+    size: 272
+    protection_form: "UEP"
+    protection_level: 34
+    bitrate: 2176
+  - subchannel_id: 59
+    start_address: 0x0179
+    size: 744
+    protection_form: "UEP"
+    protection_level: 29
+    bitrate: 5952
+  - subchannel_id: 60
+    start_address: 0x0320
+    size: 0
+    protection_form: "UEP"
+    protection_level: 0
+    bitrate: 0
+  - subchannel_id: 61
+    start_address: 0x0398
+    size: 600
+    protection_form: "UEP"
+    protection_level: 11
+    bitrate: 4800
+  - subchannel_id: 62
+    start_address: 0x0000
+    size: 528
+    protection_form: "UEP"
+    protection_level: 2
+    bitrate: 4224
+  - subchannel_id: 63
+    start_address: 0x03FF
+    size: 912
+    protection_form: "UEP"
+    protection_level: 50
+    bitrate: 7296
+
+fig_statistics:
+  total_figs_processed: 69972
+  fig_type_counts:
+    "FIG 0/0": 14994
+    "FIG 0/16": 19992
+    "FIG 1/0": 4998
+    "FIG 3/0": 4998
+    "FIG 4/0": 19992
+    "FIG 6/0": 4998
+
+etsi_compliance:
+  overall_compliance: false
+  warnings:
+    - "3 frames failed parsing"
+    - "No services discovered (unusual for valid ETI)"
+
+performance:
+  total_processing_time_ms: 4117
+  frames_per_second: 1214.7

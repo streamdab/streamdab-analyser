@@ -15,6 +15,10 @@
  * Previously: Only basic statistics sent to YAML generator
  * Now: Ensemble, services, subchannels, and FIG counts properly forwarded
  *
+ * VERBOSE FRAMES COMPLETE (2025-11-08): Added frame-by-frame data collection
+ * HeadlessETIProcessor collects: ETI header, STC fields, FIC data, FIG blocks
+ * YAMLOutputGenerator formats all frame data to YAML
+ *
  * @copyright StreamDAB Analyzer Project - PDCA Week 8
  */
 
@@ -93,6 +97,9 @@ namespace {
         std::cout << "\n";
         std::cout << "Services:        " << result.servicesFound << "\n";
         std::cout << "Subchannels:     " << result.subchannels.size() << "\n";  // AGENT 45 FIX
+        if (result.verbose_mode) {
+            std::cout << "Verbose Frames:  " << result.frame_analyses.size() << "\n";
+        }
         std::cout << "ETSI Compliant:  " << (result.etsiCompliant ? "YES" : "NO") << "\n";
         std::cout << "========================================\n\n";
     }
@@ -136,8 +143,20 @@ int cli_main(int argc, char** argv) {
             printProgress("Output: stdout", options.quiet);
         }
 
+        // Warn about verbose frames producing large output
+        if (options.verbose_frames) {
+            printProgress("\n*** WARNING: --verbose-frames produces VERY LARGE output files (50-100MB+) ***", false);
+            printProgress("*** Consider using --max-frames to limit output size ***\n", false);
+        }
+
         // Create headless ETI processor
         HeadlessETIProcessor processor;
+
+        // *** ENABLE VERBOSE MODE IF REQUESTED ***
+        if (options.verbose_frames) {
+            processor.setVerboseMode(true);
+            printProgress("Verbose frame-by-frame analysis: ENABLED", options.quiet);
+        }
 
         // Connect progress signals for non-quiet mode
         if (!options.quiet) {
@@ -175,11 +194,23 @@ int cli_main(int argc, char** argv) {
         printProgress("\nETI processing completed successfully.", options.quiet);
 
         // ============================================================================
-        // AGENT 45 FIX: Generate YAML output with aggregated data
+        // AGENT 45 FIX + VERBOSE FRAMES: Generate YAML output with aggregated data
         // ============================================================================
         printProgress("Generating YAML output...", options.quiet);
 
         YAMLOutputGenerator yamlGenerator;
+
+        // Enable verbose mode if requested
+        if (options.verbose_frames) {
+            yamlGenerator.setVerboseMode(true);
+
+            // *** ADD ALL FRAME ANALYSES TO YAML GENERATOR ***
+            for (const auto& frame : result.frame_analyses) {
+                yamlGenerator.addFrameAnalysis(frame);
+            }
+
+            printProgress(QString("Added %1 frames to verbose output").arg(result.frame_analyses.size()), options.quiet);
+        }
 
         // Set input file and processing time
         yamlGenerator.setInputFile(options.input_file);

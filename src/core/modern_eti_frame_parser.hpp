@@ -54,9 +54,9 @@ concept ETIFrameData = requires(T t) {
 };
 
 template<typename T>
-concept ETIProcessor = requires(T t, const eti::EtiFrame& frame) {
+concept ETIProcessor = requires(T t, const ::eti::EtiFrame& frame) {
     { t.process(frame) } -> std::convertible_to<bool>;
-    { t.validate(frame) } -> std::convertible_to<eti::ValidationResult>;
+    { t.validate(frame) } -> std::convertible_to<::eti::ValidationResult>;
 };
 
 /**
@@ -77,14 +77,14 @@ enum class ETIParseErrorCode {
  */
 struct ETIParseResult {
     bool success{false};
-    eti::EtiFrame frame;
-    eti::ValidationResult validation;
+    ::eti::EtiFrame frame;
+    ::eti::ValidationResult validation;
     std::chrono::nanoseconds parse_time{0};
     uint32_t frame_number{0};
     ETIParseErrorCode error_code{ETIParseErrorCode::SUCCESS};
 
     // ETI-NI subchannel data (from STC fields, not FIC)
-    std::vector<eti::SubChannelInfo> subchannels_from_stc;
+    std::vector<::eti::SubChannelInfo> subchannels_from_stc;
 
     // Performance metrics
     struct {
@@ -132,9 +132,9 @@ struct ProcessingConfig {
  */
 struct FIGAnalysisResult {
     std::vector<eti::FigBlock> fig_blocks;
-    eti::Ensemble ensemble_info;
-    std::vector<eti::DabService> discovered_services;
-    std::vector<eti::SubChannelInfo> subchannels;
+    ::eti::Ensemble ensemble_info;
+    std::vector<::eti::DabService> discovered_services;
+    std::vector<::eti::SubChannelInfo> subchannels;
 
     struct ComplianceMetrics {
         double etsi_en_300_799_score{100.0};
@@ -203,14 +203,14 @@ public:
      * @param frame Parsed ETI frame
      * @return Comprehensive FIG analysis result
      */
-    [[nodiscard]] FIGAnalysisResult analyzeFIGData(const eti::EtiFrame& frame);
+    [[nodiscard]] FIGAnalysisResult analyzeFIGData(const ::eti::EtiFrame& frame);
 
     /**
      * @brief Validate frame structure and compliance
      * @param frame ETI frame to validate
      * @return Detailed validation result
      */
-    [[nodiscard]] eti::ValidationResult validateFrame(const eti::EtiFrame& frame) const;
+    [[nodiscard]] ::eti::ValidationResult validateFrame(const ::eti::EtiFrame& frame) const;
 
     /**
      * @brief Get current performance statistics
@@ -274,11 +274,11 @@ signals:
     // NOTE: Custom eti:: type signals commented out to avoid MOC compilation errors
     // TODO: Refactor to use QByteArray serialization when needed
 
-    // void frameProcessed(uint32_t frame_number, const eti::EtiFrame& frame,
+    // void frameProcessed(uint32_t frame_number, const ::eti::EtiFrame& frame,
     //                    std::chrono::nanoseconds parse_time);
     // void figAnalysisComplete(uint32_t frame_number, const FIGAnalysisResult& analysis);
-    // void ensembleDiscovered(const eti::Ensemble& ensemble);
-    // void serviceDiscovered(const eti::DabService& service);
+    // void ensembleDiscovered(const ::eti::Ensemble& ensemble);
+    // void serviceDiscovered(const ::eti::DabService& service);
 
     /**
      * @brief Emitted when compliance issue is detected
@@ -304,7 +304,7 @@ private slots:
 private:
     // Core processing methods
     [[nodiscard]] bool validateFrameHeader(std::span<const uint8_t, ETI_FRAME_SIZE> data) const noexcept;
-    [[nodiscard]] eti::EtiFrame parseFrameStructure(std::span<const uint8_t, ETI_FRAME_SIZE> data);
+    [[nodiscard]] ::eti::EtiFrame parseFrameStructure(std::span<const uint8_t, ETI_FRAME_SIZE> data);
     [[nodiscard]] std::vector<eti::FigBlock> extractFIGBlocks(const eti::EtiFicField& fic);
 
     // ETI-LI parsing (original implementation)
@@ -330,15 +330,15 @@ private:
     void checkPerformanceTargets();
 
     // Compliance calculation methods
-    double calculateETSI799Compliance(const eti::EtiFrame& frame);
+    double calculateETSI799Compliance(const ::eti::EtiFrame& frame);
     double calculateETSI401Compliance(const FIGAnalysisResult& result);
 
     // Performance calculation methods
     double calculateCPUEfficiency(std::chrono::nanoseconds parse_time) const;
 
     // Validation helper methods
-    void validateFICStructure(const eti::EtiFrame& frame, eti::ValidationResult& result) const;
-    void validateMSCStructure(const eti::EtiFrame& frame, eti::ValidationResult& result) const;
+    void validateFICStructure(const ::eti::EtiFrame& frame, ::eti::ValidationResult& result) const;
+    void validateMSCStructure(const ::eti::EtiFrame& frame, ::eti::ValidationResult& result) const;
 
     // Member variables
     std::atomic<bool> initialized_{false};
@@ -346,7 +346,7 @@ private:
 
     // Performance components
     std::unique_ptr<eti::modern::ETIFrameMemoryPool> memory_pool_;
-    std::unique_ptr<eti::modern::ETIProcessingCache<uint32_t, eti::EtiFrame>> cache_;
+    std::unique_ptr<eti::modern::ETIProcessingCache<uint32_t, ::eti::EtiFrame>> cache_;
     std::unique_ptr<eti::modern::performance_profiler> profiler_;
 
     // Threading
@@ -362,9 +362,9 @@ private:
     std::vector<std::chrono::nanoseconds> recent_frame_times_;
 
     // Cache for ensemble/service information
-    std::optional<eti::Ensemble> current_ensemble_;
-    std::vector<eti::DabService> discovered_services_;
-    std::vector<eti::SubChannelInfo> current_subchannels_;
+    std::optional<::eti::Ensemble> current_ensemble_;
+    std::vector<::eti::DabService> discovered_services_;
+    std::vector<::eti::SubChannelInfo> current_subchannels_;
 
     // Compliance tracking
     struct {

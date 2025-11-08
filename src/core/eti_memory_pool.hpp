@@ -408,8 +408,8 @@ private:
 };
 
 // Type aliases for common usage patterns
-using frame_data_ptr = managed_frame_data<eti::EtiFrame>;
-using service_cache = ETIProcessingCache<uint16_t, eti::ServiceInfo>;
-using ensemble_cache = ETIProcessingCache<uint16_t, eti::Ensemble>;
+using frame_data_ptr = managed_frame_data<::eti::EtiFrame>;
+using service_cache = ETIProcessingCache<uint16_t, ::eti::ServiceInfo>;
+using ensemble_cache = ETIProcessingCache<uint16_t, ::eti::Ensemble>;
 
 } // namespace eti::modern

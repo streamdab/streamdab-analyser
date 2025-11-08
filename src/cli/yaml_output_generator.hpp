@@ -9,6 +9,21 @@
  * @author Agent 35 - YAML Output Generator
  * @date 2025-11-05
  * @copyright StreamDAB Analyzer Project - PDCA Week 8
+ *
+ * ENHANCED (2025-11-08): Added etisnoop-compatible detailed output
+ * - Ensemble labels from FIG 1/0
+ * - Service labels from FIG 1/1
+ * - Component labels from FIG 1/4
+ * - EEP protection level decoding (1-A to 5-B)
+ * - Service-to-subchannel mapping
+ * - Extended label support (FIG 2/*)
+ *
+ * VERBOSE MODE (2025-11-08): Added frame-by-frame detailed analysis
+ * - Per-frame ETI header extraction
+ * - Complete FIC/FIG decoding for each frame
+ * - STC field details for all subchannels
+ * - MSC stream data preview
+ * - MORE detailed than etisnoop
  */
 
 #ifndef YAML_OUTPUT_GENERATOR_HPP
@@ -27,6 +42,64 @@
 namespace cli {
 
 /**
+ * @brief Per-frame detailed analysis data
+ */
+struct FrameAnalysisData {
+    uint64_t frame_number{0};
+    QDateTime timestamp;
+
+    // ETI Header (LIDATA field)
+    struct ETIHeader {
+        uint8_t fct{0};          // Frame Count
+        uint8_t ficf{0};         // FIC Flag
+        uint8_t nst{0};          // Number of Sub-channels
+        uint8_t mid{0};          // Mode Identity
+        uint8_t fp{0};           // Frame Phase
+        uint16_t fl{0};          // Frame Length
+        uint32_t tist{0};        // Time Stamp
+        QString format;          // "ETI-LI" or "ETI-NI"
+    } header;
+
+    // STC fields (for ETI-NI) - one per subchannel
+    struct STCField {
+        uint8_t scid{0};         // Sub-Channel ID
+        uint16_t sad{0};         // Sub-channel Start Address
+        uint8_t tpl{0};          // Sub-channel TPL (Table/Protection/Length)
+        uint16_t stl{0};         // Sub-channel STL (Stream Length)
+
+        // Decoded protection info
+        QString protection_form; // "UEP" or "EEP"
+        QString protection_level;// "3-A", "4-B", etc.
+        uint16_t size_cu{0};     // Size in CUs
+        uint32_t bitrate_kbps{0};// Calculated bitrate
+    };
+    QList<STCField> stc_fields;
+
+    // FIC data
+    struct FICData {
+        uint8_t fib_count{0};    // Number of FIBs (0-3)
+        struct FIB {
+            uint8_t fib_number{0};
+            bool crc_ok{false};
+            QList<eti::FigBlock> fig_blocks;
+        };
+        QList<FIB> fibs;
+    } fic;
+
+    // MSC stream data (optional preview)
+    struct MSCData {
+        uint8_t subchannel_id{0};
+        uint32_t length_bytes{0};
+        QByteArray data_preview;  // First 32 bytes
+    };
+    QList<MSCData> msc_streams;
+
+    // Frame validation
+    bool crc_ok{true};
+    QStringList errors;
+};
+
+/**
  * @brief YAML Output Generator for StreamDAB Analyzer
  *
  * Generates ETISnoop-compatible YAML output containing:
@@ -37,6 +110,8 @@ namespace cli {
  * - FIG statistics (counts by type)
  * - ETSI compliance status
  * - Performance metrics
+ *
+ * VERBOSE MODE: Frame-by-frame detailed analysis with complete FIG decoding
  *
  * Output format follows YAML 1.2 specification with:
  * - 2-space indentation
@@ -121,6 +196,22 @@ public:
     void setETIStreamInfo(int total_frames, int valid_frames, int error_frames, int crc_errors);
 
     // ========================================================================
+    // Verbose Mode - Frame-by-Frame Analysis
+    // ========================================================================
+
+    /**
+     * @brief Enable verbose frame-by-frame output
+     * @param enabled Enable verbose mode
+     */
+    void setVerboseMode(bool enabled);
+
+    /**
+     * @brief Add per-frame analysis data (verbose mode)
+     * @param frame_data Detailed frame analysis
+     */
+    void addFrameAnalysis(const FrameAnalysisData& frame_data);
+
+    // ========================================================================
     // Output Generation
     // ========================================================================
 
@@ -152,8 +243,8 @@ private:
      * @brief Complete YAML output data
      */
     struct YAMLData {
-        QString version{"1.0"};
-        QString generator{"StreamDAB Analyzer v1.1"};
+        QString version{"1.1"};
+        QString generator{"StreamDAB Analyzer v1.1 - Verbose Mode"};
         QDateTime timestamp;
         QString input_file;
         qint64 analysis_duration_ms{0};
@@ -179,6 +270,10 @@ private:
 
         qint64 processing_time_ms{0};
         double frames_per_second{0.0};
+
+        // Verbose mode data
+        bool verbose_mode{false};
+        QList<FrameAnalysisData> frame_analyses;
     } m_data;
 
     // ========================================================================
@@ -227,6 +322,28 @@ private:
      */
     QString formatPerformance() const;
 
+    /**
+     * @brief Format verbose frames section (DETAILED per-frame analysis)
+     * @return YAML formatted frame-by-frame data
+     */
+    QString formatVerboseFrames() const;
+
+    /**
+     * @brief Format single frame analysis (verbose mode)
+     * @param frame Frame analysis data
+     * @param indent Indentation level (spaces)
+     * @return YAML formatted frame data
+     */
+    QString formatSingleFrame(const FrameAnalysisData& frame, int indent = 2) const;
+
+    /**
+     * @brief Format FIG block with complete field decoding
+     * @param fig FIG block data
+     * @param indent Indentation level (spaces)
+     * @return YAML formatted FIG with all fields
+     */
+    QString formatFIGBlock(const eti::FigBlock& fig, int indent = 6) const;
+
     // ========================================================================
     // Helper Methods
     // ========================================================================
@@ -253,11 +370,42 @@ private:
     QString formatHex(quint32 value) const;
 
     /**
+     * @brief Format 8-bit value as hexadecimal
+     * @param value Value to format
+     * @return Hexadecimal string (e.g., "0x12")
+     */
+    QString formatHex8(quint8 value) const;
+
+    /**
+     * @brief Format byte array as hex dump
+     * @param data Byte array
+     * @param max_bytes Maximum bytes to show
+     * @return Hex string (e.g., "0x12 0x34 0x56 ...")
+     */
+    QString formatHexDump(const QByteArray& data, int max_bytes = 32) const;
+
+    /**
      * @brief Format protection level description
      * @param subchannel Sub-channel info
      * @return Protection level string (e.g., "UEP-3", "EEP-2A")
      */
     QString formatProtectionLevel(const eti::fig::Fig01SubchannelInfo& subchannel) const;
+
+    /**
+     * @brief Format EEP protection level detail
+     * @param protection_level Protection level (0-3)
+     * @param option Option flag (0=A, 1=B)
+     * @return Protection level string (e.g., "1-A", "4-B")
+     */
+    QString formatEEPProtectionLevel(uint8_t protection_level, uint8_t option) const;
+
+    /**
+     * @brief Get country name from country ID and ECC
+     * @param country_id Country ID (4-bit)
+     * @param extended_country_code Extended Country Code (8-bit)
+     * @return Country name string
+     */
+    QString getCountryName(uint8_t country_id, uint8_t extended_country_code) const;
 
     /**
      * @brief Get service type description

@@ -87,7 +87,7 @@ struct FIGCarouselAnalysis {
  * @brief Service information with enhanced metadata
  */
 struct EnhancedServiceInfo {
-    eti::DabService base_service;
+    ::eti::DabService base_service;
     
     // Enhanced metadata
     std::optional<std::string> thai_label;
@@ -124,7 +124,7 @@ struct EnhancedServiceInfo {
  * @brief Enhanced ensemble information
  */
 struct EnhancedEnsembleInfo {
-    eti::Ensemble base_ensemble;
+    ::eti::Ensemble base_ensemble;
     
     // Enhanced metadata
     std::optional<std::string> thai_label;
@@ -340,10 +340,10 @@ private:
                                   const std::string& severity);
 
     // Data management
-    void updateServiceInfo(const eti::DabService& service);
-    void updateEnsembleInfo(const eti::Ensemble& ensemble);
+    void updateServiceInfo(const ::eti::DabService& service);
+    void updateEnsembleInfo(const ::eti::Ensemble& ensemble);
     void mergeServiceComponents(EnhancedServiceInfo& service, 
-                               const eti::ServiceComponent& component);
+                               const ::eti::ServiceComponent& component);
 
     // Performance optimization
     void optimizeDataStructures();
@@ -357,11 +357,11 @@ private:
     // Current state
     std::optional<EnhancedEnsembleInfo> current_ensemble_;
     std::unordered_map<uint16_t, EnhancedServiceInfo> discovered_services_;
-    std::unordered_map<uint8_t, eti::SubChannelInfo> subchannels_;
+    std::unordered_map<uint8_t, ::eti::SubChannelInfo> subchannels_;
     
     // Additional state tracking for ETSI compliance
-    std::unordered_map<uint8_t, eti::ServiceComponent> m_serviceComponents;
-    std::unordered_map<uint32_t, eti::DabService> m_dabServices;
+    std::unordered_map<uint8_t, ::eti::ServiceComponent> m_serviceComponents;
+    std::unordered_map<uint32_t, ::eti::DabService> m_dabServices;
     std::unordered_map<uint32_t, std::vector<std::string>> m_userApplications;
     
     // Carousel analysis data

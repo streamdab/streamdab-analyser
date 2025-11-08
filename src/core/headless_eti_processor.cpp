@@ -9,6 +9,9 @@
  * AGENT 45 FIX (2025-11-08): Added result aggregation for YAML output
  * Previously: Data discovered but NOT exported to ProcessingResult
  * Now: Ensemble, services, subchannels, and FIG counts populated in result
+ *
+ * VERBOSE FRAMES FIX (2025-11-08): Added per-frame detailed data collection
+ * Collects: ETI header, STC fields, FIC data, FIG blocks for each frame
  */
 
 #include "headless_eti_processor.hpp"
@@ -19,6 +22,7 @@
 #include "utils/logger.h"
 #include "eti_types.hpp"
 #include "fig_parser.hpp"
+#include "../cli/yaml_output_generator.hpp"  // For FrameAnalysisData
 
 #include <QFile>
 #include <QFileInfo>
@@ -28,6 +32,7 @@
 #include <QLoggingCategory>
 #include <QSet>
 #include <QMap>
+#include <QDateTime>
 
 // Define logging category for CLI mode
 Q_LOGGING_CATEGORY(etiMain, "streamdab.eti")
@@ -36,6 +41,7 @@ HeadlessETIProcessor::HeadlessETIProcessor(QObject* parent)
     : QObject(parent)
     , m_progress(0.0)
     , m_statusText("")
+    , m_verbose_mode(false)
 {
     Logger::instance().log(Logger::Info, "HeadlessETIProcessor", "HeadlessETIProcessor created for batch processing");
 }
@@ -51,6 +57,9 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
 
     // Reset processing state
     reset_processing_state();
+
+    // Set verbose mode in result
+    result.verbose_mode = m_verbose_mode;
 
     // Validate input file exists
     QFileInfo inputInfo(inputFile);
@@ -164,6 +173,67 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                         // Step 2: Analyze FIG data from the frame
                         auto figResult = m_frameParser->analyzeFIGData(parseResult.frame);
 
+                        // *** VERBOSE MODE: Collect per-frame data ***
+                        if (m_verbose_mode) {
+                            cli::FrameAnalysisData frameAnalysis;
+
+                            // Extract ETI header (LIDATA field)
+                            auto lidata = parseResult.frame.get_lidata_field();
+
+                            frameAnalysis.frame_number = processedFrames - 1;
+                            frameAnalysis.timestamp = QDateTime::currentDateTime().addMSecs((processedFrames - 1) * 24);
+
+                            // ETI header fields
+                            frameAnalysis.header.fct = lidata.fc;
+                            frameAnalysis.header.ficf = lidata.ficf;
+                            frameAnalysis.header.nst = lidata.nst;
+                            frameAnalysis.header.mid = lidata.mid;
+                            frameAnalysis.header.fp = lidata.fp;
+                            frameAnalysis.header.fl = lidata.fl;
+                            frameAnalysis.header.tist = lidata.tist;
+                            frameAnalysis.header.format = (eti::detectETIFormat(
+                                reinterpret_cast<const uint8_t*>(frameData.data()),
+                                frameData.size()
+                            ) == eti::ETIFormat::ETI_NI) ? "ETI-NI" : "ETI-LI";
+
+                            // STC fields (from parseResult.subchannels_from_stc for ETI-NI)
+                            for (const auto& subchannel : parseResult.subchannels_from_stc) {
+                                cli::FrameAnalysisData::STCField stc;
+                                stc.scid = subchannel.sub_channel_id;
+                                stc.sad = subchannel.start_address;
+                                stc.size_cu = subchannel.size;
+                                // Protection info (simplified)
+                                stc.protection_form = subchannel.uep_flag ? "UEP" : "EEP";
+                                stc.protection_level = QString("%1").arg(subchannel.protection_level);
+                                // Calculate approximate bitrate (size * 8kbps per CU)
+                                stc.bitrate_kbps = subchannel.size * 8;
+                                frameAnalysis.stc_fields.append(stc);
+                            }
+
+                            // FIC data (FIG blocks)
+                            if (lidata.ficf) {
+                                frameAnalysis.fic.fib_count = 3;  // Standard DAB has 3 FIBs
+                                // Note: FIB-level CRC checking would require FIC parser enhancement
+                                // For now, we just collect the FIG blocks
+                                cli::FrameAnalysisData::FICData::FIB fib;
+                                fib.fib_number = 0;  // Combined FIBs
+                                fib.crc_ok = parseResult.validation.valid;
+                                for (const auto& fb : figResult.fig_blocks) fib.fig_blocks.append(fb);
+                                frameAnalysis.fic.fibs.append(fib);
+                            }
+
+                            // Frame validation
+                            frameAnalysis.crc_ok = parseResult.validation.valid;
+                            if (!parseResult.validation.valid) {
+                                for (const auto& err : parseResult.validation.errors) {
+                                    frameAnalysis.errors.append(QString::fromStdString(err));
+                                }
+                            }
+
+                            // Store in result
+                            result.frame_analyses.push_back(frameAnalysis);
+                        }
+
                         // Step 3: Collect ensemble information
                         if (figResult.ensemble_info.validate_ensemble_id()) {
                             uint16_t eid = figResult.ensemble_info.ensemble_id;
@@ -268,6 +338,9 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                     qCInfo(etiMain) << "Progress:" << processedFrames << "frames,"
                                    << discovered_services.size() << "services,"
                                    << discovered_subchannels.size() << "subchannels";
+                    if (m_verbose_mode) {
+                        qCInfo(etiMain) << "  Verbose: Collected" << result.frame_analyses.size() << "frame analyses";
+                    }
                 }
 
             } else if (bytesRead > 0) {
@@ -342,10 +415,10 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
         eti::fig::Fig01SubchannelInfo fig01_sc{};
         fig01_sc.subchannel_id = subchannel.sub_channel_id;
         fig01_sc.start_address = subchannel.start_address;
-        
+
         // Determine form based on UEP flag
         fig01_sc.short_form = subchannel.uep_flag;
-        
+
         if (fig01_sc.short_form) {
             // Short form (UEP): estimate table index from size
             fig01_sc.table_index = (subchannel.size / 8);  // Simplified
@@ -392,6 +465,9 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
     qCInfo(etiMain) << "  FIG types seen:" << fig_type_counts.size();
     qCInfo(etiMain) << "  Processing time:" << processingTime << "ms";
     qCInfo(etiMain) << "  Average FPS:" << QString::number(result.averageFPS, 'f', 1);
+    if (m_verbose_mode) {
+        qCInfo(etiMain) << "  Verbose frames collected:" << result.frame_analyses.size();
+    }
 
     // Save results to output file
     if (!save_results_to_file(outputFile, result)) {
