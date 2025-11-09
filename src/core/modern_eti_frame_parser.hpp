@@ -86,6 +86,12 @@ struct ETIParseResult {
     // ETI-NI subchannel data (from STC fields, not FIC)
     std::vector<::eti::SubChannelInfo> subchannels_from_stc;
 
+    // CRITICAL FIX: Store FICF flag and format from actual parse
+    // This fixes service discovery for ETI-NI format where get_lidata_field()
+    // assumes ETI-LI offsets and reads FICF incorrectly
+    bool has_fic{false};           // FICF flag from actual parse (not get_lidata_field())
+    ::eti::ETIFormat detected_format{::eti::ETIFormat::UNKNOWN};
+
     // Performance metrics
     struct {
         uint64_t cycles_used{0};
@@ -201,9 +207,12 @@ public:
     /**
      * @brief Parse and analyze FIG data from frame
      * @param frame Parsed ETI frame
+     * @param parseResult Parse result containing FICF and format info (CRITICAL for ETI-NI)
      * @return Comprehensive FIG analysis result
      */
-    [[nodiscard]] FIGAnalysisResult analyzeFIGData(const ::eti::EtiFrame& frame);
+    [[nodiscard]] FIGAnalysisResult analyzeFIGData(
+        const ::eti::EtiFrame& frame,
+        const ETIParseResult& parseResult);
 
     /**
      * @brief Validate frame structure and compliance

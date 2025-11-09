@@ -171,7 +171,7 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                         valid_parsed_frames++;
 
                         // Step 2: Analyze FIG data from the frame
-                        auto figResult = m_frameParser->analyzeFIGData(parseResult.frame);
+                        auto figResult = m_frameParser->analyzeFIGData(parseResult.frame, parseResult);
 
                         // *** VERBOSE MODE: Collect per-frame data ***
                         if (m_verbose_mode) {
