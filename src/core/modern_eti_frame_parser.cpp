@@ -203,6 +203,11 @@ ETIParseResult ModernETIFrameParser::parseETI_LI_Frame(std::span<const uint8_t, 
     result.success = result.validation.valid;
     result.error_code = result.success ? ETIParseErrorCode::SUCCESS : ETIParseErrorCode::INVALID_LIDATA;
 
+    // CRITICAL FIX: Store format and FIC flag for analyzeFIGData
+    result.detected_format = ::eti::ETIFormat::ETI_LI;
+    auto lidata = result.frame.get_lidata_field();
+    result.has_fic = (lidata.ficf == 1);
+
     return result;
 }
 
@@ -347,8 +352,12 @@ ETIParseResult ModernETIFrameParser::parseETI_NI_Frame(std::span<const uint8_t, 
 
         std::memcpy(fic_data.data(), frame_data.data() + fic_offset, 32);
 
+        // CRITICAL FIX: Copy FIC to standardized ETI-LI offset (12) in frame object
+        // This allows get_fic_field() to work for both ETI-LI and ETI-NI formats
+        std::memcpy(frame.data() + 12, fic_data.data(), 32);
+
         Logger::instance().log(Logger::Debug, "ModernETIFrameParser",
-                              QString("FIC extracted at offset %1 (32 bytes)").arg(fic_offset));
+                              QString("FIC extracted at offset %1 (32 bytes) and normalized to offset 12").arg(fic_offset));
     } else {
         Logger::instance().log(Logger::Debug, "ModernETIFrameParser",
                               "No FIC in this frame (FICF=0)");
@@ -390,18 +399,24 @@ ETIParseResult ModernETIFrameParser::parseETI_NI_Frame(std::span<const uint8_t, 
                           QString("ETI-NI frame parsed successfully: %1 subchannels, FICF=%2")
                           .arg(actual_streams).arg(ficf));
 
+    // CRITICAL FIX: Store format and FIC flag for analyzeFIGData
+    result.detected_format = ::eti::ETIFormat::ETI_NI;
+    result.has_fic = (ficf == 1);
+
     return result;
 }
 
-FIGAnalysisResult ModernETIFrameParser::analyzeFIGData(const eti::EtiFrame& frame)
+FIGAnalysisResult ModernETIFrameParser::analyzeFIGData(
+    const eti::EtiFrame& frame,
+    const ETIParseResult& parseResult)
 {
     FIGAnalysisResult result;
 
     try {
-        // Get FIC field from frame
-        auto fic = frame.get_lidata_field();
+        // CRITICAL FIX: Use parseResult.has_fic instead of frame.get_lidata_field().ficf
+        // This fixes ETI-NI where get_lidata_field() assumes ETI-LI offsets
 
-        if (!fic.ficf) {
+        if (!parseResult.has_fic) {
             // No FIC data present, but we still have STC subchannel data
             result.subchannels = frame.get_subchannel_info();
             Logger::instance().log(Logger::Debug, "ModernETIFrameParser",
