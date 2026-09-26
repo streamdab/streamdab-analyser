@@ -56,7 +56,7 @@
 
 ### **📊 Current Test Status:**
 
-**See:** [TEST_STATUS_REPORT.md](TEST_STATUS_REPORT.md) for detailed test metrics and coverage analysis.
+**See:** [TEST_STATUS_REPORT.md](docs/releases/TEST_STATUS_REPORT.md) for detailed test metrics and coverage analysis.
 
 **Quick Status:**
 - **CLI Tests:** 27/27 passing (100%) ✅
@@ -112,7 +112,7 @@
 
 **Total:** 27 FIG types operational
 
-**Documentation:** [PDCA_WEEK7_V1.1_COMPLETE.md](PDCA_WEEK7_V1.1_COMPLETE.md) - Comprehensive final report
+**Documentation:** [PDCA_WEEK7_V1.1_COMPLETE.md](docs/pdca/PDCA_WEEK7_V1.1_COMPLETE.md) - Comprehensive final report
 
 ## 🎯 **PHASE 3A COMPLETION SUMMARY**
 
@@ -475,7 +475,7 @@
 - **Files:** [src/core/fig_parser.cpp](src/core/fig_parser.cpp), [tests/test_fig10_ensemble_label.cpp](tests/test_fig10_ensemble_label.cpp)
 - **ETSI Standard:** EN 300 401 Section 8.1.13 (100% compliant)
 - **Coverage:** >85% for FIG 1/0 code
-- **Report:** [AGENT1_TEST_FIX_COMPLETE.md](AGENT1_TEST_FIX_COMPLETE.md)
+- **Report:** [AGENT1_TEST_FIX_COMPLETE.md](docs/agents/AGENT1_TEST_FIX_COMPLETE.md)
 
 **Features:**
 - Ensemble ID extraction (16-bit big-endian)
@@ -556,21 +556,21 @@
 - All 4 agents executed simultaneously
 - Deliverables produced on schedule
 - Documentation comprehensive
-- Report: [PDCA_WEEK1_DO_PHASE_COMPLETE.md](PDCA_WEEK1_DO_PHASE_COMPLETE.md)
+- Report: [PDCA_WEEK1_DO_PHASE_COMPLETE.md](docs/pdca/PDCA_WEEK1_DO_PHASE_COMPLETE.md)
 
 **Check Phase:** ✅ Complete
 - 100% test pass rate achieved (72/72)
 - Coverage validated (>85%)
 - ETSI compliance verified (100%)
 - Performance benchmarks exceeded
-- Report: [PDCA_WEEK1_CHECK_PHASE_COMPLETE.md](PDCA_WEEK1_CHECK_PHASE_COMPLETE.md)
+- Report: [PDCA_WEEK1_CHECK_PHASE_COMPLETE.md](docs/pdca/PDCA_WEEK1_CHECK_PHASE_COMPLETE.md)
 
 **Act Phase:** ✅ Complete
 - Fixes applied and committed (3 git commits)
 - Documentation updated
 - Lessons learned documented
 - Week 2 plan ready
-- Final Report: [PDCA_WEEK1_COMPLETE.md](PDCA_WEEK1_COMPLETE.md)
+- Final Report: [PDCA_WEEK1_COMPLETE.md](docs/pdca/PDCA_WEEK1_COMPLETE.md)
 
 ### **Lessons Learned**
 
@@ -757,7 +757,7 @@
 - **Files:** [src/core/fig_parser.cpp](src/core/fig_parser.cpp), [tests/test_fig008_service_component_global.cpp](tests/test_fig008_service_component_global.cpp)
 - **ETSI Standard:** EN 300 401 Section 8.1.6 (100% compliant)
 - **Performance:** 1.174µs per parse (target: <15µs, **92% better**)
-- **Report:** [PDCA_WEEK6_CHECK_COMPLETE.md](PDCA_WEEK6_CHECK_COMPLETE.md)
+- **Report:** [PDCA_WEEK6_CHECK_COMPLETE.md](docs/pdca/PDCA_WEEK6_CHECK_COMPLETE.md)
 
 **Features:**
 - SCIdS 12-bit extraction (big-endian)
@@ -820,14 +820,14 @@
 - All 3 agents executed simultaneously
 - Deliverables produced on schedule
 - Documentation comprehensive
-- Report: [PDCA_WEEK6_AGENTS_COMPLETE.md](PDCA_WEEK6_AGENTS_COMPLETE.md)
+- Report: [PDCA_WEEK6_AGENTS_COMPLETE.md](docs/pdca/PDCA_WEEK6_AGENTS_COMPLETE.md)
 
 **Check Phase:** ✅ Complete
 - 100% test pass rate achieved (69/69)
 - Performance benchmarks exceeded
 - ETSI compliance verified (100%)
 - Critical bugs fixed (FIG 0/8 sc_id extraction)
-- Report: [PDCA_WEEK6_CHECK_COMPLETE.md](PDCA_WEEK6_CHECK_COMPLETE.md)
+- Report: [PDCA_WEEK6_CHECK_COMPLETE.md](docs/pdca/PDCA_WEEK6_CHECK_COMPLETE.md)
 
 **Act Phase:** ✅ Complete
 - Fixes applied and committed

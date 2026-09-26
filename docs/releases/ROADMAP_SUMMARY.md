@@ -46,9 +46,9 @@
 
 ## Detailed Plans
 
-📋 **Complete Implementation Plan:** [ETSI_COMPLIANCE_IMPLEMENTATION_PLAN.md](docs/ETSI_COMPLIANCE_IMPLEMENTATION_PLAN.md)
+📋 **Complete Implementation Plan:** [ETSI_COMPLIANCE_IMPLEMENTATION_PLAN.md](../ETSI_COMPLIANCE_IMPLEMENTATION_PLAN.md)
 
-📋 **Updated Compliance Framework:** [ETSI_COMPLIANCE_FRAMEWORK.md](docs/ETSI_COMPLIANCE_FRAMEWORK.md)
+📋 **Updated Compliance Framework:** [ETSI_COMPLIANCE_FRAMEWORK.md](../ETSI_COMPLIANCE_FRAMEWORK.md)
 
 ---
 
@@ -240,10 +240,10 @@ A: CLI mode plan is complete (see CLI_MODE_FEATURE_PLAN.md). Target: v1.1 or v1.
 
 ## References
 
-- [ETSI_COMPLIANCE_IMPLEMENTATION_PLAN.md](docs/ETSI_COMPLIANCE_IMPLEMENTATION_PLAN.md) - Detailed implementation plan
-- [ETSI_COMPLIANCE_FRAMEWORK.md](docs/ETSI_COMPLIANCE_FRAMEWORK.md) - Current compliance status
-- [CLI_MODE_FEATURE_PLAN.md](docs/CLI_MODE_FEATURE_PLAN.md) - CLI mode design
-- [CLAUDE.md](CLAUDE.md) - Project overview and phase completion
+- [ETSI_COMPLIANCE_IMPLEMENTATION_PLAN.md](../ETSI_COMPLIANCE_IMPLEMENTATION_PLAN.md) - Detailed implementation plan
+- [ETSI_COMPLIANCE_FRAMEWORK.md](../ETSI_COMPLIANCE_FRAMEWORK.md) - Current compliance status
+- [CLI_MODE_FEATURE_PLAN.md](../CLI_MODE_FEATURE_PLAN.md) - CLI mode design
+- [CLAUDE.md](../../CLAUDE.md) - Project overview and phase completion
 
 ---
 

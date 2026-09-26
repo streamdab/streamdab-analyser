@@ -9,7 +9,7 @@
  * 4. Performance benchmarking (>900 FPS target)
  *
  * Purpose: Functional verification without GUI display issues
- * Reference: SERVICE_LABELS_FIX_SUMMARY.md (etisnoop bug analysis)
+ * Reference: docs/fixes/SERVICE_LABELS_FIX_SUMMARY.md (etisnoop bug analysis)
  *
  * @author PM Agent (Fixed by QA Tester Agent)
  * @date October 28, 2025

@@ -2,6 +2,8 @@
 
 **Agent 48 Completion: 2025-11-08**
 
+**Update 2026-09-27 (source review — cmake unavailable, no rebuild): the aggregation bug below is FIXED in source.** `analyzeFIGData()` (`src/core/modern_eti_frame_parser.cpp:409-426`) now copies STC subchannels when no FIC is present, keyed on `parseResult.has_fic` (robust for ETI-NI; landed via `bb0389f`). Runtime confirmation (`grep -c scid:` → 10) still pending a rebuild. Original report retained below as history.
+
 ## Current Status: 95% Production Ready ✅
 
 ### What Works ✅
@@ -10,7 +12,7 @@
 - ✅ **Subchannel extraction:** 10/10 subchannels correctly parsed
 - ✅ **Data accuracy:** 100% match with etisnoop reference tool
 
-### What's Broken ❌
+### What's Broken ❌ (resolved in source 2026-09-27 — see banner; runtime check pending)
 - ❌ **YAML output:** 0 subchannels (should be 10)
 - ❌ **Root cause:** Aggregation bug in `analyzeFIGData()`
 

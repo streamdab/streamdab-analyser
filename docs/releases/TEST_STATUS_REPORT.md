@@ -4,6 +4,8 @@
 **Version:** v1.2+ (CLI Mode Complete)
 **Project Status:** PDCA Week 8 - CLI Mode Implementation
 
+**Update 2026-09-27 (source review — cmake unavailable, no rebuild): the MOC workaround has landed.** All `eti::`-typed signals/slots in `src/core/eti_processor.hpp` and `src/core/modern_eti_frame_parser.hpp` are commented out (commits `a56c8aa`, `538b9a0`; flagged members too), so the "39 suites blocked" table below is STALE — superseded by the Nov 9 claim of 35/41 passing. True pass rate awaits a rebuilt `ctest` baseline. Body retained below as history.
+
 ## 📊 **TEST REQUIREMENTS (MANDATORY)**
 
 ### **Project Quality Standards**
