@@ -11,6 +11,7 @@
 #include <QList>
 #include <QVector>
 #include <QFile>
+#include <QElapsedTimer>
 #include <QUdpSocket>          // Phase C: UDP streaming support
 #include <QHostAddress>        // Phase C: Multicast support
 #include <memory>

@@ -240,12 +240,12 @@ QString YAMLOutputGenerator::formatServices() const {
     for (const auto& service : m_data.services) {
         out << "  - service_id: " << formatHex(static_cast<quint32>(service.service_id)) << "\n";
 
-        // ENHANCED: Show service label from FIG 1/1 (was service_label, now just label for consistency)
+        // Service label from FIG 1/1 (etisnoop-compatible key: service_label)
         QString service_label = QString::fromStdString(service.label);
         if (service_label.isEmpty()) {
             service_label = "(no label)";
         }
-        out << "    label: \"" << escapeYAMLString(service_label) << "\"\n";
+        out << "    service_label: \"" << escapeYAMLString(service_label) << "\"\n";
 
         out << "    service_type: \"" << getServiceType(service) << "\"\n";
         out << "    is_programme_service: " << (service.is_programme ? "true" : "false") << "\n";
@@ -319,21 +319,15 @@ QString YAMLOutputGenerator::formatSubchannels() const {
 
         // Calculate size from table index or use subchannel_size for long form
         int size = subchannel.short_form ? (subchannel.table_index * 8) : subchannel.subchannel_size;
-        out << "    size_cu: " << size << "\n";
+        out << "    size: " << size << "\n";
 
-        // ENHANCED: Show detailed protection level (e.g., "EEP-3A", "EEP-4B", "UEP")
-        out << "    protection_form: \"" << (subchannel.short_form ? "UEP" : "EEP") << "\"\n";
-
-        // ENHANCED: Add detailed EEP protection level (e.g., "3-A", "4-B")
-        if (!subchannel.short_form) {
-            QString protection_detail = formatEEPProtectionLevel(subchannel.protection_level, subchannel.option);
-            out << "    protection_level_detail: \"" << protection_detail << "\"\n";
-        }
+        // Protection level, etisnoop-compatible combined form (e.g., "UEP", "EEP-3A")
+        out << "    protection_form: \"" << formatProtectionLevel(subchannel) << "\"\n";
         out << "    protection_level: " << static_cast<int>(subchannel.get_protection_level()) << "\n";
 
         // Estimate bitrate (CUs * 8 kbps)
         int bitrate = size * 8;
-        out << "    bitrate_kbps: " << bitrate << "\n";
+        out << "    bitrate: " << bitrate << "\n";
 
         // ENHANCED: Show service mapping (which service uses this subchannel)
         QStringList service_names;
@@ -773,13 +767,13 @@ QString YAMLOutputGenerator::formatProtectionLevel(const eti::fig::Fig01Subchann
 }
 
 QString YAMLOutputGenerator::formatEEPProtectionLevel(uint8_t protection_level, uint8_t option) const {
-    // ENHANCED: Format EEP protection level as "1-A", "2-A", "3-A", "4-A", "1-B", "2-B", "3-B", "4-B"
-    // Protection level: 0-3 maps to 1-4
-    // Option: 0 = A, 1 = B
-    int level = protection_level + 1;  // Convert 0-3 to 1-4
-    char option_char = (option == 0) ? 'A' : 'B';
+    // Format EEP protection level suffix as "3A", "4B", etc. (no dash — the
+    // "EEP-" prefix is added by formatProtectionLevel()).
+    // protection_level is the raw 2-bit FIG 0/1 long-form field, used directly
+    // (etisnoop-compatible contract: field value + option suffix, e.g. 3+0 -> "EEP-3A").
+    QChar option_char = (option == 0) ? QChar('A') : QChar('B');
 
-    return QString("%1-%2").arg(level).arg(option_char);
+    return QString("%1%2").arg(protection_level).arg(option_char);
 }
 
 QString YAMLOutputGenerator::getCountryName(uint8_t country_id, uint8_t extended_country_code) const {

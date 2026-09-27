@@ -445,9 +445,19 @@ Fig00EnsembleInfo FigParser::parseFig00_EnsembleInfo(const std::vector<uint8_t>&
 
         ensemble.cif_count_low = fig_data[offset++];
 
-        // Validate ensemble information
-        if (parseFig00_Internal(fig_data, ensemble)) {
-            ensemble.is_valid = validateEnsembleCompliance(ensemble);
+        // Validate ensemble information against the FIG 0/0 payload.
+        // parseFig00_Internal expects the payload WITHOUT the leading
+        // extension byte (EId at data[0..1]); passing full fig_data would
+        // misread the extension byte as EId high and clobber ensemble_id.
+        std::vector<uint8_t> payload(fig_data.begin() + 1, fig_data.end());
+        if (parseFig00_Internal(payload, ensemble)) {
+            // Set is_valid before the compliance check (avoids the circular
+            // dependency where validateEnsembleCompliance consults is_valid,
+            // which would otherwise force every result to invalid).
+            ensemble.is_valid = true;
+            if (!validateEnsembleCompliance(ensemble)) {
+                ensemble.is_valid = false;
+            }
 
             if (ensemble.is_valid) {
                 Logger::instance().log(Logger::Info, "FigParser",

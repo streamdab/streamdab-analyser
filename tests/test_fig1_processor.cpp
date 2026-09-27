@@ -650,30 +650,18 @@ void TestFIG1Processor::testCharacterFlag_AllSelected()
 
 void TestFIG1Processor::testLabelWithServiceDiscovery()
 {
-    // Complete workflow: Discover service then add label
+    // Complete workflow: Discover service then add label.
+    //
+    // NOTE: Steps 1-2 use the shared setupServiceForLabeling helper so the
+    // FIG 0/1 + FIG 0/2 setup matches the FIC header / extension / padding
+    // conventions processFIG0_1 + processFIG0_2 expect (hand-rolled bytes
+    // without those headers are dropped as malformed before any service is
+    // stored). 16-bit programme SId 0xE0D0 is stored by FIG 0/2 under the
+    // 15-bit key 0x60D0 (P/D flag in SId bit 15); FIG 1/1 applies the same
+    // mask, so the label below resolves to the discovered service.
 
-    // Step 1: Add sub-channel (FIG 0/1)
-    QByteArray fig0_1;
-    fig0_1.append(static_cast<char>(0x01));  // Type=0, Ext=1
-    fig0_1.append(static_cast<char>(0x04));  // Length
-    fig0_1.append(static_cast<char>(0x00));  // SubChId=0
-    fig0_1.append(static_cast<char>(0x00));  // Start addr
-    fig0_1.append(static_cast<char>(0x00));
-    fig0_1.append(static_cast<char>(0x05));  // Table index
-
-    m_analyzer->analyzeFICData(fig0_1);
-
-    // Step 2: Add service (FIG 0/2)
-    QByteArray fig0_2;
-    fig0_2.append(static_cast<char>(0x02));  // Type=0, Ext=2
-    fig0_2.append(static_cast<char>(0x06));  // Length
-    fig0_2.append(static_cast<char>(0xE0));  // SId
-    fig0_2.append(static_cast<char>(0xD0));
-    fig0_2.append(static_cast<char>(0x01));  // 1 component
-    fig0_2.append(static_cast<char>(0x00));  // TMId
-    fig0_2.append(static_cast<char>(0x00));  // SubChId
-
-    m_analyzer->analyzeFICData(fig0_2);
+    // Step 1+2: Add sub-channel (FIG 0/1) and service (FIG 0/2)
+    setupServiceForLabeling(0xE0D0);
 
     // Step 3: Add label (FIG 1/1)
     m_analyzer->analyzeFICData(createFIG1_1(0x0000E0D0, "MCOT Radio      ", 0xFF00));
@@ -891,8 +879,8 @@ QByteArray TestFIG1Processor::createFIG1_1(uint32_t service_id, const QString& l
     fig.append(static_cast<char>(type_byte));
 
     if (use_16bit_sid) {
-        // 16-bit Service ID: Length=20 bytes (ext + pd/charset + SId16 + label + flag)
-        fig.append(static_cast<char>(0x14));  // 20 decimal = 0x14
+        // 16-bit Service ID: Length=22 bytes (ext + pd/charset + SId16 + label + flag)
+        fig.append(static_cast<char>(0x16));  // 22 decimal = 0x16
     } else {
         // 32-bit Service ID: Length=24 bytes (ext + pd/charset + SId32 + label + flag)
         fig.append(static_cast<char>(0x18));  // 24 decimal = 0x18
