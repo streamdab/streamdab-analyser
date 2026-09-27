@@ -50,7 +50,7 @@ else
 fi
 
 # Check documentation files
-for doc in "docs/fig/FIG014_QUICKSTART.md" "docs/fig/FIG014_CODE_PATCHES.txt" "docs/fig/FIG014_IMPLEMENTATION_GUIDE.md" \
+for doc in "docs/fig/FIG014_QUICKSTART.md" "docs/archive/FIG014_CODE_PATCHES.txt" "docs/fig/FIG014_IMPLEMENTATION_GUIDE.md" \
            "docs/agents/AGENT21_FIG014_IMPLEMENTATION_COMPLETE.md" "docs/agents/AGENT21_FINAL_REPORT.md" "docs/agents/AGENT21_DELIVERY_SUMMARY.txt"; do
     if [ -f "$doc" ]; then
         print_check "Documentation: $doc" "PASS"
@@ -68,7 +68,7 @@ if grep -q "struct FECSubchannelOrganization" src/core/fig_parser.hpp 2>/dev/nul
     print_check "FECSubchannelOrganization struct in header" "PASS"
 else
     print_check "FECSubchannelOrganization struct in header" "FAIL"
-    echo -e "  ${YELLOW}→ Add struct to src/core/fig_parser.hpp (see docs/fig/FIG014_CODE_PATCHES.txt PATCH 1)${NC}"
+    echo -e "  ${YELLOW}→ Add struct to src/core/fig_parser.hpp (see docs/archive/FIG014_CODE_PATCHES.txt PATCH 1)${NC}"
 fi
 
 # Check if method declaration exists
@@ -76,7 +76,7 @@ if grep -q "parseFig014_FECSubchannelOrganization" src/core/fig_parser.hpp 2>/de
     print_check "Method declaration in header" "PASS"
 else
     print_check "Method declaration in header" "FAIL"
-    echo -e "  ${YELLOW}→ Add method declaration (see docs/fig/FIG014_CODE_PATCHES.txt PATCH 2)${NC}"
+    echo -e "  ${YELLOW}→ Add method declaration (see docs/archive/FIG014_CODE_PATCHES.txt PATCH 2)${NC}"
 fi
 
 # Check if signal declaration exists
@@ -84,7 +84,7 @@ if grep -q "fecSubchannelOrganizationDiscovered" src/core/fig_parser.hpp 2>/dev/
     print_check "Signal declaration in header" "PASS"
 else
     print_check "Signal declaration in header" "FAIL"
-    echo -e "  ${YELLOW}→ Add signal declaration (see docs/fig/FIG014_CODE_PATCHES.txt PATCH 3)${NC}"
+    echo -e "  ${YELLOW}→ Add signal declaration (see docs/archive/FIG014_CODE_PATCHES.txt PATCH 3)${NC}"
 fi
 
 # Check if implementation exists
@@ -92,7 +92,7 @@ if grep -q "FigParser::parseFig014_FECSubchannelOrganization" src/core/fig_parse
     print_check "Implementation in cpp file" "PASS"
 else
     print_check "Implementation in cpp file" "FAIL"
-    echo -e "  ${YELLOW}→ Add implementation (see docs/fig/FIG014_CODE_PATCHES.txt PATCH 5)${NC}"
+    echo -e "  ${YELLOW}→ Add implementation (see docs/archive/FIG014_CODE_PATCHES.txt PATCH 5)${NC}"
 fi
 
 # Check if case 14 is added
@@ -100,7 +100,7 @@ if grep -A2 "case 14:" src/core/fig_parser.cpp 2>/dev/null | grep -q "FEC sub-ch
     print_check "Case 14 in parseFigType0()" "PASS"
 else
     print_check "Case 14 in parseFigType0()" "FAIL"
-    echo -e "  ${YELLOW}→ Add case 14 (see docs/fig/FIG014_CODE_PATCHES.txt PATCH 6)${NC}"
+    echo -e "  ${YELLOW}→ Add case 14 (see docs/archive/FIG014_CODE_PATCHES.txt PATCH 6)${NC}"
 fi
 
 # Check if test is registered in CMakeLists.txt
@@ -108,7 +108,7 @@ if grep -q "test_fig014_fec_subchannel" tests/CMakeLists.txt 2>/dev/null; then
     print_check "Test registered in CMakeLists.txt" "PASS"
 else
     print_check "Test registered in CMakeLists.txt" "FAIL"
-    echo -e "  ${YELLOW}→ Add test registration (see docs/fig/FIG014_CODE_PATCHES.txt PATCH 7)${NC}"
+    echo -e "  ${YELLOW}→ Add test registration (see docs/archive/FIG014_CODE_PATCHES.txt PATCH 7)${NC}"
 fi
 
 echo ""
@@ -182,7 +182,7 @@ elif [ "$check_failed" -le 3 ]; then
     echo -e "${YELLOW}⚠ PARTIAL INTEGRATION - See recommendations above${NC}"
     echo ""
     echo "Quick fix guide:"
-    echo "  1. Review docs/fig/FIG014_CODE_PATCHES.txt for missing patches"
+    echo "  1. Review docs/archive/FIG014_CODE_PATCHES.txt for missing patches"
     echo "  2. Apply missing patches to source files"
     echo "  3. Run: cd build && cmake --build ."
     echo "  4. Re-run this script to verify"
@@ -192,7 +192,7 @@ else
     echo ""
     echo "Start here:"
     echo "  1. Read docs/fig/FIG014_QUICKSTART.md"
-    echo "  2. Apply patches from docs/fig/FIG014_CODE_PATCHES.txt"
+    echo "  2. Apply patches from docs/archive/FIG014_CODE_PATCHES.txt"
     echo "  3. Build: cd build && cmake --build ."
     echo "  4. Re-run this script to verify"
     exit 2
