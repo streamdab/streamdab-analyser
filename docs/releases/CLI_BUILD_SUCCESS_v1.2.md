@@ -4,6 +4,8 @@
 **Build Status:** ✅ **CLI EXECUTABLE COMPLETE**
 **GUI Status:** ⚠️ **MOC ISSUES REMAIN** (requires refactoring)
 
+**Update 2026-09-27: MOC workaround landed in source** (all `eti::` signals/slots commented out, `a56c8aa`/`538b9a0`); full `ctest` re-baseline still pending. Body retained as history.
+
 ---
 
 ## ✅ **CLI BUILD SUCCESS SUMMARY**

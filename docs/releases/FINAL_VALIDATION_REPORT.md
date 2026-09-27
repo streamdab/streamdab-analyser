@@ -4,6 +4,8 @@
 **Date:** 2025-11-08
 **Status:** CRITICAL BUG IDENTIFIED - Agent 45 fix incomplete
 
+**Update 2026-09-27 (source review — cmake unavailable, no rebuild): bug FIXED in source** via `bb0389f` (`analyzeFIGData` copies STC subchannels on the no-FIC path). Runtime confirmation pending a rebuild. Body retained as history.
+
 ---
 
 ## Executive Summary
