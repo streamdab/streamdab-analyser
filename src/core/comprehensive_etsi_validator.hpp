@@ -105,8 +105,8 @@ public:
         }
     };
 
-    // TODO(MOC FIX): Methods with eti:: types commented out to avoid MOC compilation errors
-    // Refactor to use QByteArray serialization or Qt-compatible types
+    // TODO: Methods with eti:: types disabled (no validated caller; Ensemble/DabService
+    // schema no longer carries frequency/capability fields — see E-0.1 report)
     /*
     static ThaiComplianceResult validateThaiRequirements(
         const eti::Ensemble& ensemble,
@@ -116,8 +116,7 @@ public:
     static bool validateThaiCharacterEncoding(const std::string& text);
     static bool validateThaiFrequencyPlan(uint32_t frequency);
 
-    // TODO(MOC FIX): Method with eti:: types commented out to avoid MOC compilation errors
-    // static bool validateThaiContentGuidelines(const eti::DabService& service);
+    // static bool validateThaiContentGuidelines(const eti::DabService& service);  // disabled: see above
 };
 
 /**
@@ -145,11 +144,8 @@ public:
      * @brief Validate single ETI frame against all standards
      * @param frame ETI frame to validate
      * @return Comprehensive compliance result
-     *
-     * TODO(MOC FIX): Method with eti:: types commented out to avoid MOC compilation errors
-     * Refactor to use QByteArray serialization or Qt-compatible types
      */
-    // ComprehensiveComplianceResult validateFrame(const eti::EtiFrame& frame);
+    ComprehensiveComplianceResult validateFrame(const eti::EtiFrame& frame);
 
     /**
      * @brief Validate ensemble configuration
@@ -250,10 +246,8 @@ signals:
     void thaiComplianceUpdate(bool compliant, const QStringList& issues);
 
 private:
-    // TODO(MOC FIX): All private methods with eti:: types commented out to avoid MOC compilation errors
-    // Refactor to use QByteArray serialization or Qt-compatible types when needed
+    // Private validation helpers using eti:: types
 
-    /*
     // Individual standard validators
     StandardComplianceResult validateEN302077_Harmonized(const eti::EtiFrame& frame);
     StandardComplianceResult validateEN300401_DAB(const eti::EtiFrame& frame);
@@ -273,26 +267,29 @@ private:
     bool validateMSCStructure(const eti::EtiFrame& frame);
     bool validateCRCIntegrity(const eti::EtiFrame& frame);
 
-    // FIG-specific validation
+    // FIG-specific validation (not yet implemented)
+    /*
     bool validateFIGTiming(uint8_t fig_type, uint8_t extension);
     bool validateFIGCarousel(const std::vector<eti::FigBlock>& figs);
     bool validateFIGContent(const eti::FigBlock& fig);
+    */
 
     // Specific FIG type validators
     bool validateFIG0_3_ServiceComponent(const eti::FigBlock& fig);
     bool validateFIG0_4_ServiceComponentLinking(const eti::FigBlock& fig);
     bool validateFIG0_5_ServiceComponentLanguage(const eti::FigBlock& fig);
 
-    // Service validation
+    // Service validation (not yet implemented)
+    /*
     bool validateServiceConfiguration(const eti::DabService& service);
     bool validateAudioServiceCompliance(const eti::DabService& service);
     bool validateDataServiceCompliance(const eti::DabService& service);
+    */
 
     // Performance optimization
     void updateStatistics(const ComprehensiveComplianceResult& result);
     bool shouldSkipValidation(const eti::EtiFrame& frame) const;
-    void optimizeValidationSequence();
-    */
+    // void optimizeValidationSequence();  // Not implemented
 
     // CRC calculation utilities (no eti:: types)
     uint16_t calculateCRC16(const uint8_t* data, size_t length);

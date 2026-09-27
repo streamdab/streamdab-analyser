@@ -11,8 +11,8 @@
  * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
  */
 
-#ifndef ETI_TYPES_H
-#define ETI_TYPES_H
+#ifndef ETI_TYPES_HPP
+#define ETI_TYPES_HPP
 
 #include <cstdint>
 #include <array>
@@ -931,4 +931,4 @@ Q_DECLARE_METATYPE(eti::ServiceComponent)
 Q_DECLARE_METATYPE(eti::ServiceInfo)
 Q_DECLARE_METATYPE(eti::FigBlock)
 
-#endif // ETI_TYPES_H
+#endif // ETI_TYPES_HPP

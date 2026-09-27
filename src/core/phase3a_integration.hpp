@@ -396,7 +396,7 @@ private slots:
      * @brief Handle processed ETI frame
      * @param frame Processed frame data
      */
-    void onFrameProcessed(const ProcessedFrame& frame);
+    void onFrameProcessed(const ::ProcessedFrame& frame);
 
     // ========================================================================
     // FIG Analyzer Slots

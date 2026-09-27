@@ -106,7 +106,7 @@ private slots:
         frame_ni[4] = 0x00;  // FC=0
         frame_ni[5] = 0x00;  // NST field=0 (actual_streams=1)
 
-        auto result_ni = parser.parseFrame(std::span<const uint8_t, 6144>{frame_ni));
+        auto result_ni = parser.parseFrame(std::span<const uint8_t, 6144>{frame_ni});
         QVERIFY(result_ni.success);
 
         // Test ETI-LI parsing
@@ -117,8 +117,11 @@ private slots:
         frame_li[3] = 0x03;
         frame_li[4] = 0x00;  // FC=0
         frame_li[5] = 0x00;  // FICF=0, NST=0
+        // LIDATA byte 2 (EN 300 799 Sec 5.2): FP in bits 7-5, MID in bits 4-3.
+        // MID=1 (DAB Mode I); MID=0 is reserved and rejected by validation.
+        frame_li[6] = 0x08;  // FP=0, MID=1
 
-        auto result_li = parser.parseFrame(std::span<const uint8_t, 6144>{frame_li));
+        auto result_li = parser.parseFrame(std::span<const uint8_t, 6144>{frame_li});
         QVERIFY(result_li.success);
     }
 
@@ -148,7 +151,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
         // Note: NST is stored in LIDATA field, verify via frame data
         auto lidata = result.frame.get_lidata_field();
@@ -180,7 +183,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
     }
 
@@ -210,7 +213,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
     }
 
@@ -238,7 +241,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
     }
 
@@ -262,7 +265,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
         // NST-1 encoding: field=9 means 10 actual streams
     }
@@ -296,7 +299,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
 
         // Verify FIC was extracted
@@ -328,7 +331,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
     }
 
@@ -357,7 +360,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
 
         auto fic = result.frame.get_fic_field();
@@ -394,7 +397,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
         // SCID=63 should be extracted correctly
     }
@@ -423,7 +426,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
         // SAD=1023 should be extracted
     }
@@ -452,7 +455,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
     }
 
@@ -480,7 +483,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
         // STL=1023 -> size=1024 CUs
     }
@@ -515,7 +518,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
     }
 
@@ -543,7 +546,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
     }
 
@@ -707,7 +710,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
         // FIC should be all zeros when FICF=0
     }
@@ -733,7 +736,7 @@ private slots:
         ModernETIFrameParser parser;
         QVERIFY(parser.initialize(config));
 
-        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame));
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
 
         // Test invalid NST (65 streams, over limit)

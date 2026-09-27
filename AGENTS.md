@@ -1,12 +1,14 @@
 # StreamDAB Analyzer — Project Instructions
 
-Qt6 / C++17 DAB/ETI stream analyzer. CMake 3.16+. ETSI EN 300 799 (ETI), EN 300 401 (DAB FIG).
+Qt6 / C++20 DAB/ETI stream analyzer. CMake 3.16+. ETSI EN 300 799 (ETI), EN 300 401 (DAB FIG).
 
 ## Build / Test / Verify
 
 ```bash
+sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev build-essential
 cmake -B build -S . && cmake --build build        # build (must be zero errors, zero warnings)
-cd build && ctest --output-on-failure             # tests (must be 100% pass)
+export QT_QPA_PLATFORM=offscreen                  # before configure: enables all 43 test targets
+cd build && ctest --output-on-failure             # tests (must be 100% pass, 43 targets)
 ./build/streamdab-cli --input eti/bkk_20062022_141637.eti --output /tmp/opencode/smoke.yaml  # CLI smoke test
 ```
 

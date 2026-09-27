@@ -1026,10 +1026,13 @@ private slots:
     void test_regression_week1_fig000_ensemble_info() {
         qDebug() << "\n[Week 3 Test 41] Regression: FIG 0/0 Ensemble Info";
         
-        // Create basic FIG 0/0 data
+        // Create basic FIG 0/0 data (fig_block.data convention: leading
+        // extension byte, no FIG type/length header -- that header is
+        // consumed by extractFigBlocks before parseFig00_EnsembleInfo runs)
         std::vector<uint8_t> fig_data = {
-            0x00, 0x00,        // Type 0, Extension 0
+            0x00,              // Extension 0
             0xC0, 0xE1,        // EId: 0xC0E1
+            0xE1,              // Country/ECC
             0x01, 0x23         // CIF count and flags
         };
         

@@ -539,7 +539,7 @@ QString Phase3AIntegrationManager::IntegrationStatistics::toString() const
 // Private Slots - Signal Handlers
 // ============================================================================
 
-void Phase3AIntegrationManager::onFrameProcessed(const ProcessedFrame& frame)
+void Phase3AIntegrationManager::onFrameProcessed(const ::ProcessedFrame& frame)
 {
     Q_UNUSED(frame);
     // Frame processing handled in processETIFrame

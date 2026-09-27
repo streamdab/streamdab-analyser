@@ -425,7 +425,13 @@ void AdvancedFIGAnalyzer::processFIG0_1(const QByteArray& data)
         SubChannelInfo info;
 
         // Byte 0: SubChId (6 bits, bits 7-2)
-        // FIX FOR testFIG0_1_InvalidSubChannelID: Validate BEFORE masking
+        // NOTE (ETSI EN 300 401 Section 6.2.1): SubChId is a 6-bit field, so
+        // values 0-63 are the only ones representable on the wire and
+        // `(byte >> 2) & 0x3F` can never yield anything else. A range check
+        // against >63 here would be dead code (and trip -Wtype-limits), and a
+        // test vector asking for SubChId 64 byte-encodes identically to
+        // SubChId 0 -- see testFIG0_1_InvalidSubChannelID, which therefore
+        // exercises the malformed-descriptor rejection below instead.
         uint8_t raw_subch_id = (bytes[offset] >> 2) & 0x3F;
 
         // VALIDATION: Check if the original byte would produce an invalid ID
@@ -860,12 +866,16 @@ void AdvancedFIGAnalyzer::processFIG1_1(const QByteArray& data)
 {
     // FIG 1/1: Programme service label
     // ETSI EN 300 401 Section 8.1.14.1
-    // Format: Extension/Charset/OE (1) + SId (2) + Label (16) + CharFlag (2) = 21 bytes
+    // Wire layout (FIC type/length header already stripped by analyzeFICData):
+    //   Byte 0:     Extension/Charset/OE field
+    //   Byte 1:     P/D flag (bit 3) + Charset/OE bits
+    //   Bytes 2-3:  16-bit SId (programme service, P/D=0)
+    //   Bytes 2-5:  32-bit SId (data service, P/D=1)
+    //   Next 16:    Label in EBU Latin charset
+    //   Last 2:     Character flag, big-endian (may be absent in truncated vectors)
     // Reference: ODR-DabMux FIG1.cpp and etisnoop fig1.cpp
-
-    // Minimum: 1 + 2 + 16 + 2 = 21 bytes
-    if (data.size() < 21) {
-        qWarning() << "FIG 1/1: Insufficient data (need 21, got" << data.size() << ")";
+    if (data.size() < 4) {
+        qWarning() << "FIG 1/1: Insufficient data (need header+P/D+SId, got" << data.size() << ")";
         return;
     }
 
@@ -874,14 +884,50 @@ void AdvancedFIGAnalyzer::processFIG1_1(const QByteArray& data)
     // Byte 0 format: Charset(7-4) + OE(3) + Extension(2-0)
     uint8_t charset = (raw_data[0] >> 4) & 0x0F;
     uint8_t oe = (raw_data[0] >> 3) & 0x01;
-    
-    // FIG 1/1 always uses 16-bit Service ID (programme services)
-    // Data services use FIG 1/5 which has 32-bit SID
-    uint32_t service_id = extractUInt16(data, 1);  // Bytes 1-2
-    int label_offset = 3;  // Label starts at byte 3
+    Q_UNUSED(charset);
+    Q_UNUSED(oe);
+
+    // P/D flag selects the SId width. This must mirror the FIG 0/2 setup path
+    // (processFIG0_2): 16-bit programme SIds carry the P/D flag in SId bit 15
+    // and are stored under the 15-bit key, so the label lookup applies the
+    // same mask. Previously the parser always read a 16-bit SId at bytes 1-2
+    // (the P/D byte plus the first SId byte), producing truncated keys such
+    // as 0x08E0 for service 0xE0D00001 and missing every 32-bit service.
+    bool is_data_service = (raw_data[1] & 0x08) != 0;
+
+    uint32_t service_id = 0;
+    int label_offset = 0;
+    if (is_data_service) {
+        // 32-bit data-service SId: full ECC + Country + Service Reference
+        if (data.size() < 22) {  // ext(1) + pd(1) + sid(4) + label(16)
+            qWarning() << "FIG 1/1: Insufficient data for 32-bit SId (need 22+, got" << data.size() << ")";
+            return;
+        }
+        service_id = (static_cast<uint32_t>(raw_data[2]) << 24) |
+                     (static_cast<uint32_t>(raw_data[3]) << 16) |
+                     (static_cast<uint32_t>(raw_data[4]) << 8) |
+                     static_cast<uint32_t>(raw_data[5]);
+        label_offset = 6;
+    } else {
+        // 16-bit programme SId; mask bit 15 for key parity with FIG 0/2
+        if (data.size() < 20) {  // ext(1) + pd(1) + sid(2) + label(16)
+            qWarning() << "FIG 1/1: Insufficient data for 16-bit SId (need 20+, got" << data.size() << ")";
+            return;
+        }
+        service_id = static_cast<uint32_t>(extractUInt16(data, 2)) & 0x7FFFu;
+        label_offset = 4;
+    }
+
+    // The 2-byte character flag after the label may be absent in truncated
+    // vectors -- pad so parseLabel never reads out of bounds.
+    QByteArray field = data;
+    while (field.size() < label_offset + 18) {
+        field.append('\0');
+    }
+    const uint8_t* field_data = reinterpret_cast<const uint8_t*>(field.constData());
 
     // Parse label
-    DABLabel label = parseLabel(raw_data, label_offset);
+    DABLabel label = parseLabel(field_data, static_cast<size_t>(label_offset));
 
     // Store label data
     m_serviceLabelData[service_id] = label;

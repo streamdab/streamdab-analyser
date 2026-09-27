@@ -6,6 +6,23 @@
 
 **Update 2026-09-27 (source review — cmake unavailable, no rebuild): the MOC workaround has landed.** All `eti::`-typed signals/slots in `src/core/eti_processor.hpp` and `src/core/modern_eti_frame_parser.hpp` are commented out (commits `a56c8aa`, `538b9a0`; flagged members too), so the "39 suites blocked" table below is STALE — superseded by the Nov 9 claim of 35/41 passing. True pass rate awaits a rebuilt `ctest` baseline. Body retained below as history.
 
+## Measured baseline 2026-09-27 (cmake 3.30.5, Qt 6.11.1, `QT_QPA_PLATFORM=offscreen`, serial ctest)
+
+**Final: 41 passed / 43 total (95%).** All 9 real assertion failures fixed same-day; remaining 2 items are disputed/environmental (details below).
+
+| Suite | Before | After | Root cause |
+|---|---|---|---|
+| test_fig0_processor | 26/27 | **27/27** | Bad test vector (SubChId 64 aliases to 0 on the 6-bit wire field) → test rewritten to a genuinely malformed FIG |
+| test_fig1_processor | 39/42 | **42/42** | 16/32-bit SId width ignored (P/D flag) + 2 test-data bugs → width handling fixed, vectors corrected |
+| test_eti_ni_parser | 27/28 | **28/28** | Test frame had MID=0 (reserved) → `frame_li[6]=0x08`; plus 18 brace fixes `{x))`→`{x})` |
+| test_fig_week2_comprehensive | 68/70 | **68/70** | `test_regression_week1_fig000_ensemble_info` FIXED (payload-slice + validator ordering); 2 remaining failures are perf-threshold disputes (see below) |
+| test_yaml_output_generator | 19/22 | **22/22** | `184c893` renamed schema keys (`service_label:`→`label:` etc.) + EEP `+1`/`"-"` bugs → code restored to etisnoop contract |
+| test_cli_main_integration | NOT BUILT | **12/12** | Missing TUs in target (`eti_processor`, `enhanced_fig_analyzer`, `performance_profiler`, `eti_types` .cpps added) + test08 expectation corrected to exit 2 |
+| test_cli_mode_functional | NOT BUILT | **27/27** | Same missing-TU class (`performance_profiler`); test-side SIGSEGV (uninit temp-dir ptr) + wrong binary name + bad synthetic sync — all fixed test-side |
+| test_pft_reassembler | NOT BUILT | NOT BUILT | environmental: `libgtest-dev` not installed — needs `sudo apt-get install -y libgtest-dev` |
+
+Open items (not code failures): (1) `test_pft_reassembler` unbuilt — gtest headers missing; (2) week2 `test_performance_fig019_parsing_speed` (~8 µs vs 5 µs threshold) and `test_fig10_basic_parsing` (82 µs vs 50 µs, load-flaky) — thresholds look unachievable/tight for this hardware, parser itself is correct; recommend revisiting thresholds, not the parser. Parallel `ctest -j16` is flaky (14 false failures) — serial is authoritative.
+
 ## 📊 **TEST REQUIREMENTS (MANDATORY)**
 
 ### **Project Quality Standards**

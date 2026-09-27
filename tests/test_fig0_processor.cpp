@@ -387,8 +387,27 @@ void TestFIG0Processor::testFIG0_1_ProtectionLevel()
 
 void TestFIG0Processor::testFIG0_1_InvalidSubChannelID()
 {
-    // Test: Invalid sub-channel ID (64 exceeds 6-bit maximum of 63)
-    QByteArray fig = createFIG0_1_ShortForm(64, 0, 5);  // Invalid: 64 (exceeds 6-bit limit)
+    // NOTE (ETSI EN 300 401 Section 6.2.1): SubChId is a 6-bit field, so an
+    // ID of 64 is unrepresentable on the wire -- (64 & 0x3F) << 2 encodes
+    // byte-identically to SubChId 0, which the valid-path tests already cover
+    // as accepted. No byte-level validator can distinguish the two, so this
+    // test exercises the validator's malformed-descriptor rejection instead:
+    // a FIG 0/1 whose declared length carries no complete 3-byte sub-channel
+    // descriptor must be rejected (error set, nothing stored, no valid FIG).
+    QByteArray fig;
+    uint8_t type_byte = (0 << 5);  // FIG type 0 in bits 7-5
+    fig.append(static_cast<char>(type_byte));
+    fig.append(static_cast<char>(0x03));  // Length=3 (extension + padding + 1 stray byte)
+
+    // Extension field (1 byte) - Extension 1 for sub-channel organization
+    uint8_t ext_byte = (1 << 3);  // Extension 1 in bits 7-3
+    fig.append(static_cast<char>(ext_byte));
+
+    // Padding byte (processFIG0_1 uses offset=2)
+    fig.append(static_cast<char>(0x00));
+
+    // Single stray byte: not a complete 3-byte (short form) descriptor
+    fig.append(static_cast<char>(0x00));
 
     m_analyzer->analyzeFICData(fig);
 
@@ -398,13 +417,8 @@ void TestFIG0Processor::testFIG0_1_InvalidSubChannelID()
 
     // *** ENHANCED: Verify invalid sub-channel NOT stored ***
     auto subchannels = m_analyzer->getAllSubChannels();
-    // Should either have 0 sub-channels or error reported
-    if (subchannels.size() > 0) {
-        // If stored, should not be ID 64
-        SubChannelInfo subch = m_analyzer->getSubChannelInfo(64);
-        QVERIFY(subch.sub_channel_id != 64);  // Should not store invalid ID
-    }
-    qInfo() << "FIG 0/1: Invalid sub-channel ID rejected - ID 64 not stored";
+    QCOMPARE(static_cast<int>(subchannels.size()), 0);
+    qInfo() << "FIG 0/1: Invalid sub-channel descriptor rejected - nothing stored";
 }
 
 // ============================================================================

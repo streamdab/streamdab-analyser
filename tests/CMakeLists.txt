@@ -776,6 +776,10 @@ add_executable(test_cli_main_integration
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_service_discovery_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_processor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
 )
 target_link_libraries(test_cli_main_integration
@@ -816,6 +820,8 @@ add_test(NAME test_yaml_output_generator COMMAND test_yaml_output_generator)
 add_executable(test_cli_mode_functional
     test_cli_mode_functional.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp

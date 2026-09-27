@@ -10,8 +10,8 @@
 ```
 E-0 VERIFY BASELINE (runtime proof that the shipped code works)
  └─ E-0.1  Toolchain + clean rebuild + ctest baseline + CLI smoke test
- └─ E-0.2  Confirm ETI-NI YAML subchannels in output (bug fixed in source bb0389f — confirm at runtime)
- └─ E-0.3  Confirm MOC resolution at build (workaround landed a56c8aa/538b9a0 — confirm all 41 suites build)
+ └─ E-0.2  Confirm ETI-NI YAML output at runtime (bb0389f numbers on bkk_20062022_141637.eti: 5 services / 4 ensembles / 64 subchannels; schema key is `subchannel_id:`, not `scid:`)
+ └─ E-0.3  Confirm MOC resolution at build (workaround landed a56c8aa/538b9a0 — confirm all 43 suites build)
  └─ E-0.4  Push to 100% pass + >85% coverage, close out, declare production-ready
 E-1 EWS EMERGENCY WARNINGS (v2.0a, ETSI TS 104 089/090)
  └─ E-1.1  ASA protocol parser + alert model
@@ -29,6 +29,9 @@ Rules: one phase active at a time; each subphase ends in a commit + a dated stat
 ## Progress log
 
 - 2026-09-27: Plan created. E-0 pending — hard blocker: `cmake` + Qt6 dev headers not installed in this environment.
+- 2026-09-27: Toolchain installed by user. Clean rebuild: all targets green EXCEPT `test_pft_reassembler` (missing `libgtest-dev`, environmental — needs `sudo apt-get install -y libgtest-dev`).
+- 2026-09-27: E-0.2 runtime CONFIRMED — Bangkok ETI: 5 services / 4 ensembles / 64 subchannels, 5001/5001 frames, ~16k FPS; Bavarian/EWS fixtures all exit 0.
+- 2026-09-27: ctest baseline (serial, authoritative): **41/43 (95%)** — all 9 assertion failures fixed (fig0 27/27, fig1 42/42, eti-ni 28/28, yaml 22/22, cli-integration 12/12, cli-functional 27/27); remaining: pft unbuilt (needs libgtest-dev via sudo), 2 perf-threshold disputes in week2. Details: `docs/releases/TEST_STATUS_REPORT.md`.
 - (append dated entries per subphase)
 
 ## doc status (single source of truth)
