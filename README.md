@@ -1,10 +1,12 @@
 # StreamDAB Stream Analyzer - Professional Desktop Application
 
-## 🎯 **PROJECT STATUS: v1.2 + ETI-NI ERA — RUNTIME VERIFICATION PENDING**
+## 🎯 **PROJECT STATUS: v1.2 + ETI-NI ERA — v1.3 GUI MIGRATION PLANNED**
 
-A professional DAB/ETI Stream Analyzer with comprehensive real processing capabilities. **Shipped:** 100% ETSI EN 300 401 (v1.1, 22/22 FIG types), CLI mode with YAML output (v1.2), ETI-NI parser (Nov 2025), DLS+ decoder. **Next:** runtime verification, then v2.0 (EWS + EDI) — see `docs/PHASE_E_PLAN.md` (main plan).
+A professional DAB/ETI Stream Analyzer with comprehensive real processing capabilities. **Shipped:** 100% ETSI EN 300 401 (v1.1, 22/22 FIG types), CLI mode with YAML output (v1.2), ETI-NI parser (Nov 2025), DLS+ decoder. **Next:** v1.3 GUI migration to Qt-ADS → v1.4 test closeout → v2.0 (EWS + EDI) — see `docs/PHASE_E_PLAN.md` (main plan).
 
 **🚀 Current State:** v1.2 Complete ✅ + ETI-NI Parser ✅ — Professional tool with real ETI processing, complete FIG decoding, audio stream validation, data service support, and headless CLI operation.
+**🎯 v1.3 Target:** GUI migration to Qt-ADS docking system (dockable panels, save/restore layout).
+**🎯 v1.4 Target:** Test closeout (threshold fix → 100% pass, coverage baseline).
 
 ## 🏆 **PHASE 3A COMPLETION HIGHLIGHTS**
 

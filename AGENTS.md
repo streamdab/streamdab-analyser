@@ -2,6 +2,11 @@
 
 Qt6 / C++20 DAB/ETI stream analyzer. CMake 3.16+. ETSI EN 300 799 (ETI), EN 300 401 (DAB FIG).
 
+**Current Phase:** v1.3 — GUI Migration to Qt-ADS (feature/gui-qtads branch)
+**Next:** v1.4 test closeout → v2.0 EWS/EDI (see `docs/PHASE_E_PLAN.md`)
+
+## Build / Test / Verify
+
 ## Build / Test / Verify
 
 ```bash

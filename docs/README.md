@@ -24,11 +24,12 @@
 
 ## Start here
 
-- **Main plan:** `PHASE_E_PLAN.md` (E-0 verification → E-1 EWS → E-2 EDI)
+- **Main plan:** `PHASE_E_PLAN.md` (v1.3 GUI migration → v1.4 test closeout → E-1 EWS → E-2 EDI)
 - **Current status:** `releases/QUICK_STATUS.md` (ETI-NI bug fixed in source `bb0389f`, runtime check pending) →
   `eti-ni/ETI_NI_PARSER_COMPLETE.md`
-- **Test status:** `releases/TEST_STATUS_REPORT.md` (MOC workaround landed, `ctest` re-baseline pending)
+- **Test status:** `releases/TEST_STATUS_REPORT.md` (97.7% pass, 34.4% coverage)
 - **Instructions:** `../AGENTS.md` (build/test commands, workflow, repo rules)
+- **v1.3 spec:** GUI migration to Qt-ADS (see `PHASE_E_PLAN.md` v1.3 section)
 
 ## `pdca/` — PDCA completion reports (all weeks finished)
 
