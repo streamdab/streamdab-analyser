@@ -10,7 +10,7 @@
 
 **Final: 41 passed / 43 total (95%) as of 2026-09-27.** All 9 real assertion failures fixed same-day; remaining 2 items are disputed/environmental (details below).
 
-**Update 2026-10-01:** `libgtest-dev` installed → **42/43 pass (97.7%)**. `test_pft_reassembler` now builds and passes. Sole remaining failure: week2 perf-threshold dispute (`test_performance_fig019_parsing_speed` ~7.8µs vs 5µs budget, parser correct). Coverage pending `lcov` install (sudo required).
+**Update 2026-10-01:** `libgtest-dev` installed → **42/43 pass (97.7%)**. `test_pft_reassembler` now builds and passes. Sole remaining failure: week2 perf-threshold dispute (`test_performance_fig019_parsing_speed` ~7.8µs vs 5µs budget, parser correct). Coverage: **34.4% lines / 35.2% functions** (below 85% target — only headless test paths exercised; GUI/ETI code paths not covered by current test suite).
 
 | Suite | Before | After | Root cause |
 |---|---|---|---|
@@ -23,7 +23,7 @@
 | test_cli_mode_functional | NOT BUILT | **27/27** | Same missing-TU class (`performance_profiler`); test-side SIGSEGV (uninit temp-dir ptr) + wrong binary name + bad synthetic sync — all fixed test-side |
 | test_pft_reassembler | NOT BUILT | **43/43** | environmental: `libgtest-dev` installed → builds and passes |
 
-Open items (not code failures): (1) week2 `test_performance_fig019_parsing_speed` (~7.8 µs vs 5 µs threshold) — threshold dispute, parser correct; `test_fig10_basic_parsing` (82 µs vs 50 µs, load-flaky) — environmental. Coverage: needs `lcov` (sudo). Parallel `ctest -j16` is flaky (14 false failures) — serial is authoritative.
+Open items (not code failures): (1) week2 `test_performance_fig019_parsing_speed` (~7.8 µs vs 5 µs threshold) — threshold dispute, parser correct; `test_fig10_basic_parsing` (82 µs vs 50 µs, load-flaky) — environmental. (2) Coverage **34.4% lines / 35.2% functions** — below 85% target; only headless test paths exercised, GUI/ETI code paths not covered by current test suite. Parallel `ctest -j16` is flaky (14 false failures) — serial is authoritative.
 
 ## 📊 **TEST REQUIREMENTS (MANDATORY)**
 

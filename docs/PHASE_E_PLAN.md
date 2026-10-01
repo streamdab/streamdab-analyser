@@ -32,7 +32,7 @@ Rules: one phase active at a time; each subphase ends in a commit + a dated stat
 - 2026-09-27: Toolchain installed by user. Clean rebuild: all targets green EXCEPT `test_pft_reassembler` (missing `libgtest-dev`, environmental — needs `sudo apt-get install -y libgtest-dev`).
 - 2026-09-27: E-0.2 runtime CONFIRMED — Bangkok ETI: 5 services / 4 ensembles / 64 subchannels, 5001/5001 frames, ~16k FPS; Bavarian/EWS fixtures all exit 0.
 - 2026-09-27: ctest baseline (serial, authoritative): **41/43 (95%)** — all 9 assertion failures fixed (fig0 27/27, fig1 42/42, eti-ni 28/28, yaml 22/22, cli-integration 12/12, cli-functional 27/27); remaining: pft unbuilt (needs libgtest-dev via sudo), 2 perf-threshold disputes in week2. Details: `docs/releases/TEST_STATUS_REPORT.md`.
-- 2026-10-01: `libgtest-dev` installed → full rebuild: **43/43 targets build**. ctest: **42/43 pass (97.7%)** — sole failure is the week2 perf-threshold dispute (`test_performance_fig019_parsing_speed` ~7.8µs vs 5µs budget, parser correct). Coverage: needs `lcov` (sudo). E-0.4 gate criteria: 100% pass not met due to environmental perf dispute; coverage unmeasured.
+- 2026-10-01: `libgtest-dev` installed → full rebuild: **43/43 targets build**. ctest: **42/43 pass (97.7%)** — sole failure is the week2 perf-threshold dispute (`test_performance_fig019_parsing_speed` ~7.8µs vs 5µs budget, parser correct). Coverage: **34.4% lines / 35.2% functions** (below 85% target — only headless test paths exercised; GUI/ETI code paths not covered by current test suite). E-0.4 gate criteria: 100% pass not met due to environmental perf dispute; coverage unmet.
 
 ## doc status (single source of truth)
 
