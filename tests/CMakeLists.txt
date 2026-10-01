@@ -695,6 +695,8 @@ target_link_libraries(test_pft_reassembler
     Qt6::Test
     Qt6::Core
     Qt6::Network
+    GTest::GTest
+    GTest::Main
     pthread
 )
 add_test(NAME test_pft_reassembler COMMAND test_pft_reassembler)
