@@ -116,6 +116,9 @@ add_executable(streamdab-cli ${CLI_ONLY_SOURCES})
 target_link_libraries(streamdab-cli Qt6::Core)
 target_include_directories(streamdab-cli PRIVATE src include)
 
+# Find GTest (libgtest-dev installed)
+find_package(GTest REQUIRED)
+
 # Enable testing
 enable_testing()
 
