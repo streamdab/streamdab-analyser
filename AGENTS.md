@@ -7,8 +7,6 @@ Qt6 / C++20 DAB/ETI stream analyzer. CMake 3.16+. ETSI EN 300 799 (ETI), EN 300 
 
 ## Build / Test / Verify
 
-## Build / Test / Verify
-
 ```bash
 sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev build-essential
 cmake -B build -S . && cmake --build build        # build (must be zero errors, zero warnings)
