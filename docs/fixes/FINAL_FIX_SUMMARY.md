@@ -127,7 +127,7 @@ ctest -R GUI_ETI_Loading_Crash -V
 ### Manual GUI Test:
 ```bash
 cd /home/seksan/workspace/streamdab-analyzer/build
-./DABAnalyzer_Enhanced_FilteringBuild
+./StreamDABAnalyzer
 # Then: File > Open > Select bkk_20062022_141637.eti
 ```
 
@@ -140,7 +140,7 @@ cd /home/seksan/workspace/streamdab-analyzer/build
 
 ### CLI Mode (Still Works):
 ```bash
-./DABAnalyzer_Enhanced_FilteringBuild --cli -i /path/to/file.eti
+./StreamDABAnalyzer --cli -i /path/to/file.eti
 ```
 
 **Expected:** ✅ 4998/5001 frames processed successfully
@@ -229,7 +229,7 @@ cd /home/seksan/workspace/streamdab-analyzer/build
 1. **Test GUI Mode:**
    ```bash
    cd /home/seksan/workspace/streamdab-analyzer/build
-   ./DABAnalyzer_Enhanced_FilteringBuild
+   ./StreamDABAnalyzer
    ```
 
 2. **Load the problematic file:**
@@ -284,8 +284,8 @@ cmake --build . -j$(nproc)
 
 **Test:**
 ```bash
-./DABAnalyzer_Enhanced_FilteringBuild --cli -i /path/to/file.eti  # CLI mode
-./DABAnalyzer_Enhanced_FilteringBuild                              # GUI mode
+./StreamDABAnalyzer --cli -i /path/to/file.eti  # CLI mode
+./StreamDABAnalyzer                              # GUI mode
 ```
 
 ---

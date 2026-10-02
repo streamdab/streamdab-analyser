@@ -36,6 +36,13 @@
 #include <QActionGroup>         // Phase C: Input menu radio group
 #include <QRegularExpression>   // Phase 1.1: Hex viewer formatting
 #include <QElapsedTimer>        // Phase 1.2: Timing throttle
+// === Qt Advanced Docking System (Qt-ADS) 4.5.0 — v1.3 GUI migration ===
+#include "DockManager.h"
+#include "DockWidget.h"
+#include "DockAreaWidget.h"
+#include "DockSplitter.h"
+#include <QSettings>
+#include <QStandardPaths>
 #include <chrono>
 #include <memory>
 #include <map>
@@ -1927,6 +1934,9 @@ private slots:
 protected:
     void closeEvent(QCloseEvent* event) override
     {
+        // v1.3: persist docking/window state BEFORE any component teardown
+        saveDockingState();
+
         // AGGRESSIVE cleanup: Destroy Phase 2B components completely before closing
         qDebug() << "Window closing - performing aggressive component cleanup...";
         
@@ -1965,9 +1975,28 @@ protected:
         // Accept the close event after aggressive cleanup
         qDebug() << "Aggressive cleanup complete - closing window";
         event->accept();
+        QWidget::closeEvent(event);
     }
 
 private:
+    // === Qt-ADS docking (v1.3): one CDockManager per tab + one shared bottom ===
+    ads::CDockManager* m_tab1DockManager = nullptr;
+    ads::CDockManager* m_tab2DockManager = nullptr;
+    ads::CDockManager* m_tab3DockManager = nullptr;
+    ads::CDockManager* m_bottomDockManager = nullptr;
+
+    // A named section produced by the refactored Tab-1 column helpers. Each
+    // section becomes one dock widget (objectName is REQUIRED for save/restore).
+    struct DockSection {
+        QString objectName;
+        QString title;
+        QWidget* widget = nullptr;
+    };
+
+    // (helper member functions makeDock()/registerTab*Docks()/buildSharedBottomDocks()/
+    //  restoreDockingState()/saveDockingState() are defined inline below, which
+    //  doubles as their declarations — no separate prototypes needed)
+
     // === PHASE 1.2: Timing Helper Function ===
     QString frameToTimeString(int frameIndex, int totalFrames, int mode = 1) const {
         // Mode 1 (DAB) = 24ms per frame, Mode 2/3/4 have different timings
@@ -2783,11 +2812,15 @@ private:
 
     void setupUI()
     {
-        // Create main vertical splitter (Tab area + Shared bottom panel)
+        // Qt-ADS: enable auto-hide (pin) support. MUST be called before any
+        // CDockManager is constructed (static config, called once per process).
+        ads::CDockManager::setAutoHideConfigFlags(ads::CDockManager::DefaultAutoHideConfig);
+
+        // Create main vertical splitter (Tab area + Shared bottom docking area)
         QSplitter* mainVerticalSplitter = new QSplitter(Qt::Vertical, this);
         setCentralWidget(mainVerticalSplitter);
 
-        // Create main tab widget for 4 tabs (per user specification)
+        // Create main tab widget for 3 tabs (per user specification)
         QTabWidget* mainTabs = new QTabWidget();
         mainVerticalSplitter->addWidget(mainTabs);
 
@@ -2803,15 +2836,26 @@ private:
         QWidget* tab3 = createTab3_FICExtractor();
         mainTabs->addTab(tab3, "📊 FIC-Extractor");
 
-        // NOTE: Tab 4 (Advanced Features) removed - Multi-stream moved to Phase 5 (FUTURE_FEATURES.md)
-        //       Error Detection and Logging relocated to Tab 1 panels
+        // Shared bottom docking area (window-level, consistent across all tabs).
+        // Replaces the old sharedBottomPanel QTabWidget: a window-level CDockManager
+        // pinned at the bottom of the mainVerticalSplitter, whose Bottom dock area
+        // hosts the 5 tabbed bottom docks (System Messages / Performance / Error
+        // Detection / Logging / Constellation).
+        QWidget* bottomHost = new QWidget();
+        QVBoxLayout* bottomLayout = new QVBoxLayout(bottomHost);
+        bottomLayout->setContentsMargins(0, 0, 0, 0);
+        bottomLayout->setSpacing(0);
+        m_bottomDockManager = new ads::CDockManager(bottomHost);
+        m_bottomDockManager->setObjectName("bottomDockManager");
+        bottomLayout->addWidget(m_bottomDockManager);
+        buildSharedBottomDocks();
+        mainVerticalSplitter->addWidget(bottomHost);
 
-        // Shared bottom panel (consistent across all tabs)
-        QTabWidget* sharedBottomPanel = createSharedBottomPanel();
-        mainVerticalSplitter->addWidget(sharedBottomPanel);
-
-        // Set vertical split: 70% tabs, 30% bottom panel (700px : 300px)
+        // Set vertical split: 70% tabs, 30% bottom dock area (700px : 300px)
         mainVerticalSplitter->setSizes({700, 300});
+
+        // Restore persisted docking/window state AFTER every dock exists.
+        restoreDockingState();
     }
 
     // ========================================================================
@@ -2824,62 +2868,142 @@ private:
         mainLayout->setContentsMargins(4, 4, 4, 4);
         mainLayout->setSpacing(4);
 
-        // Top section: 3-column layout (Left 25% | Center 50% | Right 25%)
-        QSplitter* topSplitter = new QSplitter(Qt::Horizontal);
+        // Tab 1 gets its OWN CDockManager. The three column helpers below were
+        // refactored to return per-dock sections; registerTab1Docks() wraps each
+        // section in a CDockWidget and arranges the 3-column layout.
+        m_tab1DockManager = new ads::CDockManager(tab);
+        m_tab1DockManager->setObjectName("tab1DockManager");
+        registerTab1Docks();
 
-        // Left Panel (25%): DAB Tree + ETI Explorer Details
-        QWidget* leftPanel = createTab1_LeftPanel();
-        topSplitter->addWidget(leftPanel);
-
-        // Center Panel (50%): Frame Navigator + Hex Viewer
-        QWidget* centerPanel = createTab1_CenterPanel();
-        topSplitter->addWidget(centerPanel);
-
-        // Right Panel (25%): Service Details + Signal Quality + DLS+
-        QWidget* rightPanel = createTab1_RightPanel();
-        topSplitter->addWidget(rightPanel);
-
-        // Set horizontal proportions: 25% | 50% | 25% (300px | 600px | 300px out of 1200px)
-        topSplitter->setSizes({300, 600, 300});
-
-        mainLayout->addWidget(topSplitter);
+        mainLayout->addWidget(m_tab1DockManager);
         return tab;
     }
 
-    QWidget* createTab1_LeftPanel()
+    ads::CDockWidget* makeDock(ads::CDockManager* manager, const QString& objectName,
+                               const QString& title, QWidget* widget)
     {
-        QWidget* panel = new QWidget();
-        QVBoxLayout* layout = new QVBoxLayout(panel);
-        layout->setContentsMargins(2, 2, 2, 2);
-        layout->setSpacing(4);
+        auto* dock = manager->createDockWidget(title);
+        dock->setObjectName(objectName);
+        dock->setWidget(widget ? widget : new QWidget());
+        return dock;
+    }
 
-        // LEFT Panel per DATA_AVAILABILITY_MATRIX.md specification
+    void registerTab1Docks()
+    {
+        if (!m_tab1DockManager) {
+            return;
+        }
+
+        // Build the per-column sections (section builders themselves untouched).
+        const QList<DockSection> leftSections = createTab1_LeftPanel();
+        const QList<DockSection> centerSections = createTab1_CenterPanel();
+        const QList<DockSection> rightSections = createTab1_RightPanel();
+
+        QList<ads::CDockWidget*> leftDocks, centerDocks, rightDocks;
+        for (const DockSection& s : leftSections)
+            leftDocks.append(makeDock(m_tab1DockManager, s.objectName, s.title, s.widget));
+        for (const DockSection& s : centerSections)
+            centerDocks.append(makeDock(m_tab1DockManager, s.objectName, s.title, s.widget));
+        for (const DockSection& s : rightSections)
+            rightDocks.append(makeDock(m_tab1DockManager, s.objectName, s.title, s.widget));
+
+        // ============================================================
+        // STACKING RECIPE (empirically verified on Qt-ADS 4.5.0, see
+        // report): repeated no-target addDockWidget() calls with
+        //   - CenterDockWidgetArea -> areas append VERTICALLY in the root
+        //   - LeftDockWidgetArea  -> areas insert side-by-side (horizontal)
+        //   - RightDockWidgetArea -> areas append side-by-side (horizontal)
+        // Qt-ADS has no API to stack multiple docks vertically inside a
+        // Left/Right strip, so after registering we "surgery" the splitter
+        // tree: both side strips become vertical CDockSplitter columns that
+        // are re-inserted into the root (left | center | right).
+        // ============================================================
+        for (ads::CDockWidget* d : centerDocks)
+            m_tab1DockManager->addDockWidget(ads::CenterDockWidgetArea, d, nullptr);
+        for (ads::CDockWidget* d : leftDocks)
+            m_tab1DockManager->addDockWidget(ads::LeftDockWidgetArea, d, nullptr);
+        for (ads::CDockWidget* d : rightDocks)
+            m_tab1DockManager->addDockWidget(ads::RightDockWidgetArea, d, nullptr);
+
+        // Locate the top-level splitter of this manager's container.
+        QSplitter* root = nullptr;
+        const auto splitters = m_tab1DockManager->findChildren<QSplitter*>();
+        for (QSplitter* sp : splitters) {
+            if (sp->parentWidget() == m_tab1DockManager) {
+                root = sp;
+                break;
+            }
+        }
+        if (!root) {
+            return;
+        }
+
+        // Column vertical splitters, configured like Qt-ADS's own newSplitter().
+        auto newColumnSplitter = [this]() {
+            auto* s = new ads::CDockSplitter(Qt::Vertical, m_tab1DockManager);
+            s->setOpaqueResize(ads::CDockManager::testConfigFlag(ads::CDockManager::OpaqueSplitterResize));
+            s->setChildrenCollapsible(false);
+            return s;
+        };
+        ads::CDockSplitter* leftV = newColumnSplitter();
+        ads::CDockSplitter* rightV = newColumnSplitter();
+
+        // Move the left/right dock areas out of the root into their column
+        // splitters, preserving top->bottom order. QSplitter::addWidget()
+        // reparents the area widget (removing it from the root splitter).
+        for (ads::CDockWidget* d : leftDocks) {
+            if (ads::CDockAreaWidget* a = d->dockAreaWidget()) {
+                leftV->addWidget(a);
+            }
+        }
+        for (ads::CDockWidget* d : rightDocks) {
+            if (ads::CDockAreaWidget* a = d->dockAreaWidget()) {
+                rightV->addWidget(a);
+            }
+        }
+
+        // The root now contains only the (Qt-ADS built) center vertical
+        // splitter. Re-insert the two column splitters around it.
+        root->insertWidget(0, leftV);
+        root->addWidget(rightV);
+
+        // First-launch horizontal proportions: left | center | right.
+        root->setSizes({300, 600, 300});
+    }
+
+    QList<DABAnalyzerWindow::DockSection> createTab1_LeftPanel()
+    {
+        QList<DockSection> sections;
+
+        // LEFT Column per DATA_AVAILABILITY_MATRIX.md specification
+        // Each section becomes one dock widget, stacked top->bottom:
+        // Player, Decoder, System, Messages.
         
         // 1. Player Panel (Item #1) - 20%
         QGroupBox* playerPanel = createPlayerPanel();
         if (playerPanel) {
-            layout->addWidget(playerPanel, 20);
+            sections.append({QStringLiteral("tab1_Player"), QStringLiteral("Player"), playerPanel});
         }
         
         // 2. Decoder Panel (Item #2) - 20%
         QGroupBox* decoderPanel = createDecoderPanel();
         if (decoderPanel) {
-            layout->addWidget(decoderPanel, 20);
+            sections.append({QStringLiteral("tab1_Decoder"), QStringLiteral("Decoder"), decoderPanel});
         }
         
         // 3. System Panel (Item #3) - 40%
         QGroupBox* systemPanel = createSystemPanel();
         if (systemPanel) {
-            layout->addWidget(systemPanel, 40);
+            sections.append({QStringLiteral("tab1_System"), QStringLiteral("System"), systemPanel});
         }
         
         // 4. Messages Panel (Item #4) - 20%
         QGroupBox* messagesPanel = createLoggingPanel();
         if (messagesPanel) {
-            layout->addWidget(messagesPanel, 20);
+            sections.append({QStringLiteral("tab1_Messages"), QStringLiteral("Messages"), messagesPanel});
         }
 
-        return panel;
+        return sections;
     }
 
     QWidget* createLiveStreamInputPanel()
@@ -3079,19 +3203,19 @@ private:
         return panel;
     }
 
-    QWidget* createTab1_CenterPanel()
+    QList<DABAnalyzerWindow::DockSection> createTab1_CenterPanel()
     {
-        QWidget* panel = new QWidget();
-        QVBoxLayout* layout = new QVBoxLayout(panel);
-        layout->setContentsMargins(2, 2, 2, 2);
-        layout->setSpacing(4);
+        QList<DockSection> sections;
 
-        // CENTER Panel per DATA_AVAILABILITY_MATRIX.md specification
+        // CENTER Column per DATA_AVAILABILITY_MATRIX.md specification
+        // Each section becomes one dock widget, stacked top->bottom:
+        // Input Source, DAB Ensemble Explorer, ETI Frame Navigator,
+        // Hex Viewer / ETSI Compliance, Subchannel Organization, Now Playing.
         
         // 0. Live Stream Input (NEW - placed above Ensemble Explorer) - 10%
         QWidget* liveStreamPanel = createLiveStreamInputPanel();
         if (liveStreamPanel) {
-            layout->addWidget(liveStreamPanel, 10);
+            sections.append({QStringLiteral("tab1_InputSource"), QStringLiteral("Input Source"), liveStreamPanel});
         }
         
         // 1. DAB Ensemble Explorer (Item #5) - moved from LEFT - 15%
@@ -3109,7 +3233,7 @@ private:
         m_ensembleTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
         ensembleLayout->addWidget(m_ensembleTree);
         
-        layout->addWidget(ensembleGroup, 15);
+        sections.append({QStringLiteral("tab1_EnsembleExplorer"), QStringLiteral("DAB Ensemble Explorer"), ensembleGroup});
 
         // 2. ETI Frame Navigator (Item #6) - 15%
         QGroupBox* navigatorGroup = new QGroupBox("ETI Frame Navigator");
@@ -3121,9 +3245,10 @@ private:
         m_frameList->setAlternatingRowColors(true);
         navigatorLayout->addWidget(m_frameList);
         
-        layout->addWidget(navigatorGroup, 15);
+        sections.append({QStringLiteral("tab1_FrameNavigator"), QStringLiteral("ETI Frame Navigator"), navigatorGroup});
 
         // 3. Hex Viewer / ETSI Compliance (Item #7) - 30%
+        // ONE dock wrapping the existing internal viewerTabs QTabWidget.
         QTabWidget* viewerTabs = new QTabWidget();
         
         if (!m_hexViewer) {
@@ -3142,7 +3267,7 @@ private:
         m_complianceViewer->setPlaceholderText("ETSI EN 300 799 compliance results...");
         viewerTabs->addTab(m_complianceViewer, "ETSI Compliance");
         
-        layout->addWidget(viewerTabs, 30);
+        sections.append({QStringLiteral("tab1_HexCompliance"), QStringLiteral("Hex Viewer / ETSI Compliance"), viewerTabs});
 
         // 4. Subchannel Organization (Item #8) - 15%
         QGroupBox* subchannelGroup = new QGroupBox("Subchannel Organization");
@@ -3161,15 +3286,15 @@ private:
         }
         subchannelLayout->addWidget(m_subchannelTable);
         
-        layout->addWidget(subchannelGroup, 15);
+        sections.append({QStringLiteral("tab1_SubchannelOrg"), QStringLiteral("Subchannel Organization"), subchannelGroup});
 
         // 5. Now Playing (DLS+) (Item #9) - moved from RIGHT - 25%
         QGroupBox* nowPlayingPanel = createNowPlayingPanel();
         if (nowPlayingPanel) {
-            layout->addWidget(nowPlayingPanel, 25);
+            sections.append({QStringLiteral("tab1_NowPlaying"), QStringLiteral("Now Playing (DLS+)"), nowPlayingPanel});
         }
 
-        return panel;
+        return sections;
     }
 
     QWidget* createPlayerDecoderStatusPanels()
@@ -3198,46 +3323,67 @@ private:
         return widget;
     }
 
-    QWidget* createTab1_RightPanel()
+    QList<DABAnalyzerWindow::DockSection> createTab1_RightPanel()
     {
-        QWidget* panel = new QWidget();
-        QVBoxLayout* layout = new QVBoxLayout(panel);
-        layout->setContentsMargins(2, 2, 2, 2);
-        layout->setSpacing(4);
+        QList<DockSection> sections;
 
-        // RIGHT Panel per DATA_AVAILABILITY_MATRIX.md specification
-        
+        // RIGHT Column per DATA_AVAILABILITY_MATRIX.md specification
+        // Each section becomes one dock widget, stacked top->bottom:
+        // ETI Overview, DAB Error Counter, Status, Timing, CU Usage,
+        // DAB Stream Statistics.
+
         // 1. ETI Overview (Item #10) - 25%
         QGroupBox* etiOverviewPanel = createETIOverviewPanel();
         if (etiOverviewPanel) {
-            layout->addWidget(etiOverviewPanel, 25);
+            sections.append({QStringLiteral("tab1_ETIOverview"), QStringLiteral("ETI Overview"), etiOverviewPanel});
         }
 
-        // 2. DAB Error Counter (Item #11) - 20%
+        // 2. DAB Error Counter (Item #11) - 20% (includes the error table)
         QGroupBox* errorCounterPanel = createErrorDetectionPanel();
+        QGroupBox* statusGroup = nullptr;
         if (errorCounterPanel) {
-            layout->addWidget(errorCounterPanel, 20);
+            // The section builder createErrorDetectionPanel() keeps the little
+            // "Status" group inside the error counter (left untouched). Per the
+            // v1.3 layout spec the right column has a SEPARATE "Status" dock, so
+            // we split that inner group out here by reparenting it - all widgets
+            // (labels, members) stay exactly the same, only the container changes.
+            const auto innerGroups = errorCounterPanel->findChildren<QGroupBox*>();
+            for (QGroupBox* g : innerGroups) {
+                if (g->title() == "Status") {
+                    statusGroup = g;
+                    break;
+                }
+            }
+            if (statusGroup && errorCounterPanel->layout()) {
+                errorCounterPanel->layout()->removeWidget(statusGroup);
+            }
+            sections.append({QStringLiteral("tab1_ErrorCounter"), QStringLiteral("DAB Error Counter"), errorCounterPanel});
         }
 
-        // 3. Timing (Item #12) - 20%
+        // 3. Status - the inner "Status" group split out of the error counter
+        if (statusGroup) {
+            sections.append({QStringLiteral("tab1_Status"), QStringLiteral("Status"), statusGroup});
+        }
+
+        // 4. Timing (Item #12) - 20%
         QGroupBox* timingPanel = createTimingPanel();
         if (timingPanel) {
-            layout->addWidget(timingPanel, 20);
+            sections.append({QStringLiteral("tab1_Timing"), QStringLiteral("Timing"), timingPanel});
         }
 
-        // 4. CU Usage (Item #13) - 20%
+        // 5. CU Usage (Item #13) - 20%
         QGroupBox* cuUsagePanel = createCUUsagePanel();
         if (cuUsagePanel) {
-            layout->addWidget(cuUsagePanel, 20);
+            sections.append({QStringLiteral("tab1_CUUsage"), QStringLiteral("CU Usage"), cuUsagePanel});
         }
 
-        // 5. Stream Statistics (Item #14) - 15%
+        // 6. Stream Statistics (Item #14) - 15%
         QGroupBox* streamStatsPanel = createStreamStatisticsPanel();
         if (streamStatsPanel) {
-            layout->addWidget(streamStatsPanel, 15);
+            sections.append({QStringLiteral("tab1_StreamStats"), QStringLiteral("DAB Stream Statistics"), streamStatsPanel});
         }
 
-        return panel;
+        return sections;
     }
 
     // ========================================================================
@@ -3409,23 +3555,53 @@ private:
     QWidget* createTab2_FICAnalyzer()
     {
         QWidget* mainPanel = new QWidget();
-        QHBoxLayout* mainLayout = new QHBoxLayout(mainPanel);
+        QVBoxLayout* mainLayout = new QVBoxLayout(mainPanel);
         mainLayout->setContentsMargins(0, 0, 0, 0);
-        mainLayout->setSpacing(2);
+        mainLayout->setSpacing(0);
 
-        // LEFT Panel (25%)
-        QWidget* leftPanel = createTab2_LeftPanel();
-        mainLayout->addWidget(leftPanel, 25);
+        // Tab 2 gets its OWN CDockManager with 3 docks (one per original column).
+        m_tab2DockManager = new ads::CDockManager(mainPanel);
+        m_tab2DockManager->setObjectName("tab2DockManager");
+        registerTab2Docks();
 
-        // CENTER Panel (50%)
-        QWidget* centerPanel = createTab2_CenterPanel();
-        mainLayout->addWidget(centerPanel, 50);
-
-        // RIGHT Panel (25%)
-        QWidget* rightPanel = createTab2_RightPanel();
-        mainLayout->addWidget(rightPanel, 25);
-
+        mainLayout->addWidget(m_tab2DockManager);
         return mainPanel;
+    }
+
+    void registerTab2Docks()
+    {
+        if (!m_tab2DockManager) {
+            return;
+        }
+
+        // One dock per original column widget (25% | 50% | 25%).
+        ads::CDockWidget* leftDock = makeDock(m_tab2DockManager,
+            QStringLiteral("tab2_Left"), QStringLiteral("Left"),
+            createTab2_LeftPanel());
+        ads::CDockWidget* centerDock = makeDock(m_tab2DockManager,
+            QStringLiteral("tab2_Center"), QStringLiteral("Center"),
+            createTab2_CenterPanel());
+        ads::CDockWidget* rightDock = makeDock(m_tab2DockManager,
+            QStringLiteral("tab2_Right"), QStringLiteral("Right"),
+            createTab2_RightPanel());
+
+        // Center FIRST (establishes the root splitter), then left/right append
+        // side-by-side -> Left | Center | Right (empirically verified).
+        m_tab2DockManager->addDockWidget(ads::CenterDockWidgetArea, centerDock, nullptr);
+        m_tab2DockManager->addDockWidget(ads::LeftDockWidgetArea, leftDock, nullptr);
+        m_tab2DockManager->addDockWidget(ads::RightDockWidgetArea, rightDock, nullptr);
+
+        QSplitter* root = nullptr;
+        const auto splitters = m_tab2DockManager->findChildren<QSplitter*>();
+        for (QSplitter* sp : splitters) {
+            if (sp->parentWidget() == m_tab2DockManager) {
+                root = sp;
+                break;
+            }
+        }
+        if (root && root->count() == 3) {
+            root->setSizes({300, 600, 300});  // 25% | 50% | 25%
+        }
     }
 
     // ========================================================================
@@ -3502,19 +3678,48 @@ private:
     QWidget* createTab3_FICExtractor()
     {
         QWidget* mainPanel = new QWidget();
-        QHBoxLayout* mainLayout = new QHBoxLayout(mainPanel);
+        QVBoxLayout* mainLayout = new QVBoxLayout(mainPanel);
         mainLayout->setContentsMargins(0, 0, 0, 0);
-        mainLayout->setSpacing(2);
+        mainLayout->setSpacing(0);
 
-        // LEFT Panel (40%) - FIG Instance Tree
-        QWidget* leftPanel = createTab3_LeftPanel();
-        mainLayout->addWidget(leftPanel, 40);
+        // Tab 3 gets its OWN CDockManager with 2 docks (one per original column).
+        m_tab3DockManager = new ads::CDockManager(mainPanel);
+        m_tab3DockManager->setObjectName("tab3DockManager");
+        registerTab3Docks();
 
-        // RIGHT Panel (60%) - FIG Item Details Tree
-        QWidget* rightPanel = createTab3_RightPanel();
-        mainLayout->addWidget(rightPanel, 60);
-
+        mainLayout->addWidget(m_tab3DockManager);
         return mainPanel;
+    }
+
+    void registerTab3Docks()
+    {
+        if (!m_tab3DockManager) {
+            return;
+        }
+
+        // One dock per original column widget (40% | 60%).
+        ads::CDockWidget* leftDock = makeDock(m_tab3DockManager,
+            QStringLiteral("tab3_Left"), QStringLiteral("Left"),
+            createTab3_LeftPanel());
+        ads::CDockWidget* rightDock = makeDock(m_tab3DockManager,
+            QStringLiteral("tab3_Right"), QStringLiteral("Right"),
+            createTab3_RightPanel());
+
+        // Left FIRST (sets root horizontal), right appends -> Left | Right.
+        m_tab3DockManager->addDockWidget(ads::LeftDockWidgetArea, leftDock, nullptr);
+        m_tab3DockManager->addDockWidget(ads::RightDockWidgetArea, rightDock, nullptr);
+
+        QSplitter* root = nullptr;
+        const auto splitters = m_tab3DockManager->findChildren<QSplitter*>();
+        for (QSplitter* sp : splitters) {
+            if (sp->parentWidget() == m_tab3DockManager) {
+                root = sp;
+                break;
+            }
+        }
+        if (root && root->count() == 2) {
+            root->setSizes({400, 600});  // 40% | 60%
+        }
     }
 
     // ========================================================================
@@ -3597,35 +3802,105 @@ private:
     }
 
     // ========================================================================
-    // SHARED BOTTOM PANEL (CONSISTENT ACROSS ALL TABS)
+    // SHARED BOTTOM DOCK AREA (CONSISTENT ACROSS ALL TABS, WINDOW-LEVEL)
     // ========================================================================
-    QTabWidget* createSharedBottomPanel()
+    void buildSharedBottomDocks()
     {
-        QTabWidget* bottomTabs = new QTabWidget();
+        if (!m_bottomDockManager) {
+            return;
+        }
+
+        // The five bottom tabs become five TABBED CDockWidgets hosted by the
+        // window-level bottom CDockManager. The page-widget builders themselves
+        // are untouched.
 
         // Tab 1: System Messages
-        m_systemMessages = new QTextEdit();
-        m_systemMessages->setFont(QFont("Consolas", 9));
-        m_systemMessages->setReadOnly(true);
-        bottomTabs->addTab(m_systemMessages, "System Messages");
+        if (!m_systemMessages) {
+            m_systemMessages = new QTextEdit();
+            m_systemMessages->setFont(QFont("Consolas", 9));
+            m_systemMessages->setReadOnly(true);
+        }
+        ads::CDockWidget* d1 = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_SystemMessages"), QStringLiteral("System Messages"),
+            m_systemMessages);
+
+        m_bottomDockManager->addDockWidget(ads::BottomDockWidgetArea, d1, nullptr);
 
         // Tab 2: Performance Dashboard
-        QWidget* performanceTab = createPerformanceDashboardTab();
-        bottomTabs->addTab(performanceTab, "Performance");
+        ads::CDockWidget* d2 = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_Performance"), QStringLiteral("Performance"),
+            createPerformanceDashboardTab());
+        m_bottomDockManager->addDockWidgetTabToArea(d2, d1->dockAreaWidget());
 
-        // Tab 3: Error Detection Summary (reuse widgets from Tab 3)
-        QWidget* errorSummaryTab = createErrorDetectionSummaryTab();
-        bottomTabs->addTab(errorSummaryTab, "Error Detection");
+        // Tab 3: Error Detection Summary
+        ads::CDockWidget* d3 = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_ErrorDetection"), QStringLiteral("Error Detection"),
+            createErrorDetectionSummaryTab());
+        m_bottomDockManager->addDockWidgetTabToArea(d3, d1->dockAreaWidget());
 
         // Tab 4: Logging Summary
-        QWidget* loggingSummaryTab = createLoggingSummaryTab();
-        bottomTabs->addTab(loggingSummaryTab, "Logging");
+        ads::CDockWidget* d4 = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_Logging"), QStringLiteral("Logging"),
+            createLoggingSummaryTab());
+        m_bottomDockManager->addDockWidgetTabToArea(d4, d1->dockAreaWidget());
 
         // Tab 5: Constellation Viewer
-        QWidget* constellationTab = createConstellationTab();
-        bottomTabs->addTab(constellationTab, "Constellation");
+        ads::CDockWidget* d5 = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_Constellation"), QStringLiteral("Constellation"),
+            createConstellationTab());
+        m_bottomDockManager->addDockWidgetTabToArea(d5, d1->dockAreaWidget());
+    }
 
-        return bottomTabs;
+    // ========================================================================
+    // DOCKING STATE PERSISTENCE (QSettings, v1.3)
+    // ========================================================================
+    void restoreDockingState()
+    {
+        const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+
+        const QByteArray geometry = s.value(QStringLiteral("window/geometry")).toByteArray();
+        if (!geometry.isEmpty() && !restoreGeometry(geometry)) {
+            qWarning() << "Failed to restore window geometry";
+        }
+
+        if (m_tab1DockManager && !s.value(QStringLiteral("docking/tab1")).isNull()) {
+            if (!m_tab1DockManager->restoreState(s.value(QStringLiteral("docking/tab1")).toByteArray())) {
+                qWarning() << "Failed to restore Tab 1 docking state";
+            }
+        }
+        if (m_tab2DockManager && !s.value(QStringLiteral("docking/tab2")).isNull()) {
+            if (!m_tab2DockManager->restoreState(s.value(QStringLiteral("docking/tab2")).toByteArray())) {
+                qWarning() << "Failed to restore Tab 2 docking state";
+            }
+        }
+        if (m_tab3DockManager && !s.value(QStringLiteral("docking/tab3")).isNull()) {
+            if (!m_tab3DockManager->restoreState(s.value(QStringLiteral("docking/tab3")).toByteArray())) {
+                qWarning() << "Failed to restore Tab 3 docking state";
+            }
+        }
+        if (m_bottomDockManager && !s.value(QStringLiteral("docking/bottom")).isNull()) {
+            if (!m_bottomDockManager->restoreState(s.value(QStringLiteral("docking/bottom")).toByteArray())) {
+                qWarning() << "Failed to restore bottom docking state";
+            }
+        }
+    }
+
+    void saveDockingState()
+    {
+        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        s.setValue(QStringLiteral("window/geometry"), saveGeometry());
+        if (m_tab1DockManager) {
+            s.setValue(QStringLiteral("docking/tab1"), m_tab1DockManager->saveState());
+        }
+        if (m_tab2DockManager) {
+            s.setValue(QStringLiteral("docking/tab2"), m_tab2DockManager->saveState());
+        }
+        if (m_tab3DockManager) {
+            s.setValue(QStringLiteral("docking/tab3"), m_tab3DockManager->saveState());
+        }
+        if (m_bottomDockManager) {
+            s.setValue(QStringLiteral("docking/bottom"), m_bottomDockManager->saveState());
+        }
     }
 
     QWidget* createErrorDetectionSummaryTab()
@@ -5519,12 +5794,15 @@ int main(int argc, char *argv[])
         // CLI mode - no GUI (QCoreApplication)
         QCoreApplication app(argc, argv);
         app.setApplicationName("StreamDAB Analyzer");
-        app.setApplicationVersion("1.1");
+        app.setApplicationVersion("1.3.0");
         return cli::cli_main(argc, argv);
     }
     
     // GUI Mode (default)
     QApplication app(argc, argv);
+    app.setOrganizationName("StreamDAB-Analyzer");
+    app.setApplicationName("DABAnalyzer");
+    app.setApplicationVersion("1.3.0");
 
     DABAnalyzerWindow window;
     window.show();

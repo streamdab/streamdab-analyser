@@ -15,6 +15,18 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZMQ REQUIRED libzmq)
 include_directories(${ZMQ_INCLUDE_DIRS})
 
+# Qt-Advanced-Docking-System (Qt-ADS) via FetchContent
+include(FetchContent)
+FetchContent_Declare(
+    QtAdvancedDockingSystem
+    GIT_REPOSITORY https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git
+    GIT_TAG 87cffe5d40307c61141c88b88c10c5e7d181d880 # 4.5.0
+)
+# Qt-ADS ships examples + a Qt6Quick demo app; we only need the library and
+# Qt6Quick is not installed. Force-disable them before MakeAvailable.
+set(BUILD_EXAMPLES OFF CACHE BOOL "Build Qt-ADS examples/demo" FORCE)
+FetchContent_MakeAvailable(QtAdvancedDockingSystem)
+
 # Enhanced build flags (LTO disabled to avoid compiler internal error)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native -mtune=native -ffast-math -funroll-loops -finline-functions -DRELEASE_BUILD")
 set(CMAKE_BUILD_TYPE Release)
@@ -73,12 +85,18 @@ include_directories(src include)
 # Create executable
 add_executable(DABAnalyzer_Enhanced_FilteringBuild ${SOURCES} ${EDI_SOURCES} ${CLI_SOURCES})
 
-# Link Qt6 and ZeroMQ libraries
+# Runnable name (tests keep referencing the CMake target name above)
+set_target_properties(DABAnalyzer_Enhanced_FilteringBuild PROPERTIES OUTPUT_NAME StreamDABAnalyzer)
+
+# Link Qt6, ZeroMQ, and Qt-ADS libraries
+# Qt-ADS 4.5.0 exports its include dir via $<BUILD_INTERFACE>, so no manual
+# include-directory hack is needed. Target name: qtadvanceddocking-qt6.
 target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
     Qt6::Test
+    qtadvanceddocking-qt6
     ${ZMQ_LIBRARIES}
     pthread
 )

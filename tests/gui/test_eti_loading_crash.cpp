@@ -33,7 +33,7 @@ private slots:
         qDebug() << "[TEST] Testing CLI mode with problematic ETI file...";
         
         QProcess process;
-        process.setProgram("./DABAnalyzer_Enhanced_FilteringBuild");
+        process.setProgram("./StreamDABAnalyzer");
         process.setArguments({"--cli", "-i", "/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti"});
         process.setWorkingDirectory("/home/seksan/workspace/streamdab-analyzer/build");
         

@@ -96,7 +96,7 @@ cd build/
 cmake .. && make
 
 # Run the analyzer
-./DABAnalyzer_Enhanced_FilteringBuild
+./StreamDABAnalyzer
 
 # In the GUI:
 # 1. Click "Open ETI File"

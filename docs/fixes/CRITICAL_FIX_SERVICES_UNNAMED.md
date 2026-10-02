@@ -181,7 +181,7 @@ make DABAnalyzer_Enhanced_FilteringBuild
 ### Run Application:
 ```bash
 cd /home/seksan/workspace/streamdab-analyzer
-./build/DABAnalyzer_Enhanced_FilteringBuild
+./build/StreamDABAnalyzer
 ```
 
 ### Test with Bangkok ETI file:
@@ -284,7 +284,7 @@ Tab 1 - DAB Ensemble Explorer:
 **Next User Action:**
 ```bash
 cd /home/seksan/workspace/streamdab-analyzer
-./build/DABAnalyzer_Enhanced_FilteringBuild
+./build/StreamDABAnalyzer
 # Load: eti/bkk_20062022_141637.eti
 # Check: Tab 1 - Services should now show their REAL NAMES! 🎉
 ```

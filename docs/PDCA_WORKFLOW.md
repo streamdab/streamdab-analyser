@@ -549,7 +549,7 @@ src/core/dabplus_stream_validator.cpp  # 643 lines
 
 # Build and basic testing
 cd build && make
-./DABAnalyzer_Enhanced_FilteringBuild  # Manual verification
+./StreamDABAnalyzer  # Manual verification
 
 # Report completion
 "Wave 1.1 complete - DAB+ Stream Validator implemented
@@ -1047,7 +1047,7 @@ cd build && rm -rf * && cmake .. && make -j4
 ctest --output-on-failure
 
 # Build main application
-./DABAnalyzer_Enhanced_FilteringBuild
+./StreamDABAnalyzer
 ```
 
 ### **Code Review Tools**

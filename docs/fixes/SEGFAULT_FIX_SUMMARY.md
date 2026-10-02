@@ -3,7 +3,7 @@
 ## Build Status: ✅ SUCCESS (0 errors, 0 warnings)
 
 **Date:** October 24, 2025  
-**Build:** `/home/seksan/workspace/streamdab-analyzer/build/DABAnalyzer_Enhanced_FilteringBuild`
+**Build:** `/home/seksan/workspace/streamdab-analyzer/build/StreamDABAnalyzer`
 
 ---
 
@@ -141,7 +141,7 @@ namespace {
 ## 📋 Testing Instructions
 
 ### Test 1: DLS+ Widget Theme
-1. Launch application: `cd build && ./DABAnalyzer_Enhanced_FilteringBuild`
+1. Launch application: `cd build && ./StreamDABAnalyzer`
 2. Check "Now Playing (DLS+)" widget in bottom right
 3. **Expected:** Widget background matches system theme (not white)
 
@@ -209,7 +209,7 @@ cmake --build . -j$(nproc)
 ### Run Application
 ```bash
 cd /home/seksan/workspace/streamdab-analyzer/build
-./DABAnalyzer_Enhanced_FilteringBuild
+./StreamDABAnalyzer
 ```
 
 ---
@@ -251,7 +251,7 @@ If segmentation fault still occurs, collect:
 ```bash
 # Run with debugging enabled
 cd /home/seksan/workspace/streamdab-analyzer/build
-gdb ./DABAnalyzer_Enhanced_FilteringBuild
+gdb ./StreamDABAnalyzer
 
 # In GDB:
 run
@@ -262,11 +262,11 @@ bt
 
 Or run with Valgrind:
 ```bash
-valgrind --leak-check=full ./DABAnalyzer_Enhanced_FilteringBuild 2>&1 | tee valgrind.log
+valgrind --leak-check=full ./build/StreamDABAnalyzer 2>&1 | tee valgrind.log
 ```
 
 ---
 
-**Build Location:** `/home/seksan/workspace/streamdab-analyzer/build/DABAnalyzer_Enhanced_FilteringBuild`  
+**Build Location:** `/home/seksan/workspace/streamdab-analyzer/build/StreamDABAnalyzer`  
 **Last Build:** October 24, 2025  
 **Status:** ✅ All fixes applied, ready for user testing

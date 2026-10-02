@@ -1,4 +1,5 @@
 #include "cli_argument_parser.hpp"
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QDir>
 #include <QTextStream>
@@ -6,6 +7,19 @@
 #include <stdexcept>
 
 namespace cli {
+
+namespace {
+/**
+ * @brief Version string reported by --help/--version
+ * @return QCoreApplication::applicationVersion(), or the project version
+ *         "1.3.0" when no application instance has set one yet
+ */
+QString applicationBannerVersion()
+{
+    const QString version = QCoreApplication::applicationVersion();
+    return version.isEmpty() ? QStringLiteral("1.3.0") : version;
+}
+} // namespace
 
 CLIOptions CLIArgumentParser::parse(int argc, char** argv) {
     CLIOptions options;
@@ -139,7 +153,7 @@ CLIOptions CLIArgumentParser::parse(int argc, char** argv) {
 
 void CLIArgumentParser::printUsage() {
     QTextStream out(stdout);
-    out << "StreamDAB Analyzer v1.1 - CLI Mode\n";
+    out << "StreamDAB Analyzer v" << applicationBannerVersion() << " - CLI Mode\n";
     out << "ETSI EN 300 401 compliant DAB/DAB+ stream analyzer\n\n";
 
     out << "USAGE:\n";
@@ -198,7 +212,7 @@ void CLIArgumentParser::printUsage() {
 
 void CLIArgumentParser::printVersion() {
     QTextStream out(stdout);
-    out << "StreamDAB Analyzer v1.1 - CLI Mode\n";
+    out << "StreamDAB Analyzer v" << applicationBannerVersion() << " - CLI Mode\n";
     out << "Build date: " << __DATE__ << " " << __TIME__ << "\n";
     out << "Qt version: " << QT_VERSION_STR << "\n";
     out << "ETSI Standards:\n";
