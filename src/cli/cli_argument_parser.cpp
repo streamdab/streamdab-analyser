@@ -120,6 +120,147 @@ CLIOptions CLIArgumentParser::parse(int argc, char** argv) {
             continue;
         }
 
+        // === Analyzer settings flags (option-variant matrix rows 1-14) ===
+        // Row 1: Force label charset (0 = EBU Latin, 3 = UTF-8, 6 = TIS-620)
+        if (arg == "--force-charset") {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--force-charset requires a charset value");
+            }
+            QString value = QString::fromUtf8(argv[++i]);
+            const int charset = parseIntArg("--force-charset", value, 0, 6);
+            // Accept only the decodable charsets: 0, 3, 6.
+            if (charset != 0 && charset != 3 && charset != 6) {
+                throw std::invalid_argument(
+                    "--force-charset must be 0 (EBU Latin), 3 (UTF-8) or 6 (TIS-620)");
+            }
+            options.force_charset = charset;
+            continue;
+        }
+
+        // Row 1: Charset fallback policy for unknown charset flags
+        if (arg == "--charset-fallback") {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--charset-fallback requires raw|utf8|skip");
+            }
+            QString value = QString::fromUtf8(argv[++i]).toLower();
+            if (value != "raw" && value != "utf8" && value != "skip") {
+                throw std::invalid_argument("--charset-fallback must be raw, utf8 or skip");
+            }
+            options.charset_fallback_policy = value;
+            continue;
+        }
+
+        // Row 2: Forced ETI transport mode
+        if (arg == "--eti-mode") {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--eti-mode requires auto|li|ni");
+            }
+            QString value = QString::fromUtf8(argv[++i]).toLower();
+            if (value != "auto" && value != "li" && value != "ni") {
+                throw std::invalid_argument("--eti-mode must be auto, li or ni");
+            }
+            options.eti_mode = value;
+            continue;
+        }
+
+        // Row 3: Legacy NST count-1 correction
+        if (arg == "--nst-offset-1") {
+            options.nst_offset_1 = true;
+            continue;
+        }
+
+        // Row 4: FIC decode mode
+        if (arg == "--fic-mode") {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--fic-mode requires strict|raw|auto");
+            }
+            QString value = QString::fromUtf8(argv[++i]).toLower();
+            if (value != "strict" && value != "raw" && value != "auto") {
+                throw std::invalid_argument("--fic-mode must be strict, raw or auto");
+            }
+            options.fic_mode = value;
+            continue;
+        }
+
+        // Row 5: Ignore FIB CRC failures (decode bad FIBs anyway)
+        if (arg == "--fib-ignore-crc") {
+            options.fib_ignore_crc = true;
+            continue;
+        }
+
+        // Row 11: Validate + count the EOH gap frame CRC
+        if (arg == "--strict-frame-crc") {
+            options.strict_frame_crc = true;
+            continue;
+        }
+
+        // Row 6: Manual ECC for country resolution (0x00..0xFF)
+        if (arg == "--ecc-override") {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--ecc-override requires a hex byte (0xNN)");
+            }
+            QString value = QString::fromUtf8(argv[++i]);
+            bool ok = false;
+            int ecc = value.toInt(&ok, 16);
+            if (!ok || ecc < 0 || ecc > 255) {
+                throw std::invalid_argument(
+                    QString("--ecc-override requires a hex byte 0x00-0xFF, got: %1").arg(value).toStdString());
+            }
+            options.ecc_override = ecc;
+            continue;
+        }
+
+        // Row 14: Parse the FIG 0/9 extended per-service ECC subfield
+        if (arg == "--service-ecc-deep-parse") {
+            options.service_ecc_deep_parse = true;
+            continue;
+        }
+
+        // Row 8: Label source priority
+        if (arg == "--label-source") {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--label-source requires fig016|fig11");
+            }
+            QString value = QString::fromUtf8(argv[++i]).toLower();
+            if (value != "fig016" && value != "fig11" && value != "0/16" && value != "1/1") {
+                throw std::invalid_argument("--label-source must be fig016 or fig11");
+            }
+            options.label_source_priority = (value == "fig11" || value == "1/1") ? "fig11" : "fig016";
+            continue;
+        }
+
+        // Row 8: Emit short labels derived from the 16-bit mask
+        if (arg == "--show-short-labels") {
+            options.show_short_labels = true;
+            continue;
+        }
+
+        // Row 10: Headless per-frame timestamp source
+        if (arg == "--timestamp-source") {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--timestamp-source requires tist|mtime");
+            }
+            QString value = QString::fromUtf8(argv[++i]).toLower();
+            if (value != "tist" && value != "mtime") {
+                throw std::invalid_argument("--timestamp-source must be tist or mtime");
+            }
+            options.timestamp_source = value;
+            continue;
+        }
+
+        // Row 12: SId display mode
+        if (arg == "--sid-display") {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--sid-display requires hex32|ecc-sid|hex16");
+            }
+            QString value = QString::fromUtf8(argv[++i]).toLower();
+            if (value != "hex32" && value != "ecc-sid" && value != "hex16") {
+                throw std::invalid_argument("--sid-display must be hex32, ecc-sid or hex16");
+            }
+            options.sid_display_mode = value;
+            continue;
+        }
+
         // Stream URI (future, placeholder)
         if (arg == "--stream") {
             if (i + 1 >= argc) {
@@ -151,6 +292,51 @@ CLIOptions CLIArgumentParser::parse(int argc, char** argv) {
     return options;
 }
 
+QMap<QString, QVariant> CLIOptions::analyzerOverrides() const
+{
+    QMap<QString, QVariant> m;
+    if (force_charset >= 0) {
+        m.insert(QStringLiteral("force_charset"), force_charset);
+    }
+    if (!charset_fallback_policy.isEmpty()) {
+        m.insert(QStringLiteral("charset_fallback_policy"), charset_fallback_policy);
+    }
+    if (!eti_mode.isEmpty()) {
+        m.insert(QStringLiteral("eti_mode"), eti_mode);
+    }
+    if (nst_offset_1) {
+        m.insert(QStringLiteral("nst_offset_1"), true);
+    }
+    if (!fic_mode.isEmpty()) {
+        m.insert(QStringLiteral("fic_mode"), fic_mode);
+    }
+    if (fib_ignore_crc) {
+        m.insert(QStringLiteral("fib_ignore_crc"), true);
+    }
+    if (strict_frame_crc) {
+        m.insert(QStringLiteral("strict_frame_crc"), true);
+    }
+    if (ecc_override >= 0) {
+        m.insert(QStringLiteral("ecc_override"), ecc_override);
+    }
+    if (service_ecc_deep_parse) {
+        m.insert(QStringLiteral("service_ecc_deep_parse"), true);
+    }
+    if (!label_source_priority.isEmpty()) {
+        m.insert(QStringLiteral("label_source_priority"), label_source_priority);
+    }
+    if (show_short_labels) {
+        m.insert(QStringLiteral("show_short_labels"), true);
+    }
+    if (!timestamp_source.isEmpty()) {
+        m.insert(QStringLiteral("timestamp_source"), timestamp_source);
+    }
+    if (!sid_display_mode.isEmpty()) {
+        m.insert(QStringLiteral("sid_display_mode"), sid_display_mode);
+    }
+    return m;
+}
+
 void CLIArgumentParser::printUsage() {
     QTextStream out(stdout);
     out << "StreamDAB Analyzer v" << applicationBannerVersion() << " - CLI Mode\n";
@@ -171,6 +357,23 @@ void CLIArgumentParser::printUsage() {
     out << "  --verbose-frames        Frame-by-frame detailed output (LARGE files)\n";
     out << "  --max-frames <n>        Process first N frames only (default: all)\n";
     out << "  --cli                   Explicitly enable CLI mode (auto-detected)\n\n";
+
+    out << "ANALYZER OPTIONS (decode decision points, see docs/fixes/OPTION_VARIANT_MATRIX.md):\n";
+    out << "  --force-charset N       Force label charset: 0 (EBU Latin), 3 (UTF-8),\n";
+    out << "                          6 (TIS-620); default: follow the stream flag\n";
+    out << "  --charset-fallback M    Unknown-charset policy: raw (default), utf8, skip\n";
+    out << "  --eti-mode M            ETI transport: auto (default), li, ni (forced)\n";
+    out << "  --nst-offset-1          Legacy NST correction: NST = (p[5]&0x7F) + 1\n";
+    out << "  --fic-mode M            FIC decode: strict, raw, auto (default; all-FIB-CRC\n";
+    out << "                          fail -> raw fallback; DABX_FIC_MODE env still honored)\n";
+    out << "  --fib-ignore-crc        Decode FIBs whose CRC fails (default: dropped)\n";
+    out << "  --strict-frame-crc      Validate + count the EOH gap frame CRC (CCITT-FALSE)\n";
+    out << "  --ecc-override 0xNN     Manual ECC for country resolution (default: stream)\n";
+    out << "  --service-ecc-deep-parse  Parse FIG 0/9 extended per-service ECC subfield\n";
+    out << "  --label-source S        Label priority: fig016 (default), fig11\n";
+    out << "  --show-short-labels     Emit service_short_label / ensemble_short_label\n";
+    out << "  --timestamp-source S    Verbose timestamp: tist (default), mtime\n";
+    out << "  --sid-display M         SId rendering: hex32 (default), ecc-sid, hex16\n\n";
 
     out << "INFORMATION:\n";
     out << "  --help, -h              Show this help message and exit\n";

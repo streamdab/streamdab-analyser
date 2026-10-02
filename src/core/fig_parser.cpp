@@ -836,11 +836,14 @@ std::vector<FigBlock> FigParser::extractFigBlocks(const EtiFicField& fic_data) {
     std::vector<FigBlock> fig_blocks;
 
     try {
-        // Shared mode-aware FIB decode (option-variant matrix row 4): strict
+        // Shared mode-aware FIB decode (option-variant matrix row 4/5): strict
         // per-FIB CRC validation by default; when EVERY FIB of the frame
         // fails CRC the FIC is re-walked as a raw FIG stream so CRC-less FIC
         // dumps still yield FIGs. The warning is logged once per parser.
-        auto decode_result = fic_data.decodeFigBlocks();
+        // The fic_mode / fib_ignore_crc settings drive the shared decode; the
+        // DABX_FIC_MODE env hook remains active for the auto mode (tests).
+        const FicDecodeMode mode = AnalyzerSettings::toFicDecodeMode(settings_.fic_mode);
+        auto decode_result = fic_data.decodeFigBlocks(mode, settings_.fib_ignore_crc);
         fib_crc_failures_count_.store(decode_result.fib_crc_failures);
         fig_blocks = std::move(decode_result.fig_blocks);
 
@@ -848,7 +851,8 @@ std::vector<FigBlock> FigParser::extractFigBlocks(const EtiFicField& fic_data) {
             raw_fic_fallback_warned_ = true;
             Logger::instance().log(Logger::Warning, "FigParser",
                 "FIC decode fallback: all FIB CRCs failed -> re-decoded FIC as a raw "
-                "FIG stream (no per-FIB CRC). Set DABX_FIC_MODE=strict to disable.");
+                "FIG stream (no per-FIB CRC). Use --fic-mode strict or DABX_FIC_MODE=strict "
+                "to disable.");
         }
     } catch (const std::exception& e) {
         Logger::instance().log(Logger::Error, "FigParser",

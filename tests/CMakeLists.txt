@@ -116,6 +116,7 @@ add_test(NAME test_eti_format_detection COMMAND test_eti_format_detection)
 add_executable(test_eti_ni_parser
     test_eti_ni_parser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_fig_analyzer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
@@ -814,6 +815,7 @@ add_executable(test_cli_main_integration
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_eti_processor_qt.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyzer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/ensemble_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_service_discovery_engine.cpp
@@ -863,6 +865,7 @@ add_test(NAME test_yaml_output_generator COMMAND test_yaml_output_generator)
 add_executable(test_cli_mode_functional
     test_cli_mode_functional.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
@@ -874,3 +877,32 @@ target_link_libraries(test_cli_mode_functional
     Qt6::Core
 )
 add_test(NAME test_cli_mode_functional COMMAND test_cli_mode_functional)
+
+# ============================================================================
+# Analyzer Settings Tests (option-variant matrix rows 1-14, settings feature)
+# ============================================================================
+
+# Test: AnalyzerSettings defaults / QSettings round-trip / CLI mapping +
+#       behavior changes on synthetic data (charset override, NST-1, FIB CRC
+#       ignore, SId display, short labels, ECC override).
+add_executable(test_analyzer_settings
+    test_analyzer_settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/ensemble_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_service_discovery_engine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/cli/cli_argument_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/cli/yaml_output_generator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_analyzer_settings
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_analyzer_settings COMMAND test_analyzer_settings)
+set_tests_properties(test_analyzer_settings PROPERTIES TIMEOUT 30)

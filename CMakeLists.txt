@@ -55,6 +55,7 @@ set(SOURCES
     src/core/headless_eti_processor.cpp
     src/core/eti_processor.cpp
     src/core/modern_eti_frame_parser.cpp
+    src/core/analyzer_settings.cpp
     src/core/eti_types.cpp
     src/core/performance_profiler.cpp
     src/core/enhanced_fig_analyzer.cpp
@@ -117,6 +118,7 @@ set(CLI_ONLY_SOURCES
     src/core/eti_processor.cpp
     src/core/eti_types.cpp
     src/core/modern_eti_frame_parser.cpp
+    src/core/analyzer_settings.cpp
     src/core/enhanced_fig_analyzer.cpp
     src/core/performance_profiler.cpp
     # src/core/comprehensive_etsi_validator.cpp  # REMOVED: All methods commented out

@@ -349,12 +349,21 @@ struct EtiFicField {
      * a forced raw walk, or the auto-fallback default (raw re-walk only
      * when every FIB CRC fails). Honors the DABX_FIC_MODE=strict|raw
      * environment override for the AutoFallback path (testing hook; the
-     * settings feature lands later).
+     * settings feature supersedes it via @p mode).
+     *
+     * @p ignore_fib_crc (settings row 5) keeps the strict FIB walk but skips
+     * the CRC gate: FIBs with a failing CRC are still decoded (failures are
+     * counted for diagnostics). The auto-fallback re-walk still applies when
+     * every FIB CRC fails, producing the same blocks for well-formed FICs.
      *
      * @param mode Requested decode mode (default: AutoFallback).
+     * @param ignore_fib_crc When true, decode FIBs whose CRC fails instead of
+     *                       dropping them (default: false).
      * @return Decoded blocks plus FIB-CRC / fallback diagnostics.
      */
-    FicDecodeResult decodeFigBlocks(FicDecodeMode mode = FicDecodeMode::AutoFallback) const;
+    FicDecodeResult decodeFigBlocks(
+        FicDecodeMode mode = FicDecodeMode::AutoFallback,
+        bool ignore_fib_crc = false) const;
 
     std::vector<FigBlock> decode_fig_blocks() const;
     bool validate_fic_crc() const;
@@ -451,7 +460,7 @@ inline std::vector<FigBlock> parse_fig_area(const uint8_t* area, size_t area_siz
 /**
  * @brief Mode-aware FIC -> FIG decode (see FicDecodeMode for semantics).
  */
-inline FicDecodeResult EtiFicField::decodeFigBlocks(FicDecodeMode mode) const {
+inline FicDecodeResult EtiFicField::decodeFigBlocks(FicDecodeMode mode, bool ignore_fib_crc) const {
     FicDecodeResult result;
 
     // Resolve the mode: the AutoFallback default honors the DABX_FIC_MODE
@@ -493,7 +502,9 @@ inline FicDecodeResult EtiFicField::decodeFigBlocks(FicDecodeMode mode) const {
             const uint16_t stored_crc = static_cast<uint16_t>((fib_data[30] << 8) | fib_data[31]);
             if (fib_crc_expected(fib_data) != stored_crc) {
                 ++result.fib_crc_failures;
-                continue;
+                if (!ignore_fib_crc) {
+                    continue;
+                }
             }
         }
 
@@ -506,6 +517,9 @@ inline FicDecodeResult EtiFicField::decodeFigBlocks(FicDecodeMode mode) const {
     // Auto fallback: when every FIB of the frame failed its CRC the FIC is
     // most likely a CRC-less dump (96-byte FIG stream or full on-air FIC).
     // Re-run the same FIG-walk over the whole FIC so FIGs are not lost.
+    // With ignore_fib_crc the per-FIB walk already decoded every FIB; the
+    // re-walk produces the same blocks for well-formed FICs and the correct
+    // ones for genuine CRC-less dumps, so the fallback still applies.
     if (effective == FicDecodeMode::AutoFallback &&
         fib_structured &&
         result.fib_crc_failures == fib_count_effective) {
@@ -629,16 +643,20 @@ struct ServiceComponent {
  * Reference: ETSI EN 300 401 Section 8.1
  */
 struct DabService {
-    uint16_t service_id;               // SId: Service identifier (16-bit programme SId,
+    uint16_t service_id{0};            // SId: Service identifier (16-bit programme SId,
                                        // or SRef = low 16 bits of a 32-bit data SId)
     uint32_t sid32{0};                 // Full 32-bit SId for data services (PD=1):
                                        // [ECC 8][CId(4)|SRef-high(4)][SRef 16]; 0 for programme services
-    uint8_t country_id;                // Country ID
-    uint8_t extended_country_code;     // ECC: Extended Country Code
-    std::string label;                 // Service label
+    uint8_t country_id{0};             // Country ID
+    uint8_t extended_country_code{0};  // ECC: Extended Country Code
+    std::string label;                 // Service label (UTF-8, full 16-char trimmed)
+    std::string short_label;           // Short label derived from the 16-bit
+                                       // character flag mask (EN 300 401 8.1.14),
+                                       // populated by the FIG 1/1 parser; empty
+                                       // when no mask was carried (settings row 8)
     std::vector<ServiceComponent> components;
-    bool is_programme;                 // Programme/Data service flag
-    uint16_t character_flag;           // Character definition field
+    bool is_programme{false};          // Programme/Data service flag
+    uint16_t character_flag{0};        // Character definition field (mask)
 
     bool validate_service_id() const {
         return service_id != 0x0000 && service_id != 0xFFFF;
@@ -668,16 +686,18 @@ struct DabService {
  * Reference: ETSI EN 300 401 Section 6.4
  */
 struct Ensemble {
-    uint16_t ensemble_id;              // EId: Ensemble identifier
-    std::string label;                 // Ensemble label
+    uint16_t ensemble_id{0};           // EId: Ensemble identifier
+    std::string label;                 // Ensemble label (UTF-8, full 16-char trimmed)
+    std::string short_label;           // Short label from the 16-bit mask
+                                       // (EN 300 401 8.1.14), empty when absent
     std::vector<DabService> services;  // Services in ensemble
     std::vector<SubChannelInfo> sub_channels; // Sub-channel organization
-    uint8_t country_id;                // Country ID
-    uint8_t extended_country_code;     // ECC: Extended Country Code
-    uint16_t character_flag;           // Character definition field
-    uint16_t cif_count;               // Current CIF count
-    uint8_t occurrence_change;         // Occurrence change field
-    bool alarm_flag;                   // Alarm announcement flag
+    uint8_t country_id{0};             // Country ID
+    uint8_t extended_country_code{0};  // ECC: Extended Country Code
+    uint16_t character_flag{0};        // Character definition field (mask)
+    uint16_t cif_count{0};             // Current CIF count
+    uint8_t occurrence_change{0};      // Occurrence change field
+    bool alarm_flag{false};            // Alarm announcement flag
 
     bool validate_ensemble_id() const {
         return ensemble_id != 0x0000 && ensemble_id != 0xFFFF;

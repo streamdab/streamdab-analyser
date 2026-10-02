@@ -86,6 +86,11 @@ void YAMLOutputGenerator::setETIStreamInfo(int total_frames, int valid_frames,
     }
 }
 
+void YAMLOutputGenerator::setFrameCrcStats(bool enabled, quint64 failures) {
+    m_data.frame_crc_stats_enabled = enabled;
+    m_data.frame_crc_failures = failures;
+}
+
 // ============================================================================
 // Verbose Mode Setters
 // ============================================================================
@@ -199,6 +204,12 @@ QString YAMLOutputGenerator::formatETIStream() const {
     out << "  duration_seconds: " << QString::number(m_data.eti_stream.duration_seconds, 'f', 1) << "\n";
     out << "  crc_errors: " << m_data.eti_stream.crc_errors << "\n";
 
+    // Row 11 (strict_frame_crc): diagnostics line emitted only when the
+    // setting is enabled, so default runs keep the exact baseline shape.
+    if (m_data.frame_crc_stats_enabled) {
+        out << "  frame_crc_failures: " << m_data.frame_crc_failures << "\n";
+    }
+
     return section;
 }
 
@@ -215,6 +226,14 @@ QString YAMLOutputGenerator::formatEnsemble() const {
         ensemble_label = "(no label)";
     }
     out << "  ensemble_label: \"" << escapeYAMLString(ensemble_label) << "\"\n";
+
+    // Row 8 (show_short_labels): emit the ensemble short label derived from
+    // the 16-bit mask (EN 300 401 8.1.14), when available.
+    if (m_data.settings.show_short_labels && !m_data.ensemble.short_label.empty()) {
+        out << "  ensemble_short_label: \""
+            << escapeYAMLString(QString::fromStdString(m_data.ensemble.short_label))
+            << "\"\n";
+    }
 
     out << "  country_id: " << formatHex(static_cast<quint16>(m_data.ensemble.country_id)) << "\n";
 
@@ -239,13 +258,50 @@ QString YAMLOutputGenerator::formatServices() const {
     }
 
     for (const auto& service : m_data.services) {
-        // F8: data services carry a full 32-bit SId ([ECC][CId|SRef-hi][SRef]);
-        // print 8 hex digits then, else the 16-bit programme SId (matches
-        // etisnoop's 0xF3200001-style output).
-        if (service.sid32 > 0xFFFF) {
-            out << "  - service_id: " << formatHex(service.sid32) << "\n";
-        } else {
-            out << "  - service_id: " << formatHex(static_cast<quint32>(service.service_id)) << "\n";
+        // F8: data services carry a full 32-bit SId ([ECC][CId|SRef-hi][SRef]).
+        // Row 12 (sid_display_mode) controls the rendering:
+        //   hex32  (default) -> 8 hex digits for data, 16-bit for programme
+        //   ecc-sid          -> "ECC:CId:SRef" decomposition (e.g. F3:2:00001)
+        //   hex16            -> lower 16 bits of the SId
+        const bool is_data = service.sid32 > 0xFFFF;
+        switch (m_data.settings.sid_display_mode) {
+            case eti::SidDisplayMode::Hex32:
+            default:
+                if (is_data) {
+                    out << "  - service_id: " << formatHex(service.sid32) << "\n";
+                } else {
+                    out << "  - service_id: " << formatHex(static_cast<quint32>(service.service_id)) << "\n";
+                }
+                break;
+            case eti::SidDisplayMode::EccSid:
+                if (is_data) {
+                    const uint8_t ecc = static_cast<uint8_t>(service.sid32 >> 24);
+                    const uint8_t cid = static_cast<uint8_t>((service.sid32 >> 20) & 0x0F);
+                    const uint32_t sref = service.sid32 & 0xFFFFFu;
+                    QString rendered =
+                        QString("%1:%2:%3")
+                            .arg(ecc, 2, 16, QLatin1Char('0'))
+                            .arg(cid)
+                            .arg(sref, 5, 16, QLatin1Char('0'));
+                    out << "  - service_id: \"" << rendered.toUpper() << "\"\n";
+                } else {
+                    const uint8_t ecc = service.extended_country_code;
+                    const uint8_t cid = service.country_id;
+                    QString rendered =
+                        QString("%1:%2:%3")
+                            .arg(ecc, 2, 16, QLatin1Char('0'))
+                            .arg(cid)
+                            .arg(service.service_id, 4, 16, QLatin1Char('0'));
+                    out << "  - service_id: \"" << rendered.toUpper() << "\"\n";
+                }
+                break;
+            case eti::SidDisplayMode::Hex16:
+                out << "  - service_id: "
+                    << formatHex(static_cast<quint16>(is_data
+                                                         ? static_cast<quint16>(service.sid32 & 0xFFFFu)
+                                                         : service.service_id))
+                    << "\n";
+                break;
         }
 
         // Service label from FIG 1/1 (etisnoop-compatible key: service_label)
@@ -254,6 +310,14 @@ QString YAMLOutputGenerator::formatServices() const {
             service_label = "(no label)";
         }
         out << "    service_label: \"" << escapeYAMLString(service_label) << "\"\n";
+
+        // Row 8 (show_short_labels): emit the service short label derived from
+        // the 16-bit mask (EN 300 401 8.1.14), when available.
+        if (m_data.settings.show_short_labels && !service.short_label.empty()) {
+            out << "    service_short_label: \""
+                << escapeYAMLString(QString::fromStdString(service.short_label))
+                << "\"\n";
+        }
 
         out << "    service_type: \"" << getServiceType(service) << "\"\n";
         out << "    is_programme_service: " << (service.is_programme ? "true" : "false") << "\n";
@@ -682,7 +746,9 @@ QString YAMLOutputGenerator::formatFIGBlock(const eti::FigBlock& fig, int indent
                 break;
         }
     } else if (fig.fig_type == 1) {
-        // FIG Type 1/* - Labels
+        // FIG Type 1/* - Labels (the extension is bits 2-0 of the first byte;
+        // the upper nibble is the label charset, EN 300 401 8.1.13).
+        uint8_t extension = fig.data.empty() ? 0 : static_cast<uint8_t>(fig.data[0] & 0x07);
         out << ind << "  decoded:\n";
         out << ind << "    description: \"Label (FIG 1/" << static_cast<int>(extension) << ")\"\n";
         out << ind << "    etsi_ref: \"EN 300 401 Section 8.1.13\"\n";
@@ -789,8 +855,11 @@ QString YAMLOutputGenerator::getCountryName(uint8_t country_id, uint8_t extended
     // ENHANCED: ECC-aware country mapping keyed on (ECC, Country Id)
     // Reference: ETSI TS 101 756 Table 1 (via etsi_registered_tables).
     // The ECC is authoritative: e.g. ECC 0xF3 + CId 0x02 -> Thailand.
+    // Row 6 (ecc_override): a manual ECC wins over the stream value.
+    const uint8_t ecc = static_cast<uint8_t>(
+        m_data.settings.effectiveEcc(extended_country_code));
 
-    const char* name = etsi::ts101756::getCountryName(extended_country_code, country_id);
+    const char* name = etsi::ts101756::getCountryName(ecc, country_id);
     if (name != nullptr && QString::fromLatin1(name) != "Reserved") {
         return QString::fromLatin1(name);
     }

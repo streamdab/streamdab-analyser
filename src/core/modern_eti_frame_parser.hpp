@@ -23,6 +23,7 @@
 #pragma once
 
 #include "eti_types.hpp"
+#include "analyzer_settings.hpp"
 #include <QObject>
 #include <QByteArray>
 #include <QString>
@@ -183,6 +184,22 @@ public:
     bool isInitialized() const noexcept { return initialized_.load(); }
 
     /**
+     * @brief Set the user-selected analyzer decode options (row 1-14).
+     *
+     * Applied from the next parseFrame()/analyzeFIGData() call on; has no
+     * effect on frames already parsed. Defaults to AnalyzerSettings::defaults()
+     * (byte parity with the pre-settings behavior).
+     *
+     * @param settings Analyzer decode options to use
+     */
+    void setAnalyzerSettings(const AnalyzerSettings& settings) { settings_ = settings; }
+
+    /**
+     * @brief Current analyzer decode options.
+     */
+    const AnalyzerSettings& analyzerSettings() const noexcept { return settings_; }
+
+    /**
      * @brief Parse single ETI frame with optimal performance (auto-detects format)
      * @param frame_data Raw ETI frame data (must be exactly 6144 bytes)
      * @return Parse result with frame data and metrics
@@ -332,10 +349,27 @@ private:
     void processFIG11_ServiceLabel(const eti::FigBlock& fig, FIGAnalysisResult& result);
 
     // FIG 1 label charset decoding (EN 300 401 8.1.13): EBU Latin / UTF-8 /
-    // TIS-620; unknown charsets warn once per value and pass through raw.
+    // TIS-620; honours force_charset and charset_fallback_policy settings.
     [[nodiscard]] std::string decodeLabelCharacters(uint8_t charset,
                                                     const uint8_t* bytes,
                                                     size_t count);
+
+    // Short label from the 16-char label + 16-bit mask (EN 300 401 8.1.14,
+    // etisnoop label_t::shortlabel() parity): include label byte i when
+    // (mask & (0x8000 >> i)); then charset-convert the selected bytes. No
+    // trailing-space trimming (matches etisnoop).
+    [[nodiscard]] std::string decodeShortLabel(uint8_t charset,
+                                               const uint8_t* bytes,
+                                               size_t count,
+                                               uint16_t mask);
+
+    // Effective label charset after the force_charset setting (row 1):
+    // force_charset >= 0 wins, else the stream charset flag.
+    [[nodiscard]] uint8_t effectiveLabelCharset(uint8_t streamCharset) const noexcept {
+        return settings_.force_charset >= 0
+            ? static_cast<uint8_t>(settings_.force_charset & 0x0F)
+            : streamCharset;
+    }
 
     // Optimization implementations
     [[nodiscard]] bool validateFrameHeaderSIMD(std::span<const uint8_t, ETI_FRAME_SIZE> data) const noexcept;
@@ -385,6 +419,11 @@ private:
     // True once the raw-FIC fallback warning (all FIB CRCs failed) has been
     // logged, so it appears once per stream instead of once per frame.
     std::atomic<bool> raw_fic_fallback_warned_{false};
+
+    // User-selected analyzer decode options (option-variant matrix rows 1-14).
+    // Defaults == current etisnoop-parity behavior; populated by the CLI from
+    // command-line flags or by the GUI from QSettings.
+    AnalyzerSettings settings_;
 
     // Charset values for which the "raw passthrough" warning was already logged
     // (FIG 1 labels, F4). Indexed by the 4-bit charset flag.

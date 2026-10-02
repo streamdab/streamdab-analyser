@@ -10,6 +10,7 @@
 // Include full definitions needed
 #include "eti_types.hpp"
 #include "fig_parser.hpp"
+#include "analyzer_settings.hpp"
 #include "../cli/yaml_output_generator.hpp"  // Need full definition for Qt MOC
 
 // Forward declarations for Qt classes only
@@ -76,6 +77,11 @@ public:
         bool verbose_mode = false;
         std::vector<cli::FrameAnalysisData> frame_analyses;  // Per-frame data
 
+        // Row 11 (strict_frame_crc): number of frames whose EOH gap CRC
+        // (bytes 8+4*NST .. 11+4*NST, CCITT-FALSE complement) mismatched.
+        // Only counted when the setting is enabled; decode stays independent.
+        quint64 frame_crc_failures = 0;
+
         // ETSI compliance
         bool etsiCompliant = true;
         QStringList complianceWarnings;
@@ -84,6 +90,22 @@ public:
 
     explicit HeadlessETIProcessor(QObject* parent = nullptr);
     ~HeadlessETIProcessor();
+
+    /**
+     * @brief Set the user-selected analyzer decode options.
+     *
+     * Applied on the next process_file() call (threaded through the modern
+     * frame parser, the service merge, verbose timestamps and the strict
+     * frame-CRC counter). Defaults to AnalyzerSettings::defaults().
+     *
+     * @param settings Analyzer decode options to use
+     */
+    void setAnalyzerSettings(const eti::AnalyzerSettings& settings) { m_settings = settings; }
+
+    /**
+     * @brief Current analyzer decode options.
+     */
+    const eti::AnalyzerSettings& analyzerSettings() const noexcept { return m_settings; }
 
     /**
      * @brief Process ETI file and generate analysis
@@ -165,6 +187,9 @@ private:  // NOLINTNEXTLINE(readability-redundant-access-specifiers) - Required 
     ProcessingResult m_currentResult;
     QElapsedTimer m_processingTimer;
     bool m_verbose_mode = false;  // Verbose frame-by-frame output
+
+    // User-selected analyzer decode options (option-variant matrix rows 1-14).
+    eti::AnalyzerSettings m_settings;
 
     // Private methods
     bool initialize_components();

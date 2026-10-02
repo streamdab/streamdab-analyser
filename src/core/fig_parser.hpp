@@ -35,6 +35,7 @@
 #pragma once
 
 #include "eti_types.hpp"
+#include "analyzer_settings.hpp"
 #include <QObject>
 #include <QString>
 #include <QByteArray>
@@ -1189,6 +1190,20 @@ public:
     bool initialize(bool enable_thai_support = true, bool strict_compliance = false);
 
     /**
+     * @brief Set the user-selected analyzer decode options (rows 4/5).
+     *
+     * Drives the FIC/FIB decode mode used by extractFigBlocks(). Defaults to
+     * AnalyzerSettings::defaults() so behavior is unchanged for default configs.
+     * @param settings Analyzer decode options to use
+     */
+    void setAnalyzerSettings(const AnalyzerSettings& settings) { settings_ = settings; }
+
+    /**
+     * @brief Current analyzer decode options.
+     */
+    const AnalyzerSettings& analyzerSettings() const noexcept { return settings_; }
+
+    /**
      * @brief Parse FIC data and extract all FIG blocks
      * @param fic_data FIC field data (32 bytes)
      * @return FIG parsing result with all extracted information
@@ -1686,6 +1701,10 @@ private:
     // True once the raw-FIC fallback warning (all FIB CRCs failed) has been
     // logged, so it appears once per parser lifetime instead of per frame.
     bool raw_fic_fallback_warned_{false};
+
+    // User-selected analyzer decode options (option-variant matrix rows 4/5);
+    // defaults == current behavior.
+    AnalyzerSettings settings_;
 
     // Parsing optimization data
     std::unordered_map<uint8_t, uint64_t> fig_type_frequency_;

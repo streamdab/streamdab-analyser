@@ -37,6 +37,37 @@
 // Define logging category for CLI mode
 Q_LOGGING_CATEGORY(etiMain, "streamdab.eti")
 
+namespace {
+
+/**
+ * @brief Validate the EOH gap CRC (option-variant matrix row 11).
+ *
+ * EN 300 799 clause 5.3.4 / etisnoop etianalyse.cpp "Header CRC": the 2-byte
+ * CRC at offset 8+4*NST+2 validates the FC field (bytes 4..7) plus the STC
+ * region (bytes 8 .. 8+4*NST-1) with CRC-16/CCITT-FALSE (init 0xFFFF) and is
+ * transmitted complemented (ccitt-false + ~). Frame-relative offsets work for
+ * both the ETI-LI (0x49.. sync) and ETI-NI (0xFF.. sync) layouts used here.
+ *
+ * @param frameData 6144-byte frame buffer
+ * @param nst       Effective number of sub-channels
+ * @return true when the stored CRC matches the computed value
+ */
+bool validateEohCrc(const uint8_t* frameData, quint64 nst)
+{
+    const size_t crc_off = 8 + static_cast<size_t>(nst) * 4 + 2;
+    if (crc_off + 2 > 6144) {
+        return false;
+    }
+    const uint16_t stored = static_cast<uint16_t>((frameData[crc_off] << 8) |
+                                                  frameData[crc_off + 1]);
+    const size_t data_len = 4 + static_cast<size_t>(nst) * 4;  // FC + STC
+    const uint16_t calc = static_cast<uint16_t>(
+        ~eti::crc16ccitt_false(frameData + 4, data_len));
+    return calc == stored;
+}
+
+} // namespace
+
 HeadlessETIProcessor::HeadlessETIProcessor(QObject* parent)
     : QObject(parent)
     , m_progress(0.0)
@@ -170,6 +201,20 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                     if (parseResult.success) {
                         valid_parsed_frames++;
 
+                        // Row 11 (strict_frame_crc): count EOH gap CRC
+                        // mismatches; the decode stays independent (never
+                        // blocks parsing).
+                        if (m_settings.strict_frame_crc) {
+                            const quint64 frame_nst =
+                                (parseResult.detected_format == eti::ETIFormat::ETI_NI)
+                                    ? static_cast<quint64>(parseResult.subchannels_from_stc.size())
+                                    : static_cast<quint64>(parseResult.frame.get_lidata_field().nst);
+                            if (!validateEohCrc(reinterpret_cast<const uint8_t*>(frameData.constData()),
+                                                frame_nst)) {
+                                result.frame_crc_failures++;
+                            }
+                        }
+
                         // Step 2: Analyze FIG data from the frame
                         auto figResult = m_frameParser->analyzeFIGData(parseResult.frame, parseResult);
 
@@ -199,6 +244,14 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                                 frameAnalysis.header.tist_ms = parseResult.frame.get_tail_tist_ms();
                             } else {
                                 frameAnalysis.header.tist = lidata.tist;
+                            }
+                            // Row 10 (timestamp_source): mtime mode replaces
+                            // the per-frame TIST ms with a file-mtime-derived
+                            // value (24 ms per-frame stepping).
+                            if (m_settings.timestamp_source == eti::TimestampSource::Mtime) {
+                                const qint64 mtime_ms = fileInfo.lastModified().toMSecsSinceEpoch();
+                                frameAnalysis.header.tist_ms =
+                                    static_cast<double>(mtime_ms) + (processedFrames - 1) * 24.0;
                             }
                             frameAnalysis.header.format = (eti::detectETIFormat(
                                 reinterpret_cast<const uint8_t*>(frameData.data()),
@@ -258,6 +311,11 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                                 if (stored.label.empty() && !figResult.ensemble_info.label.empty()) {
                                     stored.label = figResult.ensemble_info.label;
                                 }
+                                // Row 8: propagate the ensemble short label / mask
+                                if (stored.short_label.empty() && !figResult.ensemble_info.short_label.empty()) {
+                                    stored.short_label = figResult.ensemble_info.short_label;
+                                    stored.character_flag = figResult.ensemble_info.character_flag;
+                                }
                                 // Propagate the Extended Country Code once known (FIG 0/9)
                                 if (stored.extended_country_code == 0 && figResult.ensemble_info.extended_country_code != 0) {
                                     stored.extended_country_code = figResult.ensemble_info.extended_country_code;
@@ -299,6 +357,12 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                                     auto& stored = discovered_services[sid];
                                     if (stored.label.empty() && !service.label.empty()) {
                                         stored.label = service.label;
+                                    }
+                                    // Row 8: propagate the short label / mask
+                                    // once known (never clear a known value).
+                                    if (stored.short_label.empty() && !service.short_label.empty()) {
+                                        stored.short_label = service.short_label;
+                                        stored.character_flag = service.character_flag;
                                     }
                                     if (stored.extended_country_code == 0 && service.extended_country_code != 0) {
                                         stored.extended_country_code = service.extended_country_code;
@@ -398,6 +462,18 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
             }
         }
         frameFile.close();
+    }
+
+    // Row 6 (ecc_override): manual ECC for country resolution when set.
+    // Applied to the merged ensemble/services so the YAML country lookup and
+    // every other consumer see the override.
+    if (m_settings.ecc_override >= 0) {
+        for (auto& ens : discovered_ensembles) {
+            ens.extended_country_code = static_cast<uint8_t>(m_settings.ecc_override);
+        }
+        for (auto& service : discovered_services) {
+            service.extended_country_code = static_cast<uint8_t>(m_settings.ecc_override);
+        }
     }
 
     // Calculate processing statistics
@@ -553,6 +629,10 @@ bool HeadlessETIProcessor::initialize_components()
             Logger::instance().log(Logger::Error, "HeadlessETIProcessor", "Failed to initialize ModernETIFrameParser");
             return false;
         }
+
+        // Thread the user-selected analyzer settings (rows 1-14) through to
+        // the decode path; defaults() keep a plain run byte-identical.
+        m_frameParser->setAnalyzerSettings(m_settings);
 
         m_figAnalyzer = std::make_unique<eti::modern::EnhancedFIGAnalyzer>();
         if (!m_figAnalyzer->initialize()) {

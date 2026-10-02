@@ -53,6 +53,7 @@
 #include "core/enhanced_eti_processor_qt.h"
 #include "core/advanced_fig_analyzer.h"
 #include "core/hex_viewer_formatter.h"
+#include "core/analyzer_settings.hpp"
 #include "core/etsi_compliance_engine.hpp"
 #include "core/multi_stream_processor.hpp"
 #include "core/advanced_error_detection.hpp"
@@ -122,6 +123,12 @@ public:
         setupWorkerThread();  // Phase A: Worker thread signal connections
         setupStatusBar();
 
+        // Load the analyzer decode settings from QSettings (org
+        // "StreamDAB-Analyzer", app "DABAnalyzer", group "analyzer/").
+        // A fresh QSettings yields the defaults, keeping decode behavior
+        // identical to the pre-settings baseline.
+        m_analyzerSettings.loadFromQSettings();
+
         // EMERGENCY: ALL CUSTOM THEMING DISABLED FOR TEXT VISIBILITY
         // applyTheme();
     }
@@ -133,6 +140,9 @@ public:
     {
         loadETIFile(filePath);
     }
+
+    // User-selected analyzer decode options (loaded from QSettings at startup).
+    const eti::AnalyzerSettings& analyzerSettings() const noexcept { return m_analyzerSettings; }
 
 private slots:
     void openFile()
@@ -5510,6 +5520,14 @@ private:
     std::unique_ptr<multistream::MultiStreamProcessor> m_multiStreamProcessor;
     std::unique_ptr<error_detection::AdvancedErrorDetector> m_errorDetector;
     std::unique_ptr<professional_logging::ProfessionalLoggingSystem> m_loggingSystem;
+
+    // User-selected analyzer decode options (option-variant matrix rows 1-14).
+    // Loaded once at startup from QSettings (org StreamDAB-Analyzer / app
+    // DABAnalyzer, group "analyzer/"); edited via the Settings dialog. The
+    // current GUI decode path uses the legacy EnhancedETIProcessorQt parser;
+    // these settings are honored by the CLI/headless path and by any future
+    // decode path that consumes ModernETIFrameParser (apply on next file load).
+    eti::AnalyzerSettings m_analyzerSettings{eti::AnalyzerSettings::defaults()};
     
     // Phase A: Worker thread architecture (Pattern 3 + Pattern 5)
     streamdab::core::SharedETIData* m_sharedData = nullptr;
