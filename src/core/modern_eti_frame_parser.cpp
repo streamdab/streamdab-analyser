@@ -403,6 +403,17 @@ ETIParseResult ModernETIFrameParser::parseETI_NI_Frame(std::span<const uint8_t, 
                           QString("MSC extracted at offset %1 (%2 bytes)")
                           .arg(msc_offset).arg(msc_size));
 
+    // 6b. Tail TIST (EN 300 799 clause 5.3.6): RAW/NI frames carry the 32-bit
+    //     time stamp in the last 4 bytes of the frame (6140..6143), after
+    //     ...MSC + EOF CRC(2) + RFU(2). Bytes 8-11 are NOT the TIST for NI.
+    frame.tist_tail = frame.get_tail_tist();
+    frame.tist_tail_valid = true;
+
+    Logger::instance().log(Logger::Debug, "ModernETIFrameParser",
+                          QString("Tail TIST: 0x%1 (%2 ms)")
+                          .arg(frame.tist_tail, 8, 16, QChar('0'))
+                          .arg(frame.get_tail_tist_ms(), 0, 'f', 3));
+
     // 7. Populate result
     result.frame = frame;
     result.success = true;
@@ -747,10 +758,19 @@ eti::EtiFrame ModernETIFrameParser::parseFrameStructure(std::span<const uint8_t,
 
 std::vector<eti::FigBlock> ModernETIFrameParser::extractFIGBlocks(const eti::EtiFicField& fic)
 {
-    // Delegate to the shared FIB-aware FIG decoder: iterates the 3 (or 4)
-    // FIBs of the FIC, validates each FIB CRC (skipping corrupted FIBs) and
-    // parses FIGs within each 30-byte FIG area (ETSI EN 300 401 clause 5.2).
-    return fic.decode_fig_blocks();
+    // Mode-aware FIB decode (option-variant matrix row 4): strict FIB-CRC
+    // validation by default, but when EVERY FIB of the frame fails its CRC
+    // the FIC is re-walked as a raw FIG stream (no per-FIB CRC) so that a
+    // CRC-less FIC dump does not silently decode to zero FIGs. The warning
+    // is logged once per parser lifetime (stream) to stay visible yet quiet.
+    auto decode_result = fic.decodeFigBlocks();
+    if (decode_result.raw_fallback_used && !raw_fic_fallback_warned_.load()) {
+        raw_fic_fallback_warned_.store(true);
+        Logger::instance().log(Logger::Warning, "ModernETIFrameParser",
+            "FIC decode fallback: all FIB CRCs failed -> re-decoded FIC as a raw "
+            "FIG stream (no per-FIB CRC). Set DABX_FIC_MODE=strict to disable.");
+    }
+    return std::move(decode_result.fig_blocks);
 }
 
 void ModernETIFrameParser::updateFrameStats(std::chrono::nanoseconds parse_time)

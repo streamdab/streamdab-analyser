@@ -472,6 +472,7 @@ QString YAMLOutputGenerator::formatSingleFrame(const FrameAnalysisData& frame, i
     out << ind << "    fp: " << static_cast<int>(frame.header.fp) << "\n";
     out << ind << "    fl: " << frame.header.fl << "\n";
     out << ind << "    tist: " << formatHex(frame.header.tist) << "\n";
+    out << ind << "    tist_ms: " << QString::number(frame.header.tist_ms, 'f', 3) << "\n";
 
     // STC Fields (for ETI-NI)
     if (!frame.stc_fields.isEmpty()) {

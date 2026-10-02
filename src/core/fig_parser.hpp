@@ -1683,6 +1683,10 @@ private:
     // the counter from the main thread (documented single-writer, multi-reader).
     std::atomic<uint32_t> fib_crc_failures_count_{0};
 
+    // True once the raw-FIC fallback warning (all FIB CRCs failed) has been
+    // logged, so it appears once per parser lifetime instead of per frame.
+    bool raw_fic_fallback_warned_{false};
+
     // Parsing optimization data
     std::unordered_map<uint8_t, uint64_t> fig_type_frequency_;
     std::chrono::steady_clock::time_point performance_optimization_time_;

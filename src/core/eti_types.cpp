@@ -82,98 +82,10 @@ const char* formatToString(ETIFormat format) {
 // EtiFicField Implementation
 //==============================================================================
 
-namespace {
-
-/**
- * @brief Expected (complemented) FIB CRC over a 30-byte FIG area.
- *
- * CRC-16/CCITT-FALSE shared implementation lives in crc16.hpp (F6 dedup);
- * the transmitted FIB CRC is the one's complement, big-endian.
- */
-uint16_t fib_crc_expected(const uint8_t* fig_area)
-{
-    return static_cast<uint16_t>(~crc16ccitt_false(fig_area, ETI_FIC_FIG_AREA_SIZE));
-}
-
-/**
- * @brief Parse FIG blocks from one 30-byte FIG area.
- *
- * FIG header: type (3 bits, b7-b5; 7 = padding), length (5 bits, b4-b0).
- * FIGs never span FIB boundaries (ETSI EN 300 401 clause 5.2).
- */
-std::vector<FigBlock> parse_fig_area(const uint8_t* area, size_t area_size)
-{
-    std::vector<FigBlock> fig_blocks;
-    size_t offset = 0;
-
-    while (offset + 1 <= area_size) {
-        const uint8_t header = area[offset];
-        const uint8_t fig_type = (header >> 5) & 0x07;
-
-        if (fig_type == 7) {
-            // Padding end marker
-            break;
-        }
-
-        const uint8_t length = header & 0x1F;
-
-        if (length == 0 || offset + 1 + length > area_size) {
-            // Invalid or truncated FIG — stop processing this area
-            break;
-        }
-
-        FigBlock fig_block;
-        fig_block.fig_type = fig_type;
-        fig_block.length = length;
-        fig_block.data.assign(area + offset + 1, area + offset + 1 + length);
-
-        // FIG 0 header extension bits: C/N (b7), O/E (b6) of the ext byte
-        if (fig_type == 0 && !fig_block.data.empty()) {
-            fig_block.continuation_flag = (fig_block.data[0] & 0x80) != 0;
-            fig_block.other_ensemble_flag = (fig_block.data[0] & 0x40) != 0;
-        }
-
-        if (fig_block.is_valid()) {
-            fig_blocks.push_back(std::move(fig_block));
-        }
-
-        offset += 1 + length;
-    }
-
-    return fig_blocks;
-}
-
-} // anonymous namespace
-
 std::vector<FigBlock> EtiFicField::decode_fig_blocks() const {
-    std::vector<FigBlock> fig_blocks;
-
-    const bool fib_structured = is_fib_structured();
-    const size_t fib_count_effective = fib_structured ? fibi_count() : 1;
-
-    for (size_t fib = 0; fib < fib_count_effective; ++fib) {
-        const size_t fib_base = fib * ETI_FIC_FIB_SIZE;
-        if (fib_base + ETI_FIC_FIB_SIZE > fic_size) {
-            break;
-        }
-        const uint8_t* fib_data = fic_data.data() + fib_base;
-
-        if (fib_structured) {
-            // Validate the FIB CRC (30 FIG bytes vs 2 stored CRC bytes);
-            // skip corrupted FIBs (ETSI EN 300 401 clause 5.2)
-            const uint16_t stored_crc = static_cast<uint16_t>((fib_data[30] << 8) | fib_data[31]);
-            if (fib_crc_expected(fib_data) != stored_crc) {
-                continue;
-            }
-        }
-
-        auto fib_figs = parse_fig_area(fib_data, ETI_FIC_FIG_AREA_SIZE);
-        fig_blocks.insert(fig_blocks.end(),
-                          std::make_move_iterator(fib_figs.begin()),
-                          std::make_move_iterator(fib_figs.end()));
-    }
-
-    return fig_blocks;
+    // Byte-identical to the historical strict FIB walk (no env override).
+    // decodeFigBlocks() itself is header-inline (see eti_types.hpp).
+    return decodeFigBlocks(FicDecodeMode::Strict).fig_blocks;
 }
 
 bool EtiFicField::validate_fic_crc() const {

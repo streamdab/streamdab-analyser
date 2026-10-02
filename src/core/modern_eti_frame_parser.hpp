@@ -382,6 +382,10 @@ private:
     std::vector<::eti::DabService> discovered_services_;
     std::vector<::eti::SubChannelInfo> current_subchannels_;
 
+    // True once the raw-FIC fallback warning (all FIB CRCs failed) has been
+    // logged, so it appears once per stream instead of once per frame.
+    std::atomic<bool> raw_fic_fallback_warned_{false};
+
     // Charset values for which the "raw passthrough" warning was already logged
     // (FIG 1 labels, F4). Indexed by the 4-bit charset flag.
     std::array<bool, 16> label_charset_warned_{};

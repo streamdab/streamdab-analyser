@@ -190,7 +190,16 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                             frameAnalysis.header.mid = lidata.mid;
                             frameAnalysis.header.fp = lidata.fp;
                             frameAnalysis.header.fl = lidata.fl;
-                            frameAnalysis.header.tist = lidata.tist;
+                            // TIST source (option-variant matrix row 10): RAW/NI
+                            // frames carry the 32-bit timestamp at the frame tail
+                            // (bytes 6140..6143); bytes 8-11 are only a legacy
+                            // ETI-LI assumption and stay for the LI path.
+                            if (parseResult.detected_format == eti::ETIFormat::ETI_NI) {
+                                frameAnalysis.header.tist = parseResult.frame.get_tail_tist();
+                                frameAnalysis.header.tist_ms = parseResult.frame.get_tail_tist_ms();
+                            } else {
+                                frameAnalysis.header.tist = lidata.tist;
+                            }
                             frameAnalysis.header.format = (eti::detectETIFormat(
                                 reinterpret_cast<const uint8_t*>(frameData.data()),
                                 frameData.size()
