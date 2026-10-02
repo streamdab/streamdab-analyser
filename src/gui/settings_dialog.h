@@ -25,6 +25,7 @@
 #include <QColor>
 #include <QString>
 #include <QStringList>
+#include "../core/analyzer_settings.hpp"
 
 /**
  * @class SettingsDialog
@@ -132,6 +133,14 @@ signals:
      */
     void categoryChanged(SettingsCategory category);
 
+    /**
+     * @brief Emitted when the Analyzer / Decode options change and are applied.
+     *
+     * Consumers (analyzer decode paths) should re-read the settings from
+     * QSettings; at minimum they are honored on the next file load.
+     */
+    void analyzerSettingsChanged();
+
 protected:
     /**
      * @brief Handle accept button click
@@ -195,6 +204,7 @@ private:
     void createNetworkTab();
     void createPerformanceTab();
     void createAdvancedTab();
+    void createAnalyzerTab();
 
     /**
      * @brief Initialize combo boxes with values
@@ -280,6 +290,31 @@ private:
     QGroupBox *m_debugGroup;
     QCheckBox *m_debugModeCheck;
     QComboBox *m_logLevelCombo;
+
+    // Analyzer / Decode options tab (option-variant matrix rows 1-14)
+    QWidget *m_analyzerTab;
+    // Row A (charset)
+    QSpinBox *m_forceCharsetSpin;
+    QComboBox *m_charsetFallbackCombo;
+    // Row B (ETI format)
+    QComboBox *m_etiModeCombo;
+    // Row C (NST legacy correction)
+    QCheckBox *m_nstOffset1Check;
+    // Row D/E (FIC framework + FIB CRC)
+    QComboBox *m_ficModeCombo;
+    QCheckBox *m_fibIgnoreCrcCheck;
+    // Row F/G (ECC override + per-service deep parse)
+    QSpinBox *m_eccOverrideSpin;
+    QCheckBox *m_serviceEccDeepParseCheck;
+    // Row H (label source + short label)
+    QComboBox *m_labelSourceCombo;
+    QCheckBox *m_showShortLabelsCheck;
+    // Row I (timestamp source)
+    QComboBox *m_timestampSourceCombo;
+    // Row J (strict frame CRC)
+    QCheckBox *m_strictFrameCrcCheck;
+    // Row K (SId display)
+    QComboBox *m_sidDisplayCombo;
 
     // Custom members for business logic
     QColor m_backgroundColor;

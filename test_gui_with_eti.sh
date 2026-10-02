@@ -12,7 +12,7 @@ cd /home/seksan/workspace/streamdab-analyzer/build
 export QT_QPA_PLATFORM=offscreen
 
 # Run with timeout to prevent hanging
-timeout 30s ./DABAnalyzer_Enhanced_FilteringBuild 2>&1 | tee gui_test_output.log &
+timeout 30s ./StreamDABAnalyzer 2>&1 | tee gui_test_output.log &
 GUI_PID=$!
 
 echo "GUI Process ID: $GUI_PID"

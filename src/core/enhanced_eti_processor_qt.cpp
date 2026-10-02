@@ -18,6 +18,7 @@
  */
 
 #include "enhanced_eti_processor_qt.h"
+#include "crc16.hpp"
 #include <QFile>
 #include <QFileInfo>
 #include <QDebug>
@@ -112,8 +113,9 @@ bool ETIFrameParser::parseFrame(const QByteArray& frame_data, ETIFrameData& resu
     }
 
     // CRITICAL-001 FIX: Extract FIC if present with correct NST parameter
+    // (FIC size depends on Mode Identity: 96 bytes for Mode I/II/IV, 128 for Mode III)
     if (result.header.ficf == 1) {
-        result.fic_data = extractFIC(data, true, result.header.nst);
+        result.fic_data = extractFIC(data, true, result.header.nst, result.header.mid);
         qDebug() << "ETIFrameParser: Extracted FIC data (" << result.fic_data.size() << "bytes)";
     } else {
         result.fic_data.clear();
@@ -235,7 +237,7 @@ bool ETIFrameParser::validateFrameCounter(uint8_t fct)
 }
 
 // CRITICAL-001 FIX: Extract FIC data with correct offset calculation
-QByteArray ETIFrameParser::extractFIC(const uint8_t* data, bool ficf_flag, uint8_t nst)
+QByteArray ETIFrameParser::extractFIC(const uint8_t* data, bool ficf_flag, uint8_t nst, uint8_t mid)
 {
     if (!ficf_flag) {
         return QByteArray();
@@ -250,7 +252,8 @@ QByteArray ETIFrameParser::extractFIC(const uint8_t* data, bool ficf_flag, uint8
     const size_t STREAM_INFO_SIZE = 4 * nst;
     const size_t EOH_SIZE = 4;  // MNSC + CRC
     const size_t FIC_OFFSET = HEADER_SIZE + STREAM_INFO_SIZE + EOH_SIZE;
-    const size_t FIC_SIZE = 96;  // 3 FIBs × 32 bytes for Mode I
+    // 3 FIBs × 32 bytes for Mode I/II/IV, 4 FIBs × 32 bytes for Mode III
+    const size_t FIC_SIZE = (mid == 3) ? 128 : 96;
 
     // Bounds check
     if (FIC_OFFSET + FIC_SIZE > 6144) {
@@ -307,12 +310,13 @@ std::vector<SubChannelData> ETIFrameParser::extractMSC(const uint8_t* data, uint
         return sub_channels;  // No sub-channels
     }
 
-    // Calculate MSC offset per ETSI EN 300 799
-    const size_t HEADER_SIZE = 10;
+    // Calculate MSC offset per ETSI EN 300 799 (RAW ETI):
+    // SYNC(4) + FC(4) + STC(4*NST) + EOH(4 = MNSC+CRC) + FIC + MSC
+    const size_t HEADER_SIZE = 12;
     const size_t STREAM_INFO_SIZE = 4 * nst;
-    const size_t FIC_SIZE = ficf_flag ? 96 : 0;
+    const size_t FIC_SIZE = ficf_flag ? ((header.mid == 3) ? 128 : 96) : 0;
 
-    size_t stream_info_offset = HEADER_SIZE;
+    size_t stream_info_offset = 8;
     size_t msc_offset = HEADER_SIZE + STREAM_INFO_SIZE + FIC_SIZE;
 
     qDebug() << "ETIFrameParser::extractMSC: NST=" << nst
@@ -893,19 +897,50 @@ void EnhancedETIProcessorQt::processFicData(const QByteArray& ficData)
 {
     if (ficData.size() < 32) return;
 
-    // Enhanced FIG detection
-    for (int i = 0; i < ficData.size() - 1; i++) {
-        uint8_t figHeader = ficData[i];
-        uint8_t figType = (figHeader >> 3) & 0x1F;
-        uint8_t figLength = ficData[i + 1] & 0x1F;
+    qDebug() << "EnhancedETIProcessorQt::processFicData:" << ficData.size() << "bytes";
 
-        if (figType <= 31 && figLength > 0 && (i + figLength + 1) < ficData.size()) {
+    // The full FIC (96/128 bytes) is a sequence of FIBs; each FIB is 32 bytes:
+    // a 30-byte FIG area plus a 2-byte CRC-16. Parse FIGs within each FIB's
+    // FIG area (FIG header: type b7-b5, length b4-b0; type 7 = padding).
+    for (int fib_base = 0; fib_base + 32 <= ficData.size(); fib_base += 32) {
+        const uint8_t* fib = reinterpret_cast<const uint8_t*>(ficData.constData()) + fib_base;
+
+        // Validate FIB CRC (complemented CRC-16/CCITT-FALSE, big-endian);
+        // skip corrupted FIBs. Shared CRC implementation: crc16.hpp (F6 dedup).
+        const uint16_t expected = static_cast<uint16_t>(~eti::crc16ccitt_false(fib, 30));
+        const uint16_t stored = static_cast<uint16_t>((fib[30] << 8) | fib[31]);
+        if (expected != stored) {
+            qWarning() << "EnhancedETIProcessorQt::processFicData: FIB" << (fib_base / 32)
+                       << "CRC mismatch, skipping";
+            continue;
+        }
+
+        // Parse FIGs within the 30-byte FIG area
+        int i = 0;
+        while (i + 1 < 30) {
+            uint8_t figHeader = fib[i];
+            uint8_t figType = (figHeader >> 5) & 0x07;
+
+            if (figType == 0x07) {
+                break;  // Padding
+            }
+
+            uint8_t figLength = figHeader & 0x1F;
+
+            if (figLength == 0 || i + figLength + 1 > 30) {
+                break;  // Invalid FIG
+            }
+
             FIGInfo fig;
             fig.type = figType;
             fig.length = figLength;
-            fig.continuation = (figHeader & 0x80) != 0;
-            fig.other_ensemble = (figHeader & 0x40) != 0;
-            fig.data = ficData.mid(i + 2, figLength);
+            // FIG 0 extension flags live in the first data byte
+            if (figType == 0) {
+                uint8_t ext = static_cast<uint8_t>(fib[i + 1]);
+                fig.continuation = (ext & 0x80) != 0;
+                fig.other_ensemble = (ext & 0x40) != 0;
+            }
+            fig.data = QByteArray(reinterpret_cast<const char*>(fib + i + 1), figLength);
 
             emit figDiscovered(fig);
 

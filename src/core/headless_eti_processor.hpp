@@ -10,6 +10,7 @@
 // Include full definitions needed
 #include "eti_types.hpp"
 #include "fig_parser.hpp"
+#include "analyzer_settings.hpp"
 #include "../cli/yaml_output_generator.hpp"  // Need full definition for Qt MOC
 
 // Forward declarations for Qt classes only
@@ -76,6 +77,26 @@ public:
         bool verbose_mode = false;
         std::vector<cli::FrameAnalysisData> frame_analyses;  // Per-frame data
 
+        // P1 (CLI FIG detail wave): per-frame FIG instance trace lines, the
+        // aggregated FIG inventory and FIC/FIB health counters. fig_inventory
+        // is sorted by (fig_type, extension); frames are 1-based.
+        QStringList fig_trace_lines;                 // "fig-trace: frame=.. type=.. .."
+        std::vector<cli::FIGInventoryEntry> fig_inventory;
+        cli::FICHealth fic_health;
+
+        // Backlog (P2/P3, docs/fixes/CLI_FIG_COVERAGE.md): grouped-by-FIG
+        // view lines ("figs-by-type: fig=T/E count=.. frames=.. values=[..]")
+        // and per-FIB hex dump lines ("fib-hex: frame=.. fib=.. crc=.." +
+        // a 30-byte hex line and a FIG marker line). Both feed stderr in the
+        // same diagnostic channel as the trace lines.
+        QStringList figs_by_type_lines;
+        QStringList fib_hex_lines;
+
+        // Row 11 (strict_frame_crc): number of frames whose EOH gap CRC
+        // (bytes 8+4*NST .. 11+4*NST, CCITT-FALSE complement) mismatched.
+        // Only counted when the setting is enabled; decode stays independent.
+        quint64 frame_crc_failures = 0;
+
         // ETSI compliance
         bool etsiCompliant = true;
         QStringList complianceWarnings;
@@ -84,6 +105,22 @@ public:
 
     explicit HeadlessETIProcessor(QObject* parent = nullptr);
     ~HeadlessETIProcessor();
+
+    /**
+     * @brief Set the user-selected analyzer decode options.
+     *
+     * Applied on the next process_file() call (threaded through the modern
+     * frame parser, the service merge, verbose timestamps and the strict
+     * frame-CRC counter). Defaults to AnalyzerSettings::defaults().
+     *
+     * @param settings Analyzer decode options to use
+     */
+    void setAnalyzerSettings(const eti::AnalyzerSettings& settings) { m_settings = settings; }
+
+    /**
+     * @brief Current analyzer decode options.
+     */
+    const eti::AnalyzerSettings& analyzerSettings() const noexcept { return m_settings; }
 
     /**
      * @brief Process ETI file and generate analysis
@@ -98,6 +135,51 @@ public:
      * @param verbose Enable verbose mode
      */
     void setVerboseMode(bool verbose) { m_verbose_mode = verbose; }
+
+    /**
+     * @brief Enable per-frame FIG instance trace output (P1).
+     *
+     * When enabled (or when verbose mode is on), a compact
+     * "fig-trace: frame=.. type=.. ext=.. len=.. fib=.. crc=.. reconfig=.."
+     * line is emitted to stderr for every FIG instance of every parsed frame.
+     *
+     * @param enabled Enable the FIG instance trace
+     */
+    void setFigTraceMode(bool enabled) { m_fig_trace_mode = enabled; }
+
+    /**
+     * @brief Limit the number of processed frames (0 = all).
+     *
+     * Stops the frame loop after @p maxFrames complete frames have been
+     * processed. Statistics (frames, FIG inventory, FIC health) then cover
+     * the processed prefix only.
+     *
+     * @param maxFrames Maximum frames to process, 0 for no limit
+     */
+    void setMaxFrames(int maxFrames) { m_max_frames = maxFrames; }
+
+    /**
+     * @brief Enable the grouped-by-FIG view (backlog P2/P3, --figs-by-type).
+     *
+     * Emits one "figs-by-type: fig=T/E count=N frames=.. values=[..]" line to
+     * stderr per observed FIG type/extension, aggregating the per-frame trace
+     * data (frame numbers + representative readable values).
+     *
+     * @param enabled Enable the grouped view
+     */
+    void setFigsByTypeMode(bool enabled) { m_figs_by_type_mode = enabled; }
+
+    /**
+     * @brief Enable per-FIB hex dumps (backlog P2/P3, --fib-hex).
+     *
+     * For every processed frame with a structured FIC, prints a line per FIB:
+     * "fib-hex: frame=N fib=F crc=ok|bad" followed by the 30 FIG-area bytes
+     * and one marker line with the analyzed FIG byte ranges ("[0-5] FIG 0/0").
+     * Frame selection honours --max-frames / --verbose-frames.
+     *
+     * @param enabled Enable the FIB hex dumps
+     */
+    void setFibHexMode(bool enabled) { m_fib_hex_mode = enabled; }
 
     /**
      * @brief Get processing progress (0.0 to 1.0)
@@ -165,6 +247,13 @@ private:  // NOLINTNEXTLINE(readability-redundant-access-specifiers) - Required 
     ProcessingResult m_currentResult;
     QElapsedTimer m_processingTimer;
     bool m_verbose_mode = false;  // Verbose frame-by-frame output
+    bool m_fig_trace_mode = false;  // P1: per-frame FIG instance trace
+    bool m_figs_by_type_mode = false;  // P2/P3: grouped-by-FIG view
+    bool m_fib_hex_mode = false;       // P2/P3: per-FIB hex dumps
+    int m_max_frames = 0;           // P1: process at most N frames (0 = all)
+
+    // User-selected analyzer decode options (option-variant matrix rows 1-14).
+    eti::AnalyzerSettings m_settings;
 
     // Private methods
     bool initialize_components();

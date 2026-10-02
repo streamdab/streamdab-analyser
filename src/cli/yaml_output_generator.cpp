@@ -20,6 +20,8 @@
  */
 
 #include "yaml_output_generator.hpp"
+#include "core/etsi_registered_tables.hpp"
+#include "core/protection_tables.hpp"
 #include <QTextStream>
 #include <QFile>
 #include <QDebug>
@@ -85,6 +87,19 @@ void YAMLOutputGenerator::setETIStreamInfo(int total_frames, int valid_frames,
     }
 }
 
+void YAMLOutputGenerator::setFrameCrcStats(bool enabled, quint64 failures) {
+    m_data.frame_crc_stats_enabled = enabled;
+    m_data.frame_crc_failures = failures;
+}
+
+void YAMLOutputGenerator::setFigInventory(const QList<FIGInventoryEntry>& inventory) {
+    m_data.fig_inventory = inventory;
+}
+
+void YAMLOutputGenerator::setFicHealth(const FICHealth& health) {
+    m_data.fic_health = health;
+}
+
 // ============================================================================
 // Verbose Mode Setters
 // ============================================================================
@@ -133,6 +148,13 @@ QString YAMLOutputGenerator::generateYAML() const {
 
     // Subchannels section
     out << formatSubchannels();
+    out << "\n";
+
+    // FIG inventory + FIC health sections (P1, additive extensions: every
+    // existing section above/below keeps its exact historical shape).
+    out << formatFIGInventory();
+    out << "\n";
+    out << formatFICHealth();
     out << "\n";
 
     // FIG statistics section
@@ -198,6 +220,12 @@ QString YAMLOutputGenerator::formatETIStream() const {
     out << "  duration_seconds: " << QString::number(m_data.eti_stream.duration_seconds, 'f', 1) << "\n";
     out << "  crc_errors: " << m_data.eti_stream.crc_errors << "\n";
 
+    // Row 11 (strict_frame_crc): diagnostics line emitted only when the
+    // setting is enabled, so default runs keep the exact baseline shape.
+    if (m_data.frame_crc_stats_enabled) {
+        out << "  frame_crc_failures: " << m_data.frame_crc_failures << "\n";
+    }
+
     return section;
 }
 
@@ -214,6 +242,14 @@ QString YAMLOutputGenerator::formatEnsemble() const {
         ensemble_label = "(no label)";
     }
     out << "  ensemble_label: \"" << escapeYAMLString(ensemble_label) << "\"\n";
+
+    // Row 8 (show_short_labels): emit the ensemble short label derived from
+    // the 16-bit mask (EN 300 401 8.1.14), when available.
+    if (m_data.settings.show_short_labels && !m_data.ensemble.short_label.empty()) {
+        out << "  ensemble_short_label: \""
+            << escapeYAMLString(QString::fromStdString(m_data.ensemble.short_label))
+            << "\"\n";
+    }
 
     out << "  country_id: " << formatHex(static_cast<quint16>(m_data.ensemble.country_id)) << "\n";
 
@@ -238,7 +274,51 @@ QString YAMLOutputGenerator::formatServices() const {
     }
 
     for (const auto& service : m_data.services) {
-        out << "  - service_id: " << formatHex(static_cast<quint32>(service.service_id)) << "\n";
+        // F8: data services carry a full 32-bit SId ([ECC][CId|SRef-hi][SRef]).
+        // Row 12 (sid_display_mode) controls the rendering:
+        //   hex32  (default) -> 8 hex digits for data, 16-bit for programme
+        //   ecc-sid          -> "ECC:CId:SRef" decomposition (e.g. F3:2:00001)
+        //   hex16            -> lower 16 bits of the SId
+        const bool is_data = service.sid32 > 0xFFFF;
+        switch (m_data.settings.sid_display_mode) {
+            case eti::SidDisplayMode::Hex32:
+            default:
+                if (is_data) {
+                    out << "  - service_id: " << formatHex(service.sid32) << "\n";
+                } else {
+                    out << "  - service_id: " << formatHex(static_cast<quint32>(service.service_id)) << "\n";
+                }
+                break;
+            case eti::SidDisplayMode::EccSid:
+                if (is_data) {
+                    const uint8_t ecc = static_cast<uint8_t>(service.sid32 >> 24);
+                    const uint8_t cid = static_cast<uint8_t>((service.sid32 >> 20) & 0x0F);
+                    const uint32_t sref = service.sid32 & 0xFFFFFu;
+                    QString rendered =
+                        QString("%1:%2:%3")
+                            .arg(ecc, 2, 16, QLatin1Char('0'))
+                            .arg(cid)
+                            .arg(sref, 5, 16, QLatin1Char('0'));
+                    out << "  - service_id: \"" << rendered.toUpper() << "\"\n";
+                } else {
+                    const uint8_t ecc = service.extended_country_code;
+                    const uint8_t cid = service.country_id;
+                    QString rendered =
+                        QString("%1:%2:%3")
+                            .arg(ecc, 2, 16, QLatin1Char('0'))
+                            .arg(cid)
+                            .arg(service.service_id, 4, 16, QLatin1Char('0'));
+                    out << "  - service_id: \"" << rendered.toUpper() << "\"\n";
+                }
+                break;
+            case eti::SidDisplayMode::Hex16:
+                out << "  - service_id: "
+                    << formatHex(static_cast<quint16>(is_data
+                                                         ? static_cast<quint16>(service.sid32 & 0xFFFFu)
+                                                         : service.service_id))
+                    << "\n";
+                break;
+        }
 
         // Service label from FIG 1/1 (etisnoop-compatible key: service_label)
         QString service_label = QString::fromStdString(service.label);
@@ -246,6 +326,14 @@ QString YAMLOutputGenerator::formatServices() const {
             service_label = "(no label)";
         }
         out << "    service_label: \"" << escapeYAMLString(service_label) << "\"\n";
+
+        // Row 8 (show_short_labels): emit the service short label derived from
+        // the 16-bit mask (EN 300 401 8.1.14), when available.
+        if (m_data.settings.show_short_labels && !service.short_label.empty()) {
+            out << "    service_short_label: \""
+                << escapeYAMLString(QString::fromStdString(service.short_label))
+                << "\"\n";
+        }
 
         out << "    service_type: \"" << getServiceType(service) << "\"\n";
         out << "    is_programme_service: " << (service.is_programme ? "true" : "false") << "\n";
@@ -317,13 +405,24 @@ QString YAMLOutputGenerator::formatSubchannels() const {
         out << "  - subchannel_id: " << static_cast<int>(subchannel.subchannel_id) << "\n";
         out << "    start_address: " << formatHex(subchannel.start_address) << "\n";
 
-        // Calculate size from table index or use subchannel_size for long form
-        int size = subchannel.short_form ? (subchannel.table_index * 8) : subchannel.subchannel_size;
+        // Size: long form (EEP) carries it in the stream; short form (UEP)
+        // derives it from the UEP protection table (EN 300 401 Table 6.2,
+        // backlog item 8) via the wire table index.
+        int size = subchannel.short_form
+            ? static_cast<int>(eti::uepSizeCu(subchannel.table_index))
+            : subchannel.subchannel_size;
         out << "    size: " << size << "\n";
 
         // Protection level, etisnoop-compatible combined form (e.g., "UEP", "EEP-3A")
         out << "    protection_form: \"" << formatProtectionLevel(subchannel) << "\"\n";
         out << "    protection_level: " << static_cast<int>(subchannel.get_protection_level()) << "\n";
+
+        // Backlog item 8 (additive): protection table name ("EEP-A"/"EEP-B"
+        // for the long form, "UEP-1".."UEP-5" for the short form).
+        const QString protectionTable = QString::fromStdString(
+            eti::protectionTableName(subchannel.option, subchannel.short_form,
+                                     subchannel.table_index));
+        out << "    protection_table: \"" << protectionTable << "\"\n";
 
         // Estimate bitrate (CUs * 8 kbps)
         int bitrate = size * 8;
@@ -381,6 +480,44 @@ QString YAMLOutputGenerator::formatFIGStatistics() const {
         for (const QString& key : keys) {
             out << "    \"" << key << "\": " << m_data.fig_counts[key] << "\n";
         }
+    }
+
+    return section;
+}
+
+QString YAMLOutputGenerator::formatFICHealth() const {
+    QString section;
+    QTextStream out(&section);
+
+    out << "fic_health:\n";
+    out << "  fib_crc_failures: " << m_data.fic_health.fib_crc_failures << "\n";
+    out << "  total_fibs: " << m_data.fic_health.total_fibs << "\n";
+    out << "  erroneous_figs: " << m_data.fic_health.erroneous_figs << "\n";
+    out << "  reconfiguration_count: " << m_data.fic_health.reconfiguration_count << "\n";
+
+    return section;
+}
+
+QString YAMLOutputGenerator::formatFIGInventory() const {
+    QString section;
+    QTextStream out(&section);
+
+    out << "figs:\n";
+
+    if (m_data.fig_inventory.isEmpty()) {
+        out << "  []\n";
+        return section;
+    }
+
+    // Entries arrive sorted by (fig_type, extension) from the headless
+    // processor; render in that deterministic order.
+    for (const auto& entry : m_data.fig_inventory) {
+        out << "  - fig: \"" << static_cast<int>(entry.fig_type) << "/"
+            << static_cast<int>(entry.extension) << "\"\n";
+        out << "    count: " << entry.count << "\n";
+        out << "    first_frame: " << entry.first_frame << "\n";
+        out << "    last_frame: " << entry.last_frame << "\n";
+        out << "    crc_failures: " << entry.crc_failures << "\n";
     }
 
     return section;
@@ -464,6 +601,7 @@ QString YAMLOutputGenerator::formatSingleFrame(const FrameAnalysisData& frame, i
     out << ind << "    fp: " << static_cast<int>(frame.header.fp) << "\n";
     out << ind << "    fl: " << frame.header.fl << "\n";
     out << ind << "    tist: " << formatHex(frame.header.tist) << "\n";
+    out << ind << "    tist_ms: " << QString::number(frame.header.tist_ms, 'f', 3) << "\n";
 
     // STC Fields (for ETI-NI)
     if (!frame.stc_fields.isEmpty()) {
@@ -475,6 +613,8 @@ QString YAMLOutputGenerator::formatSingleFrame(const FrameAnalysisData& frame, i
             out << ind << "      stl: " << stc.stl << "\n";
             out << ind << "      protection_form: \"" << stc.protection_form << "\"\n";
             out << ind << "      protection_level: \"" << stc.protection_level << "\"\n";
+            out << ind << "      protection_table: \"" << stc.protection_table << "\"\n";
+            out << ind << "      cu_size: " << stc.cu_size << "\n";
             out << ind << "      size_cu: " << stc.size_cu << "\n";
             out << ind << "      bitrate_kbps: " << stc.bitrate_kbps << "\n";
         }
@@ -673,7 +813,9 @@ QString YAMLOutputGenerator::formatFIGBlock(const eti::FigBlock& fig, int indent
                 break;
         }
     } else if (fig.fig_type == 1) {
-        // FIG Type 1/* - Labels
+        // FIG Type 1/* - Labels (the extension is bits 2-0 of the first byte;
+        // the upper nibble is the label charset, EN 300 401 8.1.13).
+        uint8_t extension = fig.data.empty() ? 0 : static_cast<uint8_t>(fig.data[0] & 0x07);
         out << ind << "  decoded:\n";
         out << ind << "    description: \"Label (FIG 1/" << static_cast<int>(extension) << ")\"\n";
         out << ind << "    etsi_ref: \"EN 300 401 Section 8.1.13\"\n";
@@ -777,41 +919,16 @@ QString YAMLOutputGenerator::formatEEPProtectionLevel(uint8_t protection_level, 
 }
 
 QString YAMLOutputGenerator::getCountryName(uint8_t country_id, uint8_t extended_country_code) const {
-    // ENHANCED: More comprehensive country mapping
-    // Reference: ETSI TS 101 756 Table 9
+    // ENHANCED: ECC-aware country mapping keyed on (ECC, Country Id)
+    // Reference: ETSI TS 101 756 Table 1 (via etsi_registered_tables).
+    // The ECC is authoritative: e.g. ECC 0xF3 + CId 0x02 -> Thailand.
+    // Row 6 (ecc_override): a manual ECC wins over the stream value.
+    const uint8_t ecc = static_cast<uint8_t>(
+        m_data.settings.effectiveEcc(extended_country_code));
 
-    if (country_id == 0x0E && extended_country_code == 0xE1) {
-        return "Thailand";
-    } else if (country_id == 0x0D) {
-        return "France";
-    } else if (country_id == 0x09) {
-        return "Germany";
-    } else if (country_id == 0x0C) {
-        return "United Kingdom";
-    } else if (country_id == 0x0F) {
-        if (extended_country_code == 0xE0) return "Germany";
-        else if (extended_country_code == 0xE1) return "Thailand";
-        else if (extended_country_code == 0xE2) return "Algeria";
-        else if (extended_country_code == 0xE3) return "Andorra";
-        else if (extended_country_code == 0xE4) return "Israel";
-    } else if (country_id == 0x01) {
-        return "Albania";
-    } else if (country_id == 0x02) {
-        return "Austria";
-    } else if (country_id == 0x03) {
-        return "Belgium";
-    } else if (country_id == 0x04) {
-        return "Bulgaria";
-    } else if (country_id == 0x05) {
-        return "Switzerland";
-    } else if (country_id == 0x06) {
-        return "Czech Republic";
-    } else if (country_id == 0x08) {
-        return "Spain";
-    } else if (country_id == 0x0A) {
-        return "Greece";
-    } else if (country_id == 0x0B) {
-        return "Hungary";
+    const char* name = etsi::ts101756::getCountryName(ecc, country_id);
+    if (name != nullptr && QString::fromLatin1(name) != "Reserved") {
+        return QString::fromLatin1(name);
     }
 
     return "Unknown";

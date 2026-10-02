@@ -35,6 +35,7 @@
 #pragma once
 
 #include "eti_types.hpp"
+#include "analyzer_settings.hpp"
 #include <QObject>
 #include <QString>
 #include <QByteArray>
@@ -1143,6 +1144,9 @@ struct FigParsingResult {
     std::vector<std::string> compliance_violations;
     std::vector<std::string> compliance_warnings;
 
+    // FIB-level CRC statistics (number of FIBs skipped due to bad CRC)
+    uint32_t fib_crc_failures;
+
     void reset() {
         parsing_successful = false;
         parsing_time = std::chrono::nanoseconds::zero();
@@ -1159,6 +1163,7 @@ struct FigParsingResult {
         etsi_compliant = false;
         compliance_violations.clear();
         compliance_warnings.clear();
+        fib_crc_failures = 0;
     }
 };
 
@@ -1183,6 +1188,20 @@ public:
      * @return true if initialization successful
      */
     bool initialize(bool enable_thai_support = true, bool strict_compliance = false);
+
+    /**
+     * @brief Set the user-selected analyzer decode options (rows 4/5).
+     *
+     * Drives the FIC/FIB decode mode used by extractFigBlocks(). Defaults to
+     * AnalyzerSettings::defaults() so behavior is unchanged for default configs.
+     * @param settings Analyzer decode options to use
+     */
+    void setAnalyzerSettings(const AnalyzerSettings& settings) { settings_ = settings; }
+
+    /**
+     * @brief Current analyzer decode options.
+     */
+    const AnalyzerSettings& analyzerSettings() const noexcept { return settings_; }
 
     /**
      * @brief Parse FIC data and extract all FIG blocks
@@ -1673,6 +1692,19 @@ private:
     // ETSI compliance tracking
     std::atomic<uint64_t> compliance_violations_count_;
     std::atomic<uint64_t> thai_encoding_issues_count_;
+
+    // Number of FIBs skipped in the last parseFicData() call due to bad CRC.
+    // Atomic: parseFicData() may run on worker threads while the GUI reads
+    // the counter from the main thread (documented single-writer, multi-reader).
+    std::atomic<uint32_t> fib_crc_failures_count_{0};
+
+    // True once the raw-FIC fallback warning (all FIB CRCs failed) has been
+    // logged, so it appears once per parser lifetime instead of per frame.
+    bool raw_fic_fallback_warned_{false};
+
+    // User-selected analyzer decode options (option-variant matrix rows 4/5);
+    // defaults == current behavior.
+    AnalyzerSettings settings_;
 
     // Parsing optimization data
     std::unordered_map<uint8_t, uint64_t> fig_type_frequency_;

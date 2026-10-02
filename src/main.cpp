@@ -36,6 +36,15 @@
 #include <QActionGroup>         // Phase C: Input menu radio group
 #include <QRegularExpression>   // Phase 1.1: Hex viewer formatting
 #include <QElapsedTimer>        // Phase 1.2: Timing throttle
+// === Qt Advanced Docking System (Qt-ADS) 4.5.0 — v1.3 GUI migration ===
+#include "DockManager.h"
+#include "DockWidget.h"
+#include "DockAreaWidget.h"
+#include "DockSplitter.h"
+#include <QSettings>
+#include <QStandardPaths>
+#include <QHash>
+#include <QSet>
 #include <chrono>
 #include <memory>
 #include <map>
@@ -46,6 +55,7 @@
 #include "core/enhanced_eti_processor_qt.h"
 #include "core/advanced_fig_analyzer.h"
 #include "core/hex_viewer_formatter.h"
+#include "core/analyzer_settings.hpp"
 #include "core/etsi_compliance_engine.hpp"
 #include "core/multi_stream_processor.hpp"
 #include "core/advanced_error_detection.hpp"
@@ -115,6 +125,16 @@ public:
         setupWorkerThread();  // Phase A: Worker thread signal connections
         setupStatusBar();
 
+        // Load the analyzer decode settings from QSettings (org
+        // "StreamDAB-Analyzer", app "DABAnalyzer", group "analyzer/").
+        // A fresh QSettings yields the defaults, keeping decode behavior
+        // identical to the pre-settings baseline.
+        m_analyzerSettings.loadFromQSettings();
+
+        // Wire the decode settings into the GUI FIG analyzer (FIB CRC
+        // strictness, fic_mode raw/auto-fallback, force_charset).
+        m_figAnalyzer->setAnalyzerSettings(m_analyzerSettings);
+
         // EMERGENCY: ALL CUSTOM THEMING DISABLED FOR TEXT VISIBILITY
         // applyTheme();
     }
@@ -125,6 +145,40 @@ public:
     void autoLoadFile(const QString& filePath)
     {
         loadETIFile(filePath);
+    }
+
+    // Public accessor for the DAB Ensemble Explorer tree (GUI tests)
+    QTreeWidget* ensembleTree() const { return m_ensembleTree; }
+
+    // Public accessors for the real-data panel widgets (GUI tests).
+    // The audit-based assertions read these instead of walking the dock tree.
+    QTableWidget* subchannelTable() const { return m_subchannelTable; }
+    QLabel* tab2EnsembleNameLabel() const { return m_tab2_ensembleName; }
+    QLabel* tab2FicContentSummaryLabel() const { return m_tab2_ficContentSummary; }
+    QLabel* tab2SubchannelOrgSummaryLabel() const { return m_tab2_subchannelOrgSummary; }
+    QTableWidget* tab2ServiceTable() const { return m_tab2_serviceTable; }
+    QTreeWidget* tab3FigInstanceTree() const { return m_tab3_figInstanceTree; }
+    QTreeWidget* tab3FigItemDetailsTree() const { return m_tab3_figItemDetailsTree; }
+    QTreeWidget* ficOverviewTree() const { return m_ficOverviewTree; }
+    QTableWidget* errorCounterTable() const { return m_errorCounterTable; }
+
+    // User-selected analyzer decode options (loaded from QSettings at startup).
+    const eti::AnalyzerSettings& analyzerSettings() const noexcept { return m_analyzerSettings; }
+
+    // Public analyzer-state accessors (reload/reset GUI tests): the FIG
+    // analyzer's instance list / counters must restart cleanly per file.
+    bool isFileLoaded() const { return m_fileLoaded; }
+    int analyzerFigInstanceCount() const
+    {
+        return m_figAnalyzer ? static_cast<int>(m_figAnalyzer->figInstances().size()) : 0;
+    }
+    int analyzerTotalFigCount() const
+    {
+        return m_figAnalyzer ? m_figAnalyzer->getTotalFIGsProcessed() : 0;
+    }
+    int analyzerFibCrcFailureCount() const
+    {
+        return m_figAnalyzer ? m_figAnalyzer->getFibCrcFailureCount() : 0;
     }
 
 private slots:
@@ -150,6 +204,14 @@ private slots:
         m_fileLoaded = false;
         m_totalFrames = 0;
         m_currentFrameIndex = 0;
+
+        // === Clear previous-file decode state in the FIG analyzer ===
+        // (Tab 3 instances/FIG counters/FIB-CRC counts must not accumulate
+        // across files) and re-apply the user's decode options.
+        if (m_figAnalyzer) {
+            m_figAnalyzer->reset();
+            m_figAnalyzer->setAnalyzerSettings(m_analyzerSettings);
+        }
 
         // === PHASE 3 AGENT 4: Clear frame cache ===
         m_frameCache.clear();
@@ -275,6 +337,9 @@ private slots:
         
         // === CRITICAL FIX: Pass FIC data to FIG analyzer ===
         if (!frame.fic_data.isEmpty() && m_figAnalyzer) {
+            // FIC-XTractor: tag the analyzed FIC with its real ETI frame
+            // number so Tab 3's chronological FIG instance list has truth.
+            m_figAnalyzer->setFigFrameNumber(frame.frame_number);
             m_figAnalyzer->analyzeFICData(frame.fic_data);
             // DEBUG: Log FIC processing
             static int ficProcessCount = 0;
@@ -477,108 +542,19 @@ private slots:
             
             // Update Hex Viewer with frame data
             displayFrameHexData(currentRow);
-            
-            // Update DAB Ensemble Explorer with frame-specific service data
-            updateEnsembleExplorerForFrame(currentRow);
-            
+
+            // NOTE: The DAB Ensemble Explorer is owned by the real FIG
+            // decode path (buildEnsembleTree()/updateEnsembleTree() via
+            // m_figAnalyzer). Frame selection must NOT rewrite it — the old
+            // updateEnsembleExplorerForFrame() simulator (fake "Frame N FIC
+            // Data" rows) was removed (PANEL_AUDIT fix #1).
+
             // Perform ETSI Compliance validation on selected frame
             performETSIComplianceValidation(currentRow);
             
             // === PHASE 1.3: Update ETI Overview Table ===
             updateETIOverviewTable(currentRow);
         }
-    }
-    
-    void updateEnsembleExplorerForFrame(int frameIndex)
-    {
-        if (!m_ensembleTree || frameIndex < 0) {
-            return;
-        }
-        
-        // Clear current ensemble data
-        m_ensembleTree->clear();
-        
-        // Simulate FIC parsing for the selected frame
-        // In real implementation, this would parse actual FIC data from the ETI frame
-        QString frameInfo = QString("Frame %1 FIC Data").arg(frameIndex + 1);
-        
-        // Create ensemble root based on frame data
-        QTreeWidgetItem* ensembleItem = new QTreeWidgetItem();
-        ensembleItem->setText(0, QString("Bangkok DAB+ Ensemble (Frame %1)").arg(frameIndex + 1));
-        ensembleItem->setText(1, "NBT Thailand");
-        ensembleItem->setText(2, "Ensemble");
-        ensembleItem->setExpanded(true);
-        
-        // Simulate frame-specific service discovery
-        // Each frame might have different service availability or configurations
-        QStringList services = getServicesForFrame(frameIndex);
-        
-        for (const QString& serviceData : services) {
-            QStringList parts = serviceData.split("|");
-            if (parts.size() >= 3) {
-                QTreeWidgetItem* serviceItem = new QTreeWidgetItem(ensembleItem);
-                serviceItem->setText(0, parts[0]); // Service Name
-                serviceItem->setText(1, parts[1]); // Service Label
-                serviceItem->setText(2, parts[2]); // Service Type
-                
-                // Add frame-specific service details
-                QTreeWidgetItem* detailItem = new QTreeWidgetItem(serviceItem);
-                detailItem->setText(0, QString("Frame %1 Status").arg(frameIndex + 1));
-                detailItem->setText(1, "Active");
-                detailItem->setText(2, "Service Detail");
-            }
-        }
-        
-        m_ensembleTree->addTopLevelItem(ensembleItem);
-        m_ensembleTree->expandAll();
-        
-        // Update system messages
-        if (m_systemMessages) {
-            m_systemMessages->append(QString("🌐 Ensemble Explorer: Updated for Frame %1 (%2 services)")
-                                   .arg(frameIndex + 1).arg(services.count()));
-        }
-    }
-    
-    QStringList getServicesForFrame(int frameIndex)
-    {
-        // Simulate frame-specific service discovery based on FIC data
-        // In real implementation, this would parse FIC blocks from the ETI frame
-        QStringList services;
-        
-        // Base services (always present in Bangkok DAB+)
-        services << "NBT Radio|National Broadcasting Thailand|Audio DAB+";
-        services << "NBT News|NBT News Channel|Audio DAB+";
-        
-        // Frame-dependent services (simulate varying availability)
-        if (frameIndex % 10 == 0) {
-            services << "Traffic Info|Real-time Traffic|Data Service";
-        }
-        
-        if (frameIndex % 15 == 0) {
-            services << "Weather Data|Bangkok Weather|Data Service";
-        }
-        
-        if (frameIndex % 25 == 0) {
-            services << "Emergency Alert|Alert System|Emergency Service";
-        }
-        
-        // Time-varying services based on frame position
-        int timeVariation = frameIndex % 100;
-        if (timeVariation < 30) {
-            services << "Morning News|NBT Morning Edition|Audio DAB+";
-        } else if (timeVariation < 60) {
-            services << "Afternoon Music|NBT Music Stream|Audio DAB+";
-        } else {
-            services << "Evening Program|NBT Evening Show|Audio DAB+";
-        }
-        
-        // Service quality indication based on frame index
-        QString qualityIndicator = (frameIndex % 3 == 0) ? "High Quality" : "Standard";
-        for (int i = 0; i < services.size(); i++) {
-            services[i] += QString(" (%1)").arg(qualityIndicator);
-        }
-        
-        return services;
     }
     
     void performETSIComplianceValidation(int frameIndex)
@@ -828,6 +804,11 @@ private slots:
     {
         if (m_sourceInputStack) {
             m_sourceInputStack->setCurrentIndex(networkSelected ? 1 : 0);
+            // UI redesign (Step A): the toolbar is a compact single row by
+            // default; the network row (URL + quick examples + connect/
+            // disconnect/record + stream stats) expands only when the
+            // "Network Stream" radio is selected.
+            m_sourceInputStack->setVisible(networkSelected);
         }
     }
     
@@ -1927,6 +1908,9 @@ private slots:
 protected:
     void closeEvent(QCloseEvent* event) override
     {
+        // v1.3: persist docking/window state BEFORE any component teardown
+        saveDockingState();
+
         // AGGRESSIVE cleanup: Destroy Phase 2B components completely before closing
         qDebug() << "Window closing - performing aggressive component cleanup...";
         
@@ -1965,9 +1949,28 @@ protected:
         // Accept the close event after aggressive cleanup
         qDebug() << "Aggressive cleanup complete - closing window";
         event->accept();
+        QWidget::closeEvent(event);
     }
 
 private:
+    // === Qt-ADS docking (v1.3): one CDockManager per tab + one shared bottom ===
+    ads::CDockManager* m_tab1DockManager = nullptr;
+    ads::CDockManager* m_tab2DockManager = nullptr;
+    ads::CDockManager* m_tab3DockManager = nullptr;
+    ads::CDockManager* m_bottomDockManager = nullptr;
+
+    // A named section produced by the refactored Tab-1 column helpers. Each
+    // section becomes one dock widget (objectName is REQUIRED for save/restore).
+    struct DockSection {
+        QString objectName;
+        QString title;
+        QWidget* widget = nullptr;
+    };
+
+    // (helper member functions makeDock()/registerTab*Docks()/buildSharedBottomDocks()/
+    //  restoreDockingState()/saveDockingState() are defined inline below, which
+    //  doubles as their declarations — no separate prototypes needed)
+
     // === PHASE 1.2: Timing Helper Function ===
     QString frameToTimeString(int frameIndex, int totalFrames, int mode = 1) const {
         // Mode 1 (DAB) = 24ms per frame, Mode 2/3/4 have different timings
@@ -2085,17 +2088,27 @@ private:
                 (service.isData ? "Data" : "Audio") : service.type;
             serviceItem->setText(2, serviceType);
             
-            // Level 3: Components (placeholder - detailed component info requires more FIG processing)
-            if (service.isAudio) {
-                QTreeWidgetItem* componentItem = new QTreeWidgetItem(serviceItem);
-                componentItem->setText(0, "-");
-                componentItem->setText(1, "Primary Audio");
-                componentItem->setText(2, "Service Detail");
-                
-                // Italic formatting for component placeholder
-                QFont italicFont = componentItem->font(1);
-                italicFont.setItalic(true);
-                componentItem->setFont(1, italicFont);
+            // Level 3: Components — REAL decoded component rows from the
+            // FIG 0/2 service data (sub-channel ids, transport mode,
+            // primary/secondary, DAB+/audio type); the fabricated
+            // "Primary Audio / Service Detail" placeholders are gone.
+            const DABService* dabService = nullptr;
+            const std::vector<DABService> dabServices = m_figAnalyzer->getDABServices();
+            for (const DABService& svc : dabServices) {
+                if (svc.service_id == service.serviceId) {
+                    dabService = &svc;
+                    break;
+                }
+            }
+            if (dabService && !dabService->components.empty()) {
+                for (const ServiceComponent& comp : dabService->components) {
+                    auto* componentItem = new QTreeWidgetItem(serviceItem);
+                    componentItem->setText(0, QString("SubCh %1").arg(comp.sub_channel_id));
+                    componentItem->setText(1, comp.transport_mode == 0
+                        ? (comp.isDabPlus() ? "DAB+" : "Audio")
+                        : "Packet/Data");
+                    componentItem->setText(2, comp.is_primary ? "Primary" : "Secondary");
+                }
             }
         }
         
@@ -2178,8 +2191,9 @@ private:
             m_subchannelTable->setItem(row, 1, new QTableWidgetItem(
                 QString::number(subch.sub_channel_id)));
             
-            // Column 2: Type (UEP/EEP)
-            QString type = subch.short_form ? "EEP" : "UEP";
+            // Column 2: Type (EEP/UEP per etisnoop-parity semantics: bit 7 of the
+            // third descriptor byte set = EEP long form, i.e. !short_form)
+            QString type = subch.short_form ? "UEP" : "EEP";
             m_subchannelTable->setItem(row, 2, new QTableWidgetItem(type));
             
             // Column 3: Level (protection level)
@@ -2388,9 +2402,10 @@ private:
         // IMPORTANT: Use clearContents() to prevent memory leaks
         m_errorCounterTable->clearContents();
         
-        // Ensure correct size
-        if (m_errorCounterTable->rowCount() != 5) {
-            m_errorCounterTable->setRowCount(5);
+        // Ensure correct size (5 error rows + FIB CRC row from the FIG
+        // analyzer — PANEL_AUDIT fix #4)
+        if (m_errorCounterTable->rowCount() != 6) {
+            m_errorCounterTable->setRowCount(6);
         }
         if (m_errorCounterTable->columnCount() != 2) {
             m_errorCounterTable->setColumnCount(2);
@@ -2423,15 +2438,20 @@ private:
             int count;
         };
         
+        // FIB CRC failures come from the FIG analyzer's real per-FIB CRC-16
+        // validation (getFibCrcFailureCount). Zero on a clean capture.
+        const int fibCrcErrors = m_figAnalyzer ? m_figAnalyzer->getFibCrcFailureCount() : 0;
+        
         ErrorRow errors[] = {
             {"FIC CRC Errors", ficCrcErrors},
             {"MSC CRC Errors", mscCrcErrors},
             {"Invalid FIG Errors", invalidFigErrors},
             {"Service Org Errors", serviceOrgErrors},
-            {"Subchannel Errors", subchannelErrors}
+            {"Subchannel Errors", subchannelErrors},
+            {"FIB CRC Errors", fibCrcErrors}
         };
         
-        for (int row = 0; row < 5; ++row) {
+        for (int row = 0; row < 6; ++row) {
             auto* typeItem = new QTableWidgetItem(errors[row].type);
             typeItem->setFlags(typeItem->flags() & ~Qt::ItemIsEditable);
             
@@ -2465,29 +2485,50 @@ private:
         
         m_ficOverviewTree->clear();
         
-        // Root: FIC Overview
+        // Root: FIC Overview — real values from the FIG analyzer (the
+        // "Data Available"/"Ready for data" literals are gone).
+        const bool hasData = m_fileLoaded && m_figAnalyzer;
         auto* rootItem = new QTreeWidgetItem(m_ficOverviewTree);
         rootItem->setText(0, "FIC Overview");
-        rootItem->setText(1, m_fileLoaded ? "Data Available" : "No Data");
-        rootItem->setText(3, m_fileLoaded ? "OK" : "N/A");
+        rootItem->setText(1, hasData ? "Decoded" : "No Data");
+        rootItem->setText(3, hasData ? "OK" : "N/A");
         
-        if (m_fileLoaded) {
-            // TODO: Connect to actual ensemble manager when available
-            // For now, show placeholder structure
-            auto* ensembleItem = new QTreeWidgetItem(rootItem);
-            ensembleItem->setText(0, "Ensemble");
-            ensembleItem->setText(1, "Ready for data");
-            ensembleItem->setText(3, "OK");
-            
-            auto* servicesItem = new QTreeWidgetItem(rootItem);
-            servicesItem->setText(0, "Services");
-            servicesItem->setText(1, "Ready for data");
-            servicesItem->setText(3, "OK");
-            
-            auto* subchannelsItem = new QTreeWidgetItem(rootItem);
-            subchannelsItem->setText(0, "Subchannels");
-            subchannelsItem->setText(1, "Ready for data");
-            subchannelsItem->setText(3, "OK");
+        if (hasData) {
+            const int ficBytes = m_figAnalyzer->getLastFicSize();
+            const int fibPerFrame = ficBytes > 0 ? ficBytes / 32 : 0;  // FIBs per on-air FIC
+            const int totalFigs = m_figAnalyzer->getTotalFIGsProcessed();
+            const int crcFailures = m_figAnalyzer->getFibCrcFailureCount();
+
+            auto* streamItem = new QTreeWidgetItem(rootItem);
+            streamItem->setText(0, "FIC stream");
+            streamItem->setText(1, QString("%1 B / %2 FIBs per frame")
+                                    .arg(ficBytes).arg(fibPerFrame));
+            streamItem->setText(3, m_figAnalyzer->rawFicFallbackUsed() ? "raw fallback" : "OK");
+
+            auto* figsItem = new QTreeWidgetItem(rootItem);
+            figsItem->setText(0, "FIGs processed");
+            figsItem->setText(1, QString::number(totalFigs));
+            figsItem->setText(3, QString("%1 valid").arg(m_figAnalyzer->getValidFIGsCount()));
+
+            // Per FIG type/extension occurrence counts (chronological wire
+            // order over the whole capture).
+            auto* byTypeItem = new QTreeWidgetItem(rootItem);
+            byTypeItem->setText(0, "FIG counts by type");
+            byTypeItem->setText(1, "");
+            byTypeItem->setText(3, "");
+            const QVector<AdvancedFIGAnalyzer::FigTypeCount> counts =
+                m_figAnalyzer->getFigTypeCounts();
+            for (const AdvancedFIGAnalyzer::FigTypeCount& tc : counts) {
+                auto* figItem = new QTreeWidgetItem(byTypeItem);
+                figItem->setText(0, QString("FIG %1/%2").arg(tc.type).arg(tc.ext));
+                figItem->setText(1, QString::number(tc.count));
+                figItem->setText(3, "observed");
+            }
+
+            auto* crcItem = new QTreeWidgetItem(rootItem);
+            crcItem->setText(0, "FIB CRC failures");
+            crcItem->setText(1, QString::number(crcFailures));
+            crcItem->setText(3, crcFailures == 0 ? "clean capture" : "corrupt FIBs");
         }
         
         m_ficOverviewTree->expandAll();
@@ -2496,28 +2537,64 @@ private:
 
     // === PHASE 6: Tab 2 LEFT Panel Updates ===
     void updateTab2OverviewLabels() {
+        if (!m_figAnalyzer) return;
+
+        // Real values from the FIG analyzer (PANEL_AUDIT fix #2): the
+        // "Ready/Available" literals are gone.
+        EnsembleInfo ensemble = m_figAnalyzer->getCurrentEnsemble();
+        const bool hasEnsemble = (ensemble.ensembleId != 0 || !ensemble.ensembleLabel.isEmpty());
+
         if (m_tab2_ensembleName) {
-            m_tab2_ensembleName->setText(m_fileLoaded ? "Ensemble: Ready" : "Ensemble: (none)");
+            m_tab2_ensembleName->setText(
+                hasEnsemble
+                    ? QString("Ensemble: %1 [0x%2]")
+                          .arg(ensemble.ensembleLabel.isEmpty()
+                                   ? QString("Ensemble 0x%1").arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper()
+                                   : ensemble.ensembleLabel)
+                          .arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper()
+                    : "Ensemble: (none)");
         }
         if (m_tab2_ficContentSummary) {
-            m_tab2_ficContentSummary->setText(m_fileLoaded ? "FIC Content: Available" : "FIC Content: 0 FIGs");
+            m_tab2_ficContentSummary->setText(
+                QString("FIC Content: %1 FIGs").arg(m_figAnalyzer->getTotalFIGsProcessed()));
         }
         if (m_tab2_subchannelOrgSummary) {
-            m_tab2_subchannelOrgSummary->setText(m_fileLoaded ? "Sub-Channels: Ready" : "Sub-Channels: 0");
+            m_tab2_subchannelOrgSummary->setText(
+                QString("Sub-Channels: %1").arg(m_figAnalyzer->getAllSubChannels().size()));
         }
         qDebug() << "[PHASE 6.1] Tab 2 overview labels updated";
     }
     
     void buildTab2ServiceTree() {
-        if (!m_tab2_serviceTree) return;
+        if (!m_tab2_serviceTree || !m_figAnalyzer) return;
         
         m_tab2_serviceTree->clear();
         
         if (m_fileLoaded) {
+            // Real services from the FIG analyzer's decoded MCI/SI data.
+            std::vector<DABService> services = m_figAnalyzer->getDABServices();
             auto* rootItem = new QTreeWidgetItem(m_tab2_serviceTree);
-            rootItem->setText(0, "Services");
-            rootItem->setText(1, "Ready");
-            rootItem->setText(2, "TODO: Connect data");
+            rootItem->setText(0, QString("Services (%1)").arg(services.size()));
+            rootItem->setText(1, "");
+            rootItem->setText(2, "");
+            
+            for (const DABService& service : services) {
+                auto* serviceItem = new QTreeWidgetItem(rootItem);
+                QString label = service.service_label;
+                if (label.isEmpty()) {
+                    label = QString("0x%1").arg(service.service_id, 4, 16, QChar('0')).toUpper();
+                }
+                serviceItem->setText(0, QString("%1 [0x%2]")
+                                         .arg(label)
+                                         .arg(service.service_id, 4, 16, QChar('0')).toUpper());
+                serviceItem->setText(1, tab2ServiceTypeString(service));
+                
+                const ServiceComponent primary = service.getPrimaryComponent();
+                serviceItem->setText(2, primary.transport_mode == 0
+                    ? QString::number(primary.sub_channel_id)
+                    : QString("Packet"));
+            }
+            rootItem->setExpanded(true);
         } else {
             auto* noDataItem = new QTreeWidgetItem(m_tab2_serviceTree);
             noDataItem->setText(0, "No services");
@@ -2529,15 +2606,40 @@ private:
     }
     
     void buildTab2ComponentsTree() {
-        if (!m_tab2_serviceComponents) return;
+        if (!m_tab2_serviceComponents || !m_figAnalyzer) return;
         
         m_tab2_serviceComponents->clear();
         
         if (m_fileLoaded) {
+            std::vector<DABService> services = m_figAnalyzer->getDABServices();
             auto* rootItem = new QTreeWidgetItem(m_tab2_serviceComponents);
-            rootItem->setText(0, "Components");
-            rootItem->setText(1, "Ready");
-            rootItem->setText(2, "TODO: Connect data");
+            rootItem->setText(0, QString("Components (%1 services)").arg(services.size()));
+            rootItem->setText(1, "");
+            rootItem->setText(2, "");
+            
+            for (const DABService& service : services) {
+                QString label = service.service_label;
+                if (label.isEmpty()) {
+                    label = QString("0x%1").arg(service.service_id, 4, 16, QChar('0')).toUpper();
+                }
+                auto* serviceItem = new QTreeWidgetItem(rootItem);
+                serviceItem->setText(0, QString("%1 [0x%2]")
+                                         .arg(label)
+                                         .arg(service.service_id, 4, 16, QChar('0')).toUpper());
+                serviceItem->setText(1, tab2ServiceTypeString(service));
+                serviceItem->setText(2, QString("%1 component(s)").arg(service.components.size()));
+                
+                for (const ServiceComponent& comp : service.components) {
+                    auto* compItem = new QTreeWidgetItem(serviceItem);
+                    compItem->setText(0, QString("Component %1").arg(comp.component_id));
+                    compItem->setText(1, comp.isDabPlus() ? "DAB+" : "Audio");
+                    compItem->setText(2, QString("SubCh %1, TMId %2, %3")
+                                          .arg(comp.sub_channel_id)
+                                          .arg(comp.transport_mode)
+                                          .arg(comp.is_primary ? "Primary" : "Secondary"));
+                }
+            }
+            rootItem->setExpanded(true);
         } else {
             auto* noDataItem = new QTreeWidgetItem(m_tab2_serviceComponents);
             noDataItem->setText(0, "No components");
@@ -2550,78 +2652,620 @@ private:
 
     // === PHASE 7: Tab 2 CENTER Panel Table Updates ===
     void updateTab2EnsembleTable() {
-        if (!m_tab2_ensembleTable) return;
+        if (!m_tab2_ensembleTable || !m_figAnalyzer) return;
         
         m_tab2_ensembleTable->clearContents();
-        m_tab2_ensembleTable->setRowCount(1);
         
-        if (m_fileLoaded) {
-            m_tab2_ensembleTable->setItem(0, 0, new QTableWidgetItem("Ready"));
-            for (int col = 1; col < m_tab2_ensembleTable->columnCount(); ++col) {
-                m_tab2_ensembleTable->setItem(0, col, new QTableWidgetItem("TODO"));
+        std::vector<DABService> services = m_figAnalyzer->getDABServices();
+        m_tab2_ensembleTable->setRowCount(static_cast<int>(services.size()));
+        const int colCount = m_tab2_ensembleTable->columnCount();
+        
+        // Service components per service: real decoded rows (Type, SubCh Id,
+        // SC1d, CA, Bitrate, ASCTy+, Info); "-" where a field does not apply
+        // (packet mode fields / CA org on a clear FIC).
+        int row = 0;
+        for (const DABService& service : services) {
+            const ServiceComponent primary = service.getPrimaryComponent();
+            
+            QString bitrateStr = "-";
+            if (primary.transport_mode == 0) {
+                uint16_t bitrate = m_figAnalyzer->getSubChannelInfo(primary.sub_channel_id).getBitrate();
+                bitrateStr = QString("%1 kbps").arg(bitrate);
             }
-        } else {
-            m_tab2_ensembleTable->setItem(0, 0, new QTableWidgetItem("No data"));
+            
+            QVector<QString> cells = {
+                tab2ServiceTypeString(service),                              // Type
+                primary.transport_mode == 0
+                    ? QString::number(primary.sub_channel_id) : "-",         // SubCH Id
+                QStringLiteral("-"),                                         // FIGCH
+                QStringLiteral("-"),                                         // PADDR
+                QString::number(primary.component_id),                       // SC1d
+                primary.ca_flag ? "yes" : "no",                              // CA
+                QStringLiteral("-"),                                         // CAOrg
+                bitrateStr,                                                  // Bitrate
+                primary.isDabPlus() ? "0x3F" : "-",                          // ASCTy+
+                service.service_label                                        // Info
+            };
+            for (int col = 0; col < colCount && col < cells.size(); ++col) {
+                auto* item = new QTableWidgetItem(cells.at(col));
+                item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+                m_tab2_ensembleTable->setItem(row, col, item);
+            }
+            ++row;
         }
         
         qDebug() << "[PHASE 7.1] Tab 2 ensemble table updated";
     }
     
     void updateTab2SubchannelTable() {
-        if (!m_tab2_subchannelTable) return;
+        if (!m_tab2_subchannelTable || !m_figAnalyzer) return;
         
         m_tab2_subchannelTable->clearContents();
-        m_tab2_subchannelTable->setRowCount(m_fileLoaded ? 1 : 0);
         
-        if (m_fileLoaded) {
-            m_tab2_subchannelTable->setItem(0, 0, new QTableWidgetItem("Ready"));
-            for (int col = 1; col < m_tab2_subchannelTable->columnCount(); ++col) {
-                m_tab2_subchannelTable->setItem(0, col, new QTableWidgetItem("TODO"));
+        // Reverse map: subchannel id -> owning service (label/short label).
+        QMap<uint8_t, const DABService*> serviceBySubChannel;
+        const std::vector<DABService> services = m_figAnalyzer->getDABServices();
+        for (const DABService& service : services) {
+            for (const ServiceComponent& comp : service.components) {
+                if (comp.transport_mode == 0) {
+                    serviceBySubChannel.insert(comp.sub_channel_id, &service);
+                }
             }
+        }
+        
+        std::vector<SubChannelInfo> subchannels = m_figAnalyzer->getAllSubChannels();
+        m_tab2_subchannelTable->setRowCount(static_cast<int>(subchannels.size()));
+        const int colCount = m_tab2_subchannelTable->columnCount();
+        
+        int row = 0;
+        for (const SubChannelInfo& subch : subchannels) {
+            const DABService* svc = serviceBySubChannel.value(subch.sub_channel_id, nullptr);
+            
+            QString sidStr = "-", labelStr = "-", shortStr = "-", subchType = "MSC";
+            if (svc) {
+                sidStr = QString("0x%1").arg(svc->service_id, 4, 16, QChar('0')).toUpper();
+                labelStr = svc->service_label.isEmpty() ? sidStr : svc->service_label;
+                shortStr = svc->short_label.isEmpty() ? "-" : svc->short_label;
+                subchType = svc->is_dab_plus ? "DAB+" : (svc->components.empty() ? "Audio" : "Audio");
+            }
+            
+            QVector<QString> cells = {
+                QString::number(subch.sub_channel_id),                       // SubCh Id
+                QString::number(subch.start_address),                        // SAD
+                QString("%1 kbps").arg(subch.getBitrate()),                  // Bitrate
+                subch.getProtectionLevel(),                                  // P.Level
+                subch.short_form ? "UEP" : "EEP",                            // P.Type (etisnoop parity)
+                subchType,                                                   // SubCh Type
+                sidStr,                                                      // SId
+                labelStr,                                                    // Service Label
+                shortStr,                                                    // Short Label
+                QStringLiteral("-")                                          // CAID
+            };
+            for (int col = 0; col < colCount && col < cells.size(); ++col) {
+                auto* item = new QTableWidgetItem(cells.at(col));
+                item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+                m_tab2_subchannelTable->setItem(row, col, item);
+            }
+            ++row;
         }
         
         qDebug() << "[PHASE 7.2] Tab 2 subchannel table updated";
     }
     
     void updateTab2ServiceTable() {
-        if (!m_tab2_serviceTable) return;
+        if (!m_tab2_serviceTable || !m_figAnalyzer) return;
         
         m_tab2_serviceTable->clearContents();
-        m_tab2_serviceTable->setRowCount(m_fileLoaded ? 1 : 0);
         
-        if (m_fileLoaded) {
-            m_tab2_serviceTable->setItem(0, 0, new QTableWidgetItem("Ready"));
-            for (int col = 1; col < m_tab2_serviceTable->columnCount(); ++col) {
-                m_tab2_serviceTable->setItem(0, col, new QTableWidgetItem("TODO"));
+        std::vector<DABService> services = m_figAnalyzer->getDABServices();
+        m_tab2_serviceTable->setRowCount(static_cast<int>(services.size()));
+        const int colCount = m_tab2_serviceTable->columnCount();
+        
+        int row = 0;
+        for (const DABService& service : services) {
+            QVector<QString> cells = {
+                QString("0x%1").arg(service.service_id, 4, 16, QChar('0')).toUpper(),  // SId
+                service.service_label.isEmpty() ? "-" : service.service_label,          // Service Label
+                service.short_label.isEmpty() ? "-" : service.short_label,              // Short Label
+                QStringLiteral("-")                                                     // CAID
+            };
+            for (int col = 0; col < colCount && col < cells.size(); ++col) {
+                auto* item = new QTableWidgetItem(cells.at(col));
+                item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+                m_tab2_serviceTable->setItem(row, col, item);
             }
+            ++row;
         }
         
         qDebug() << "[PHASE 7.3] Tab 2 service table updated";
     }
     
     void updateTab2FIGContentTable() {
-        if (!m_tab2_figContentTable) return;
+        if (!m_tab2_figContentTable || !m_figAnalyzer) return;
         
         m_tab2_figContentTable->clearContents();
-        m_tab2_figContentTable->setRowCount(m_fileLoaded ? 1 : 0);
         
-        if (m_fileLoaded) {
-            m_tab2_figContentTable->setItem(0, 0, new QTableWidgetItem("Ready"));
-            for (int col = 1; col < m_tab2_figContentTable->columnCount(); ++col) {
-                m_tab2_figContentTable->setItem(0, col, new QTableWidgetItem("TODO"));
+        // Observed FIG types/extensions with block counts, fed by the
+        // analyzer's FIG-type counter (PANEL_AUDIT fix #2).
+        QVector<AdvancedFIGAnalyzer::FigTypeCount> counts = m_figAnalyzer->getFigTypeCounts();
+        m_tab2_figContentTable->setRowCount(counts.size());
+        const int colCount = m_tab2_figContentTable->columnCount();
+        
+        int row = 0;
+        for (const auto& count : counts) {
+            QVector<QString> cells = {
+                QString::number(count.type),                      // Type
+                QString::number(count.ext),                       // Extension
+                QString::number(count.count),                     // Number
+                figSubjectName(count.type, count.ext)             // Subject
+            };
+            for (int col = 0; col < colCount && col < cells.size(); ++col) {
+                auto* item = new QTableWidgetItem(cells.at(col));
+                item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+                m_tab2_figContentTable->setItem(row, col, item);
             }
+            ++row;
         }
         
         qDebug() << "[PHASE 7.4] Tab 2 FIG content table updated";
     }
 
     // === PHASE 8: Tab 3 LEFT Panel - FIG Instance Tree ===
+    // FIC-XTractor chronological FIG instance list (PANEL_AUDIT fix #3):
+    // real per-frame instances recorded by the analyzer's FIG collector.
+    static QString tab2ServiceTypeString(const DABService& service) {
+        if (service.is_dab_plus) return "DAB+";
+        if (service.service_type == 0) return "Audio";
+        if (service.service_type == 1) return "Data";
+        return QString("Type %1").arg(service.service_type);
+    }
+
+    static QString figSubjectName(uint8_t type, uint8_t ext) {
+        if (type == 0) {
+            switch (ext) {
+                case 0: return "Ensemble organization";
+                case 1: return "Sub-channel organization";
+                case 2: return "Service organization";
+                case 3: return "Service component (packet mode)";
+                case 5: return "Service component language";
+                case 6: return "Service linking";
+                case 7: return "Configuration information";
+                case 8: return "Service component global definition";
+                case 9: return "Country, LTO, international table";
+                case 10: return "Date and time";
+                case 13: return "User application information";
+                case 14: return "FEC sub-channel organization";
+                case 17: return "Programme type";
+                case 18: return "Announcement support";
+                case 19: return "Announcement switching (EWS)";
+                default: return "FIG 0 extension";
+            }
+        }
+        if (type == 1) {
+            switch (ext) {
+                case 0: return "Ensemble label";
+                case 1: return "Service label";
+                case 4: return "Service component label";
+                case 5: return "Data service label";
+                case 6: return "Packet data service label";
+                default: return "FIG 1 extension";
+            }
+        }
+        if (type == 2) {
+            switch (ext) {
+                case 0: return "Ensemble extended label";
+                case 1: return "Service extended label";
+                case 4: return "Service component extended label";
+                case 5: return "Data service extended label";
+                default: return "FIG 2 extension";
+            }
+        }
+        return QString("FIG %1 extension").arg(type);
+    }
+
+    // Number of sub-FIG items in a FIG 0/1 block (mixed 3/4-byte entries per
+    // EN 300 401: the long-form EEP descriptor is flagged by bit 7 of the
+    // third entry byte — same walk as processFIG0_1).
+    static int fig01ItemCount(const QByteArray& raw) {
+        if (raw.size() < 3) return 0;
+        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(raw.constData());
+        int offset = 1;  // skip the extension byte
+        int count = 0;
+        while (offset + 2 < raw.size()) {
+            const bool longForm = (bytes[offset + 2] & 0x80) != 0;
+            if (longForm) {
+                if (offset + 3 >= raw.size()) break;
+                offset += 4;
+            } else {
+                offset += 3;
+            }
+            ++count;
+        }
+        return count;
+    }
+
+    // Generic item count per fixed-size entry layouts: FIG 0/2 = 6 bytes,
+    // FIG 1/1 = 20 bytes (SId 2 + char field 2 + label 16), FIG 1/4 = 22
+    // bytes (SId 2 + SCIdS/rfa 2 + char field 2 + label 16).
+    // Walk FIG 0/2 service entries with the same stride as
+    // AdvancedFIGAnalyzer::processFIG0_2 (the EN 300 401 6.3.1 layout,
+    // etisnoop fig0_2.cpp parity):
+    //   ext byte b0: P/D flag = bit 5; P/D=0 -> 16-bit SId, P/D=1 -> 32-bit
+    //   entry     : SId (2/4 B) + ca_byte (local(1)|CAid(3)|ncomp(4))
+    //   components: ncomp x 2 B [TMId(2)|ASCTy(6)][SubChId(6)|P/S(1)|CA(1)]
+    // Returns the number of COMPLETE service entries (partial trailing
+    // entries are not counted).
+    static int fig02ServiceEntryCount(const uint8_t* b, int size) {
+        if (size < 2) return 0;
+        const bool pd = (b[0] & 0x20) != 0;
+        int offset = 1;
+        int count = 0;
+        while (offset + 1 < size) {
+            offset += pd ? 4 : 2;                  // SId width per P/D flag
+            if (offset >= size) break;
+            const int ncomp = b[offset] & 0x0F;    // number of components
+            ++offset;                              // ca_byte
+            if (offset + 2 * ncomp > size) break;  // need 2 B per component
+            offset += 2 * ncomp;
+            ++count;
+        }
+        return count;
+    }
+
+    static int figFixedItemCount(uint8_t type, uint8_t ext, const QByteArray& raw) {
+        const int payload = raw.size() - 1;  // drop the ext/charset byte
+        switch (type) {
+            case 0:
+                if (ext == 1) return fig01ItemCount(raw);
+                if (ext == 2) {
+                    // Real service-entry walk: single-component entries are
+                    // 5 bytes (2 SId + 1 ca_byte + 2 component), not 6.
+                    const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+                    return fig02ServiceEntryCount(b, raw.size());
+                }
+                break;
+            case 1:
+                if (ext == 1) return payload >= 0 ? payload / 20 : 0;
+                if (ext == 4) return payload >= 0 ? payload / 22 : 0;
+                break;
+            default:
+                break;
+        }
+        return 1;
+    }
+
+    static QString figDataTypeName(uint8_t type) {
+        switch (type) {
+            case 0: return "Type 0: MCI and service data";
+            case 1: return "Type 1: Service and ensemble labels";
+            case 2: return "Type 2: Extended labels";
+            case 3: return "Type 3: FEC and other data";
+            default: return QString("Type %1").arg(type);
+        }
+    }
+
+    static QString figExtName(uint8_t type, uint8_t ext) {
+        return figSubjectName(type, ext);
+    }
+
+    static QString figExtFieldWidth(uint8_t type) {
+        return type == 0 ? "5 bits" : "3 bits";
+    }
+
+    // One Property/Size/Value/Information row in the FIG detail tree.
+    static void addDetailRow(QTreeWidgetItem* parent, const QString& prop,
+                             const QString& size, const QString& value,
+                             const QString& info) {
+        auto* row = new QTreeWidgetItem(parent);
+        row->setText(0, prop);
+        row->setText(1, size);
+        row->setText(2, value);
+        row->setText(3, info);
+    }
+
+    // Full raw hex dump of the FIG block (16 bytes per line).
+    static void addRawHexRows(QTreeWidgetItem* parent, const QByteArray& raw) {
+        if (raw.isEmpty()) {
+            addDetailRow(parent, "Raw Data", "0 bytes", "(empty)", "");
+            return;
+        }
+        QString hexLine, asciiLine;
+        int printed = 0;
+        for (int i = 0; i < raw.size(); ++i) {
+            hexLine += QString("%1 ").arg(static_cast<uint8_t>(raw[i]), 2, 16, QChar('0')).toUpper();
+            const char c = raw[i];
+            asciiLine += (c >= 0x20 && c <= 0x7E) ? QChar(c) : QChar('.');
+            if ((i % 16 == 15) || i == raw.size() - 1) {
+                auto* row = new QTreeWidgetItem(parent);
+                row->setText(0, QString("Raw Data (offset 0x%1)").arg(printed, 2, 16, QChar('0')));
+                row->setText(1, "bytes");
+                row->setText(2, hexLine.trimmed());
+                row->setText(3, asciiLine);
+                hexLine.clear();
+                asciiLine.clear();
+                printed = i + 1;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Per-FIG element decoders (real EN 300 401 wire fields)
+    // ------------------------------------------------------------------
+
+    void buildFig0_0Details(QTreeWidgetItem* parent, const QByteArray& raw) {
+        // FIG 0/0: C/N + O/E + ext(0); EId (16 bits); Alarms flag.
+        if (raw.size() < 2) return;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+        addDetailRow(parent, "C/N - Change flag", "1 bit",
+                     (b[0] & 0x80) ? "1" : "0", "Ensemble configuration change");
+        addDetailRow(parent, "O/E - Other ensemble", "1 bit",
+                     (b[0] & 0x40) ? "1" : "0", "Defines Other Ensemble services");
+        const uint16_t eid = static_cast<uint16_t>((b[1] << 8) | b[2]);
+        addDetailRow(parent, "EId - Ensemble ID", "16 bits",
+                     QString("0x%1").arg(eid, 4, 16, QChar('0')).toUpper(), QString::number(eid));
+        if (raw.size() >= 4) {
+            addDetailRow(parent, "Alarms", "1 bit",
+                         (b[3] & 0x20) ? "1" : "0", "Alarm flag (EN 300 401 6.4.1, bit 5)");
+        }
+        // Cross-reference the decoded ensemble label (if known).
+        if (m_figAnalyzer) {
+            EnsembleInfo ens = m_figAnalyzer->getCurrentEnsemble();
+            if (!ens.ensembleLabel.isEmpty()) {
+                addDetailRow(parent, "Ensemble Label", "-", ens.ensembleLabel,
+                             "Decoded from FIG 1/0");
+            }
+        }
+    }
+
+    void buildFig0_1Details(QTreeWidgetItem* parent, const QByteArray& raw) {
+        // FIG 0/1: per-subchannel EEP/UEP descriptors (3/4-byte entries).
+        if (raw.size() < 3) return;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+        int offset = 1;
+        int index = 0;
+        while (offset + 2 < raw.size()) {
+            const uint8_t subchId = (b[offset] >> 2) & 0x3F;
+            const uint16_t startAddr = static_cast<uint16_t>(((b[offset] & 0x03) << 8) | b[offset + 1]);
+            const bool longForm = (b[offset + 2] & 0x80) != 0;
+
+            auto* entry = new QTreeWidgetItem(parent);
+            entry->setText(0, QString("Subchannel %1").arg(subchId));
+            entry->setText(1, "3-4 bytes");
+            entry->setText(2, longForm ? "EEP" : "UEP");
+            entry->setText(3, QString("Entry %1").arg(index));
+
+            addDetailRow(entry, "SubChId", "6 bits", QString::number(subchId),
+                         "Sub-channel identifier");
+            addDetailRow(entry, "Start Address (SAD)", "10 bits", QString::number(startAddr),
+                         "CU start address in the MSC");
+
+            if (longForm) {
+                if (offset + 3 >= raw.size()) break;
+                const uint8_t b2 = b[offset + 2];
+                const uint8_t option = (b2 >> 4) & 0x07;
+                const uint8_t level = (b2 >> 2) & 0x03;  // 0-based on wire
+                const uint16_t size = static_cast<uint16_t>(((b2 & 0x03) << 8) | b[offset + 3]);
+                addDetailRow(entry, "EEP/Option", "3 bits", QString::number(option),
+                             option == 0 ? "Table A" : "Table B");
+                addDetailRow(entry, "EEP/Protection level", "2 bits", QString::number(level + 1),
+                             QString("EEP %1-%2").arg(option == 0 ? "A" : "B").arg(level + 1));
+                addDetailRow(entry, "Sub-channel size", "10 bits", QString("%1 CU").arg(size),
+                             "Capacity units in the MSC");
+                offset += 4;
+            } else {
+                const uint8_t b2 = b[offset + 2];
+                addDetailRow(entry, "UEP/Table switch", "1 bit", QString::number((b2 >> 6) & 0x01),
+                             "Which UEP table is used");
+                addDetailRow(entry, "UEP/Table index", "6 bits", QString::number(b2 & 0x3F),
+                             "Protection table index");
+                offset += 3;
+            }
+            ++index;
+        }
+    }
+
+    void buildFig0_2Details(QTreeWidgetItem* parent, const QByteArray& raw) {
+        // FIG 0/2: real service-organization walk (EN 300 401 6.3.1), mirroring
+        // AdvancedFIGAnalyzer::processFIG0_2 — no invented TMId/NumClusters:
+        //   ext byte b0: P/D flag = bit 5 (per FIG, not per entry)
+        //   entry     : SId (16-bit P/D=0, 32-bit P/D=1) + ca_byte
+        //               [local(1)|CAid(3)|ncomp(4)]
+        //   components: ncomp x 2 B [TMId(2)|ASCTy(6)][SubChId(6)|P/S(1)|CA(1)]
+        if (raw.size() < 2) return;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+        const bool pd = (b[0] & 0x20) != 0;
+        int offset = 1;
+        int index = 0;
+        while (offset + 1 < raw.size()) {
+            uint32_t sid = 0;
+            if (!pd) {
+                // 16-bit programme SId (bit 15 = the P/D flag, kept out of
+                // the key — same 0x7FFF mask the analyzer applies).
+                if (offset + 2 > raw.size()) break;
+                sid = (static_cast<uint32_t>(b[offset] & 0x7F) << 8) | b[offset + 1];
+                offset += 2;
+            } else {
+                // 32-bit data SId: [ECC(8)][CId(4)|SRef-hi(4)][SRef(16)]
+                if (offset + 4 > raw.size()) break;
+                sid = (static_cast<uint32_t>(b[offset]) << 24) |
+                      (static_cast<uint32_t>(b[offset + 1]) << 16) |
+                      (static_cast<uint32_t>(b[offset + 2]) << 8) |
+                      static_cast<uint32_t>(b[offset + 3]);
+                offset += 4;
+            }
+
+            if (offset >= raw.size()) break;
+            const uint8_t ca_byte = b[offset++];
+            const uint8_t numComponents = ca_byte & 0x0F;
+
+            auto* entry = new QTreeWidgetItem(parent);
+            entry->setText(0, QString("Service 0x%1").arg(sid, pd ? 8 : 4, 16, QChar('0')).toUpper());
+            entry->setText(1, pd ? "4+ bytes" : "2+ bytes");
+            entry->setText(2, QString::number(sid));
+            entry->setText(3, QString("Entry %1").arg(index));
+
+            addDetailRow(entry, "SId", pd ? "32 bits" : "16 bits",
+                         QString("0x%1").arg(sid, pd ? 8 : 4, 16, QChar('0')).toUpper(),
+                         pd ? "Data service" : "Programme service");
+            addDetailRow(entry, "CAid", "3 bits",
+                         QString::number((ca_byte >> 4) & 0x07),
+                         "Conditional access organization");
+            addDetailRow(entry, "ncomp", "4 bits", QString::number(numComponents),
+                         "Number of service components");
+
+            for (int c = 0; c < numComponents && offset + 2 <= raw.size(); ++c) {
+                const uint8_t tmId = (b[offset] >> 6) & 0x03;
+                const uint8_t ascty = b[offset] & 0x3F;
+                const uint8_t subchId = (b[offset + 1] >> 2) & 0x3F;
+                const bool primary = (b[offset + 1] & 0x02) != 0;
+                const bool ca = (b[offset + 1] & 0x01) != 0;
+                auto* compItem = new QTreeWidgetItem(entry);
+                compItem->setText(0, QString("Component %1").arg(c));
+                compItem->setText(1, "2 bytes");
+                compItem->setText(2, QString("SubCh %1").arg(subchId));
+                compItem->setText(3, primary ? "Primary" : "Secondary");
+                addDetailRow(compItem, "TMId", "2 bits", QString::number(tmId),
+                             tmId == 0 ? "MSC stream mode" : "Packet mode");
+                addDetailRow(compItem, "ASCTy/DSCTy", "6 bits",
+                             QString("0x%1").arg(ascty, 2, 16, QChar('0')).toUpper(),
+                             tmId == 0 && ascty == 0x3F ? "DAB+" : "");
+                addDetailRow(compItem, "SubChId", "6 bits", QString::number(subchId),
+                             "Sub-channel identifier");
+                addDetailRow(compItem, "P/S", "1 bit", primary ? "1" : "0",
+                             "Primary/secondary component");
+                addDetailRow(compItem, "CA", "1 bit", ca ? "1" : "0",
+                             "Conditional access flag");
+                offset += 2;
+            }
+            ++index;
+        }
+        // Cross-reference decoded service labels (short label included).
+        if (m_figAnalyzer) {
+            const std::vector<DABService> services = m_figAnalyzer->getDABServices();
+            for (const DABService& svc : services) {
+                if (!svc.service_label.isEmpty()) {
+                    addDetailRow(parent, QString("Label 0x%1").arg(svc.service_id, 4, 16, QChar('0')).toUpper(),
+                                 "FIG 1/1", svc.service_label, svc.short_label);
+                }
+            }
+        }
+    }
+
+    void buildFig0_9Details(QTreeWidgetItem* parent) {
+        // FIG 0/9: reuse the analyzer's decoded country/LTO table.
+        if (!m_figAnalyzer) return;
+        FIG0_9_CountryLTO lto = m_figAnalyzer->getCountryLTO();
+        addDetailRow(parent, "ECC", "8 bits",
+                     QString("0x%1").arg(lto.ensemble_ecc, 2, 16, QChar('0')).toUpper(),
+                     "Extended Country Code");
+        addDetailRow(parent, "Country", "-",
+                     FIGParsingUtils::countryCodeToString(lto.ensemble_ecc),
+                     "Country per EN 300 401 Table 1");
+        addDetailRow(parent, "LTO", "8 bits", QString("%1 h").arg(lto.ensemble_lto / 2.0, 0, 'f', 1),
+                     "Local Time Offset (± half-hours)");
+        addDetailRow(parent, "International table ID", "8 bits",
+                     QString("0x%1").arg(lto.international_table_id, 2, 16, QChar('0')).toUpper(),
+                     "International table");
+    }
+
+    void buildFig0_10Details(QTreeWidgetItem* parent) {
+        // FIG 0/10: reuse the analyzer's decoded date/time (MJD -> real date).
+        if (!m_figAnalyzer) return;
+        FIG0_10_DateTime dt = m_figAnalyzer->getDateTime();
+        addDetailRow(parent, "MJD", "17 bits", QString::number(dt.mjd),
+                     "Modified Julian Date");
+        addDetailRow(parent, "UTC", "5 bits", QString::number(dt.hours),
+                     QString("Hours 0-23"));
+        addDetailRow(parent, "Minutes", "6 bits", QString::number(dt.minutes), "");
+        addDetailRow(parent, "Seconds", "6 bits", QString::number(dt.seconds), "");
+        const QDateTime dateTime = FIGParsingUtils::mjdToDateTime(dt.mjd, dt.hours, dt.minutes, dt.seconds);
+        addDetailRow(parent, "Date/Time", "-",
+                     dateTime.toString("yyyy-MM-dd hh:mm:ss"), "UTC");
+        addDetailRow(parent, "LSI", "1 bit", dt.lsi_flag ? "1" : "0", "Leap second indicator");
+        addDetailRow(parent, "Confidence", "1 bit", dt.conf_flag ? "1" : "0", "Confidence flag");
+    }
+
+    // Build a DABLabel from FIG 1 raw fields (returns empty on short data).
+    // Wire order per EN 300 401 8.1.13/8.1.14 (matches the analyzer's
+    // parseLabel): the 16-character label starts at labelOffset, and the
+    // 2-byte character flag follows it at labelOffset+16 — NOT before it.
+    DABLabel parseFig1Label(const QByteArray& raw, int labelOffset) const {
+        DABLabel label;
+        if (labelOffset < 0 || labelOffset + 18 > raw.size()) return label;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+        label.charset = (b[0] >> 4) & 0x0F;
+        for (int i = 0; i < 16; ++i) {
+            label.full_label[i] = static_cast<char>(b[labelOffset + i]);
+        }
+        label.character_flag = static_cast<uint16_t>(
+            (b[labelOffset + 16] << 8) | b[labelOffset + 17]);
+        return label;
+    }
+
+    void buildFig1_0Details(QTreeWidgetItem* parent, const QByteArray& raw) {
+        // FIG 1/0: charset, EId, character flag, 16-char ensemble label.
+        if (raw.size() < 2) return;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+        const uint8_t charset = (b[0] >> 4) & 0x0F;
+        addDetailRow(parent, "Charset", "4 bits", QString::number(charset),
+                     charset == 0 ? "Complete EBU Latin" :
+                     charset == 3 ? "UTF-8" :
+                     charset == 6 ? "TIS-620 (Thai)" : "Reserved");
+        const uint16_t eid = static_cast<uint16_t>((b[1] << 8) | b[2]);
+        addDetailRow(parent, "EId", "16 bits",
+                     QString("0x%1").arg(eid, 4, 16, QChar('0')).toUpper(), QString::number(eid));
+        const DABLabel label = parseFig1Label(raw, 3);
+        if (label.isValid()) {
+            addDetailRow(parent, "Character flag", "16 bits",
+                         QString("0x%1").arg(label.character_flag, 4, 16, QChar('0')).toUpper(),
+                         "Short-label mask");
+            addDetailRow(parent, "Label", "128 bits", label.getFullLabel(),
+                         label.getShortLabel() + " (short)");
+        }
+    }
+
+    void buildFig1_1Details(QTreeWidgetItem* parent, const QByteArray& raw) {
+        // FIG 1/1: per-service SId + charset + character flag + 16-char label.
+        if (raw.size() < 20) return;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+        const uint8_t charset = (b[0] >> 4) & 0x0F;
+        addDetailRow(parent, "Charset", "4 bits", QString::number(charset),
+                     charset == 0 ? "Complete EBU Latin" :
+                     charset == 3 ? "UTF-8" :
+                     charset == 6 ? "TIS-620 (Thai)" : "Reserved");
+
+        int offset = 1;
+        int index = 0;
+        while (offset + 20 <= raw.size()) {
+            const uint16_t sid = static_cast<uint16_t>((b[offset] << 8) | b[offset + 1]);
+            auto* entry = new QTreeWidgetItem(parent);
+            entry->setText(0, QString("Service 0x%1").arg(sid, 4, 16, QChar('0')).toUpper());
+            entry->setText(1, "20 bytes");
+            entry->setText(2, QString::number(sid));
+            entry->setText(3, QString("Entry %1").arg(index));
+
+            addDetailRow(entry, "SId", "16 bits",
+                         QString("0x%1").arg(sid, 4, 16, QChar('0')).toUpper(), QString::number(sid));
+            // Label (16 bytes) at entry+2, character flag at entry+18; the
+            // charset byte is raw[0] (FIG 1 header byte) — parseFig1Label
+            // handles the full field.
+            DABLabel label = parseFig1Label(raw, offset + 2);
+            addDetailRow(entry, "Character flag", "16 bits",
+                         QString("0x%1").arg(label.character_flag, 4, 16, QChar('0')).toUpper(),
+                         "Short-label mask");
+            addDetailRow(entry, "Label", "128 bits", label.getFullLabel(),
+                         label.getShortLabel() + " (short)");
+            offset += 20;
+            ++index;
+        }
+    }
+
     void buildFIGInstanceTree() {
         if (!m_tab3_figInstanceTree) return;
         
         m_tab3_figInstanceTree->clear();
         
-        if (!m_fileLoaded) {
+        if (!m_fileLoaded || !m_figAnalyzer) {
             auto* noDataItem = new QTreeWidgetItem(m_tab3_figInstanceTree);
             noDataItem->setText(0, "No FIG instances");
             noDataItem->setText(1, "");
@@ -2633,52 +3277,79 @@ private:
             return;
         }
         
-        // TODO: Connect to actual FIG instance tracker when available
-        // For now, show placeholder structure demonstrating the format
-        // Real implementation needs: FIG occurrence tracking across frames with CIF/FIB positions
-        
-        // Example FIG instances (showing expected format)
-        struct FIGInstance {
-            QString figType;   // "FIG 0/0", "FIG 0/1", etc.
-            int index;         // Occurrence index
-            int frameNum;      // Frame number
-            int subframe;      // Subframe (0-3 for Mode 1)
-            int cif;           // CIF number (0-3)
-            int fib;           // FIB number (0-11)
-            int length;        // FIG data length in bytes
-            int itemCount;     // Number of items in FIG
-        };
-        
-        // Placeholder instances showing structure
-        std::vector<FIGInstance> instances = {
-            {"FIG 0/0", 1, 0, 0, 0, 0, 6, 1},
-            {"FIG 0/1", 1, 0, 0, 0, 1, 8, 1},
-            {"FIG 0/2", 1, 0, 0, 0, 2, 12, 3},
-            {"FIG 1/0", 1, 0, 1, 1, 3, 18, 1},
-            {"FIG 1/1", 1, 0, 1, 1, 4, 20, 2},
-        };
-        
-        for (const auto& inst : instances) {
+        // Chronological real FIG instances from the analyzer's collector
+        // (FIC-XTractor view). Item data carries the collector index so the
+        // selection sync can rebuild the element tree for the exact block.
+        const QVector<AdvancedFIGAnalyzer::FigInstance>& instances =
+            m_figAnalyzer->figInstances();
+        QMap<quint16, int> occurrence;  // per (type,ext) occurrence counter
+        m_tab3_figInstanceTree->setUpdatesEnabled(false);
+        for (int i = 0; i < instances.size(); ++i) {
+            const AdvancedFIGAnalyzer::FigInstance& inst = instances.at(i);
+            const quint16 key = static_cast<quint16>((inst.type << 8) | inst.ext);
+            const int idx = occurrence.value(key, 0) + 1;
+            occurrence.insert(key, idx);
+            
             auto* item = new QTreeWidgetItem(m_tab3_figInstanceTree);
-            item->setText(0, inst.figType);
-            item->setText(1, QString::number(inst.index));
-            item->setText(2, QString("%1:%2").arg(inst.frameNum).arg(inst.subframe));
-            item->setText(3, QString::number(inst.cif));
-            item->setText(4, QString::number(inst.fib));
+            QString typeText = QString("FIG %1/%2").arg(inst.type).arg(inst.ext);
+            if (inst.reconfig) {
+                typeText += " R";    // MCI reconfiguration marker
+            }
+            if (!inst.crcOk) {
+                typeText += " !CRC"; // FIB CRC failure marker
+            }
+            item->setText(0, typeText);
+            item->setText(1, QString::number(idx));
+            item->setText(2, QString::number(inst.frame));
+            // CIF#: Mode I ETI frame phase — each 24 ms frame carries one CIF
+            // of the 4-CIF transmission frame (derived from the frame number).
+            item->setText(3, inst.frame > 0 ? QString::number((inst.frame - 1) % 4) : QStringLiteral("-"));
+            item->setText(4, QString::number(inst.fibIdx));
             item->setText(5, QString::number(inst.length));
-            item->setText(6, QString::number(inst.itemCount));
+            item->setText(6, QString::number(
+                              figFixedItemCount(inst.type, inst.ext, inst.raw)));
+            item->setData(0, Qt::UserRole, i);  // collector index
+            
+            if (!inst.crcOk) {
+                item->setForeground(0, QColor(200, 50, 50));
+                item->setForeground(4, QColor(200, 50, 50));
+            }
+        }
+        m_tab3_figInstanceTree->setUpdatesEnabled(true);
+        
+        // Pre-select the first instance so the details panel shows real
+        // element data immediately after load (selection is queued, so the
+        // details build follows in the event loop).
+        if (m_tab3_figInstanceTree->topLevelItemCount() > 0) {
+            m_tab3_figInstanceTree->setCurrentItem(m_tab3_figInstanceTree->topLevelItem(0));
         }
         
-        qDebug() << "[PHASE 8] FIG instance tree built";
+        qDebug() << "[PHASE 8] FIG instance tree built with"
+                 << instances.size() << "real instances";
     }
 
     // === PHASE 9: Tab 3 RIGHT Panel - FIG Item Details Tree ===
+    // No-arg entry point (load-complete + selection sync): resolve the
+    // selected instance (falling back to the first row) and rebuild.
     void buildFIGItemDetailsTree() {
+        int index = -1;
+        if (m_tab3_figInstanceTree) {
+            QTreeWidgetItem* current = m_tab3_figInstanceTree->currentItem();
+            if (current) {
+                index = current->data(0, Qt::UserRole).toInt();
+            } else if (m_tab3_figInstanceTree->topLevelItemCount() > 0) {
+                index = m_tab3_figInstanceTree->topLevelItem(0)->data(0, Qt::UserRole).toInt();
+            }
+        }
+        buildFIGItemDetailsTree(index);
+    }
+
+    void buildFIGItemDetailsTree(int index) {
         if (!m_tab3_figItemDetailsTree) return;
         
         m_tab3_figItemDetailsTree->clear();
         
-        if (!m_fileLoaded) {
+        if (!m_fileLoaded || !m_figAnalyzer || index < 0) {
             auto* noDataItem = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
             noDataItem->setText(0, "No FIG selected");
             noDataItem->setText(1, "");
@@ -2687,47 +3358,59 @@ private:
             return;
         }
         
-        // TODO: Connect to actual bit-level FIG parser when available
-        // For now, show placeholder structure demonstrating 5-level hierarchy
-        // Real implementation needs: BitLevelFIGParser with bit offset/length tracking
+        const QVector<AdvancedFIGAnalyzer::FigInstance>& instances =
+            m_figAnalyzer->figInstances();
+        if (index >= instances.size()) {
+            return;
+        }
+        const AdvancedFIGAnalyzer::FigInstance& inst = instances.at(index);
         
-        // Root level: FIG Type
-        auto* figTypeItem = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
-        figTypeItem->setText(0, "FIG Type");
-        figTypeItem->setText(1, "3 bits");
-        figTypeItem->setText(2, "0x0");
-        figTypeItem->setText(3, "Type 0: MCI and service data");
+        // Root: the real FIG block with its wire header (type/length/ext).
+        auto* rootItem = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
+        rootItem->setText(0, QString("FIG %1/%2").arg(inst.type).arg(inst.ext));
+        rootItem->setText(1, QString("%1 bytes").arg(inst.length));
+        rootItem->setText(2, QString("len 0x%1").arg(inst.length, 2, 16, QChar('0')).toUpper());
+        rootItem->setText(3, figDataTypeName(inst.type));
         
-        // Level 2: Extension
-        auto* extensionItem = new QTreeWidgetItem(figTypeItem);
-        extensionItem->setText(0, "Extension");
-        extensionItem->setText(1, "5 bits");
-        extensionItem->setText(2, "0x02");
-        extensionItem->setText(3, "Extension 2: Service organization");
-        
-        // Level 3: Service ID
-        auto* serviceIdItem = new QTreeWidgetItem(extensionItem);
-        serviceIdItem->setText(0, "SId");
-        serviceIdItem->setText(1, "16 bits");
-        serviceIdItem->setText(2, "0xD201");
-        serviceIdItem->setText(3, "Service ID: 53761");
-        
-        // Level 4: TMId
-        auto* tmIdItem = new QTreeWidgetItem(serviceIdItem);
-        tmIdItem->setText(0, "TMId");
-        tmIdItem->setText(1, "2 bits");
-        tmIdItem->setText(2, "0x0");
-        tmIdItem->setText(3, "MSC stream mode");
-        
-        // Level 5: ASCTy (deepest level)
-        auto* asctyItem = new QTreeWidgetItem(tmIdItem);
-        asctyItem->setText(0, "ASCTy");
-        asctyItem->setText(1, "6 bits");
-        asctyItem->setText(2, "0x3F");
-        asctyItem->setText(3, "DAB+ (HE-AAC v2)");
+        addDetailRow(rootItem, "FIG Type", "3 bits", QString::number(inst.type),
+                     figDataTypeName(inst.type));
+        addDetailRow(rootItem, "Length", "5 bits", QString::number(inst.length),
+                     "Data bytes after the FIG header");
+        addDetailRow(rootItem, "Extension", figExtFieldWidth(inst.type),
+                     QString::number(inst.ext), figExtName(inst.type, inst.ext));
+        addDetailRow(rootItem, "Frame", "-", QString::number(inst.frame),
+                     "ETI frame number");
+        addDetailRow(rootItem, "FIB", "-", QString::number(inst.fibIdx),
+                     "FIB index within the frame's FIC");
+        addDetailRow(rootItem, "FIB CRC", "-", inst.crcOk ? "OK" : "FAILED",
+                     inst.crcOk ? "FIB CRC-16 passed" : "FIB CRC-16 mismatch");
+        addDetailRow(rootItem, "Reconfiguration", "-", inst.reconfig ? "yes" : "no",
+                     "MCI C/N flag (FIG 0/1, 0/2)");
+        addDetailRow(rootItem, "Items", "-",
+                     QString::number(figFixedItemCount(inst.type, inst.ext, inst.raw)),
+                     "Sub-FIGs in this block");
+        addRawHexRows(rootItem, inst.raw);
+
+        // Element tree from the real decoded fields (per EN 300 401).
+        if (inst.type == 0) {
+            switch (inst.ext) {
+                case 0:  buildFig0_0Details(rootItem, inst.raw); break;
+                case 1:  buildFig0_1Details(rootItem, inst.raw); break;
+                case 2:  buildFig0_2Details(rootItem, inst.raw); break;
+                case 9:  buildFig0_9Details(rootItem); break;
+                case 10: buildFig0_10Details(rootItem); break;
+                default: break;  // header + raw hex already shown
+            }
+        } else if (inst.type == 1) {
+            switch (inst.ext) {
+                case 0: buildFig1_0Details(rootItem, inst.raw); break;
+                case 1: buildFig1_1Details(rootItem, inst.raw); break;
+                default: break;  // header + raw hex already shown
+            }
+        }
         
         m_tab3_figItemDetailsTree->expandAll();
-        qDebug() << "[PHASE 9] FIG item details tree built";
+        qDebug() << "[PHASE 9] FIG item details tree built (instance" << index << ")";
     }
 
     void updateTimingTable() {
@@ -2783,11 +3466,15 @@ private:
 
     void setupUI()
     {
-        // Create main vertical splitter (Tab area + Shared bottom panel)
+        // Qt-ADS: enable auto-hide (pin) support. MUST be called before any
+        // CDockManager is constructed (static config, called once per process).
+        ads::CDockManager::setAutoHideConfigFlags(ads::CDockManager::DefaultAutoHideConfig);
+
+        // Create main vertical splitter (Tab area + Shared bottom docking area)
         QSplitter* mainVerticalSplitter = new QSplitter(Qt::Vertical, this);
         setCentralWidget(mainVerticalSplitter);
 
-        // Create main tab widget for 4 tabs (per user specification)
+        // Create main tab widget for 3 tabs (per user specification)
         QTabWidget* mainTabs = new QTabWidget();
         mainVerticalSplitter->addWidget(mainTabs);
 
@@ -2803,15 +3490,26 @@ private:
         QWidget* tab3 = createTab3_FICExtractor();
         mainTabs->addTab(tab3, "📊 FIC-Extractor");
 
-        // NOTE: Tab 4 (Advanced Features) removed - Multi-stream moved to Phase 5 (FUTURE_FEATURES.md)
-        //       Error Detection and Logging relocated to Tab 1 panels
+        // Shared bottom docking area (window-level, consistent across all tabs).
+        // Replaces the old sharedBottomPanel QTabWidget: a window-level CDockManager
+        // pinned at the bottom of the mainVerticalSplitter, whose Bottom dock area
+        // hosts the 6 tabbed bottom docks (System Messages / Performance / Error
+        // Detection / Logging / Constellation / Messages).
+        QWidget* bottomHost = new QWidget();
+        QVBoxLayout* bottomLayout = new QVBoxLayout(bottomHost);
+        bottomLayout->setContentsMargins(0, 0, 0, 0);
+        bottomLayout->setSpacing(0);
+        m_bottomDockManager = new ads::CDockManager(bottomHost);
+        m_bottomDockManager->setObjectName("bottomDockManager");
+        bottomLayout->addWidget(m_bottomDockManager);
+        buildSharedBottomDocks();
+        mainVerticalSplitter->addWidget(bottomHost);
 
-        // Shared bottom panel (consistent across all tabs)
-        QTabWidget* sharedBottomPanel = createSharedBottomPanel();
-        mainVerticalSplitter->addWidget(sharedBottomPanel);
-
-        // Set vertical split: 70% tabs, 30% bottom panel (700px : 300px)
+        // Set vertical split: 70% tabs, 30% bottom dock area (700px : 300px)
         mainVerticalSplitter->setSizes({700, 300});
+
+        // Restore persisted docking/window state AFTER every dock exists.
+        restoreDockingState();
     }
 
     // ========================================================================
@@ -2824,92 +3522,289 @@ private:
         mainLayout->setContentsMargins(4, 4, 4, 4);
         mainLayout->setSpacing(4);
 
-        // Top section: 3-column layout (Left 25% | Center 50% | Right 25%)
-        QSplitter* topSplitter = new QSplitter(Qt::Horizontal);
+        // UI redesign (Step A): the compact Input Source toolbar sits at the
+        // TOP of the tab-1 page, above the page's own CDockManager. It
+        // replaces the old tab1_InputSource dock (removed from the center
+        // column registration); all member widgets and slot wiring are reused
+        // unchanged, so file-open and network flows behave identically.
+        QWidget* inputToolbar = createLiveStreamInputPanel();
+        mainLayout->addWidget(inputToolbar);
 
-        // Left Panel (25%): DAB Tree + ETI Explorer Details
-        QWidget* leftPanel = createTab1_LeftPanel();
-        topSplitter->addWidget(leftPanel);
+        // Tab 1 gets its OWN CDockManager. The three column helpers below were
+        // refactored to return per-dock sections; registerTab1Docks() wraps each
+        // section in a CDockWidget and arranges the grouped 3-column layout.
+        m_tab1DockManager = new ads::CDockManager(tab);
+        m_tab1DockManager->setObjectName("tab1DockManager");
+        registerTab1Docks();
 
-        // Center Panel (50%): Frame Navigator + Hex Viewer
-        QWidget* centerPanel = createTab1_CenterPanel();
-        topSplitter->addWidget(centerPanel);
-
-        // Right Panel (25%): Service Details + Signal Quality + DLS+
-        QWidget* rightPanel = createTab1_RightPanel();
-        topSplitter->addWidget(rightPanel);
-
-        // Set horizontal proportions: 25% | 50% | 25% (300px | 600px | 300px out of 1200px)
-        topSplitter->setSizes({300, 600, 300});
-
-        mainLayout->addWidget(topSplitter);
+        mainLayout->addWidget(m_tab1DockManager);
         return tab;
     }
 
-    QWidget* createTab1_LeftPanel()
+    ads::CDockWidget* makeDock(ads::CDockManager* manager, const QString& objectName,
+                               const QString& title, QWidget* widget)
     {
-        QWidget* panel = new QWidget();
-        QVBoxLayout* layout = new QVBoxLayout(panel);
-        layout->setContentsMargins(2, 2, 2, 2);
-        layout->setSpacing(4);
+        auto* dock = manager->createDockWidget(title);
+        dock->setObjectName(objectName);
+        dock->setWidget(widget ? widget : new QWidget());
+        return dock;
+    }
 
-        // LEFT Panel per DATA_AVAILABILITY_MATRIX.md specification
+    void registerTab1Docks()
+    {
+        if (!m_tab1DockManager) {
+            return;
+        }
+
+        // UI redesign (Steps B/C): the Input Source dock is gone (now the
+        // toolbar above the page) and Messages moved to the shared bottom
+        // strip; the remaining 14 panels are grouped into tabbed dock areas:
+        //   LEFT  : Transport (Player | Decoder), System
+        //   CENTER: Signal Analysis (Ensemble Explorer | Subchannel Org |
+        //           CU Usage), Frame Analysis (ETI Frame Navigator |
+        //           Hex/ETSI Compliance), Now Playing
+        //   RIGHT : Signal Info (ETI Overview | Status | Timing),
+        //           Error & Statistics (DAB Error Counter | Stream Stats)
+        // Each panel keeps its OWN CDockWidget (float/auto-hide/close-one-tab
+        // intact); addDockWidgetTabToArea() only groups them. Registration
+        // order defines the tab order; the first dock of each group is the
+        // default active tab.
+        const QList<DockSection> leftSections = createTab1_LeftPanel();
+        const QList<DockSection> centerSections = createTab1_CenterPanel();
+        const QList<DockSection> rightSections = createTab1_RightPanel();
+
+        QHash<QString, ads::CDockWidget*> dock;
+        auto registerSections = [this, &dock](const QList<DockSection>& sections) {
+            for (const DockSection& s : sections) {
+                dock.insert(s.objectName, makeDock(m_tab1DockManager, s.objectName, s.title, s.widget));
+            }
+        };
+        registerSections(leftSections);
+        registerSections(centerSections);
+        registerSections(rightSections);
+        auto D = [&dock](const char* n) -> ads::CDockWidget* {
+            ads::CDockWidget* d = dock.value(QLatin1String(n));
+            Q_ASSERT(d);  // Catch a missing dock name (hypothetical null panel builder) early.
+            return d;
+        };
+
+        // ============================================================
+        // GROUPED STACKING RECIPE (Qt-ADS 4.5.0, empirically verified):
+        // repeated no-target addDockWidget() calls with
+        //   - CenterDockWidgetArea -> areas append VERTICALLY in the root
+        //   - LeftDockWidgetArea  -> areas insert side-by-side (horizontal)
+        //   - RightDockWidgetArea -> areas append side-by-side (horizontal)
+        // Qt-ADS has no API to stack multiple dock areas vertically inside a
+        // Left/Right strip, so after registering we "surgery" the splitter
+        // tree: both side strips become vertical CDockSplitter columns that
+        // are re-inserted into the root (left | center | right).
+        // ============================================================
+
+        // === LEFT column: Transport group + System (standalone) ===
+        ads::CDockWidget* transportFirst = D("tab1_Player");
+        m_tab1DockManager->addDockWidget(ads::LeftDockWidgetArea, transportFirst, nullptr);
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Decoder"), transportFirst->dockAreaWidget());
+        // Default active tab: the first dock of the Transport group (Player).
+        transportFirst->dockAreaWidget()->setCurrentDockWidget(transportFirst);
+        m_tab1DockManager->addDockWidget(ads::LeftDockWidgetArea, D("tab1_System"), nullptr);
+
+        // === CENTER column: Signal Analysis, Frame Analysis, Now Playing ===
+        ads::CDockWidget* signalAnalysisFirst = D("tab1_EnsembleExplorer");
+        m_tab1DockManager->addDockWidget(ads::CenterDockWidgetArea, signalAnalysisFirst, nullptr);
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_SubchannelOrg"), signalAnalysisFirst->dockAreaWidget());
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_CUUsage"), signalAnalysisFirst->dockAreaWidget());
+        // Default active tab: the first dock of the Signal Analysis group.
+        signalAnalysisFirst->dockAreaWidget()->setCurrentDockWidget(signalAnalysisFirst);
+
+        ads::CDockWidget* frameAnalysisFirst = D("tab1_FrameNavigator");
+        m_tab1DockManager->addDockWidget(ads::CenterDockWidgetArea, frameAnalysisFirst, nullptr);
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_HexCompliance"), frameAnalysisFirst->dockAreaWidget());
+        // Default active tab: the first dock of the Frame Analysis group.
+        frameAnalysisFirst->dockAreaWidget()->setCurrentDockWidget(frameAnalysisFirst);
+
+        m_tab1DockManager->addDockWidget(ads::CenterDockWidgetArea, D("tab1_NowPlaying"), nullptr);
+
+        // === RIGHT column: Signal Info group + Error & Statistics group ===
+        ads::CDockWidget* signalInfoFirst = D("tab1_ETIOverview");
+        m_tab1DockManager->addDockWidget(ads::RightDockWidgetArea, signalInfoFirst, nullptr);
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Status"), signalInfoFirst->dockAreaWidget());
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Timing"), signalInfoFirst->dockAreaWidget());
+        // Default active tab: the first dock of the Signal Info group.
+        signalInfoFirst->dockAreaWidget()->setCurrentDockWidget(signalInfoFirst);
+
+        ads::CDockWidget* errorStatsFirst = D("tab1_ErrorCounter");
+        m_tab1DockManager->addDockWidget(ads::RightDockWidgetArea, errorStatsFirst, nullptr);
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_StreamStats"), errorStatsFirst->dockAreaWidget());
+        // Default active tab: the first dock of the Error & Statistics group.
+        errorStatsFirst->dockAreaWidget()->setCurrentDockWidget(errorStatsFirst);
+
+        // Locate the top-level splitter of this manager's container.
+        QSplitter* root = nullptr;
+        const auto splitters = m_tab1DockManager->findChildren<QSplitter*>();
+        for (QSplitter* sp : splitters) {
+            if (sp->parentWidget() == m_tab1DockManager) {
+                root = sp;
+                break;
+            }
+        }
+        if (!root) {
+            return;
+        }
+
+        // Column vertical splitters, configured like Qt-ADS's own newSplitter().
+        auto newColumnSplitter = [this]() {
+            auto* s = new ads::CDockSplitter(Qt::Vertical, m_tab1DockManager);
+            s->setOpaqueResize(ads::CDockManager::testConfigFlag(ads::CDockManager::OpaqueSplitterResize));
+            s->setChildrenCollapsible(false);
+            return s;
+        };
+        // Direct child of the root that is the ancestor of a given dock area
+        // (i.e. the column splitter the area lives in).
+        auto columnSplitterFor = [](QSplitter* rootSplitter, QWidget* area) -> QSplitter* {
+            QWidget* w = area;
+            while (w && w->parentWidget() != rootSplitter) {
+                w = w->parentWidget();
+            }
+            return qobject_cast<QSplitter*>(w);
+        };
+        ads::CDockSplitter* leftV = newColumnSplitter();
+        ads::CDockSplitter* rightV = newColumnSplitter();
+        ads::CDockSplitter* centerV = newColumnSplitter();
+
+        // The Qt-ADS built center column that currently holds the center
+        // areas (it also contains an empty bookkeeping "ghost" splitter left
+        // over from the sequential center-area inserts). Captured BEFORE the
+        // moves below; it will be swapped out of the root afterwards.
+        QWidget* adsCenterColumn = columnSplitterFor(root, D("tab1_EnsembleExplorer")->dockAreaWidget());
+
+        // Move the left/right/center dock areas out of the Qt-ADS built
+        // structure into our column splitters, preserving top->bottom order
+        // (QSplitter::addWidget() reparents an area out of its old splitter).
+        // Tabified docks SHARE one CDockAreaWidget -> add each unique area once.
+        // Center order (mockup, top->bottom): Signal Analysis, Frame Analysis,
+        // Now Playing.
+        QSet<ads::CDockAreaWidget*> moved;
+        const QList<ads::CDockWidget*> centerDocks = {
+            D("tab1_EnsembleExplorer"), D("tab1_SubchannelOrg"), D("tab1_CUUsage"),
+            D("tab1_FrameNavigator"), D("tab1_HexCompliance"),
+            D("tab1_NowPlaying")};
+        for (ads::CDockWidget* d : centerDocks) {
+            if (ads::CDockAreaWidget* a = d->dockAreaWidget()) {
+                if (!moved.contains(a)) {
+                    centerV->addWidget(a);
+                    moved.insert(a);
+                }
+            }
+        }
+        moved.clear();
+        const QList<ads::CDockWidget*> leftDocks = {
+            D("tab1_Player"), D("tab1_Decoder"), D("tab1_System")};
+        for (ads::CDockWidget* d : leftDocks) {
+            if (ads::CDockAreaWidget* a = d->dockAreaWidget()) {
+                if (!moved.contains(a)) {
+                    leftV->addWidget(a);
+                    moved.insert(a);
+                }
+            }
+        }
+        moved.clear();
+        const QList<ads::CDockWidget*> rightDocks = {
+            D("tab1_ETIOverview"), D("tab1_Status"), D("tab1_Timing"),
+            D("tab1_ErrorCounter"), D("tab1_StreamStats")};
+        for (ads::CDockWidget* d : rightDocks) {
+            if (ads::CDockAreaWidget* a = d->dockAreaWidget()) {
+                if (!moved.contains(a)) {
+                    rightV->addWidget(a);
+                    moved.insert(a);
+                }
+            }
+        }
+
+        // The root now contains only the Qt-ADS built center column, which
+        // also holds an empty bookkeeping splitter (ghost) left over from the
+        // sequential center-area inserts. Rebuild the root as
+        // [leftV | centerV | rightV]: swap our clean center column in and
+        // drop the ADS one (its areas were moved out, so it is empty).
+        root->insertWidget(0, leftV);
+        root->addWidget(rightV);
+        if (adsCenterColumn && adsCenterColumn->parentWidget() == root) {
+            const int adsIdx = root->indexOf(adsCenterColumn);
+            root->insertWidget(adsIdx, centerV);
+            adsCenterColumn->setParent(nullptr);  // drop from the root splitter
+            delete adsCenterColumn;               // empty structure incl. ghost
+        } else {
+            root->addWidget(centerV);  // fallback: append our center column
+        }
+
+        // ============================================================
+        // STEP D — first-launch sizes ≈ mockup (residual differences are
+        // expected: Qt-ADS 4.5.0 approximates per-dock vertical stretch and
+        // QSplitter::setSizes() respects each area's minimumSizeHint, so the
+        // exact mockup pixels are not guaranteed — documented residual).
+        // ============================================================
+        root->setSizes({230, 698, 272});   // left | center | right widths ≈ 230/flex/272
+        leftV->setSizes({178, 320});       // Transport ≈ 178, System grows
+        rightV->setSizes({210, 240});      // Signal Info ≈ 210, Error & Stats grows
+
+        // Now Playing: compact, fixed ≈ 82 px at the bottom of the center.
+        if (ads::CDockAreaWidget* nowPlayingArea = D("tab1_NowPlaying")->dockAreaWidget()) {
+            nowPlayingArea->setMinimumHeight(82);
+        }
+        if (centerV->count() == 3) {
+            centerV->setSizes({190, 150, 82});  // Signal Analysis ≈ 190, Frame Analysis flex, Now Playing 82
+        }
+    }
+
+    QList<DABAnalyzerWindow::DockSection> createTab1_LeftPanel()
+    {
+        QList<DockSection> sections;
+
+        // LEFT Column (UI redesign Steps B/C) — each section becomes one dock:
+        // Player + Decoder form the Transport group; System stays standalone.
+        // Messages moved to the shared bottom strip (bottom_Messages).
         
         // 1. Player Panel (Item #1) - 20%
         QGroupBox* playerPanel = createPlayerPanel();
         if (playerPanel) {
-            layout->addWidget(playerPanel, 20);
+            sections.append({QStringLiteral("tab1_Player"), QStringLiteral("Player"), playerPanel});
         }
         
         // 2. Decoder Panel (Item #2) - 20%
         QGroupBox* decoderPanel = createDecoderPanel();
         if (decoderPanel) {
-            layout->addWidget(decoderPanel, 20);
+            sections.append({QStringLiteral("tab1_Decoder"), QStringLiteral("Decoder"), decoderPanel});
         }
         
         // 3. System Panel (Item #3) - 40%
         QGroupBox* systemPanel = createSystemPanel();
         if (systemPanel) {
-            layout->addWidget(systemPanel, 40);
-        }
-        
-        // 4. Messages Panel (Item #4) - 20%
-        QGroupBox* messagesPanel = createLoggingPanel();
-        if (messagesPanel) {
-            layout->addWidget(messagesPanel, 20);
+            sections.append({QStringLiteral("tab1_System"), QStringLiteral("System"), systemPanel});
         }
 
-        return panel;
+        return sections;
     }
 
     QWidget* createLiveStreamInputPanel()
     {
-        QGroupBox* panel = new QGroupBox("Input Source");
+        // UI redesign (Step A): the former tab1_InputSource dock becomes a
+        // compact toolbar pinned at the TOP of the Tab-1 page (above the page's
+        // CDockManager). Row 1 (always visible): File/Network radios · path
+        // edit · Browse… · Load File. Row 2 (m_sourceInputStack, hidden in
+        // File mode): network controls + stream statistics — the old network
+        // page content, reused verbatim. All member widgets and slot wiring
+        // are unchanged.
+        QWidget* panel = new QWidget();
+        panel->setObjectName(QStringLiteral("inputToolbar"));
         QVBoxLayout* mainLayout = new QVBoxLayout(panel);
         mainLayout->setContentsMargins(8, 8, 8, 8);
         mainLayout->setSpacing(6);
-        
-        // Source type selection (File vs Network Stream)
-        QHBoxLayout* sourceTypeLayout = new QHBoxLayout();
+
+        // === ROW 1: Source type + file path + Browse + Load (always visible) ===
+        QHBoxLayout* row1 = new QHBoxLayout();
         m_fileSourceRadio = new QRadioButton("File");
         m_networkSourceRadio = new QRadioButton("Network Stream");
         m_fileSourceRadio->setChecked(true);  // Default to file input
-        
-        sourceTypeLayout->addWidget(m_fileSourceRadio);
-        sourceTypeLayout->addWidget(m_networkSourceRadio);
-        sourceTypeLayout->addStretch();
-        mainLayout->addLayout(sourceTypeLayout);
-        
-        // Stacked widget for File vs Network input
-        m_sourceInputStack = new QStackedWidget();
-        
-        // === PAGE 0: File Input ===
-        QWidget* fileInputPage = new QWidget();
-        QVBoxLayout* fileLayout = new QVBoxLayout(fileInputPage);
-        fileLayout->setContentsMargins(4, 4, 4, 4);
-        fileLayout->setSpacing(4);
-        
-        QHBoxLayout* filePathLayout = new QHBoxLayout();
+
         QLabel* fileLabel = new QLabel("File:");
         fileLabel->setMinimumWidth(40);
         m_filePathEdit = new QLineEdit();
@@ -2918,21 +3813,34 @@ private:
         m_browseFileButton = new QPushButton("Browse...");
         m_loadFileButton = new QPushButton("Load File");
         m_loadFileButton->setStyleSheet("font-weight: bold; background-color: #0078D4; color: white;");
-        
-        filePathLayout->addWidget(fileLabel);
-        filePathLayout->addWidget(m_filePathEdit, 1);
-        filePathLayout->addWidget(m_browseFileButton);
-        filePathLayout->addWidget(m_loadFileButton);
-        fileLayout->addLayout(filePathLayout);
-        
+
+        row1->addWidget(m_fileSourceRadio);
+        row1->addWidget(m_networkSourceRadio);
+        row1->addSpacing(8);
+        row1->addWidget(fileLabel);
+        row1->addWidget(m_filePathEdit, 1);
+        row1->addWidget(m_browseFileButton);
+        row1->addWidget(m_loadFileButton);
+        mainLayout->addLayout(row1);
+
+        // === ROW 2: expandable network row ===
+        // Stacked widget for File vs Network input. In File mode the whole row
+        // is hidden (compact single-row bar); when "Network Stream" is selected
+        // onSourceTypeChanged() shows it and jumps to the network page.
+        m_sourceInputStack = new QStackedWidget();
+        m_sourceInputStack->setObjectName(QStringLiteral("inputToolbarNetworkRow"));
+        m_sourceInputStack->setVisible(false);  // File mode by default
+
+        // === PAGE 0: File Input (kept for stack index semantics — File page index 0) ===
+        QWidget* fileInputPage = new QWidget();
         m_sourceInputStack->addWidget(fileInputPage);
-        
+
         // === PAGE 1: Network Stream Input ===
         QWidget* networkInputPage = new QWidget();
         QVBoxLayout* networkLayout = new QVBoxLayout(networkInputPage);
         networkLayout->setContentsMargins(4, 4, 4, 4);
         networkLayout->setSpacing(6);
-        
+
         // Stream URL input
         QHBoxLayout* urlLayout = new QHBoxLayout();
         QLabel* urlLabel = new QLabel("Stream URL:");
@@ -2943,7 +3851,7 @@ private:
         urlLayout->addWidget(urlLabel);
         urlLayout->addWidget(m_streamUrlEdit, 1);
         networkLayout->addLayout(urlLayout);
-        
+
         // Quick Examples dropdown
         QHBoxLayout* examplesLayout = new QHBoxLayout();
         QLabel* examplesLabel = new QLabel("Quick Examples:");
@@ -2956,7 +3864,7 @@ private:
         examplesLayout->addWidget(examplesLabel);
         examplesLayout->addWidget(m_quickExampleCombo, 1);
         networkLayout->addLayout(examplesLayout);
-        
+
         // Connect/Disconnect buttons and status
         QHBoxLayout* controlLayout = new QHBoxLayout();
         m_connectBtn = new QPushButton("Connect");
@@ -2968,7 +3876,7 @@ private:
         m_recordBtn->setStyleSheet("background-color: #D32F2F; color: white;");
         m_streamStatus = new QLabel("<span style='color: #666;'>● Disconnected</span>");
         m_streamStatus->setFont(QFont("Arial", 10, QFont::Bold));
-        
+
         controlLayout->addWidget(m_connectBtn);
         controlLayout->addWidget(m_disconnectBtn);
         controlLayout->addWidget(m_recordBtn);
@@ -2976,17 +3884,17 @@ private:
         controlLayout->addWidget(m_streamStatus);
         controlLayout->addStretch();
         networkLayout->addLayout(controlLayout);
-        
+
         // Stream Statistics GroupBox
         QGroupBox* statsGroup = new QGroupBox("Stream Statistics");
         QGridLayout* statsLayout = new QGridLayout(statsGroup);
         statsLayout->setContentsMargins(6, 6, 6, 6);
         statsLayout->setSpacing(4);
-        
+
         // Create statistics labels (2-column layout)
         QFont labelFont("Arial", 9);
         QFont dataFont("Consolas", 9, QFont::Bold);
-        
+
         // Row 0: Frame Rate
         QLabel* frLabel = new QLabel("Frame Rate:");
         frLabel->setFont(labelFont);
@@ -2995,7 +3903,7 @@ private:
         m_streamFrameRate->setStyleSheet("color: #0078D4;");
         statsLayout->addWidget(frLabel, 0, 0);
         statsLayout->addWidget(m_streamFrameRate, 0, 1);
-        
+
         // Row 0: Frames Received
         QLabel* fcLabel = new QLabel("Frames Received:");
         fcLabel->setFont(labelFont);
@@ -3004,7 +3912,7 @@ private:
         m_streamFramesReceived->setStyleSheet("color: #0078D4;");
         statsLayout->addWidget(fcLabel, 0, 2);
         statsLayout->addWidget(m_streamFramesReceived, 0, 3);
-        
+
         // Row 1: Frame Loss
         QLabel* flLabel = new QLabel("Frame Loss:");
         flLabel->setFont(labelFont);
@@ -3013,7 +3921,7 @@ private:
         m_streamFrameLoss->setStyleSheet("color: #107C10;");
         statsLayout->addWidget(flLabel, 1, 0);
         statsLayout->addWidget(m_streamFrameLoss, 1, 1);
-        
+
         // Row 1: Network Latency
         QLabel* latLabel = new QLabel("Network Latency:");
         latLabel->setFont(labelFont);
@@ -3022,7 +3930,7 @@ private:
         m_streamLatency->setStyleSheet("color: #107C10;");
         statsLayout->addWidget(latLabel, 1, 2);
         statsLayout->addWidget(m_streamLatency, 1, 3);
-        
+
         // Row 2: Buffer Status
         QLabel* bufLabel = new QLabel("Buffer Status:");
         bufLabel->setFont(labelFont);
@@ -3031,7 +3939,7 @@ private:
         m_streamBuffer->setStyleSheet("color: #0078D4;");
         statsLayout->addWidget(bufLabel, 2, 0);
         statsLayout->addWidget(m_streamBuffer, 2, 1);
-        
+
         // Row 2: Data Rate
         QLabel* drLabel = new QLabel("Data Rate:");
         drLabel->setFont(labelFont);
@@ -3040,7 +3948,7 @@ private:
         m_streamDataRate->setStyleSheet("color: #0078D4;");
         statsLayout->addWidget(drLabel, 2, 2);
         statsLayout->addWidget(m_streamDataRate, 2, 3);
-        
+
         // Row 3: Uptime (spans 2 columns)
         QLabel* upLabel = new QLabel("Uptime:");
         upLabel->setFont(labelFont);
@@ -3049,13 +3957,13 @@ private:
         m_streamUptime->setStyleSheet("color: #107C10;");
         statsLayout->addWidget(upLabel, 3, 0);
         statsLayout->addWidget(m_streamUptime, 3, 1);
-        
+
         networkLayout->addWidget(statsGroup);
-        
+
         m_sourceInputStack->addWidget(networkInputPage);
-        
+
         mainLayout->addWidget(m_sourceInputStack);
-        
+
         // Connect signals
         connect(m_fileSourceRadio, &QRadioButton::toggled, this, [this](bool checked) {
             onSourceTypeChanged(!checked);
@@ -3070,30 +3978,27 @@ private:
         connect(m_recordBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onRecordClicked);
         connect(m_browseFileButton, &QPushButton::clicked, this, &DABAnalyzerWindow::onBrowseFileClicked);
         connect(m_loadFileButton, &QPushButton::clicked, this, &DABAnalyzerWindow::onLoadFileClicked);
-        
+
         // Initialize statistics timer (but don't start it)
         m_statsTimer = new QTimer(this);
         // NOTE: Stream statistics are updated from onProcessingComplete() with frame/time parameters
         // No periodic timer update needed for file-based processing
-        
+
         return panel;
     }
 
-    QWidget* createTab1_CenterPanel()
+    QList<DABAnalyzerWindow::DockSection> createTab1_CenterPanel()
     {
-        QWidget* panel = new QWidget();
-        QVBoxLayout* layout = new QVBoxLayout(panel);
-        layout->setContentsMargins(2, 2, 2, 2);
-        layout->setSpacing(4);
+        QList<DockSection> sections;
 
-        // CENTER Panel per DATA_AVAILABILITY_MATRIX.md specification
-        
-        // 0. Live Stream Input (NEW - placed above Ensemble Explorer) - 10%
-        QWidget* liveStreamPanel = createLiveStreamInputPanel();
-        if (liveStreamPanel) {
-            layout->addWidget(liveStreamPanel, 10);
-        }
-        
+        // CENTER Column (UI redesign Steps A/B) — each section becomes one
+        // dock; registerTab1Docks() groups them:
+        //   Signal Analysis (Ensemble Explorer | Subchannel Org | CU Usage),
+        //   Frame Analysis (ETI Frame Navigator | Hex/ETSI Compliance),
+        //   Now Playing (standalone, compact bottom).
+        // The old tab1_InputSource dock is gone (the toolbar replaced it).
+        // CU Usage moved here from the right column (mockup grouping).
+
         // 1. DAB Ensemble Explorer (Item #5) - moved from LEFT - 15%
         QGroupBox* ensembleGroup = new QGroupBox("DAB Ensemble Explorer");
         QVBoxLayout* ensembleLayout = new QVBoxLayout(ensembleGroup);
@@ -3109,7 +4014,7 @@ private:
         m_ensembleTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
         ensembleLayout->addWidget(m_ensembleTree);
         
-        layout->addWidget(ensembleGroup, 15);
+        sections.append({QStringLiteral("tab1_EnsembleExplorer"), QStringLiteral("DAB Ensemble Explorer"), ensembleGroup});
 
         // 2. ETI Frame Navigator (Item #6) - 15%
         QGroupBox* navigatorGroup = new QGroupBox("ETI Frame Navigator");
@@ -3121,9 +4026,10 @@ private:
         m_frameList->setAlternatingRowColors(true);
         navigatorLayout->addWidget(m_frameList);
         
-        layout->addWidget(navigatorGroup, 15);
+        sections.append({QStringLiteral("tab1_FrameNavigator"), QStringLiteral("ETI Frame Navigator"), navigatorGroup});
 
         // 3. Hex Viewer / ETSI Compliance (Item #7) - 30%
+        // ONE dock wrapping the existing internal viewerTabs QTabWidget.
         QTabWidget* viewerTabs = new QTabWidget();
         
         if (!m_hexViewer) {
@@ -3142,7 +4048,7 @@ private:
         m_complianceViewer->setPlaceholderText("ETSI EN 300 799 compliance results...");
         viewerTabs->addTab(m_complianceViewer, "ETSI Compliance");
         
-        layout->addWidget(viewerTabs, 30);
+        sections.append({QStringLiteral("tab1_HexCompliance"), QStringLiteral("Hex Viewer / ETSI Compliance"), viewerTabs});
 
         // 4. Subchannel Organization (Item #8) - 15%
         QGroupBox* subchannelGroup = new QGroupBox("Subchannel Organization");
@@ -3161,15 +4067,21 @@ private:
         }
         subchannelLayout->addWidget(m_subchannelTable);
         
-        layout->addWidget(subchannelGroup, 15);
+        sections.append({QStringLiteral("tab1_SubchannelOrg"), QStringLiteral("Subchannel Organization"), subchannelGroup});
 
-        // 5. Now Playing (DLS+) (Item #9) - moved from RIGHT - 25%
-        QGroupBox* nowPlayingPanel = createNowPlayingPanel();
-        if (nowPlayingPanel) {
-            layout->addWidget(nowPlayingPanel, 25);
+        // 5. CU Usage (Item #13) - moved from RIGHT (mockup: Signal Analysis group)
+        QGroupBox* cuUsagePanel = createCUUsagePanel();
+        if (cuUsagePanel) {
+            sections.append({QStringLiteral("tab1_CUUsage"), QStringLiteral("CU Usage"), cuUsagePanel});
         }
 
-        return panel;
+        // 6. Now Playing (DLS+) (Item #9) - moved from RIGHT - 25%
+        QGroupBox* nowPlayingPanel = createNowPlayingPanel();
+        if (nowPlayingPanel) {
+            sections.append({QStringLiteral("tab1_NowPlaying"), QStringLiteral("Now Playing (DLS+)"), nowPlayingPanel});
+        }
+
+        return sections;
     }
 
     QWidget* createPlayerDecoderStatusPanels()
@@ -3198,46 +4110,65 @@ private:
         return widget;
     }
 
-    QWidget* createTab1_RightPanel()
+    QList<DABAnalyzerWindow::DockSection> createTab1_RightPanel()
     {
-        QWidget* panel = new QWidget();
-        QVBoxLayout* layout = new QVBoxLayout(panel);
-        layout->setContentsMargins(2, 2, 2, 2);
-        layout->setSpacing(4);
+        QList<DockSection> sections;
 
-        // RIGHT Panel per DATA_AVAILABILITY_MATRIX.md specification
-        
+        // RIGHT Column (UI redesign Step B) — each section becomes one dock:
+        // ETI Overview | Status | Timing form the Signal Info group,
+        // DAB Error Counter + DAB Stream Statistics the Error & Statistics
+        // group. CU Usage moved to the CENTER column (Signal Analysis group).
+
         // 1. ETI Overview (Item #10) - 25%
         QGroupBox* etiOverviewPanel = createETIOverviewPanel();
         if (etiOverviewPanel) {
-            layout->addWidget(etiOverviewPanel, 25);
+            sections.append({QStringLiteral("tab1_ETIOverview"), QStringLiteral("ETI Overview"), etiOverviewPanel});
         }
 
-        // 2. DAB Error Counter (Item #11) - 20%
+        // 2. DAB Error Counter (Item #11) - 20% (includes the error table)
         QGroupBox* errorCounterPanel = createErrorDetectionPanel();
+        QGroupBox* statusGroup = nullptr;
         if (errorCounterPanel) {
-            layout->addWidget(errorCounterPanel, 20);
+            // The section builder createErrorDetectionPanel() keeps the little
+            // "Status" group inside the error counter (left untouched). Per the
+            // v1.3 layout spec the right column has a SEPARATE "Status" dock, so
+            // we split that inner group out here by reparenting it - all widgets
+            // (labels, members) stay exactly the same, only the container changes.
+            const auto innerGroups = errorCounterPanel->findChildren<QGroupBox*>();
+            for (QGroupBox* g : innerGroups) {
+                if (g->title() == "Status") {
+                    statusGroup = g;
+                    break;
+                }
+            }
+            if (statusGroup && errorCounterPanel->layout()) {
+                errorCounterPanel->layout()->removeWidget(statusGroup);
+            }
+            sections.append({QStringLiteral("tab1_ErrorCounter"), QStringLiteral("DAB Error Counter"), errorCounterPanel});
         }
 
-        // 3. Timing (Item #12) - 20%
+        // 3. Status - the inner "Status" group split out of the error counter
+        if (statusGroup) {
+            sections.append({QStringLiteral("tab1_Status"), QStringLiteral("Status"), statusGroup});
+        }
+
+        // 4. Timing (Item #12) - 20%
         QGroupBox* timingPanel = createTimingPanel();
         if (timingPanel) {
-            layout->addWidget(timingPanel, 20);
+            sections.append({QStringLiteral("tab1_Timing"), QStringLiteral("Timing"), timingPanel});
         }
 
-        // 4. CU Usage (Item #13) - 20%
-        QGroupBox* cuUsagePanel = createCUUsagePanel();
-        if (cuUsagePanel) {
-            layout->addWidget(cuUsagePanel, 20);
-        }
+        // NOTE: CU Usage moved to the CENTER column (Signal Analysis group,
+        // UI redesign Step B) — right column keeps Overview/ErrorCounter/
+        // Status/Timing/StreamStats only.
 
         // 5. Stream Statistics (Item #14) - 15%
         QGroupBox* streamStatsPanel = createStreamStatisticsPanel();
         if (streamStatsPanel) {
-            layout->addWidget(streamStatsPanel, 15);
+            sections.append({QStringLiteral("tab1_StreamStats"), QStringLiteral("DAB Stream Statistics"), streamStatsPanel});
         }
 
-        return panel;
+        return sections;
     }
 
     // ========================================================================
@@ -3409,23 +4340,53 @@ private:
     QWidget* createTab2_FICAnalyzer()
     {
         QWidget* mainPanel = new QWidget();
-        QHBoxLayout* mainLayout = new QHBoxLayout(mainPanel);
+        QVBoxLayout* mainLayout = new QVBoxLayout(mainPanel);
         mainLayout->setContentsMargins(0, 0, 0, 0);
-        mainLayout->setSpacing(2);
+        mainLayout->setSpacing(0);
 
-        // LEFT Panel (25%)
-        QWidget* leftPanel = createTab2_LeftPanel();
-        mainLayout->addWidget(leftPanel, 25);
+        // Tab 2 gets its OWN CDockManager with 3 docks (one per original column).
+        m_tab2DockManager = new ads::CDockManager(mainPanel);
+        m_tab2DockManager->setObjectName("tab2DockManager");
+        registerTab2Docks();
 
-        // CENTER Panel (50%)
-        QWidget* centerPanel = createTab2_CenterPanel();
-        mainLayout->addWidget(centerPanel, 50);
-
-        // RIGHT Panel (25%)
-        QWidget* rightPanel = createTab2_RightPanel();
-        mainLayout->addWidget(rightPanel, 25);
-
+        mainLayout->addWidget(m_tab2DockManager);
         return mainPanel;
+    }
+
+    void registerTab2Docks()
+    {
+        if (!m_tab2DockManager) {
+            return;
+        }
+
+        // One dock per original column widget (25% | 50% | 25%).
+        ads::CDockWidget* leftDock = makeDock(m_tab2DockManager,
+            QStringLiteral("tab2_Left"), QStringLiteral("Left"),
+            createTab2_LeftPanel());
+        ads::CDockWidget* centerDock = makeDock(m_tab2DockManager,
+            QStringLiteral("tab2_Center"), QStringLiteral("Center"),
+            createTab2_CenterPanel());
+        ads::CDockWidget* rightDock = makeDock(m_tab2DockManager,
+            QStringLiteral("tab2_Right"), QStringLiteral("Right"),
+            createTab2_RightPanel());
+
+        // Center FIRST (establishes the root splitter), then left/right append
+        // side-by-side -> Left | Center | Right (empirically verified).
+        m_tab2DockManager->addDockWidget(ads::CenterDockWidgetArea, centerDock, nullptr);
+        m_tab2DockManager->addDockWidget(ads::LeftDockWidgetArea, leftDock, nullptr);
+        m_tab2DockManager->addDockWidget(ads::RightDockWidgetArea, rightDock, nullptr);
+
+        QSplitter* root = nullptr;
+        const auto splitters = m_tab2DockManager->findChildren<QSplitter*>();
+        for (QSplitter* sp : splitters) {
+            if (sp->parentWidget() == m_tab2DockManager) {
+                root = sp;
+                break;
+            }
+        }
+        if (root && root->count() == 3) {
+            root->setSizes({300, 600, 300});  // 25% | 50% | 25%
+        }
     }
 
     // ========================================================================
@@ -3502,19 +4463,48 @@ private:
     QWidget* createTab3_FICExtractor()
     {
         QWidget* mainPanel = new QWidget();
-        QHBoxLayout* mainLayout = new QHBoxLayout(mainPanel);
+        QVBoxLayout* mainLayout = new QVBoxLayout(mainPanel);
         mainLayout->setContentsMargins(0, 0, 0, 0);
-        mainLayout->setSpacing(2);
+        mainLayout->setSpacing(0);
 
-        // LEFT Panel (40%) - FIG Instance Tree
-        QWidget* leftPanel = createTab3_LeftPanel();
-        mainLayout->addWidget(leftPanel, 40);
+        // Tab 3 gets its OWN CDockManager with 2 docks (one per original column).
+        m_tab3DockManager = new ads::CDockManager(mainPanel);
+        m_tab3DockManager->setObjectName("tab3DockManager");
+        registerTab3Docks();
 
-        // RIGHT Panel (60%) - FIG Item Details Tree
-        QWidget* rightPanel = createTab3_RightPanel();
-        mainLayout->addWidget(rightPanel, 60);
-
+        mainLayout->addWidget(m_tab3DockManager);
         return mainPanel;
+    }
+
+    void registerTab3Docks()
+    {
+        if (!m_tab3DockManager) {
+            return;
+        }
+
+        // One dock per original column widget (40% | 60%).
+        ads::CDockWidget* leftDock = makeDock(m_tab3DockManager,
+            QStringLiteral("tab3_Left"), QStringLiteral("Left"),
+            createTab3_LeftPanel());
+        ads::CDockWidget* rightDock = makeDock(m_tab3DockManager,
+            QStringLiteral("tab3_Right"), QStringLiteral("Right"),
+            createTab3_RightPanel());
+
+        // Left FIRST (sets root horizontal), right appends -> Left | Right.
+        m_tab3DockManager->addDockWidget(ads::LeftDockWidgetArea, leftDock, nullptr);
+        m_tab3DockManager->addDockWidget(ads::RightDockWidgetArea, rightDock, nullptr);
+
+        QSplitter* root = nullptr;
+        const auto splitters = m_tab3DockManager->findChildren<QSplitter*>();
+        for (QSplitter* sp : splitters) {
+            if (sp->parentWidget() == m_tab3DockManager) {
+                root = sp;
+                break;
+            }
+        }
+        if (root && root->count() == 2) {
+            root->setSizes({400, 600});  // 40% | 60%
+        }
     }
 
     // ========================================================================
@@ -3597,35 +4587,131 @@ private:
     }
 
     // ========================================================================
-    // SHARED BOTTOM PANEL (CONSISTENT ACROSS ALL TABS)
+    // SHARED BOTTOM DOCK AREA (CONSISTENT ACROSS ALL TABS, WINDOW-LEVEL)
     // ========================================================================
-    QTabWidget* createSharedBottomPanel()
+    void buildSharedBottomDocks()
     {
-        QTabWidget* bottomTabs = new QTabWidget();
+        if (!m_bottomDockManager) {
+            return;
+        }
+
+        // The six bottom tabs become six TABBED CDockWidgets hosted by the
+        // window-level bottom CDockManager. The page-widget builders themselves
+        // are untouched.
 
         // Tab 1: System Messages
-        m_systemMessages = new QTextEdit();
-        m_systemMessages->setFont(QFont("Consolas", 9));
-        m_systemMessages->setReadOnly(true);
-        bottomTabs->addTab(m_systemMessages, "System Messages");
+        if (!m_systemMessages) {
+            m_systemMessages = new QTextEdit();
+            m_systemMessages->setFont(QFont("Consolas", 9));
+            m_systemMessages->setReadOnly(true);
+        }
+        ads::CDockWidget* d1 = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_SystemMessages"), QStringLiteral("System Messages"),
+            m_systemMessages);
+
+        m_bottomDockManager->addDockWidget(ads::BottomDockWidgetArea, d1, nullptr);
 
         // Tab 2: Performance Dashboard
-        QWidget* performanceTab = createPerformanceDashboardTab();
-        bottomTabs->addTab(performanceTab, "Performance");
+        ads::CDockWidget* d2 = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_Performance"), QStringLiteral("Performance"),
+            createPerformanceDashboardTab());
+        m_bottomDockManager->addDockWidgetTabToArea(d2, d1->dockAreaWidget());
 
-        // Tab 3: Error Detection Summary (reuse widgets from Tab 3)
-        QWidget* errorSummaryTab = createErrorDetectionSummaryTab();
-        bottomTabs->addTab(errorSummaryTab, "Error Detection");
+        // Tab 3: Error Detection Summary
+        ads::CDockWidget* d3 = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_ErrorDetection"), QStringLiteral("Error Detection"),
+            createErrorDetectionSummaryTab());
+        m_bottomDockManager->addDockWidgetTabToArea(d3, d1->dockAreaWidget());
 
         // Tab 4: Logging Summary
-        QWidget* loggingSummaryTab = createLoggingSummaryTab();
-        bottomTabs->addTab(loggingSummaryTab, "Logging");
+        ads::CDockWidget* d4 = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_Logging"), QStringLiteral("Logging"),
+            createLoggingSummaryTab());
+        m_bottomDockManager->addDockWidgetTabToArea(d4, d1->dockAreaWidget());
 
         // Tab 5: Constellation Viewer
-        QWidget* constellationTab = createConstellationTab();
-        bottomTabs->addTab(constellationTab, "Constellation");
+        ads::CDockWidget* d5 = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_Constellation"), QStringLiteral("Constellation"),
+            createConstellationTab());
+        m_bottomDockManager->addDockWidgetTabToArea(d5, d1->dockAreaWidget());
 
-        return bottomTabs;
+        // Tab 6: Messages (UI redesign Step C) — moved from the Tab-1 left
+        // column; wraps the SAME createLoggingPanel() widget/members. Being a
+        // window-level strip dock it is automatically shared by all 3 tabs.
+        ads::CDockWidget* d6 = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_Messages"), QStringLiteral("Messages"),
+            createLoggingPanel());
+        m_bottomDockManager->addDockWidgetTabToArea(d6, d1->dockAreaWidget());
+
+        // Default active tab of the bottom strip: System Messages (first dock).
+        d1->dockAreaWidget()->setCurrentDockWidget(d1);
+    }
+
+    // ========================================================================
+    // DOCKING STATE PERSISTENCE (QSettings, v1.3)
+    // ========================================================================
+    void restoreDockingState()
+    {
+        const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+
+        const QByteArray geometry = s.value(QStringLiteral("window/geometry")).toByteArray();
+        if (!geometry.isEmpty() && !restoreGeometry(geometry)) {
+            qWarning() << "Failed to restore window geometry";
+        }
+
+        // UI redesign (Step E): dock states saved by the v1.3 layout (26 docks,
+        // no grouped areas) are incompatible with the redesign. The stored
+        // layout version guards a ONE-TIME reset: any version != 2 discards the
+        // saved dock states (docking/tab1|tab2|tab3|bottom) so the first run
+        // after the upgrade shows the new default layout; window geometry is
+        // kept. Version 2 is written again on the next saveDockingState().
+        const int layoutVersion = s.value(QStringLiteral("docking/layout_version"), 1).toInt();
+        if (layoutVersion != DOCKING_LAYOUT_VERSION) {
+            qInfo() << "Docking layout version" << layoutVersion
+                    << "!= expected" << DOCKING_LAYOUT_VERSION
+                    << "- discarding saved dock states (redesign first run)";
+            return;
+        }
+
+        if (m_tab1DockManager && !s.value(QStringLiteral("docking/tab1")).isNull()) {
+            if (!m_tab1DockManager->restoreState(s.value(QStringLiteral("docking/tab1")).toByteArray())) {
+                qWarning() << "Failed to restore Tab 1 docking state";
+            }
+        }
+        if (m_tab2DockManager && !s.value(QStringLiteral("docking/tab2")).isNull()) {
+            if (!m_tab2DockManager->restoreState(s.value(QStringLiteral("docking/tab2")).toByteArray())) {
+                qWarning() << "Failed to restore Tab 2 docking state";
+            }
+        }
+        if (m_tab3DockManager && !s.value(QStringLiteral("docking/tab3")).isNull()) {
+            if (!m_tab3DockManager->restoreState(s.value(QStringLiteral("docking/tab3")).toByteArray())) {
+                qWarning() << "Failed to restore Tab 3 docking state";
+            }
+        }
+        if (m_bottomDockManager && !s.value(QStringLiteral("docking/bottom")).isNull()) {
+            if (!m_bottomDockManager->restoreState(s.value(QStringLiteral("docking/bottom")).toByteArray())) {
+                qWarning() << "Failed to restore bottom docking state";
+            }
+        }
+    }
+
+    void saveDockingState()
+    {
+        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        s.setValue(QStringLiteral("docking/layout_version"), DOCKING_LAYOUT_VERSION);
+        s.setValue(QStringLiteral("window/geometry"), saveGeometry());
+        if (m_tab1DockManager) {
+            s.setValue(QStringLiteral("docking/tab1"), m_tab1DockManager->saveState());
+        }
+        if (m_tab2DockManager) {
+            s.setValue(QStringLiteral("docking/tab2"), m_tab2DockManager->saveState());
+        }
+        if (m_tab3DockManager) {
+            s.setValue(QStringLiteral("docking/tab3"), m_tab3DockManager->saveState());
+        }
+        if (m_bottomDockManager) {
+            s.setValue(QStringLiteral("docking/bottom"), m_bottomDockManager->saveState());
+        }
     }
 
     QWidget* createErrorDetectionSummaryTab()
@@ -5235,6 +6321,14 @@ private:
     std::unique_ptr<multistream::MultiStreamProcessor> m_multiStreamProcessor;
     std::unique_ptr<error_detection::AdvancedErrorDetector> m_errorDetector;
     std::unique_ptr<professional_logging::ProfessionalLoggingSystem> m_loggingSystem;
+
+    // User-selected analyzer decode options (option-variant matrix rows 1-14).
+    // Loaded once at startup from QSettings (org StreamDAB-Analyzer / app
+    // DABAnalyzer, group "analyzer/"); edited via the Settings dialog. The
+    // current GUI decode path uses the legacy EnhancedETIProcessorQt parser;
+    // these settings are honored by the CLI/headless path and by any future
+    // decode path that consumes ModernETIFrameParser (apply on next file load).
+    eti::AnalyzerSettings m_analyzerSettings{eti::AnalyzerSettings::defaults()};
     
     // Phase A: Worker thread architecture (Pattern 3 + Pattern 5)
     streamdab::core::SharedETIData* m_sharedData = nullptr;
@@ -5302,7 +6396,7 @@ private:
     QCheckBox* m_enableFicAnalysis = nullptr;
     QCheckBox* m_enableMscAnalysis = nullptr;
     
-    // Live Stream Input widgets (Tab 1 Center Panel)
+    // Live Stream Input widgets (Tab 1 Input toolbar — UI redesign Step A)
     QLabel* m_streamFrameRate = nullptr;
     QLabel* m_streamFramesReceived = nullptr;
     QLabel* m_streamFrameLoss = nullptr;
@@ -5461,6 +6555,11 @@ private:
     static constexpr int TIMING_UPDATE_INTERVAL_MS = 200;  // 5 fps
     static constexpr int FRAME_LIST_UPDATE_THROTTLE = 10;  // ~10 fps (update every 10 frames)
     static constexpr int ERROR_COUNTER_UPDATE_THROTTLE = 20;  // 5 fps (update every 20 frames)
+
+    // UI redesign (Step E): bumped from 1 -> 2 when the dock layout changed
+    // (Input Source -> toolbar, Messages -> bottom strip, Tab-1 regrouped dock
+    // areas). Any saved version != 2 is discarded once on restore.
+    static constexpr int DOCKING_LAYOUT_VERSION = 2;
     
     // Phase 1: Processing counters
     int m_processedFrames{0};
@@ -5519,12 +6618,15 @@ int main(int argc, char *argv[])
         // CLI mode - no GUI (QCoreApplication)
         QCoreApplication app(argc, argv);
         app.setApplicationName("StreamDAB Analyzer");
-        app.setApplicationVersion("1.1");
+        app.setApplicationVersion("1.3.0");
         return cli::cli_main(argc, argv);
     }
     
     // GUI Mode (default)
     QApplication app(argc, argv);
+    app.setOrganizationName("StreamDAB-Analyzer");
+    app.setApplicationName("DABAnalyzer");
+    app.setApplicationVersion("1.3.0");
 
     DABAnalyzerWindow window;
     window.show();

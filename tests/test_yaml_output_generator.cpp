@@ -96,8 +96,10 @@ eti::Ensemble TestYAMLOutputGenerator::createTestEnsemble() {
     eti::Ensemble ensemble;
     ensemble.ensemble_id = 0x1234;
     ensemble.label = "Thailand DAB";
-    ensemble.country_id = 0x0E;
-    ensemble.extended_country_code = 0xE1;
+    // Thailand = ECC 0xF3 + Country Id 0x02 (verified against the Bangkok
+    // DAB+ ensemble; ETSI TS 101 756 Table 1)
+    ensemble.country_id = 0x02;
+    ensemble.extended_country_code = 0xF3;
     ensemble.alarm_flag = false;
     ensemble.cif_count = 0;
     ensemble.occurrence_change = 0;
@@ -110,8 +112,8 @@ eti::DabService TestYAMLOutputGenerator::createTestService(quint16 id, const QSt
     service.service_id = id;
     service.label = label.toStdString();
     service.is_programme = true;
-    service.country_id = 0x0E;
-    service.extended_country_code = 0xE1;
+    service.country_id = 0x02;
+    service.extended_country_code = 0xF3;
     service.character_flag = 0;
 
     // Add component
@@ -185,7 +187,7 @@ void TestYAMLOutputGenerator::test02_EnsembleInfoOutput() {
 
     QVERIFY(yaml.contains("ensemble_id: 0x1234"));
     QVERIFY(yaml.contains("ensemble_label: \"Thailand DAB\""));
-    QVERIFY(yaml.contains("country_id: 0x000E"));
+    QVERIFY(yaml.contains("country_id: 0x0002"));
     QVERIFY(yaml.contains("country_name: \"Thailand\""));
     QVERIFY(yaml.contains("alarm_flag: false"));
 }

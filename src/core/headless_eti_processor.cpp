@@ -22,6 +22,7 @@
 #include "utils/logger.h"
 #include "eti_types.hpp"
 #include "fig_parser.hpp"
+#include "protection_tables.hpp"
 #include "../cli/yaml_output_generator.hpp"  // For FrameAnalysisData
 
 #include <QFile>
@@ -34,14 +35,482 @@
 #include <QMap>
 #include <QDateTime>
 
+#include <iostream>
+#include <set>
+
 // Define logging category for CLI mode
 Q_LOGGING_CATEGORY(etiMain, "streamdab.eti")
+
+namespace {
+
+/**
+ * @brief Validate the EOH gap CRC (option-variant matrix row 11).
+ *
+ * EN 300 799 clause 5.3.4 / etisnoop etianalyse.cpp "Header CRC": the 2-byte
+ * CRC at offset 8+4*NST+2 validates the FC field (bytes 4..7) plus the STC
+ * region (bytes 8 .. 8+4*NST-1) with CRC-16/CCITT-FALSE (init 0xFFFF) and is
+ * transmitted complemented (ccitt-false + ~). Frame-relative offsets work for
+ * both the ETI-LI (0x49.. sync) and ETI-NI (0xFF.. sync) layouts used here.
+ *
+ * @param frameData 6144-byte frame buffer
+ * @param nst       Effective number of sub-channels
+ * @return true when the stored CRC matches the computed value
+ */
+bool validateEohCrc(const uint8_t* frameData, quint64 nst)
+{
+    const size_t crc_off = 8 + static_cast<size_t>(nst) * 4 + 2;
+    if (crc_off + 2 > 6144) {
+        return false;
+    }
+    const uint16_t stored = static_cast<uint16_t>((frameData[crc_off] << 8) |
+                                                  frameData[crc_off + 1]);
+    const size_t data_len = 4 + static_cast<size_t>(nst) * 4;  // FC + STC
+    const uint16_t calc = static_cast<uint16_t>(
+        ~eti::crc16ccitt_false(frameData + 4, data_len));
+    return calc == stored;
+}
+
+/**
+ * @brief Escape a FIG trace label value for key=value output.
+ *
+ * The trace lines stay machine-parseable: values are double-quoted and
+ * embedded quotes/backslashes are escaped. Thai UTF-8 passes through raw.
+ */
+QString escapeTraceValue(const QString& value)
+{
+    QString escaped = value;
+    escaped.replace('\\', "\\\\");
+    escaped.replace('"', "\\\"");
+    escaped.replace('\n', " ");
+    return escaped;
+}
+
+/**
+ * @brief Count sub-channel entries carried by one FIG 0/1 instance.
+ *
+ * Mirrors ModernETIFrameParser::processFIG01_SubchannelOrg's entry walk:
+ * [ext byte] then per entry SubChId|SADr (2 bytes) + form bit at entry byte 2
+ * (long/EEP form = 4 bytes, short/UEP form = 3 bytes).
+ */
+int countFig01Subchannels(const eti::FigBlock& fig)
+{
+    if (fig.data.size() < 2) {
+        return 0;
+    }
+    int count = 0;
+    size_t offset = 1;  // Skip the FIG 0 extension byte
+    while (offset + 2 < fig.data.size()) {
+        if (fig.data[offset + 2] & 0x80) {
+            // Long form (EEP): needs the 4th byte
+            if (offset + 3 >= fig.data.size()) {
+                break;
+            }
+            offset += 4;
+        } else {
+            // Short form (UEP)
+            offset += 3;
+        }
+        ++count;
+    }
+    return count;
+}
+
+/**
+ * @brief Count service components carried by one FIG 0/2 instance.
+ *
+ * Mirrors ModernETIFrameParser::processFIG02_ServiceOrg's entry walk:
+ * [ext byte] then per service entry: SId (2 bytes programme / 4 bytes data,
+ * P/D flag of the ext byte), 1 byte local|CAid|ncomp, ncomp x 2-byte
+ * components. Returns the number of component entries consumed.
+ */
+int countFig02Components(const eti::FigBlock& fig)
+{
+    if (fig.data.size() < 4) {
+        return 0;
+    }
+    const bool pd = (fig.data[0] & 0x20) != 0;  // P/D flag
+    int components = 0;
+    size_t offset = 1;
+    while (offset + 3 < fig.data.size()) {
+        offset += pd ? 4 : 2;
+        if (offset >= fig.data.size()) {
+            break;
+        }
+        const uint8_t ncomp = fig.data[offset] & 0x0F;
+        ++offset;
+        uint8_t consumed = 0;
+        for (; consumed < ncomp && offset + 1 < fig.data.size(); ++consumed) {
+            offset += 2;
+        }
+        components += consumed;
+    }
+    return components;
+}
+
+/**
+ * @brief Number of service-label entries carried by one FIG 1/1 instance.
+ *
+ * Entry layout: [charset|OE|ext 1B] [SId 2B] [label 16B] (+[mask 2B] when the
+ * 21-byte form fits), i.e. 19 or 21 bytes per entry.
+ */
+int countFig11Labels(const eti::FigBlock& fig)
+{
+    int entries = 0;
+    size_t pos = 0;
+    const size_t size = fig.data.size();
+    while (pos + 19 <= size) {
+        pos += (pos + 21 <= size) ? 21 : 19;
+        ++entries;
+    }
+    return entries;
+}
+
+/**
+ * @brief Readable protection summary of the first FIG 0/1 entry.
+ *
+ * Walks the entry list with the same rules as processFIG01_SubchannelOrg and
+ * emits the representative protection of the first entry: long form ->
+ * "protection=EEP-3A cu_size=6" (EEP-A 16/8/6/4, EEP-B 27/21/18/15 CU per
+ * level 1..4); short form -> "protection=UEP-3 index=7 cu_size=35" (UEP
+ * protection table per EN 300 401 §6.2). Backlog item (8).
+ */
+QString fig01ProtectionSummary(const eti::FigBlock& fig)
+{
+    if (fig.data.size() < 2) {
+        return QString();
+    }
+    size_t offset = 1;  // Skip the FIG 0 extension byte
+    QString out;
+    while (offset + 2 < fig.data.size()) {
+        const uint8_t b2 = fig.data[offset + 2];
+        if (b2 & 0x80) {
+            // Long form (EEP)
+            if (offset + 3 >= fig.data.size()) {
+                break;
+            }
+            const uint8_t option = static_cast<uint8_t>((b2 >> 4) & 0x07);
+            const uint8_t level = static_cast<uint8_t>(((b2 >> 2) & 0x03) + 1);
+            const uint16_t cu = eti::eepSizeCu(option, level);
+            if (out.isEmpty()) {
+                const QChar optionChar = (option == 0) ? QChar('A')
+                    : (option == 1) ? QChar('B') : QChar('?');
+                out = QString(" protection=EEP-%1%2 cu_size=%3")
+                          .arg(level).arg(optionChar).arg(cu);
+            }
+            offset += 4;
+        } else {
+            // Short form (UEP)
+            const uint8_t table_index = static_cast<uint8_t>(b2 & 0x3F);
+            if (out.isEmpty()) {
+                out = QString(" protection=UEP-%1 index=%2 cu_size=%3")
+                          .arg(eti::uepLevel1Based(table_index))
+                          .arg(table_index)
+                          .arg(eti::uepSizeCu(table_index));
+            }
+            offset += 3;
+        }
+    }
+    return out;
+}
+
+/**
+ * @brief Compact readable summary for a decoded FIG instance.
+ *
+ * Appends key=value pairs (comma-separated, already prefixed with a space)
+ * for the FIGs whose decoded data is available:
+ *   FIG 0/0 -> ensemble id, FIG 0/1 -> sub-channel entry count + first
+ *   entry's protection (EEP/UEP table value, backlog item 8),
+ *   FIG 0/2 -> service component count, FIG 0/9 -> ECC,
+ *   FIG 0/21 -> frequency(ies), FIG 0/22 -> coordinates,
+ *   FIG 1/0 -> ensemble label, FIG 1/1 -> per-instance service labels,
+ *   FIG 1/2 + 1/3 -> component / data-service labels
+ * (charset-decoded by the parser; labels are drawn from the per-frame
+ * decoded service list in FIG order).
+ *
+ * @param fig            The FIG block
+ * @param ensembleLabel  Charset-decoded ensemble label (FIG 1/0)
+ * @param serviceLabels  Per-frame decoded service labels in FIG order (FIG 1/1)
+ * @param decoded        Per-frame decode result (backlog decoders)
+ * @param counts         Per-block decoder entry counts for @p fig
+ * @param labelsConsumed  In/out: how many labels of @p serviceLabels were
+ *                        already assigned to earlier 1/1 instances
+ * @param freqsConsumed  In/out: consumed FIG 0/21 entries
+ * @param geosConsumed   In/out: consumed FIG 0/22 entries
+ * @param compsConsumed  In/out: consumed FIG 1/2 + 1/3 labels
+ * @param fig2sConsumed  In/out: consumed FIG type 2 entries
+ * @return Empty string or " key=value key=value .." (leading space)
+ */
+QString figReadableSummary(const eti::FigBlock& fig,
+                           const QString& ensembleLabel,
+                           const QStringList& serviceLabels,
+                           const eti::modern::FIGAnalysisResult& decoded,
+                           const eti::modern::FigDecodeCounts& counts,
+                           size_t& labelsConsumed,
+                           size_t& freqsConsumed,
+                           size_t& geosConsumed,
+                           size_t& compsConsumed,
+                           size_t& fig2sConsumed)
+{
+    QString out;
+    const uint8_t ext = fig.get_extension();
+
+    switch (fig.fig_type) {
+        case 0:
+            if (ext == 0 && fig.data.size() >= 5) {
+                const uint16_t eid = static_cast<uint16_t>((fig.data[1] << 8) | fig.data[2]);
+                out += QString(" ensemble=0x%1").arg(eid, 4, 16, QChar('0'));
+            } else if (ext == 1) {
+                out += QString(" subch=%1").arg(countFig01Subchannels(fig));
+                out += fig01ProtectionSummary(fig);
+            } else if (ext == 2) {
+                out += QString(" components=%1").arg(countFig02Components(fig));
+            } else if (ext == 9 && fig.data.size() >= 3) {
+                out += QString(" ecc=0x%1").arg(fig.data[2], 2, 16, QChar('0'));
+            } else if (ext == 21) {
+                // FIG 0/21: frequency info (backlog P2/P3). The first
+                // frequency of the instance is the representative value;
+                // additional frequencies are listed with n_freqs.
+                QStringList freqs;
+                for (uint8_t k = 0; k < counts.frequencies; ++k) {
+                    const size_t ix = freqsConsumed + k;
+                    if (ix >= decoded.frequency_infos.size()) break;
+                    const auto& fe = decoded.frequency_infos[ix];
+                    if (fe.freq_khz != 0) {
+                        freqs << QString("%1MHz")
+                                     .arg(QString::number(fe.freq_khz / 1000.0, 'f', 3));
+                    }
+                }
+                if (freqs.size() == 1) {
+                    out += QString(" freq=%1").arg(freqs.first());
+                } else if (!freqs.isEmpty()) {
+                    out += QString(" freqs=%1").arg(freqs.join("|"));
+                }
+                out += QString(" n_freqs=%1").arg(counts.frequencies);
+            } else if (ext == 22) {
+                // FIG 0/22: geographical location (backlog P2/P3).
+                QStringList coords;
+                QStringList offsets;
+                for (uint8_t k = 0; k < counts.geos; ++k) {
+                    const size_t ix = geosConsumed + k;
+                    if (ix >= decoded.geo_coords.size()) break;
+                    const auto& ge = decoded.geo_coords[ix];
+                    const QString lat = QString("%1%2")
+                        .arg(ge.latitude < 0 ? '-' : '+')
+                        .arg(QString::number(qAbs(ge.latitude), 'f', 1));
+                    const QString lon = QString("%1%2")
+                        .arg(ge.longitude < 0 ? '-' : '+')
+                        .arg(QString::number(qAbs(ge.longitude), 'f', 1));
+                    coords << QString("lat=%1 lon=%2").arg(lat, lon);
+                    if (!ge.is_main) {
+                        offsets << QString("td=%1 dlat=%2 dlon=%3")
+                                       .arg(ge.td).arg(ge.lat_offset).arg(ge.lon_offset);
+                    }
+                }
+                if (coords.size() == 1) {
+                    out += QString(" %1").arg(coords.first());
+                } else if (!coords.isEmpty()) {
+                    out += QString(" coords=[%1]").arg(coords.join("; "));
+                }
+                if (!offsets.isEmpty()) {
+                    out += QString(" offsets=[%1]").arg(offsets.join("; "));
+                }
+            }
+            break;
+        case 1:
+            if (ext == 0 && !ensembleLabel.isEmpty()) {
+                out += QString(" label=\"%1\"").arg(escapeTraceValue(ensembleLabel));
+            } else if (ext == 1) {
+                const int entries = countFig11Labels(fig);
+                QStringList labels;
+                while (labels.size() < entries && labelsConsumed < serviceLabels.size()) {
+                    labels.append(serviceLabels[labelsConsumed]);
+                    ++labelsConsumed;
+                }
+                if (!labels.isEmpty()) {
+                    out += QString(" label=\"%1\"")
+                               .arg(escapeTraceValue(labels.join("|")));
+                }
+            } else if (ext == 2) {
+                // FIG 1/2: service component label (backlog P2/P3)
+                for (uint8_t k = 0; k < counts.component_labels; ++k) {
+                    const size_t ix = compsConsumed + k;
+                    if (ix >= decoded.component_labels.size()) break;
+                    const auto& cl = decoded.component_labels[ix];
+                    out += QString(" scids=%1 sid=0x%2 label=\"%3\"")
+                               .arg(cl.scids)
+                               .arg(cl.service_id, 8, 16, QChar('0'))
+                               .arg(escapeTraceValue(QString::fromStdString(cl.label)));
+                }
+            } else if (ext == 3) {
+                // FIG 1/3: data service label (backlog P2/P3)
+                for (uint8_t k = 0; k < counts.component_labels; ++k) {
+                    const size_t ix = compsConsumed + k;
+                    if (ix >= decoded.component_labels.size()) break;
+                    const auto& cl = decoded.component_labels[ix];
+                    out += QString(" sid=0x%1 label=\"%2\"")
+                               .arg(cl.service_id, 8, 16, QChar('0'))
+                               .arg(escapeTraceValue(QString::fromStdString(cl.label)));
+                }
+            }
+            break;
+        case 2: {
+            // FIG type 2 (OTH): minimal readable header + first-segment label
+            // (backlog P2/P3).
+            for (uint8_t k = 0; k < counts.fig2; ++k) {
+                const size_t ix = fig2sConsumed + k;
+                if (ix >= decoded.fig2_infos.size()) break;
+                const auto& f2 = decoded.fig2_infos[ix];
+                out += QString(" fig2:ext=%1 toggle=%2 seg=%3")
+                           .arg(f2.extension).arg(f2.toggle).arg(f2.segment_index);
+                if (f2.ucs2) {
+                    out += " enc=UCS-2";
+                }
+                if (f2.service_id != 0) {
+                    out += QString(" id=0x%1").arg(f2.service_id, 8, 16, QChar('0'));
+                }
+                if (!f2.label.empty()) {
+                    out += QString(" label=\"%1\"")
+                               .arg(escapeTraceValue(QString::fromStdString(f2.label)));
+                }
+            }
+            break;
+        }
+        default:
+            break;
+    }
+
+    // Advance the consumed-counters for the backlog decoder entries that
+    // belong to this block (their counts were recorded per-block by the
+    // parser; labelsConsumed advances inside the FIG 1/1 loop above).
+    freqsConsumed += counts.frequencies;
+    geosConsumed += counts.geos;
+    compsConsumed += counts.component_labels;
+    fig2sConsumed += counts.fig2;
+
+    return out;
+}
+
+/**
+ * @brief Per-frame MCI state used for reconfiguration detection (P1).
+ *
+ * "MCI change" = the ensemble id, the set of service ids, or the set of
+ * sub-channel ids decoded from this frame differs from the previous frame's.
+ */
+struct MciState {
+    uint16_t ensembleId{0};
+    std::set<uint32_t> services;
+    std::set<uint16_t> subchannels;
+    bool valid{false};
+
+    bool operator==(const MciState& other) const {
+        return ensembleId == other.ensembleId &&
+               services == other.services &&
+               subchannels == other.subchannels;
+    }
+    bool operator!=(const MciState& other) const { return !(*this == other); }
+};
+
+/**
+ * @brief Aggregated per-FIG instance group for the --figs-by-type view.
+ *
+ * Keyed by (fig_type << 8) | extension; collects the 1-based frame numbers
+ * of every instance and the deduplicated readable value strings (the
+ * fig-trace summary content without the leading space).
+ */
+struct FigTypeGroup {
+    quint64 count{0};
+    QStringList frames;
+    QStringList values;
+};
+
+/**
+ * @brief Per-FIB hex dump lines for one frame (--fib-hex, backlog P2/P3).
+ *
+ * Walks the raw frame's FIC (offset 12 + 4*NST, EN 300 799: SYNC 4 + FC 4 +
+ * STC 4*NST + EOH 4) and emits, per FIB:
+ *   fib-hex: frame=N fib=F crc=ok|bad
+ *   bytes: <30 hex bytes of the FIG area>
+ *   fig: [a-b] FIG t/e [c-d] FIG t/e ...
+ * The FIB CRC is recomputed over the 30 FIG bytes (CRC-16/CCITT-FALSE,
+ * complemented, big-endian stored at bytes 30-31). FIG markers follow the
+ * shared walk rules: header type(3)|length(5), type 7 = padding end, a FIG
+ * occupies bytes [pos, pos+length] inclusive.
+ *
+ * @param frameData    Raw 6144-byte frame
+ * @param nst          Effective NST (nst_offset_1 correction applied)
+ * @param frameNumber  1-based frame number for the output
+ * @param fibCount     Number of FIBs walked (strict walk; 0 -> no output)
+ * @return Emitted lines (caller forwards them to stderr)
+ */
+QStringList fibHexDumpLines(const QByteArray& frameData, quint64 nst,
+                            quint64 frameNumber, quint64 fibCount)
+{
+    QStringList lines;
+    if (fibCount == 0 || frameData.size() < 6144) {
+        return lines;
+    }
+    const size_t ficOffset = 12 + static_cast<size_t>(nst) * 4;
+    for (quint64 fib = 0; fib < fibCount; ++fib) {
+        const size_t base = ficOffset + static_cast<size_t>(fib) * 32;
+        if (base + 32 > 6144) {
+            break;
+        }
+        const uint8_t* f = reinterpret_cast<const uint8_t*>(frameData.constData()) + base;
+
+        // Recompute the FIB CRC over the 30-byte FIG area.
+        const uint16_t stored = static_cast<uint16_t>((f[30] << 8) | f[31]);
+        const uint16_t expected = static_cast<uint16_t>(
+            ~eti::crc16ccitt_false(f, 30));
+        const bool crcOk = (stored == expected);
+
+        lines << QString("fib-hex: frame=%1 fib=%2 crc=%3")
+                     .arg(frameNumber).arg(fib + 1).arg(crcOk ? "ok" : "bad");
+
+        QString hex;
+        for (int b = 0; b < 30; ++b) {
+            hex += QString("%1 ").arg(f[b], 2, 16, QChar('0'));
+        }
+        lines << "  bytes: " + hex.trimmed();
+
+        // FIG byte-range markers under the hex line.
+        QStringList markers;
+        int pos = 0;
+        while (pos < 30) {
+            const uint8_t hdr = f[pos];
+            if ((hdr & 0xE0) == 0xE0) {
+                break;  // type 7: padding end marker
+            }
+            const uint8_t type = static_cast<uint8_t>((hdr >> 5) & 0x07);
+            const uint8_t len = hdr & 0x1F;
+            if (len == 0 || pos + len > 29) {
+                break;
+            }
+            // Extension extraction mirrors the parser dispatch (FIG 1 and
+            // type 2 pack the ext in bits 2-0 of their first data byte).
+            const uint8_t dataByte = f[pos + 1];
+            const uint8_t ext = (type == 1 || type == 2)
+                ? static_cast<uint8_t>(dataByte & 0x07)
+                : static_cast<uint8_t>(dataByte & 0x1F);
+            markers << QString("[%1-%2] FIG %3/%4")
+                           .arg(pos).arg(pos + len).arg(type).arg(ext);
+            pos += len + 1;
+        }
+        if (!markers.isEmpty()) {
+            lines << "  fig: " + markers.join(" ");
+        }
+    }
+    return lines;
+}
+
+} // namespace
 
 HeadlessETIProcessor::HeadlessETIProcessor(QObject* parent)
     : QObject(parent)
     , m_progress(0.0)
     , m_statusText("")
     , m_verbose_mode(false)
+    , m_fig_trace_mode(false)
+    , m_max_frames(0)
 {
     Logger::instance().log(Logger::Info, "HeadlessETIProcessor", "HeadlessETIProcessor created for batch processing");
 }
@@ -143,6 +612,23 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
     QMap<uint8_t, eti::SubChannelInfo> discovered_subchannels;
     QMap<QString, int> fig_type_counts;
 
+    // P1 (CLI FIG detail wave): per-frame FIG trace lines, FIG inventory
+    // (key = (type << 8) | extension, deterministic ordering), FIC health
+    // counters and the MCI reconfiguration detector.
+    QStringList figTraceLines;
+    QMap<quint32, cli::FIGInventoryEntry> figInventory;
+    quint64 totalFibs = 0;
+    quint64 fibCrcFailures = 0;
+    quint64 erroneousFigs = 0;
+    quint64 reconfigurationCount = 0;
+    MciState accMciState;
+    const bool traceEnabled = (m_verbose_mode || m_fig_trace_mode);
+
+    // Backlog P2/P3: grouped-by-FIG aggregation (--figs-by-type) and the
+    // per-FIB hex dump lines (--fib-hex).
+    QMap<quint32, FigTypeGroup> figGroups;
+    QStringList fibHexLines;
+
 
     // Process frames with real ETI parsing
     qint64 processedFrames = 0;
@@ -170,8 +656,231 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                     if (parseResult.success) {
                         valid_parsed_frames++;
 
+                        // Effective NST of this frame (raw STC count with the
+                        // legacy nst_offset_1 correction applied; used by the
+                        // EOH CRC, the FIB-hex dump and the FIC offset).
+                        const quint64 frame_nst =
+                            (parseResult.detected_format == eti::ETIFormat::ETI_NI)
+                                ? static_cast<quint64>(parseResult.subchannels_from_stc.size())
+                                : static_cast<quint64>(parseResult.frame.get_lidata_field().nst)
+                                    + (m_settings.nst_offset_1 ? 1u : 0u);
+
+                        // Row 11 (strict_frame_crc): count EOH gap CRC
+                        // mismatches; the decode stays independent (never
+                        // blocks parsing).
+                        if (m_settings.strict_frame_crc) {
+                            if (!validateEohCrc(reinterpret_cast<const uint8_t*>(frameData.constData()),
+                                                frame_nst)) {
+                                result.frame_crc_failures++;
+                            }
+                        }
+
                         // Step 2: Analyze FIG data from the frame
                         auto figResult = m_frameParser->analyzeFIGData(parseResult.frame, parseResult);
+
+                        // ============================================================
+                        // P1: per-frame FIG trace, FIG inventory + FIC health
+                        // ============================================================
+                        const bool frameHasFic = !figResult.fig_trace.empty();
+
+                        // MCI reconfiguration detection: a frame "reconfigures" the multiplex when
+                        // its decoded MCI state grows the ACCUMULATED
+                        // configuration — a new ensemble id, new sub-channel
+                        // ids, or new component-carrying service ids (FIG
+                        // 0/2). The on-air FIC rotates FIG 0/1/0/2 table
+                        // slices across frames (16 sub-channels cannot fit a
+                        // single 3-FIB FIC), so comparing consecutive frames
+                        // directly would flag every rotation as a change on a
+                        // perfectly static mux; the accumulated comparison
+                        // yields the true reconfigurations (initial lock-in +
+                        // real config changes). Pure label rotation (FIG 1/1
+                        // creates label-only service entries) is excluded, and
+                        // FIG 0/0 (every 4th frame here) carries its ensemble
+                        // id forward so its absence is not a change.
+                        bool frameReconfigured = false;
+                        if (frameHasFic) {
+                            MciState state;
+                            if (figResult.ensemble_info.validate_ensemble_id()) {
+                                state.ensembleId = figResult.ensemble_info.ensemble_id;
+                            } else if (accMciState.valid && accMciState.ensembleId != 0) {
+                                state.ensembleId = accMciState.ensembleId;
+                            }
+                            for (const auto& service : figResult.discovered_services) {
+                                if (!service.validate_service_id()) {
+                                    continue;
+                                }
+                                // Only services with components define the MCI;
+                                // FIG 1/1 label entries (no components) rotate
+                                // and must not count as a reconfiguration.
+                                if (service.components.empty()) {
+                                    continue;
+                                }
+                                state.services.insert(service.service_id);
+                                if (service.sid32 > 0xFFFF) {
+                                    state.services.insert(service.sid32);
+                                }
+                            }
+                            // Sub-channels from FIG 0/1 plus the STC-carrying
+                            // sub-channels of the frame.
+                            for (const auto& subchannel : figResult.subchannels) {
+                                if (subchannel.validate_sub_channel_id()) {
+                                    state.subchannels.insert(subchannel.sub_channel_id);
+                                }
+                            }
+                            for (const auto& subchannel : parseResult.subchannels_from_stc) {
+                                if (subchannel.validate_sub_channel_id()) {
+                                    state.subchannels.insert(subchannel.sub_channel_id);
+                                }
+                            }
+
+                            // Accumulate: this frame reconfigures the mux iff
+                            // it introduces elements unknown to the merged
+                            // configuration seen so far.
+                            if (!accMciState.valid) {
+                                accMciState = state;
+                                accMciState.valid = true;
+                                frameReconfigured = !state.services.empty() ||
+                                                    !state.subchannels.empty();
+                            } else {
+                                if (state.ensembleId != accMciState.ensembleId) {
+                                    accMciState.ensembleId = state.ensembleId;
+                                    frameReconfigured = true;
+                                }
+                                for (const uint32_t sid : state.services) {
+                                    if (accMciState.services.insert(sid).second) {
+                                        frameReconfigured = true;
+                                    }
+                                }
+                                for (const uint16_t scid : state.subchannels) {
+                                    if (accMciState.subchannels.insert(scid).second) {
+                                        frameReconfigured = true;
+                                    }
+                                }
+                            }
+                            if (frameReconfigured) {
+                                ++reconfigurationCount;
+                            }
+                        }
+
+                        // Per-instance trace + inventory walk
+                        QStringList frameServiceLabels;  // per-frame, FIG order
+                        {
+                            for (const auto& service : figResult.discovered_services) {
+                                const QString label = QString::fromStdString(service.label);
+                                if (!label.isEmpty()) {
+                                    frameServiceLabels.append(label);
+                                }
+                            }
+
+                            const QString ensembleLabel =
+                                QString::fromStdString(figResult.ensemble_info.label);
+
+                            // Consumed-counters for the backlog decoders (the
+                            // per-block entry counts come from fig_decode_counts,
+                            // parallel to fig_blocks; see FigDecodeCounts).
+                            size_t labelsConsumed = 0;
+                            size_t freqsConsumed = 0;
+                            size_t geosConsumed = 0;
+                            size_t compsConsumed = 0;
+                            size_t fig2sConsumed = 0;
+
+                            const bool collectByType = m_figs_by_type_mode;
+
+                            for (size_t i = 0; i < figResult.fig_trace.size(); ++i) {
+                                const auto& entry = figResult.fig_trace[i];
+                                const eti::FigBlock& block = figResult.fig_blocks[i];
+                                const eti::modern::FigDecodeCounts counts =
+                                    (i < figResult.fig_decode_counts.size())
+                                        ? figResult.fig_decode_counts[i]
+                                        : eti::modern::FigDecodeCounts{};
+
+                                // Inventory aggregation (always — feeds YAML)
+                                {
+                                    const quint32 key = (static_cast<quint32>(entry.fig_type) << 8) |
+                                                        entry.extension;
+                                    auto it = figInventory.find(key);
+                                    if (it == figInventory.end()) {
+                                        cli::FIGInventoryEntry invEntry;
+                                        invEntry.fig_type = entry.fig_type;
+                                        invEntry.extension = entry.extension;
+                                        invEntry.count = 1;
+                                        invEntry.first_frame = static_cast<quint64>(processedFrames);
+                                        invEntry.last_frame = static_cast<quint64>(processedFrames);
+                                        invEntry.crc_failures = entry.crc_ok ? 0 : 1;
+                                        figInventory.insert(key, invEntry);
+                                    } else {
+                                        it->count++;
+                                        it->last_frame = static_cast<quint64>(processedFrames);
+                                        if (!entry.crc_ok) {
+                                            it->crc_failures++;
+                                        }
+                                    }
+                                }
+
+                                // Backlog (P2/P3): grouped-by-FIG aggregation —
+                                // the readable value is computed once and
+                                // shared with the trace line.
+                                QString readable;
+                                if (traceEnabled || collectByType) {
+                                    readable = figReadableSummary(block, ensembleLabel,
+                                                                  frameServiceLabels,
+                                                                  figResult, counts,
+                                                                  labelsConsumed,
+                                                                  freqsConsumed,
+                                                                  geosConsumed,
+                                                                  compsConsumed,
+                                                                  fig2sConsumed);
+                                }
+
+                                if (collectByType) {
+                                    const quint32 key = (static_cast<quint32>(entry.fig_type) << 8) |
+                                                        entry.extension;
+                                    auto& group = figGroups[key];
+                                    group.count++;
+                                    group.frames.append(QString::number(processedFrames));
+                                    const QString value = readable.trimmed();
+                                    if (!value.isEmpty() && !group.values.contains(value)) {
+                                        group.values.append(value);
+                                    }
+                                }
+
+                                // Trace line (diagnostics mode)
+                                if (traceEnabled) {
+                                    QString line = QString("fig-trace: frame=%1 type=%2 ext=%3 len=%4 fib=%5 crc=%6 reconfig=%7")
+                                        .arg(processedFrames)
+                                        .arg(entry.fig_type)
+                                        .arg(entry.extension)
+                                        .arg(entry.length)
+                                        .arg(entry.fib_index)
+                                        .arg(entry.crc_ok ? "ok" : "bad")
+                                        .arg(frameReconfigured ? "true" : "false");
+                                    line += readable;
+                                    figTraceLines.append(line);
+                                    std::cerr << line.toStdString() << std::endl;
+                                }
+                            }
+                        }
+
+                        // Backlog (P2/P3): --fib-hex per-FIB dumps. The raw
+                        // FIC position uses the effective NST; FIB count comes
+                        // from the strict walk (raw-fallback frames produce no
+                        // structured FIB hex).
+                        if (m_fib_hex_mode && frameHasFic && figResult.total_fibs > 0) {
+                            const QStringList hexLines = fibHexDumpLines(
+                                frameData, frame_nst,
+                                static_cast<quint64>(processedFrames),
+                                figResult.total_fibs);
+                            for (const QString& line : hexLines) {
+                                fibHexLines.append(line);
+                                std::cerr << line.toStdString() << std::endl;
+                            }
+                        }
+
+                        // FIC health counters (always aggregated)
+                        totalFibs += figResult.total_fibs;
+                        fibCrcFailures += figResult.fib_crc_failures;
+                        erroneousFigs += figResult.erroneous_figs;
+                        // ============================================================
 
                         // *** VERBOSE MODE: Collect per-frame data ***
                         if (m_verbose_mode) {
@@ -190,7 +899,24 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                             frameAnalysis.header.mid = lidata.mid;
                             frameAnalysis.header.fp = lidata.fp;
                             frameAnalysis.header.fl = lidata.fl;
-                            frameAnalysis.header.tist = lidata.tist;
+                            // TIST source (option-variant matrix row 10): RAW/NI
+                            // frames carry the 32-bit timestamp at the frame tail
+                            // (bytes 6140..6143); bytes 8-11 are only a legacy
+                            // ETI-LI assumption and stay for the LI path.
+                            if (parseResult.detected_format == eti::ETIFormat::ETI_NI) {
+                                frameAnalysis.header.tist = parseResult.frame.get_tail_tist();
+                                frameAnalysis.header.tist_ms = parseResult.frame.get_tail_tist_ms();
+                            } else {
+                                frameAnalysis.header.tist = lidata.tist;
+                            }
+                            // Row 10 (timestamp_source): mtime mode replaces
+                            // the per-frame TIST ms with a file-mtime-derived
+                            // value (24 ms per-frame stepping).
+                            if (m_settings.timestamp_source == eti::TimestampSource::Mtime) {
+                                const qint64 mtime_ms = fileInfo.lastModified().toMSecsSinceEpoch();
+                                frameAnalysis.header.tist_ms =
+                                    static_cast<double>(mtime_ms) + (processedFrames - 1) * 24.0;
+                            }
                             frameAnalysis.header.format = (eti::detectETIFormat(
                                 reinterpret_cast<const uint8_t*>(frameData.data()),
                                 frameData.size()
@@ -205,7 +931,20 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                                 // Protection info (simplified)
                                 stc.protection_form = subchannel.uep_flag ? "UEP" : "EEP";
                                 stc.protection_level = QString("%1").arg(subchannel.protection_level);
-                                // Calculate approximate bitrate (size * 8kbps per CU)
+                                // Backlog (8): protection table name + table
+                                // CU size (EEP-A 16/8/6/4, EEP-B 27/21/18/15,
+                                // UEP per Table 6.2) via protection_tables.hpp.
+                                stc.protection_table = QString::fromStdString(
+                                    eti::protectionTableName(subchannel.protection_option,
+                                                             subchannel.uep_flag,
+                                                             subchannel.table_index));
+                                stc.cu_size = subchannel.uep_flag
+                                    ? eti::uepSizeCu(subchannel.table_index)
+                                    : eti::eepSizeCu(subchannel.protection_option,
+                                                     subchannel.protection_level);
+                                // Bitrate: STL in CUs × 8 kbps per CU (size 24 -> 192 kbps).
+                                // Consistent with the YAML subchannel output; NOT etisnoop's
+                                // stl*8/3 print, which uses a different unit (F9 resolution).
                                 stc.bitrate_kbps = subchannel.size * 8;
                                 frameAnalysis.stc_fields.append(stc);
                             }
@@ -241,38 +980,86 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                                 discovered_ensembles[eid] = figResult.ensemble_info;
                                 qCInfo(etiMain) << "Discovered ensemble:" << QString("0x%1").arg(eid, 4, 16, QChar('0'))
                                                << "Label:" << QString::fromStdString(figResult.ensemble_info.label);
-                            } else if (!figResult.ensemble_info.label.empty()) {
+                            } else {
+                                auto& stored = discovered_ensembles[eid];
                                 // Update label if not set yet
-                                if (discovered_ensembles[eid].label.empty()) {
-                                    discovered_ensembles[eid].label = figResult.ensemble_info.label;
+                                if (stored.label.empty() && !figResult.ensemble_info.label.empty()) {
+                                    stored.label = figResult.ensemble_info.label;
+                                }
+                                // Row 8: propagate the ensemble short label / mask
+                                if (stored.short_label.empty() && !figResult.ensemble_info.short_label.empty()) {
+                                    stored.short_label = figResult.ensemble_info.short_label;
+                                    stored.character_flag = figResult.ensemble_info.character_flag;
+                                }
+                                // Propagate the Extended Country Code once known (FIG 0/9)
+                                if (stored.extended_country_code == 0 && figResult.ensemble_info.extended_country_code != 0) {
+                                    stored.extended_country_code = figResult.ensemble_info.extended_country_code;
+                                }
+                                // Alarm flag is transient: once set, keep it set
+                                if (figResult.ensemble_info.alarm_flag) {
+                                    stored.alarm_flag = true;
                                 }
                             }
                         }
 
                         // Step 4: Collect service information
+                        // F3: programme services encode CId only (16-bit PD);
+                        // their ECC must be inherited from the ensemble ECC
+                        // (FIG 0/9) when the service carries no ECC itself.
+                        uint8_t service_fallback_ecc = figResult.ensemble_info.extended_country_code;
+                        if (service_fallback_ecc == 0) {
+                            for (const auto& ens : discovered_ensembles) {
+                                if (ens.extended_country_code != 0) {
+                                    service_fallback_ecc = ens.extended_country_code;
+                                    break;
+                                }
+                            }
+                        }
+
                         for (const auto& service : figResult.discovered_services) {
                             if (service.validate_service_id()) {
                                 uint32_t sid = service.service_id;
                                 if (!discovered_services.contains(sid)) {
-                                    discovered_services[sid] = service;
+                                    eti::DabService stored_service = service;
+                                    if (stored_service.extended_country_code == 0 && service_fallback_ecc != 0) {
+                                        stored_service.extended_country_code = service_fallback_ecc;
+                                    }
+                                    discovered_services[sid] = stored_service;
                                     qCInfo(etiMain) << "Discovered service:" << QString("0x%1").arg(sid, 4, 16, QChar('0'))
                                                    << "Label:" << QString::fromStdString(service.label);
-                                } else if (!service.label.empty()) {
-                                    // Update label if not set yet
-                                    if (discovered_services[sid].label.empty()) {
-                                        discovered_services[sid].label = service.label;
+                                } else {
+                                    // Merge label, country info and components
+                                    auto& stored = discovered_services[sid];
+                                    if (stored.label.empty() && !service.label.empty()) {
+                                        stored.label = service.label;
                                     }
-                                    // Merge components
+                                    // Row 8: propagate the short label / mask
+                                    // once known (never clear a known value).
+                                    if (stored.short_label.empty() && !service.short_label.empty()) {
+                                        stored.short_label = service.short_label;
+                                        stored.character_flag = service.character_flag;
+                                    }
+                                    if (stored.extended_country_code == 0 && service.extended_country_code != 0) {
+                                        stored.extended_country_code = service.extended_country_code;
+                                    }
+                                    // F3: fall back to the ensemble ECC while merging
+                                    if (stored.extended_country_code == 0 && service_fallback_ecc != 0) {
+                                        stored.extended_country_code = service_fallback_ecc;
+                                    }
+                                    // F8: keep the full 32-bit SId of data services
+                                    if (stored.sid32 == 0 && service.sid32 != 0) {
+                                        stored.sid32 = service.sid32;
+                                    }
                                     for (const auto& comp : service.components) {
                                         bool found = false;
-                                        for (const auto& existing_comp : discovered_services[sid].components) {
+                                        for (const auto& existing_comp : stored.components) {
                                             if (existing_comp.sub_channel_id == comp.sub_channel_id) {
                                                 found = true;
                                                 break;
                                             }
                                         }
                                         if (!found) {
-                                            discovered_services[sid].components.push_back(comp);
+                                            stored.components.push_back(comp);
                                         }
                                     }
                                 }
@@ -325,6 +1112,12 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                     qCWarning(etiMain) << "Exception parsing frame" << processedFrames << ":" << e.what();
                 }
 
+                // P1: --max-frames limit — stop after N complete frames have
+                // been processed (all statistics then cover the prefix).
+                if (m_max_frames > 0 && processedFrames >= m_max_frames) {
+                    break;
+                }
+
                 // Update progress
                 double progress = static_cast<double>(processedFrames) / expectedFrames;
                 m_progress = qMin(progress, 1.0);
@@ -350,6 +1143,18 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
             }
         }
         frameFile.close();
+    }
+
+    // Row 6 (ecc_override): manual ECC for country resolution when set.
+    // Applied to the merged ensemble/services so the YAML country lookup and
+    // every other consumer see the override.
+    if (m_settings.ecc_override >= 0) {
+        for (auto& ens : discovered_ensembles) {
+            ens.extended_country_code = static_cast<uint8_t>(m_settings.ecc_override);
+        }
+        for (auto& service : discovered_services) {
+            service.extended_country_code = static_cast<uint8_t>(m_settings.ecc_override);
+        }
     }
 
     // Calculate processing statistics
@@ -416,18 +1221,22 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
         fig01_sc.subchannel_id = subchannel.sub_channel_id;
         fig01_sc.start_address = subchannel.start_address;
 
-        // Determine form based on UEP flag
+        // Determine form based on UEP flag.
+        // Convention: short form (3-byte entry) == UEP, long form (4-byte
+        // entry) == EEP (EN 300 401 8.1.2.1).
         fig01_sc.short_form = subchannel.uep_flag;
 
         if (fig01_sc.short_form) {
-            // Short form (UEP): estimate table index from size
-            fig01_sc.table_index = (subchannel.size / 8);  // Simplified
-            fig01_sc.table_switch = 0;
+            // Short form (UEP): the wire table_switch/table_index select the
+            // UEP protection-table entry (EN 300 401 §6.2); the size is the
+            // table value, not signalled in the stream (backlog item 8).
+            fig01_sc.table_switch = subchannel.table_switch;
+            fig01_sc.table_index = subchannel.table_index;
         } else {
             // Long form (EEP)
             fig01_sc.subchannel_size = subchannel.size;
             fig01_sc.protection_level = subchannel.protection_level;
-            fig01_sc.option = 0;  // Default option
+            fig01_sc.option = subchannel.protection_option;  // 0 = EEP-x-A, 1 = EEP-x-B
         }
         fig01_sc.is_valid = true;
         result.subchannels.push_back(fig01_sc);
@@ -435,6 +1244,39 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
 
     // AGENT 45 FIX: Populate FIG type counts
     result.fig_type_counts = fig_type_counts;
+
+    // P1: FIG inventory (sorted by (type, ext) via QMap key order), FIC/FIB
+    // health counters and the per-frame FIG trace lines.
+    result.fig_inventory.reserve(static_cast<size_t>(figInventory.size()));
+    for (const auto& entry : figInventory) {
+        result.fig_inventory.push_back(entry);
+    }
+    result.fic_health.fib_crc_failures = fibCrcFailures;
+    result.fic_health.total_fibs = totalFibs;
+    result.fic_health.erroneous_figs = erroneousFigs;
+    result.fic_health.reconfiguration_count = reconfigurationCount;
+    result.fig_trace_lines = figTraceLines;
+
+    // Backlog P2/P3: grouped-by-FIG lines (deterministic (type, ext) order
+    // via QMap; frames capped at 64 for readability) and per-FIB hex lines.
+    {
+        constexpr int kFramesShown = 64;
+        for (auto it = figGroups.constBegin(); it != figGroups.constEnd(); ++it) {
+            const quint32 key = it.key();
+            const FigTypeGroup& group = it.value();
+            QStringList shown = group.frames.mid(0, kFramesShown);
+            QString line = QString("figs-by-type: fig=%1/%2 count=%3 frames=\"%4\"")
+                .arg(key >> 8).arg(key & 0xFF)
+                .arg(group.count).arg(shown.join(","));
+            if (group.frames.size() > kFramesShown) {
+                line += QString(" (+%1 more)").arg(group.frames.size() - kFramesShown);
+            }
+            line += QString(" values=[%1]").arg(group.values.join("; "));
+            result.figs_by_type_lines.append(line);
+            std::cerr << line.toStdString() << std::endl;
+        }
+    }
+    result.fib_hex_lines = fibHexLines;
 
     // ETSI compliance
     result.etsiCompliant = (errorFrames == 0);
@@ -503,6 +1345,10 @@ bool HeadlessETIProcessor::initialize_components()
             Logger::instance().log(Logger::Error, "HeadlessETIProcessor", "Failed to initialize ModernETIFrameParser");
             return false;
         }
+
+        // Thread the user-selected analyzer settings (rows 1-14) through to
+        // the decode path; defaults() keep a plain run byte-identical.
+        m_frameParser->setAnalyzerSettings(m_settings);
 
         m_figAnalyzer = std::make_unique<eti::modern::EnhancedFIGAnalyzer>();
         if (!m_figAnalyzer->initialize()) {
