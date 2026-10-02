@@ -24,6 +24,12 @@
  *   i) default ACTIVE tab per tabbed group on a fresh launch (first dock of
  *      each group: Player, Ensemble Explorer, Frame Navigator, ETI Overview,
  *      DAB Error Counter, System Messages for the bottom strip)
+ *   j) PANEL_AUDIT real-data wiring: after loading the real Bangkok fixture
+ *      the panels show DECODED data — ensemble tree ("Bangkok DAB+", "RROne
+ *      FM 101"), 16-row EEP subchannel table, Tab-2 overview labels with real
+ *      ensemble/FIG/subchannel counts, Tab-2 service table with labels,
+ *      Tab-3 FIG instance tracer (FIG 0/0 + 1/0 rows + real element tree),
+ *      and the FIB CRC error counter at 0 on the clean capture.
  *
  * Compiles the REAL application: src/main.cpp is included with GUI_TEST_MODE
  * (which excludes main()); the rest of ${SOURCES} is compiled by the target.
@@ -42,6 +48,7 @@
 #include <QPushButton>
 #include <QLineEdit>
 #include <QVBoxLayout>
+#include <functional>
 
 #include "DockManager.h"
 #include "DockWidget.h"
@@ -68,6 +75,8 @@ private slots:
     void testLayoutVersionReset();
     void testFloatingRoundTrip();
     void testAutoHideConfig();
+    void testReloadResetsAnalyzerState();
+    void testEnsembleTreeRealFixture();
 
 private:
     // Removes every DABAnalyzerWindow QSettings key used by the app so each
@@ -739,6 +748,53 @@ void TestGuiDockLayout::testFloatingRoundTrip()
     QCoreApplication::processEvents();
 }
 
+void TestGuiDockLayout::testReloadResetsAnalyzerState()
+{
+    // Finding 10: loadETIFile() must reset the FIG analyzer before a NEW
+    // file so Tab-3 instances / FIG counters / FIB-CRC counts restart clean
+    // instead of accumulating across files.
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // cwd for ctest GUI tests is <build>/tests -> fixture lives two levels up
+    const QString fixture = QStringLiteral("../../eti/bkk_20062022_141637.eti");
+    QVERIFY2(QFileInfo::exists(fixture),
+             qPrintable(QString("fixture missing: %1 (cwd=%2)")
+                            .arg(fixture, QDir::currentPath())));
+
+    // --- First load: full fixture ---
+    w.autoLoadFile(fixture);
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0,
+                             120000);
+    const int inst1 = w.analyzerFigInstanceCount();
+    const int total1 = w.analyzerTotalFigCount();
+    QVERIFY2(total1 > 0, "first load must decode FIGs");
+    QVERIFY2(inst1 > 0, "first load must record FIG instances");
+
+    // --- Second load of the same file: without the analyzer reset the
+    // instance list / counters would accumulate (inst2 ~= inst1 + inst1) ---
+    w.autoLoadFile(fixture);
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0,
+                             120000);
+    const int inst2 = w.analyzerFigInstanceCount();
+    const int total2 = w.analyzerTotalFigCount();
+    QVERIFY2(inst2 <= inst1,
+             qPrintable(QString("FIG instances accumulated across reloads: "
+                                "%1 -> %2").arg(inst1).arg(inst2)));
+    QVERIFY2(total2 <= total1,
+             qPrintable(QString("FIG counters accumulated across reloads: "
+                                "%1 -> %2").arg(total1).arg(total2)));
+    // FIB-CRC failures stay at 0 on the clean capture across reloads.
+    QCOMPARE(w.analyzerFibCrcFailureCount(), 0);
+    // The Tab-3 instance tree reflects only the second load.
+    QCOMPARE(w.tab3FigInstanceTree()->topLevelItemCount(), inst2);
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
 void TestGuiDockLayout::testAutoHideConfig()
 {
     // Auto-hide (pin) config was enabled once in setupUI() before the first
@@ -754,6 +810,252 @@ void TestGuiDockLayout::testAutoHideConfig()
     QVERIFY(defaults.testFlag(ads::CDockWidget::DockWidgetFloatable));
     QVERIFY(defaults.testFlag(ads::CDockWidget::DockWidgetMovable));
     QVERIFY(defaults.testFlag(ads::CDockWidget::DockWidgetPinnable));
+}
+
+void TestGuiDockLayout::testEnsembleTreeRealFixture()
+{
+    // GUI decode-path validation on the REAL Bangkok fixture: after the file
+    // loads and the frame/FIG processing pipeline drains, the DAB Ensemble
+    // Explorer tree must show the decoded ensemble label ("Bangkok DAB+",
+    // EId 0x2000) and the decoded service label ("RROne FM 101") — not
+    // mojibake/garbage from the pre-fix FIG walking (this test documents the
+    // v1.3 GUI decode fix; the deterministic decode itself is covered by
+    // test_advanced_fig_analyzer).
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // cwd for ctest GUI tests is <build>/tests -> fixture lives two levels up
+    const QString fixture = QStringLiteral("../../eti/bkk_20062022_141637.eti");
+    QVERIFY2(QFileInfo::exists(fixture),
+             qPrintable(QString("fixture missing: %1 (cwd=%2)")
+                            .arg(fixture, QDir::currentPath())));
+    w.autoLoadFile(fixture);
+
+    // Frame processing is synchronous inside processETIFile(); drain any
+    // queued signals, then wait (with the event loop) for the tree to be
+    // populated by onProcessingComplete() -> updateEnsembleTree().
+    QCoreApplication::processEvents();
+    QTRY_VERIFY_WITH_TIMEOUT(w.ensembleTree() &&
+                                 w.ensembleTree()->topLevelItemCount() > 0,
+                             120000);
+
+    // The top-level item is the ensemble: "Bangkok DAB+ [EID: 0x2000]"
+    QTreeWidgetItem* ensembleItem = w.ensembleTree()->topLevelItem(0);
+    QVERIFY(ensembleItem);
+    const QString ensembleText = ensembleItem->text(0);
+    QVERIFY2(ensembleText.contains(QStringLiteral("Bangkok DAB+"),
+                                   Qt::CaseInsensitive),
+             qPrintable(QString("ensemble tree text: %1").arg(ensembleText)));
+
+    // Services are children of the ensemble item; the fixture's service
+    // 0x2C61 must appear with its decoded label (ASCII charset 0; the app
+    // upper-cases display text).
+    bool foundRROne = false;
+    for (int i = 0; i < ensembleItem->childCount(); ++i) {
+        const QString svcText = ensembleItem->child(i)->text(0);
+        if (svcText.contains(QStringLiteral("RROne FM 101"), Qt::CaseInsensitive)) {
+            foundRROne = true;
+            QVERIFY2(!svcText.contains(QStringLiteral("\uFFFD")),
+                     "service label must not contain replacement characters");
+            break;
+        }
+    }
+    QVERIFY2(foundRROne, "service 'RROne FM 101' not found in ensemble tree");
+
+    // =====================================================================
+    // PANEL_AUDIT real-data assertions (v1.3 GUI wiring wave): every panel
+    // below must show DECODED data after the load, never the old
+    // "Ready"/"Available"/"TODO" literals or simulated content.
+    // =====================================================================
+
+    // --- Subchannel Organization (Tab 1 center): 16 real subchannels,
+    // EEP (etisnoop-parity semantics: EEP = long form) ---
+    QTableWidget* subT = w.subchannelTable();
+    QVERIFY(subT);
+    QCOMPARE(subT->rowCount(), 16);
+    bool foundEep = false;
+    for (int r = 0; r < subT->rowCount() && !foundEep; ++r) {
+        for (int c = 0; c < subT->columnCount(); ++c) {
+            QTableWidgetItem* it = subT->item(r, c);
+            if (it && it->text().contains(QLatin1String("EEP"))) {
+                foundEep = true;
+                break;
+            }
+        }
+    }
+    QVERIFY2(foundEep, "subchannel table must contain an EEP row");
+
+    // --- Tab 2 overview labels: real ensemble, FIG and subchannel counts ---
+    QLabel* ensLabel = w.tab2EnsembleNameLabel();
+    QVERIFY(ensLabel);
+    const QString ensText = ensLabel->text();
+    QVERIFY2(!ensText.contains(QLatin1String("Ready"))
+                 && !ensText.contains(QLatin1String("Available")),
+             qPrintable(QString("overview ensemble label must be real, got: %1").arg(ensText)));
+    QVERIFY2(!ensText.contains(QLatin1String("(none)")),
+             qPrintable(QString("overview ensemble must not be (none), got: %1").arg(ensText)));
+    QVERIFY2(ensText.contains(QLatin1String("Bangkok DAB+"), Qt::CaseInsensitive),
+             qPrintable(QString("overview ensemble label mismatch: %1").arg(ensText)));
+
+    QLabel* ficLabel = w.tab2FicContentSummaryLabel();
+    QVERIFY(ficLabel);
+    const QString ficText = ficLabel->text();
+    QVERIFY2(!ficText.contains(QLatin1String("Available"))
+                 && !ficText.contains(QLatin1String("Ready")),
+             qPrintable(QString("FIC summary must be real, got: %1").arg(ficText)));
+    // "FIC Content: N FIGs" with N > 0
+    const QRegularExpression figCountRe(QStringLiteral("FIC Content: (\\d+) FIGs"));
+    const QRegularExpressionMatch figCountMatch = figCountRe.match(ficText);
+    QVERIFY2(figCountMatch.hasMatch(),
+             qPrintable(QString("FIC summary must carry a FIG count, got: %1").arg(ficText)));
+    QVERIFY2(figCountMatch.captured(1).toInt() > 0,
+             qPrintable(QString("FIC summary FIG count must be > 0, got: %1").arg(ficText)));
+
+    QLabel* subLabel = w.tab2SubchannelOrgSummaryLabel();
+    QVERIFY(subLabel);
+    const QString subText = subLabel->text();
+    QVERIFY2(!subText.contains(QLatin1String("Ready"))
+                 && !subText.contains(QLatin1String("Available")),
+             qPrintable(QString("subchannel summary must be real, got: %1").arg(subText)));
+    QVERIFY2(subText.contains(QLatin1String("16")),
+             qPrintable(QString("subchannel summary must show 16, got: %1").arg(subText)));
+
+    // --- Tab 2 service table: real rows with visible labels ---
+    QTableWidget* svcT = w.tab2ServiceTable();
+    QVERIFY(svcT);
+    QVERIFY2(svcT->rowCount() >= 1,
+             qPrintable(QString("service table rows: %1").arg(svcT->rowCount())));
+    bool foundSvcLabel = false;
+    for (int r = 0; r < svcT->rowCount() && !foundSvcLabel; ++r) {
+        QTableWidgetItem* labelItem = svcT->item(r, 1);
+        if (labelItem && !labelItem->text().isEmpty()
+            && labelItem->text() != QLatin1String("-")) {
+            foundSvcLabel = true;
+        }
+    }
+    QVERIFY2(foundSvcLabel, "service table must show real service labels");
+
+    // --- Tab 3 FIG instance tracer: real chronological instances ---
+    QTreeWidget* figTree = w.tab3FigInstanceTree();
+    QVERIFY(figTree);
+    QVERIFY2(figTree->topLevelItemCount() >= 1,
+             qPrintable(QString("FIG instance rows: %1").arg(figTree->topLevelItemCount())));
+    bool foundFig00 = false, foundFig10 = false;
+    for (int i = 0; i < figTree->topLevelItemCount(); ++i) {
+        const QString t = figTree->topLevelItem(i)->text(0);
+        if (t.startsWith(QLatin1String("FIG 0/0"))) foundFig00 = true;
+        if (t.startsWith(QLatin1String("FIG 1/0"))) foundFig10 = true;
+    }
+    QVERIFY2(foundFig00, "FIG 0/0 instances missing from the tracer");
+    QVERIFY2(foundFig10, "FIG 1/0 instances missing from the tracer");
+
+    // The details tree must show the real element tree of the pre-selected
+    // instance (buildFIGInstanceTree selects row 0; the queued selection
+    // sync rebuilds the details panel).
+    QTreeWidget* figDetails = w.tab3FigItemDetailsTree();
+    QVERIFY(figDetails);
+    QTRY_VERIFY_WITH_TIMEOUT(figDetails->topLevelItemCount() > 0, 10000);
+    const QString detailRoot = figDetails->topLevelItem(0)->text(0);
+    QVERIFY2(detailRoot.startsWith(QLatin1String("FIG ")),
+             qPrintable(QString("detail root must be a FIG, got: %1").arg(detailRoot)));
+
+    // --- Finding 3: a real FIG 1/1 details row must decode the wire order
+    // label@off(16 B) + flag@off+16. Scan the tracer's FIG 1/1 instances
+    // until the RROne one (SId 0x2C61) is found: its details must show
+    // "RROne FM 101" with character flag 0xF870.
+    bool foundRROneLabel = false, foundF870 = false;
+    for (int i = 0; i < figTree->topLevelItemCount() && !foundRROneLabel; ++i) {
+        QTreeWidgetItem* row = figTree->topLevelItem(i);
+        if (!row->text(0).startsWith(QLatin1String("FIG 1/1"))) {
+            continue;
+        }
+        figTree->setCurrentItem(row);
+        QCoreApplication::processEvents();
+        QTRY_VERIFY_WITH_TIMEOUT(
+            figDetails->topLevelItemCount() > 0 &&
+                figDetails->topLevelItem(0)->text(0).startsWith(QLatin1String("FIG 1/1")),
+            10000);
+        std::function<void(const QTreeWidgetItem*)> walkDetails =
+            [&](const QTreeWidgetItem* item) {
+                for (int c = 0; c < item->childCount(); ++c) {
+                    const QTreeWidgetItem* child = item->child(c);
+                    const QString value = child->text(2).trimmed();
+                    if (value == QLatin1String("RROne FM 101")) foundRROneLabel = true;
+                    if (value.compare(QLatin1String("0xF870"), Qt::CaseInsensitive) == 0) {
+                        foundF870 = true;
+                    }
+                    walkDetails(child);
+                }
+            };
+        walkDetails(figDetails->topLevelItem(0));
+    }
+    if (!foundRROneLabel || !foundF870) {
+        // Diagnostic: dump the details rows of the last selected FIG 1/1.
+        std::function<void(const QTreeWidgetItem*, int)> dump =
+            [&](const QTreeWidgetItem* item, int depth) {
+                qInfo().noquote() << QString(depth * 2, ' ')
+                                  << item->text(0) << "|" << item->text(2)
+                                  << "|" << item->text(3);
+                for (int c = 0; c < item->childCount(); ++c) {
+                    dump(item->child(c), depth + 1);
+                }
+            };
+        dump(figDetails->topLevelItem(0), 0);
+    }
+    QVERIFY2(foundRROneLabel,
+             "FIG 1/1 details must show the service label 'RROne FM 101'");
+    QVERIFY2(foundF870,
+             "FIG 1/1 details must show the character flag 0xF870");
+
+    // --- Finding 5: FIC overview fed with real analyzer values ---
+    QTreeWidget* ficOverview = w.ficOverviewTree();
+    QVERIFY(ficOverview);
+    QVERIFY2(ficOverview->topLevelItemCount() > 0,
+             "FIC overview tree must be populated");
+    bool foundFicStream = false, foundFigCounts = false;
+    bool noPlaceholder = true;
+    std::function<void(const QTreeWidgetItem*)> walkOverview =
+        [&](const QTreeWidgetItem* item) {
+            const QString prop = item->text(0);
+            const QString value = item->text(1);
+            if (prop == QLatin1String("FIC stream")) foundFicStream = true;
+            if (prop == QLatin1String("FIG counts by type")) foundFigCounts = true;
+            if (value.contains(QLatin1String("Ready for data"))
+                || value.contains(QLatin1String("Data Available"))) {
+                noPlaceholder = false;
+            }
+            for (int c = 0; c < item->childCount(); ++c) {
+                walkOverview(item->child(c));
+            }
+        };
+    for (int i = 0; i < ficOverview->topLevelItemCount(); ++i) {
+        walkOverview(ficOverview->topLevelItem(i));
+    }
+    QVERIFY2(foundFicStream, "FIC overview must show the real FIC stream row");
+    QVERIFY2(foundFigCounts, "FIC overview must show FIG counts by type");
+    QVERIFY2(noPlaceholder,
+             "FIC overview must not contain placeholder literals");
+
+    // --- Error & Stats: FIB CRC error counter fed from the analyzer ---
+    QTableWidget* errT = w.errorCounterTable();
+    QVERIFY(errT);
+    int fibCrcRow = -1;
+    for (int r = 0; r < errT->rowCount(); ++r) {
+        QTableWidgetItem* typeItem = errT->item(r, 0);
+        if (typeItem && typeItem->text() == QLatin1String("FIB CRC Errors")) {
+            fibCrcRow = r;
+            break;
+        }
+    }
+    QVERIFY2(fibCrcRow >= 0, "FIB CRC Errors row missing from error counter");
+    QTableWidgetItem* fibCrcCount = errT->item(fibCrcRow, 1);
+    QVERIFY(fibCrcCount);
+    QCOMPARE(fibCrcCount->text(), QStringLiteral("0"));  // clean capture
+
+    w.close();
+    QCoreApplication::processEvents();
 }
 
 QTEST_MAIN(TestGuiDockLayout)

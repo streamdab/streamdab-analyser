@@ -188,12 +188,12 @@ void TestFIG1Processor::testShortLabelExtraction()
         label.full_label[i] = full[i].toLatin1();
     }
 
-    // Character flag: Select positions 0,1,2,4,10 (B,B,C, ,1)
-    // Character flag bit pattern (MSB first):
+    // Character flag: Select positions 0,1,2,10 (B,B,C,1)
+    // Character flag bit pattern (spec order, bit 15 = character 0):
     // Position: 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
-    // Selected:  0  0  0  0  0  1  0  0  0  0  0  1  0  1  1  1
-    // Binary: 0000 0010 0000 1111 = 0x020F
-    label.character_flag = 0x0407;  // Positions 0,1,2,10
+    // Selected:  1  1  1  0  0  0  0  0  0  0  1  0  0  0  0  0
+    // Binary: 1110 0000 0010 0000 = 0xE020
+    label.character_flag = 0xE020;  // Positions 0,1,2,10 (bit 15 = char 0)
 
     QString short_label = label.getShortLabel();
 
@@ -216,8 +216,8 @@ void TestFIG1Processor::testCharacterFlagBitMask()
     }
 
     // Select first 4 characters: 0,1,2,3
-    // Bits 0-3 set: 0x000F
-    label.character_flag = 0x000F;
+    // Spec order (bit 15 = character 0): bits 15-12 set = 0xF000
+    label.character_flag = 0xF000;
 
     QString short_label = label.getShortLabel();
 
@@ -316,8 +316,8 @@ void TestFIG1Processor::testFIG1_0_ShortLabel()
     // Ensemble label with short form
     // Full: "Bangkok DAB     "
     // Short: "BKK DAB" (positions 0,1,2,8,9,10,11)
-    // Character flag: bits 0,1,2,8,9,10,11 = 0x0F07
-    QByteArray fig = createFIG1_0("Bangkok DAB     ", 0x0F07);
+    // Character flag (spec order, bit 15 = char 0): bits 15,14,13,7,6,5,4 = 0xE0F0
+    QByteArray fig = createFIG1_0("Bangkok DAB     ", 0xE0F0);
 
     m_analyzer->analyzeFICData(fig);
 
@@ -453,7 +453,8 @@ void TestFIG1Processor::testFIG1_1_ShortLabelGeneration()
     // Full: "BBC World Service"
     // Short: "BBC WS" (character flag selects specific positions)
     // Positions: 0,1,2,6,7 -> "BBC W S"
-    uint16_t char_flag = 0x00C7;  // Bits 0,1,2,6,7
+    // Spec order (bit 15 = char 0): bits 15,14,13,9,8 = 0xE300
+    uint16_t char_flag = 0xE300;  // Bits 15,14,13,9,8
 
     QByteArray fig = createFIG1_1(0xE0D00001, "BBC WorldService", char_flag);
 
@@ -565,8 +566,8 @@ void TestFIG1Processor::testCharacterFlag_FirstEight()
         label.full_label[i] = full[i].toLatin1();
     }
 
-    // Select first 8 characters
-    label.character_flag = 0x00FF;
+    // Select first 8 characters (spec order: bit 15 = char 0 -> 0xFF00)
+    label.character_flag = 0xFF00;
 
     QString short_label = label.getShortLabel();
 
@@ -583,8 +584,8 @@ void TestFIG1Processor::testCharacterFlag_LastEight()
         label.full_label[i] = full[i].toLatin1();
     }
 
-    // Select last 8 characters
-    label.character_flag = 0xFF00;
+    // Select last 8 characters (spec order: bits 7-0 = chars 8-15 = 0x00FF)
+    label.character_flag = 0x00FF;
 
     QString short_label = label.getShortLabel();
 
@@ -864,47 +865,28 @@ QByteArray TestFIG1Processor::createFIG1_1(uint32_t service_id, const QString& l
     QByteArray fig;
 
     // Auto-detect data service if not explicitly specified
-    // Match the logic in setupServiceForLabeling for consistency
     if (!is_data_service && service_id > 0xFFFF) {
         is_data_service = true;  // Auto-detect as data service
     }
 
-    // Determine Service ID encoding based on value and service type
-    // Programme services can use either 16-bit or 32-bit encoding
-    // Data services always use 32-bit encoding
     bool use_16bit_sid = !is_data_service && (service_id <= 0xFFFF);
 
-    // FIC header (2 bytes) - ETSI EN 300 401 Section 5.2
-    uint8_t type_byte = (1 << 5);  // FIG type 1, C/N=0, OE=0
-    fig.append(static_cast<char>(type_byte));
+    // FIG header (1 byte per EN 300 401 clause 5.2): type (b7-b5) + length
+    // (b4-b0). Data = ext(1) + SId(2/4) + label(16) + mask(2).
+    uint8_t fig_len = use_16bit_sid ? 21 : 23;
+    fig.append(static_cast<char>((1 << 5) | fig_len));
+
+    // First data byte: charset(4) | O/E(1) | extension(3) = 1
+    fig.append(static_cast<char>(0x01));
 
     if (use_16bit_sid) {
-        // 16-bit Service ID: Length=22 bytes (ext + pd/charset + SId16 + label + flag)
-        fig.append(static_cast<char>(0x16));  // 22 decimal = 0x16
-    } else {
-        // 32-bit Service ID: Length=24 bytes (ext + pd/charset + SId32 + label + flag)
-        fig.append(static_cast<char>(0x18));  // 24 decimal = 0x18
-    }
-
-    // Extension byte (1 byte) - FIG Type 1, Extension 1
-    // Bits 7-3: Extension number (1)
-    // Bits 2-0: Reserved for OE/Charset (0)
-    uint8_t ext_byte = (1 << 3);  // Extension 1 in bits 7-3
-    fig.append(static_cast<char>(ext_byte));
-
-    // P/D + Charset/OE field (1 byte) - ETSI EN 300 401 Section 8.1.14.1
-    // Bit 3: P/D flag (0 = programme, 1 = data)
-    // Bit 2: Charset (0 = EBU Latin)
-    // Bits 1-0: OE (0)
-    uint8_t pd_byte = is_data_service ? (1 << 3) : 0x00;
-    fig.append(static_cast<char>(pd_byte));
-
-    if (use_16bit_sid) {
-        // Service ID (16-bit) - lower 16 bits only
-        fig.append(static_cast<char>((service_id >> 8) & 0xFF));
+        // 16-bit programme SId at data[1..2]; the P/D flag is bit 15 (0),
+        // which processFIG1_1 masks away (same 15-bit key as FIG 0/2).
+        fig.append(static_cast<char>((service_id >> 8) & 0x7F));
         fig.append(static_cast<char>(service_id & 0xFF));
     } else {
-        // Service ID (32-bit) - full ECC + Country + Service Reference
+        // 32-bit data-service SId at data[1..4]; the P/D flag is the MSB
+        // (bit 31, naturally set for ECC 0xE0..0xFF data services).
         fig.append(static_cast<char>((service_id >> 24) & 0xFF));
         fig.append(static_cast<char>((service_id >> 16) & 0xFF));
         fig.append(static_cast<char>((service_id >> 8) & 0xFF));
@@ -928,23 +910,30 @@ QByteArray TestFIG1Processor::createFIG1_4(uint32_t service_id, uint8_t componen
 {
     QByteArray fig;
 
-    // FIC header (2 bytes) - ETSI EN 300 401 Section 5.2
-    uint8_t type_byte = (1 << 5);  // FIG type 1, C/N=0, OE=0
-    fig.append(static_cast<char>(type_byte));
-    fig.append(static_cast<char>(0x14));  // Length=20 bytes (ext + P/D + SCIdS + label + flag)
+    // FIG header (1 byte per EN 300 401 clause 5.2): type (b7-b5) + length
+    // (b4-b0). Data = ext(1) + P/D+SCIdS(1) + SId(2/4) + label(16) + mask(2).
+    bool is_packet = service_id > 0xFFFF;
+    uint8_t fig_len = is_packet ? 24 : 22;
+    fig.append(static_cast<char>((1 << 5) | fig_len));
 
-    // Extension + P/D + SCIdS upper bits (1 byte) - ETSI EN 300 401 Section 8.1.14.3
-    // For stream mode component (P/D=0), SCIdS is 6-bit (0-63)
-    uint8_t ext_byte = (4 << 3);  // Extension 4, P/D=0 (stream mode)
-    // SCIdS bits 5-4 go to bits 1-0 of this byte
-    ext_byte |= ((component_id >> 4) & 0x03);
-    fig.append(static_cast<char>(ext_byte));
+    // First data byte: charset(4)=0 | O/E(1)=0 | extension(3)=4
+    fig.append(static_cast<char>(0x04));
 
-    // SCIdS lower bits + reserved (1 byte)
-    // Bits 7-4: SCIdS bits 3-0
-    // Bits 3-0: Reserved (set to 0)
-    uint8_t scids_byte = ((component_id & 0x0F) << 4);
-    fig.append(static_cast<char>(scids_byte));
+    // Second data byte: P/D flag (b7) + rfu (b6-b4) + SCIdS (b3-b0)
+    // (etisnoop fig1.cpp case 4: SCIdS = f[1] & 0x0F)
+    uint8_t pd_scids = (is_packet ? 0x80 : 0x00) | (component_id & 0x0F);
+    fig.append(static_cast<char>(pd_scids));
+
+    // Service ID (16-bit for stream components, 32-bit for packet components)
+    if (is_packet) {
+        fig.append(static_cast<char>((service_id >> 24) & 0xFF));
+        fig.append(static_cast<char>((service_id >> 16) & 0xFF));
+        fig.append(static_cast<char>((service_id >> 8) & 0xFF));
+        fig.append(static_cast<char>(service_id & 0xFF));
+    } else {
+        fig.append(static_cast<char>((service_id >> 8) & 0xFF));
+        fig.append(static_cast<char>(service_id & 0xFF));
+    }
 
     // Label (16 characters) - ETSI EN 300 401 Section 8.1.14.3
     for (int i = 0; i < 16; ++i) {
@@ -994,22 +983,12 @@ QByteArray TestFIG1Processor::createLabelData(const QString& label, uint16_t cha
 {
     QByteArray fig;
 
-    // FIC header (2 bytes) - ETSI EN 300 401 Section 5.2
-    uint8_t type_byte = (1 << 5);  // FIG type 1, C/N=0, OE=0
-    fig.append(static_cast<char>(type_byte));
-    fig.append(static_cast<char>(0x16));  // Length=22 bytes (ext + charset + EId + label + flag = 1+1+2+16+2)
+    // FIG header (1 byte per EN 300 401 clause 5.2): type (b7-b5) + length
+    // (b4-b0). FIG 1/0 data = ext(1) + EId(2) + label(16) + mask(2) = 21 B.
+    fig.append(static_cast<char>((1 << 5) | 21));  // FIG type 1, length 21
 
-    // Extension field (1 byte) - ETSI EN 300 401 Section 8.1.13
-    // Bits 7-3: Extension (0 for FIG 1/0)
-    // Bits 2-0: Reserved (0)
-    uint8_t ext_byte = (0 << 3);  // Extension 0
-    fig.append(static_cast<char>(ext_byte));
-
-    // Charset/OE field (1 byte)
-    // Bit 4: Charset (0 = EBU Latin)
-    // Bits 0-3: OE (Other Ensemble, 0 for current)
-    uint8_t charset_byte = 0x00;  // Charset=0 (EBU Latin), OE=0
-    fig.append(static_cast<char>(charset_byte));
+    // First data byte: charset(4) | O/E(1) | extension(3) = 0 (EBU Latin)
+    fig.append(static_cast<char>(0x00));
 
     // Ensemble ID (2 bytes) - test ensemble ID 0x1234
     fig.append(static_cast<char>(0x12));  // EId MSB
@@ -1022,7 +1001,6 @@ QByteArray TestFIG1Processor::createLabelData(const QString& label, uint16_t cha
     }
 
     // Character flag (2 bytes, big-endian) - ETSI EN 300 401 Section 8.1.13.1
-    // Bit mask indicating which characters form the short label
     fig.append(static_cast<char>((char_flag >> 8) & 0xFF));  // MSB
     fig.append(static_cast<char>(char_flag & 0xFF));         // LSB
 
@@ -1039,51 +1017,40 @@ void TestFIG1Processor::setupServiceForLabeling(uint32_t service_id)
     // Step 1: Create sub-channel (FIG 0/1) - Required by FIG 0/2
     QByteArray fig0_1;
 
-    // CRITICAL FIX: Must include Type + Length bytes!
-    uint8_t type_byte = (0 << 5);  // FIG type 0, C/N=0, OE=0
-    fig0_1.append(static_cast<char>(type_byte));
-    fig0_1.append(static_cast<char>(0x05));  // Length=5 bytes (ext + subchannel data)
+    // FIG header (1 byte): type 0, length 4 (ext + 3-byte UEP short entry)
+    fig0_1.append(static_cast<char>(0x04));
 
-    // Extension byte: Extension 1 in bits 7-3
-    uint8_t ext_byte = (1 << 3);  // Extension 1
-    fig0_1.append(static_cast<char>(ext_byte));
+    // Extension byte: extension 1 (FIG 0 ext = data[0] & 0x1F)
+    fig0_1.append(static_cast<char>(0x01));
     fig0_1.append(static_cast<char>(0x00));  // SubChId=0 (bits 7-2) + Start[9:8]=0 (bits 1-0)
     fig0_1.append(static_cast<char>(0x00));  // Start Address[7:0]=0
-    fig0_1.append(static_cast<char>(0x00));  // Padding
-    fig0_1.append(static_cast<char>(0x80 | 0x05));  // Short form (0x80) + Table Index 5
+    fig0_1.append(static_cast<char>(0x05));  // UEP short form (bit 7=0) + Table Index 5
     m_analyzer->analyzeFICData(fig0_1);
 
     // Step 2: Create service (FIG 0/2) with correct SId encoding per ETSI EN 300 401
     QByteArray fig0_2;
 
-    // CRITICAL FIX: Must include Type + Length bytes!
-    type_byte = (0 << 5);  // FIG type 0, C/N=0, OE=0
-    fig0_2.append(static_cast<char>(type_byte));
-
     if (is_programme) {
         // Programme service: 16-bit Service ID
-        // Length = ext(1) + pd/sid(2) + numcomp(1) + component(2) = 6
-        fig0_2.append(static_cast<char>(0x06));  // Length=6
+        // Length = ext(1) + sid(2) + numcomp(1) + component(2) = 6
+        fig0_2.append(static_cast<char>(0x06));
 
-        // Extension byte: Extension 2 in bits 7-3
-        uint8_t ext_byte = (2 << 3);  // Extension 2
-        fig0_2.append(static_cast<char>(ext_byte));
+        // Extension byte: extension 2, P/D=0 (programme; P/D is FIG-level)
+        fig0_2.append(static_cast<char>(0x02));
 
-        // P/D byte + Service ID MSB
-        // ETSI EN 300 401: P/D flag in bit 7, SId[14:8] in bits 6-0
-        uint8_t pd_byte = 0x80 | ((service_id >> 8) & 0x7F);  // P/D=1 (programme)
-        fig0_2.append(static_cast<char>(pd_byte));
+        // Service ID MSB (P/D flag in bit 15 — reflected in the 0x7FFF key
+        // convention shared with processFIG1_1)
+        fig0_2.append(static_cast<char>(0x80 | ((service_id >> 8) & 0x7F)));
 
         // Service ID LSB
         fig0_2.append(static_cast<char>(service_id & 0xFF));
     } else {
         // Data service: 32-bit Service ID
         // Length = ext(1) + sid32(4) + numcomp(1) + component(2) = 8
-        fig0_2.append(static_cast<char>(0x08));  // Length=8
+        fig0_2.append(static_cast<char>(0x08));
 
-        // Extension byte: Extension 2 in bits 7-3
-        uint8_t ext_byte = (2 << 3);  // Extension 2
-        fig0_2.append(static_cast<char>(ext_byte));
+        // Extension byte: extension 2, P/D=1 (data services use 32-bit SIds)
+        fig0_2.append(static_cast<char>(0x22));
 
         // Full 32-bit Service ID (no P/D flag for 32-bit encoding)
         fig0_2.append(static_cast<char>((service_id >> 24) & 0xFF));
@@ -1092,15 +1059,16 @@ void TestFIG1Processor::setupServiceForLabeling(uint32_t service_id)
         fig0_2.append(static_cast<char>(service_id & 0xFF));
     }
 
-    // Number of components (1) in high nibble + Local flag + CAId
+    // Number of components (1) in low nibble + Local flag + CAId
     fig0_2.append(static_cast<char>(0x10));  // NumComp=1, Local=0, CAId=0
 
     // Component descriptor (2 bytes)
     // Byte 0: TMId (2 bits) + ASCTy/DSCTy (6 bits)
     fig0_2.append(static_cast<char>(0x00));  // TMId=0 (MSC stream), ASCTy=0 (DAB audio)
 
-    // Byte 1: P/S flag + CA flag + SubChId
-    fig0_2.append(static_cast<char>(0x00));  // P/S=0 (primary), CA=0, SubChId=0
+    // Byte 1: SubChId (6 bits) + P/S (1 bit) + CA (1 bit) — etisnoop fig0_2.cpp:
+    // subchid = (b1 & 0xFC) >> 2, ps = (b1 & 0x02) >> 1, ca = b1 & 0x01
+    fig0_2.append(static_cast<char>((0 << 2) | (1 << 1) | 0));  // SubChId=0, Primary, CA=0
 
     m_analyzer->analyzeFICData(fig0_2);
 
@@ -1117,26 +1085,23 @@ QByteArray TestFIG1Processor::createFIG0_0(uint16_t ensemble_id)
 {
     QByteArray fig;
 
-    // FIC header (2 bytes)
-    uint8_t type_byte = (0 << 5);  // FIG type 0
-    fig.append(static_cast<char>(type_byte));
-    fig.append(static_cast<char>(0x06));  // Length=6 bytes (ext + eid + change + alarm + cif)
+    // FIG header (1 byte): type 0, length 6 (ext + EId + change + alarm)
+    fig.append(static_cast<char>(0x06));
 
-    // Extension field (1 byte) - Extension 0
-    uint8_t ext_byte = (0 << 3);  // Extension 0 in bits 7-3
-    fig.append(static_cast<char>(ext_byte));
-
-    // Padding byte
+    // Extension field (1 byte) - Extension 0 (FIG 0 ext = data[0] & 0x1F)
     fig.append(static_cast<char>(0x00));
 
     // Ensemble ID (2 bytes)
     fig.append(static_cast<char>((ensemble_id >> 8) & 0xFF));
     fig.append(static_cast<char>(ensemble_id & 0xFF));
 
-    // Change flags (1 byte)
+    // Change flag (2 bits) + Alarm flag (1 bit) + CIF count high (5 bits)
     fig.append(static_cast<char>(0x00));
 
-    // Alarm flag (1 byte)
+    // CIF count low (1 byte)
+    fig.append(static_cast<char>(0x00));
+
+    // Occurrence change (1 byte, present when the change flag is non-zero)
     fig.append(static_cast<char>(0x00));
 
     return fig;
