@@ -13,6 +13,7 @@
 
 #include "modern_eti_frame_parser.hpp"
 #include "eti_types.hpp"
+#include "charset_converter.hpp"
 #include "utils/logger.h"
 #include <algorithm>
 #include <execution>
@@ -203,9 +204,22 @@ ETIParseResult ModernETIFrameParser::parseETI_LI_Frame(std::span<const uint8_t, 
     result.success = result.validation.valid;
     result.error_code = result.success ? ETIParseErrorCode::SUCCESS : ETIParseErrorCode::INVALID_LIDATA;
 
+    // Extract the full FIC (3 or 4 FIBs) at the normalized offset 12 so that
+    // get_fic_field() returns the complete FIC for ETI-LI as well.
+    // FIC length depends on Mode Identity: 128 bytes (4 FIBs) for MID 3,
+    // 96 bytes (3 FIBs) otherwise (ETSI EN 300 799 clause 5.2).
+    auto lidata = result.frame.get_lidata_field();
+    if (lidata.ficf == 1) {
+        const size_t fic_len = (lidata.mid == 3) ? ETI_FIC_MAX_SIZE : ETI_FIC_MIN_SIZE;
+        const size_t fic_offset = 12 + (static_cast<size_t>(lidata.nst) * 4);
+        if (fic_offset + fic_len <= ETI_FRAME_SIZE) {
+            std::memcpy(result.frame.data() + 12, frame_data.data() + fic_offset, fic_len);
+            result.frame.fic_field_size = static_cast<uint16_t>(fic_len);
+        }
+    }
+
     // CRITICAL FIX: Store format and FIC flag for analyzeFIGData
     result.detected_format = ::eti::ETIFormat::ETI_LI;
-    auto lidata = result.frame.get_lidata_field();
     result.has_fic = (lidata.ficf == 1);
 
     return result;
@@ -231,38 +245,37 @@ ETIParseResult ModernETIFrameParser::parseETI_NI_Frame(std::span<const uint8_t, 
     }
 
     // 2. Parse 8-byte ETI-NI header
-    uint8_t err = frame_data[2];        // Error status flags
-    uint8_t framep = frame_data[3];     // Frame position
-    uint8_t fc = frame_data[4];         // Frame Characterization
-    uint8_t byte5 = frame_data[5];      // NST/MID/FP
+    uint8_t fct = frame_data[4];        // Frame Characterization Type / Frame Count
+    uint8_t byte5 = frame_data[5];      // FICF + NST
+    uint8_t byte6 = frame_data[6];      // FP + MID + FL (high)
+    uint8_t byte7 = frame_data[7];      // FL (low)
 
-    // Extract FC fields
-    uint8_t fct = fc & 0x1F;                    // Frame Count (bits 0-4)
-    uint8_t ficf = (fc >> 5) & 0x01;            // FIC Flag (bit 5)
-    uint8_t nst_upper = (fc >> 6) & 0x03;       // NST upper 2 bits (bits 6-7)
+    // Extract FC fields per RAW ETI (ETSI EN 300 799 clause 5.2):
+    //   FCT  = p[4]
+    //   FICF = p[5] bit 7, NST = p[5] bits 6-0
+    //   FP   = p[6] bits 7-5, MID = p[6] bits 4-3, FL = (p[6] bits 2-0)<<8 | p[7]
+    uint8_t ficf = (byte5 & 0x80) >> 7;         // FIC Flag
+    uint8_t nst = byte5 & 0x7F;                 // Number of Sub-channels (in MSC)
+    uint8_t fp = (byte6 & 0xE0) >> 5;           // Frame Phase
+    uint8_t mid = (byte6 & 0x18) >> 3;          // Mode Identity
+    uint16_t fl = static_cast<uint16_t>(((byte6 & 0x07) << 8) | byte7); // Frame Length (words)
 
-    // Extract Byte5 fields
-    uint8_t nst_lower = (byte5 >> 4) & 0x0F;    // NST lower 4 bits (bits 4-7)
-    uint8_t mid = (byte5 >> 2) & 0x03;          // Mode Identity (bits 2-3)
-    uint8_t fp = byte5 & 0x03;                  // Frame Phase (bits 0-1)
+    // FIC length: 96 bytes (3 FIBs) for Modes I/II/IV, 128 bytes (4 FIBs) for Mode III
+    const size_t fic_len = (mid == 3) ? ETI_FIC_MAX_SIZE : ETI_FIC_MIN_SIZE;
 
-    // CRITICAL: NST-1 encoding - Combine and add 1!
-    uint8_t nst_field = (nst_upper << 4) | nst_lower;
-    uint8_t actual_streams = nst_field + 1;  // NST-1 decoding
-
-    // Validate NST
-    if (actual_streams > 64) {
+    // Validate NST (0-64 sub-channels)
+    if (nst > MAX_SUBCHANNEL_COUNT) {
         result.success = false;
         result.error_code = ETIParseErrorCode::INVALID_NST;
         Logger::instance().log(Logger::Error, "ModernETIFrameParser",
-                              QString("Invalid NST: field=%1, actual=%2 (max 64)")
-                              .arg(nst_field).arg(actual_streams));
+                              QString("Invalid NST: %1 (max %2)")
+                              .arg(nst).arg(MAX_SUBCHANNEL_COUNT));
         return result;
     }
 
     Logger::instance().log(Logger::Debug, "ModernETIFrameParser",
-                          QString("ETI-NI header: FC=%1, NST field=%2, actual_streams=%3, FICF=%4, MID=%5, FP=%6")
-                          .arg(fct).arg(nst_field).arg(actual_streams).arg(ficf).arg(mid).arg(fp));
+                          QString("ETI-NI header: FCT=%1, NST=%2, FICF=%3, MID=%4, FP=%5, FL=%6")
+                          .arg(fct).arg(nst).arg(ficf).arg(mid).arg(fp).arg(fl));
 
     // 3. Create ETI frame and populate header fields
     eti::EtiFrame frame;
@@ -272,11 +285,14 @@ ETIParseResult ModernETIFrameParser::parseETI_NI_Frame(std::span<const uint8_t, 
     // Note: ETI-NI has different header structure than ETI-LI,
     // but the LIDATA field uses compatible format after header
 
-    // 4. Parse LIDATA (subchannel information) - 4 bytes per subchannel
+    // 4. Parse LIDATA STC (subchannel information) - 4 bytes per subchannel.
+    //    STC region: p[8 .. 8+4*NST-1]; SCID=(b0&0xFC)>>2, SAD=((b0&0x03)<<8)|b1,
+    //    TPL=(b2&0xFC)>>2, STL=((b2&0x03)<<8)|b3 (STL in capacity units, 1 CU = 8 bytes).
     size_t lidata_offset = 8;  // After 8-byte header
     std::vector<eti::SubChannelInfo> subchannels;
+    subchannels.reserve(nst);
 
-    for (uint8_t i = 0; i < actual_streams; i++) {
+    for (uint8_t i = 0; i < nst; i++) {
         if (lidata_offset + 4 > frame_data.size()) {
             result.success = false;
             result.error_code = ETIParseErrorCode::INVALID_LIDATA;
@@ -303,23 +319,27 @@ ETIParseResult ModernETIFrameParser::parseETI_NI_Frame(std::span<const uint8_t, 
         // TPL: Type and Protection Level (6 bits, upper part of byte 2)
         uint8_t tpl = (stc2 >> 2) & 0x3F;
 
-        // STL: Stream Length (10 bits, lower 2 bits of byte 2 + byte 3)
+        // STL: Stream Length (10 bits, lower 2 bits of byte 2 + byte 3),
+        // expressed in capacity units (8 bytes each)
         uint16_t stl = ((stc2 & 0x03) << 8) | stc3;
 
-        // Decode TPL for protection level (EEP format: 0b001XXX)
-        bool is_eep = (tpl & 0x38) == 0x08;
+        // Decode TPL for protection (EN 300 799 STC; etisnoop etianalyse):
+        // TPL bit 5 set = EEP. EEP: option = bits 4-2 (0 = EEP-x-A, 1 = EEP-x-B),
+        // protection level = bits 1-0, 0-based, stored 1-based here.
+        // UEP: table switch = bit 3, table index = bits 2-0 (size comes from
+        // the UEP protection table, not from the stream — left at 0 here).
+        const bool is_eep = (tpl & 0x20) != 0;
         if (is_eep) {
-            uint8_t eep_profile = tpl & 0x07;  // 0-5 for EEP-A/B profiles
-            sc.protection_level = eep_profile + 1;  // Map to 1-6 range
             sc.uep_flag = false;
+            sc.protection_option = static_cast<uint8_t>((tpl >> 2) & 0x07);
+            sc.protection_level = static_cast<uint8_t>((tpl & 0x03) + 1);  // 1-based: TPL 0x22 -> EEP 3-A
         } else {
-            // UEP (Unequal Error Protection) - different decoding
-            sc.protection_level = (tpl & 0x07) + 1;
             sc.uep_flag = true;
+            sc.protection_level = static_cast<uint8_t>((tpl & 0x07) + 1);  // UEP table index (display only)
         }
 
-        // Calculate subchannel size in CUs
-        sc.size = stl + 1;  // STL is 0-based
+        // Subchannel size in CUs (STL is 0-based per EN 300 799)
+        sc.size = stl;
 
         subchannels.push_back(sc);
 
@@ -336,12 +356,13 @@ ETIParseResult ModernETIFrameParser::parseETI_NI_Frame(std::span<const uint8_t, 
         lidata_offset += 4;
     }
 
-    // 5. Parse FIC (Fast Information Channel) if present
-    std::array<uint8_t, 32> fic_data{};
+    // 5. Parse FIC (Fast Information Channel) if present.
+    //    FIC starts at 12 + 4*NST (after SYNC 4 + FC 4 + STC 4*NST + EOH 4
+    //    [MNSC 2 + CRC 2]) and is 96/128 bytes = 3/4 FIBs of 32 bytes each.
     if (ficf == 1) {
-        size_t fic_offset = 8 + (actual_streams * 4);  // Dynamic FIC offset!
+        size_t fic_offset = 12 + (static_cast<size_t>(nst) * 4);  // Dynamic FIC offset!
 
-        if (fic_offset + 32 > frame_data.size()) {
+        if (fic_offset + fic_len > frame_data.size()) {
             result.success = false;
             result.error_code = ETIParseErrorCode::INVALID_FICF;
             Logger::instance().log(Logger::Error, "ModernETIFrameParser",
@@ -350,24 +371,26 @@ ETIParseResult ModernETIFrameParser::parseETI_NI_Frame(std::span<const uint8_t, 
             return result;
         }
 
-        std::memcpy(fic_data.data(), frame_data.data() + fic_offset, 32);
-
-        // CRITICAL FIX: Copy FIC to standardized ETI-LI offset (12) in frame object
-        // This allows get_fic_field() to work for both ETI-LI and ETI-NI formats
-        std::memcpy(frame.data() + 12, fic_data.data(), 32);
+        // Store the complete FIC (96/128 bytes) at the normalized offset 12 and
+        // record the valid length so get_fic_field() returns the full FIC.
+        std::memcpy(frame.data() + 12, frame_data.data() + fic_offset, fic_len);
+        frame.fic_field_size = static_cast<uint16_t>(fic_len);
 
         Logger::instance().log(Logger::Debug, "ModernETIFrameParser",
-                              QString("FIC extracted at offset %1 (32 bytes) and normalized to offset 12").arg(fic_offset));
+                              QString("FIC extracted at offset %1 (%2 bytes, %3 FIBs) and normalized to offset 12")
+                              .arg(fic_offset).arg(fic_len).arg(fic_len / ETI_FIC_FIB_SIZE));
     } else {
         Logger::instance().log(Logger::Debug, "ModernETIFrameParser",
                               "No FIC in this frame (FICF=0)");
     }
 
     // 6. Parse MSC (Main Service Channel)
-    size_t msc_offset = 8 + (actual_streams * 4) + (ficf ? 32 : 0);
-    size_t msc_size = ETI_FRAME_SIZE - msc_offset - 4;  // Exclude 4-byte EOF
+    //    msc_offset = 12 + 4*NST + fic_len; frame tail per EN 300 799 =
+    //    EOF (4 bytes: CRC2 + RFU2) + TIST (4 bytes).
+    size_t msc_offset = 12 + (static_cast<size_t>(nst) * 4) + (ficf ? fic_len : 0);
+    size_t msc_size = ETI_FRAME_SIZE - msc_offset - 8;  // Exclude EOF(4) + TIST(4)
 
-    if (msc_offset + msc_size + 4 > ETI_FRAME_SIZE) {
+    if (msc_offset + msc_size + 8 > ETI_FRAME_SIZE) {
         result.success = false;
         result.error_code = ETIParseErrorCode::INVALID_LIDATA;
         Logger::instance().log(Logger::Error, "ModernETIFrameParser",
@@ -387,7 +410,7 @@ ETIParseResult ModernETIFrameParser::parseETI_NI_Frame(std::span<const uint8_t, 
 
     // Create validation result
     result.validation.valid = true;
-    result.validation.add_warning(QString("ETI-NI frame with %1 subchannels").arg(actual_streams).toStdString());
+    result.validation.add_warning(QString("ETI-NI frame with %1 subchannels").arg(nst).toStdString());
 
     // Store STC subchannels in parse result for aggregation
     result.subchannels_from_stc = subchannels;
@@ -397,7 +420,7 @@ ETIParseResult ModernETIFrameParser::parseETI_NI_Frame(std::span<const uint8_t, 
 
     Logger::instance().log(Logger::Info, "ModernETIFrameParser",
                           QString("ETI-NI frame parsed successfully: %1 subchannels, FICF=%2")
-                          .arg(actual_streams).arg(ficf));
+                          .arg(nst).arg(ficf));
 
     // CRITICAL FIX: Store format and FIC flag for analyzeFIGData
     result.detected_format = ::eti::ETIFormat::ETI_NI;
@@ -438,6 +461,7 @@ FIGAnalysisResult ModernETIFrameParser::analyzeFIGData(
                         case 1: processFIG01_SubchannelOrg(fig_block, result); break;
                         case 2: processFIG02_ServiceOrg(fig_block, result); break;
                         case 3: processFIG03_ServiceComponent(fig_block, result); break;
+                        case 9: processFIG09_CountryLTO(fig_block, result); break;
                     }
                     break;
                 case 1:
@@ -452,6 +476,18 @@ FIGAnalysisResult ModernETIFrameParser::analyzeFIGData(
         // Calculate ETSI compliance scores
         result.compliance.etsi_en_300_799_score = calculateETSI799Compliance(frame);
         result.compliance.etsi_en_300_401_score = calculateETSI401Compliance(result);
+
+        // F3: Stamp the ensemble ECC (from FIG 0/9) onto every discovered
+        // service that does not carry an explicit ECC. Programme services
+        // with 16-bit SIds encode CId only; their country resolves via the
+        // ensemble ECC (this mux: ECC 0xF3 + CId 2 -> Thailand).
+        if (result.ensemble_info.extended_country_code != 0) {
+            for (auto& service : result.discovered_services) {
+                if (service.extended_country_code == 0) {
+                    service.extended_country_code = result.ensemble_info.extended_country_code;
+                }
+            }
+        }
 
         // Emit FIG analysis complete signal
         // emit figAnalysisComplete(frame_sequence_.load(), result);
@@ -513,9 +549,10 @@ FIGAnalysisResult ModernETIFrameParser::analyzeFIGData(
             result.add_error(QString("Invalid sub-channel count: %1 (max 63)").arg(lidata.nst).toStdString());
         }
 
-        // Mode Identity (1-4)
-        if (lidata.mid < 1 || lidata.mid > 4) {
-            result.add_error(QString("Invalid mode identity: %1 (valid: 1-4)").arg(lidata.mid).toStdString());
+        // Mode Identity (2-bit field: 0 = Mode IV, 1 = Mode I, 2 = Mode II,
+        // 3 = Mode III per EN 300 799 clause 5.2; value 0 is valid)
+        if (lidata.mid > 3) {
+            result.add_error(QString("Invalid mode identity: %1 (valid: 0-3)").arg(lidata.mid).toStdString());
         }
 
         // Frame Phase (0-7)
@@ -642,9 +679,9 @@ bool ModernETIFrameParser::validateFrameHeader(std::span<const uint8_t, ETI_FRAM
             return false;
         }
 
-        if (mid < 1 || mid > 4) {
+        if (mid > 3) {
             Logger::instance().log(Logger::Debug, "ModernETIFrameParser",
-                                  QString("Invalid mode ID: %1 (valid: 1-4)").arg(mid));
+                                  QString("Invalid mode ID: %1 (valid: 0-3; 0 = Mode IV)").arg(mid));
             return false;
         }
     }
@@ -684,9 +721,9 @@ eti::EtiFrame ModernETIFrameParser::parseFrameStructure(std::span<const uint8_t,
                                   "Frame sync field validation failed");
         }
 
-        // LIDATA validation
+        // LIDATA validation (MID is a 2-bit field: 0 = Mode IV, 1-3 = Modes I-III)
         auto lidata = frame.get_lidata_field();
-        if (lidata.fc > 249 || lidata.nst > 63 || lidata.mid < 1 || lidata.mid > 4) {
+        if (lidata.fc > 249 || lidata.nst > 63 || lidata.mid > 3) {
             structure_valid = false;
             Logger::instance().log(Logger::Debug, "ModernETIFrameParser",
                                   QString("LIDATA validation failed: FC=%1, NST=%2, MID=%3")
@@ -710,48 +747,10 @@ eti::EtiFrame ModernETIFrameParser::parseFrameStructure(std::span<const uint8_t,
 
 std::vector<eti::FigBlock> ModernETIFrameParser::extractFIGBlocks(const eti::EtiFicField& fic)
 {
-    std::vector<eti::FigBlock> fig_blocks;
-
-    try {
-        // FIC field contains 32 bytes of FIG data in ETI-NI format
-        const uint8_t* fic_data = fic.fic_data.data();
-        size_t fic_size = 32;
-
-        size_t offset = 0;
-        while (offset + 1 < fic_size) {
-            eti::FigBlock fig_block;
-
-            // FIG header byte
-            uint8_t fig_header = fic_data[offset];
-            if (fig_header == 0xFF) {
-                // End marker - no more FIGs
-                break;
-            }
-
-            fig_block.fig_type = (fig_header >> 5) & 0x07;
-            fig_block.length = fig_header & 0x1F;
-
-            // Check if we have enough data for this FIG
-            if (offset + 1 + fig_block.length > fic_size) {
-                break;
-            }
-
-            // Copy FIG data
-            fig_block.data.resize(fig_block.length);
-            if (fig_block.length > 0) {
-                std::memcpy(fig_block.data.data(), fic_data + offset + 1, fig_block.length);
-            }
-
-            fig_blocks.push_back(std::move(fig_block));
-            offset += 1 + fig_block.length;
-        }
-
-    } catch (const std::exception& e) {
-        Logger::instance().log(Logger::Error, "ModernETIFrameParser",
-                              QString("FIG extraction error: %1").arg(e.what()));
-    }
-
-    return fig_blocks;
+    // Delegate to the shared FIB-aware FIG decoder: iterates the 3 (or 4)
+    // FIBs of the FIC, validates each FIB CRC (skipping corrupted FIBs) and
+    // parses FIGs within each 30-byte FIG area (ETSI EN 300 401 clause 5.2).
+    return fic.decode_fig_blocks();
 }
 
 void ModernETIFrameParser::updateFrameStats(std::chrono::nanoseconds parse_time)
@@ -807,19 +806,53 @@ double ModernETIFrameParser::calculateCPUEfficiency(std::chrono::nanoseconds par
 // FIG Processing Methods (Simplified TDD Implementation)
 // ============================================================================
 
+void ModernETIFrameParser::processFIG09_CountryLTO(const eti::FigBlock& fig, FIGAnalysisResult& result)
+{
+    // FIG 0/9 data: [ext byte 1B] [LTO 1B] [ECC 1B] [Int. table id 1B]
+    if (fig.data.size() < 3) return;
+
+    const uint8_t ecc = fig.data[2];
+
+    // Record the true Extended Country Code on the ensemble and on every
+    // discovered service that did not carry an explicit ECC (programme
+    // services encode CId only in the SId; ECC comes from FIG 0/9).
+    result.ensemble_info.extended_country_code = ecc;
+    if (current_ensemble_) {
+        current_ensemble_->extended_country_code = ecc;
+    }
+    for (auto& service : result.discovered_services) {
+        if (service.extended_country_code == 0) {
+            service.extended_country_code = ecc;
+        }
+    }
+}
+
 void ModernETIFrameParser::processFIG00_EnsembleInfo(const eti::FigBlock& fig, FIGAnalysisResult& result)
 {
-    if (fig.data.size() < 4) return;
+    // FIG 0/0 data: [ext byte (CN/OE/PD/ext)] [EId 2] [ECC byte: CId(4)|ECC(4)]
+    //                [CIF count 1] [CC 1] [alarm 1 optional]
+    if (fig.data.size() < 5) return;
+
+    // data[0] is the FIG 0 extension byte
+    uint16_t eid = (fig.data[1] << 8) | fig.data[2];
 
     eti::Ensemble ensemble;
-    ensemble.ensemble_id = (fig.data[0] << 8) | fig.data[1];
-    ensemble.country_id = (fig.data[2] >> 4) & 0x0F;
-    ensemble.extended_country_code = fig.data[2] & 0x0F;
+    ensemble.ensemble_id = eid;
+    // Country Identifier: high nibble of the EId MSB (EN 300 401 FIG 0/0)
+    ensemble.country_id = static_cast<uint8_t>(eid >> 12);
+    // The Extended Country Code is NOT part of FIG 0/0; it is carried by
+    // FIG 0/9 and propagated by processFIG09_CountryLTO.
+    ensemble.extended_country_code = 0;
 
     if (fig.data.size() >= 6) {
-        ensemble.cif_count = fig.data[3];
-        ensemble.occurrence_change = (fig.data[4] >> 4) & 0x0F;
-        ensemble.alarm_flag = (fig.data[4] & 0x01) != 0;
+        // Byte layout after EId/ECC: data[3] = change(2)|alarm(1)|CIFcnt-high(5),
+        // data[4] = CIF count low, data[5] = occurrence change (when change flag set)
+        const uint8_t change_flag = (fig.data[3] & 0xC0) >> 6;
+        ensemble.alarm_flag = (fig.data[3] & 0x20) != 0;
+        ensemble.cif_count = static_cast<uint16_t>(((fig.data[3] & 0x1F) << 8) | fig.data[4]);
+        if (change_flag != 0) {
+            ensemble.occurrence_change = fig.data[5];
+        }
     }
 
     result.ensemble_info = ensemble;
@@ -831,7 +864,16 @@ void ModernETIFrameParser::processFIG00_EnsembleInfo(const eti::FigBlock& fig, F
 
 void ModernETIFrameParser::processFIG01_SubchannelOrg(const eti::FigBlock& fig, FIGAnalysisResult& result)
 {
-    size_t offset = 0;
+    // FIG 0/1 data: [ext byte] followed by sub-channel entries (EN 300 401
+    // clause 8.1.2.1, semantics as in etisnoop fig0_1.cpp):
+    //   LONG form (EEP, entry byte 2 bit 7 = 1, 4 bytes):
+    //     [SubChId(6)|SADr-high(2)] [SADr-low(8)] [Opt(3)|PL(2)|Size(2)] [Size(8)]
+    //     option = (b2>>4)&0x07, protection_level = (b2>>2)&0x03 (0-based),
+    //     size = ((b2&0x03)<<8)|b3
+    //   SHORT form (UEP, bit 7 = 0, 3 bytes):
+    //     [SubChId(6)|SADr-high(2)] [SADr-low(8)] [TableSwitch(1)|TableIndex(6)]
+    //     size is derived from the UEP table, not encoded.
+    size_t offset = 1;  // Skip the FIG 0 extension byte
 
     while (offset + 2 < fig.data.size()) {
         eti::SubChannelInfo subchannel;
@@ -842,18 +884,29 @@ void ModernETIFrameParser::processFIG01_SubchannelOrg(const eti::FigBlock& fig, 
         if (offset + 2 >= fig.data.size()) break;
 
         if (fig.data[offset + 2] & 0x80) {
-            // Long form (UEP)
+            // Long form (EEP)
             if (offset + 3 >= fig.data.size()) break;
-            subchannel.size = ((fig.data[offset + 2] & 0x03) << 8) | fig.data[offset + 3];
-            subchannel.protection_level = (fig.data[offset + 2] >> 2) & 0x1F;
-            subchannel.uep_flag = true;
+            const uint8_t b2 = fig.data[offset + 2];
+            subchannel.size = static_cast<uint16_t>(((b2 & 0x03) << 8) | fig.data[offset + 3]);
+            subchannel.protection_option = static_cast<uint8_t>((b2 >> 4) & 0x07);
+            subchannel.protection_level = static_cast<uint8_t>(((b2 >> 2) & 0x03) + 1);  // 0-based on wire, stored 1-based
+            subchannel.uep_flag = false;
             offset += 4;
         } else {
-            // Short form (EEP)
-            uint8_t size_protection = fig.data[offset + 2];
-            subchannel.size = (size_protection & 0x3F) * 8;
-            subchannel.protection_level = ((size_protection >> 6) & 0x03) + 1;
-            subchannel.uep_flag = false;
+            // Short form (UEP): size is not encoded in the stream; it is
+            // derived from the UEP protection table. No UEP table is
+            // available yet, so the size stays 0 (a later settings feature
+            // will add table-driven sizing).
+            const uint8_t b2 = fig.data[offset + 2];
+            subchannel.uep_flag = true;
+            subchannel.protection_level = 0;
+            subchannel.size = 0;
+            Logger::instance().log(Logger::Debug, "ModernETIFrameParser",
+                                  QString("FIG 0/1: UEP short form SubCh %1 (table_switch=%2, table_index=%3) — "
+                                          "size not encoded; requires UEP table")
+                                  .arg(subchannel.sub_channel_id)
+                                  .arg((b2 >> 6) & 0x01)
+                                  .arg(b2 & 0x3F));
             offset += 3;
         }
 
@@ -865,20 +918,66 @@ void ModernETIFrameParser::processFIG01_SubchannelOrg(const eti::FigBlock& fig, 
 
 void ModernETIFrameParser::processFIG02_ServiceOrg(const eti::FigBlock& fig, FIGAnalysisResult& result)
 {
-    size_t offset = 0;
+    // FIG 0/2 data: [ext byte (CN/OE/PD/ext)] then service entries.
+    // Programme service (PD=0): SId 16 bits, CId = SId MSB high nibble.
+    // Data service (PD=1): SId 32 bits = [ECC 8][CId(4)|SRef-high(4)][SRef 16].
+    // Followed by: local(1)|CAid(3)|ncomp(4), then ncomp x 2-byte components.
+    if (fig.data.size() < 4) return;
+
+    const uint8_t ext = fig.data[0];
+    const bool pd = (ext & 0x20) != 0;  // P/D flag: 0 = programme, 1 = data
+    size_t offset = 1;
 
     while (offset + 3 < fig.data.size()) {
         eti::DabService service;
+        service.is_programme = !pd;
 
-        service.service_id = (fig.data[offset] << 8) | fig.data[offset + 1];
-        service.country_id = (fig.data[offset + 2] >> 4) & 0x0F;
-        service.extended_country_code = fig.data[offset + 2] & 0x0F;
-
-        if (offset + 3 < fig.data.size()) {
-            service.is_programme = (fig.data[offset + 3] & 0x02) != 0;
+        if (!pd) {
+            const uint16_t sid = (fig.data[offset] << 8) | fig.data[offset + 1];
+            service.service_id = sid;
+            service.country_id = static_cast<uint8_t>(sid >> 12);
+            service.extended_country_code = 0;
+            offset += 2;
+        } else {
+            const uint32_t sid32 = (static_cast<uint32_t>(fig.data[offset]) << 24) |
+                                   (static_cast<uint32_t>(fig.data[offset + 1]) << 16) |
+                                   (static_cast<uint32_t>(fig.data[offset + 2]) << 8) |
+                                   static_cast<uint32_t>(fig.data[offset + 3]);
+            // Keep the FULL 32-bit SId (ECC | CId/SRef-high | SRef) so the
+            // output matches etisnoop (e.g. 0xF3200001); service_id carries
+            // the 16-bit SRef for internal keying (F8).
+            service.sid32 = sid32;
+            service.service_id = static_cast<uint16_t>(sid32 & 0xFFFF);
+            service.extended_country_code = fig.data[offset];                    // ECC byte
+            service.country_id = static_cast<uint8_t>((fig.data[offset + 1] >> 4) & 0x0F);
+            offset += 4;
         }
 
-        if (service.validate_service_id() && service.validate_country_code()) {
+        if (offset >= fig.data.size()) break;
+
+        // local(1) | CAid(3) | number of components(4)
+        const uint8_t ca_byte = fig.data[offset++];
+        const uint8_t ncomp = ca_byte & 0x0F;
+
+        // Service components: 2 bytes each (TMId|Ascty, SubChId|PS|CA).
+        // NOTE: no extra bytes follow a packet-mode (TMId=3) component in
+        // FIG 0/2 — the SCId/packet-address live in FIG 0/3 (etisnoop
+        // fig0_2.cpp consumes exactly 2 bytes per component; skipping 2 more
+        // here used to desynchronize the entry parser and fabricate a ghost
+        // data service like 0x01C0).
+        for (uint8_t c = 0; c < ncomp && offset + 1 < fig.data.size(); ++c) {
+            eti::ServiceComponent component;
+            component.service_id = service.service_id;
+            component.tmid = static_cast<uint8_t>((fig.data[offset] >> 6) & 0x03);
+            component.asc_ty = static_cast<uint8_t>(fig.data[offset] & 0x3F);
+            component.sub_channel_id = static_cast<uint8_t>((fig.data[offset + 1] >> 2) & 0x3F);
+            component.primary = (fig.data[offset + 1] & 0x02) != 0;
+            component.ca_flag = (fig.data[offset + 1] & 0x01) != 0;
+            offset += 2;
+            service.components.push_back(component);
+        }
+
+        if (service.validate_service_id()) {
             result.discovered_services.push_back(service);
 
             // Add to discovered services cache
@@ -892,51 +991,62 @@ void ModernETIFrameParser::processFIG02_ServiceOrg(const eti::FigBlock& fig, FIG
                 // emit serviceDiscovered(service);
             }
         }
-
-        offset += 4;
     }
 }
 
 void ModernETIFrameParser::processFIG03_ServiceComponent(const eti::FigBlock& fig, FIGAnalysisResult& result)
 {
-    size_t offset = 0;
+    // FIG 0/3 (packet mode): [ext byte] then 5-byte entries:
+    //   SCId(12 bits, byte0 + byte1 high nibble), Rfa(3)|CAOrg(1),
+    //   DG(1)|Rfu(1)|DSCTy(6), SubChId(6)|PacketAddr-high(2), PacketAddr-low(8)
+    // (ETSI EN 300 401 clause 5.3.3)
+    if (fig.data.size() < 6) return;
 
-    while (offset + 4 < fig.data.size()) {
-        uint16_t service_id = (fig.data[offset] << 8) | fig.data[offset + 1];
+    size_t offset = 1;  // Skip the FIG 0 extension byte
 
+    while (offset + 5 <= fig.data.size()) {
+        const uint16_t scid = static_cast<uint16_t>((fig.data[offset] << 4) |
+                                                    ((fig.data[offset + 1] >> 4) & 0x0F));
         eti::ServiceComponent component;
-        component.service_id = service_id;
-        component.sub_channel_id = (fig.data[offset + 2] >> 2) & 0x3F;
-        component.tmid = fig.data[offset + 2] & 0x03;
-        component.asc_ty = fig.data[offset + 3] & 0x3F;
-        component.primary = (fig.data[offset + 3] & 0x40) != 0;
-        component.ca_flag = (fig.data[offset + 3] & 0x80) != 0;
+        component.component_type = fig.data[offset + 2] & 0x3F;      // DSCTy
+        component.sub_channel_id = static_cast<uint8_t>((fig.data[offset + 3] >> 2) & 0x3F);
+        component.ca_flag = (fig.data[offset + 1] & 0x01) != 0;
+        component.tmid = 3;  // Packet mode
+        const uint16_t packet_address = static_cast<uint16_t>(((fig.data[offset + 3] & 0x03) << 8) |
+                                                              fig.data[offset + 4]);
+        (void)scid;
+        (void)packet_address;
+        offset += 5;
 
-        // Find corresponding service and add component
+        // Attach the component to the service that references this sub-channel
+        // (the SId -> SubChId link comes from FIG 0/2 components).
         for (auto& service : result.discovered_services) {
-            if (service.service_id == service_id) {
-                service.components.push_back(component);
+            auto it = std::find_if(service.components.begin(), service.components.end(),
+                                   [&component](const eti::ServiceComponent& c) {
+                                       return c.sub_channel_id == component.sub_channel_id;
+                                   });
+            if (it != service.components.end()) {
+                it->component_type = component.component_type;
+                it->tmid = component.tmid;
                 break;
             }
         }
-
-        offset += 4;
     }
 }
 
 void ModernETIFrameParser::processFIG10_EnsembleLabel(const eti::FigBlock& fig, FIGAnalysisResult& result)
 {
-    if (fig.data.size() < 18) return;
+    // FIG 1/0 data: [charset(4)|OE(1)|ext(3) 1B] [EId 2B] [label 16B]
+    if (fig.data.size() < 19) return;
 
-    uint16_t ensemble_id = (fig.data[0] << 8) | fig.data[1];
+    const uint16_t ensemble_id = (fig.data[1] << 8) | fig.data[2];
+    const uint8_t charset = static_cast<uint8_t>((fig.data[0] >> 4) & 0x0F);
 
     if (current_ensemble_ && current_ensemble_->ensemble_id == ensemble_id) {
-        std::string label;
-        for (size_t i = 2; i < 18 && i < fig.data.size(); ++i) {
-            if (fig.data[i] != 0) {
-                label += static_cast<char>(fig.data[i]);
-            }
-        }
+        // Labels carry a charset flag (EN 300 401 8.1.13): 0 = EBU Latin,
+        // 3 = UTF-8, 6 = TIS-620 (Thai); anything else falls back to raw
+        // passthrough with a one-time warning (F4).
+        std::string label = decodeLabelCharacters(charset, fig.data.data() + 3, 16);
 
         // Remove trailing spaces
         while (!label.empty() && label.back() == ' ') {
@@ -952,37 +1062,81 @@ void ModernETIFrameParser::processFIG10_EnsembleLabel(const eti::FigBlock& fig, 
 
 void ModernETIFrameParser::processFIG11_ServiceLabel(const eti::FigBlock& fig, FIGAnalysisResult& result)
 {
-    if (fig.data.size() < 18) return;
+    // FIG 1/1 data: [charset(4)|OE(1)|ext(3) 1B] [SId 2B] [label 16B]
+    if (fig.data.size() < 19) return;
 
-    uint16_t service_id = (fig.data[0] << 8) | fig.data[1];
+    const uint16_t service_id = (fig.data[1] << 8) | fig.data[2];
+    const uint8_t charset = static_cast<uint8_t>((fig.data[0] >> 4) & 0x0F);
 
-    std::string label;
-    for (size_t i = 2; i < 18 && i < fig.data.size(); ++i) {
-        if (fig.data[i] != 0) {
-            label += static_cast<char>(fig.data[i]);
-        }
-    }
+    std::string label = decodeLabelCharacters(charset, fig.data.data() + 3, 16);
 
     // Remove trailing spaces
     while (!label.empty() && label.back() == ' ') {
         label.pop_back();
     }
 
-    // Update service in result
-    for (auto& service : result.discovered_services) {
-        if (service.service_id == service_id) {
-            service.label = label;
-            break;
+    // Update service in result — the FIG 1/1 may arrive in a frame/FIB that
+    // does not carry the matching FIG 0/2, so the service is created when
+    // unknown rather than dropping the label.
+    auto service_it = std::find_if(result.discovered_services.begin(), result.discovered_services.end(),
+                                   [service_id](const eti::DabService& s) {
+                                       return s.service_id == service_id;
+                                   });
+    if (service_it == result.discovered_services.end()) {
+        eti::DabService service;
+        service.service_id = service_id;
+        service.country_id = static_cast<uint8_t>(service_id >> 12);
+        service.is_programme = true;
+        service.label = label;
+        result.discovered_services.push_back(service);
+    } else {
+        service_it->label = label;
+    }
+
+    // Update cached service (create when not yet known)
+    auto cached_it = std::find_if(discovered_services_.begin(), discovered_services_.end(),
+                                  [service_id](const eti::DabService& s) {
+                                      return s.service_id == service_id;
+                                  });
+    if (cached_it == discovered_services_.end()) {
+        eti::DabService service;
+        service.service_id = service_id;
+        service.country_id = static_cast<uint8_t>(service_id >> 12);
+        service.is_programme = true;
+        service.label = label;
+        discovered_services_.push_back(service);
+    } else {
+        cached_it->label = label;
+        // emit serviceDiscovered(*cached_it);
+    }
+}
+
+std::string ModernETIFrameParser::decodeLabelCharacters(uint8_t charset, const uint8_t* bytes, size_t count)
+{
+    // FIG 1 label charset flag (EN 300 401 8.1.13 / TS 101 756):
+    //   0 = Complete EBU Latin, 3 = UTF-8 passthrough, 6 = TIS-620 (Thai).
+    // Any other value: raw passthrough with a one-time warning (the charset
+    // settings feature will add a configurable fallback later).
+    std::string raw;
+    raw.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+        if (bytes[i] != 0x00) {  // NUL padding is skipped
+            raw += static_cast<char>(bytes[i]);
         }
     }
 
-    // Update cached service
-    for (auto& service : discovered_services_) {
-        if (service.service_id == service_id) {
-            service.label = label;
-            // emit serviceDiscovered(service);
-            break;
-        }
+    switch (charset) {
+        case 0: return convert_ebu_to_utf8(raw);
+        case 3: return raw;  // already UTF-8
+        case 6: return convert_tis620_to_utf8(raw);
+        default:
+            if (!label_charset_warned_[charset]) {
+                label_charset_warned_[charset] = true;
+                Logger::instance().log(Logger::Warning, "ModernETIFrameParser",
+                    QString("Unknown FIG 1 label charset %1 — raw passthrough until the charset "
+                            "settings feature is implemented").arg(charset));
+            }
+            return raw;
     }
 }
 
@@ -998,11 +1152,11 @@ double ModernETIFrameParser::calculateETSI799Compliance(const eti::EtiFrame& fra
         score -= 25.0; // Major compliance issue
     }
 
-    // Check LIDATA field
+    // Check LIDATA field (MID is 2 bits: 0 = Mode IV, 1-3 = Modes I-III)
     auto lidata = frame.get_lidata_field();
     if (lidata.fc > 249) score -= 5.0;
     if (lidata.nst > 63) score -= 5.0;
-    if (lidata.mid < 1 || lidata.mid > 4) score -= 10.0;
+    if (lidata.mid > 3) score -= 10.0;
     if (lidata.fp > 7) score -= 5.0;
 
     return std::max(0.0, score);

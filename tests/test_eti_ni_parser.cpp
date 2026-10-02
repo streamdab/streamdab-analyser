@@ -275,21 +275,23 @@ private slots:
     // ========================================================================
 
     /**
-     * @brief Test FIC offset with 10 streams
-     * FIC offset = 8 + (10 * 4) = 48 bytes
+     * @brief Test FIC offset with 16 streams (real RAW ETI layout)
+     * FIC offset = 12 + (16 * 4) = 76 bytes (SYNC 4 + FC 4 + STC 64 + EOH 4)
+     * FIC length = 96 bytes (3 FIBs) for MID != 3
      */
     void test11_DynamicFICOffset_10Streams() {
         uint8_t frame[6144] = {0};
         frame[0] = 0xFF;
         frame[1] = 0xF8;
 
-        // 10 streams, FICF=1
-        frame[4] = 0x20;  // FC with ficf=1 (bit 5), nst_upper=0
-        frame[5] = 0x90;  // nst_lower=9 (10 streams)
+        // FICF=1 (byte5 bit 7), NST=16 (byte5 bits 6-0)
+        frame[4] = 0x1B;  // FCT
+        frame[5] = 0x90;  // FICF=1, NST=16
+        frame[6] = 0x08;  // FP=0, MID=1
 
-        // Expected FIC offset: 8 + (10 * 4) = 48
-        // Fill FIC marker at offset 48
-        frame[48] = 0xAA;  // FIC marker
+        // Expected FIC offset: 12 + (16 * 4) = 76
+        // Fill FIC marker at offset 76
+        frame[76] = 0xAA;  // FIC marker
 
         ProcessingConfig config;
         config.enable_threading = false;
@@ -302,26 +304,29 @@ private slots:
         auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
 
-        // Verify FIC was extracted
+        // Verify the full 96-byte FIC (3 FIBs) was extracted
         auto fic = result.frame.get_fic_field();
-        QVERIFY(fic.fic_data.size() == 32);
+        QCOMPARE(fic.size(), static_cast<size_t>(96));
+        QCOMPARE(fic.fibi_count(), static_cast<size_t>(3));
+        QCOMPARE(fic.fic_data[0], static_cast<uint8_t>(0xAA));
     }
 
     /**
      * @brief Test FIC offset with 26 streams
-     * FIC offset = 8 + (26 * 4) = 112 bytes
+     * FIC offset = 12 + (16 * 4) = 76 bytes
      */
     void test12_DynamicFICOffset_26Streams() {
         uint8_t frame[6144] = {0};
         frame[0] = 0xFF;
         frame[1] = 0xF8;
 
-        // 26 streams, FICF=1
-        frame[4] = 0x20;  // FC with ficf=1, nst_upper=0
-        frame[5] = (25 << 4) | (0 << 2) | 0;  // nst_lower=25
+        // FICF=1, NST=16
+        frame[4] = 0x1B;
+        frame[5] = 0x90;  // FICF=1, NST=16
+        frame[6] = 0x08;  // FP=0, MID=1
 
-        // Expected FIC offset: 8 + (26 * 4) = 112
-        frame[112] = 0xBB;  // FIC marker
+        // Expected FIC offset: 12 + (16 * 4) = 76
+        frame[76] = 0xBB;  // FIC marker
 
         ProcessingConfig config;
         config.enable_threading = false;
@@ -343,13 +348,14 @@ private slots:
         frame[0] = 0xFF;
         frame[1] = 0xF8;
 
-        // 10 streams, FICF=1
-        frame[4] = 0x20;  // ficf=1
-        frame[5] = 0x90;  // nst_lower=9
+        // FICF=1, NST=16
+        frame[4] = 0x1B;
+        frame[5] = 0x90;  // FICF=1, NST=16
+        frame[6] = 0x08;  // FP=0, MID=1
 
-        // Fill FIC with test pattern at offset 48
-        for (int i = 0; i < 32; i++) {
-            frame[48 + i] = 0x10 + i;
+        // Fill FIC with test pattern at offset 76 (12 + 4*NST)
+        for (int i = 0; i < 96; i++) {
+            frame[76 + i] = 0x10 + i;
         }
 
         ProcessingConfig config;
@@ -364,8 +370,10 @@ private slots:
         QVERIFY(result.success);
 
         auto fic = result.frame.get_fic_field();
-        QCOMPARE(fic.fic_data[0], 0x10);
-        QCOMPARE(fic.fic_data[31], 0x2F);
+        QCOMPARE(fic.size(), static_cast<size_t>(96));
+        QCOMPARE(fic.fic_data[0], static_cast<uint8_t>(0x10));
+        QCOMPARE(fic.fic_data[31], static_cast<uint8_t>(0x2F));
+        QCOMPARE(fic.fic_data[95], static_cast<uint8_t>(0x6F));
     }
 
     // ========================================================================
@@ -433,19 +441,25 @@ private slots:
 
     /**
      * @brief Test subchannel TPL (Type and Protection Level) extraction
+     *
+     * Real Bangkok stream semantics (EN 300 799 STC / etisnoop): stc byte 2
+     * = 0x88 -> TPL 0x22 (bits 7-2). TPL bit 5 set => EEP; option = bits 4-2
+     * = 0 (EEP-A); protection level = bits 1-0 = 2 (0-based) = 3-A displayed;
+     * STL bytes (0x00, 0x18) -> 24 CUs (192 kbps).
      */
     void test16_SubchannelTPL() {
         uint8_t frame[6144] = {0};
         frame[0] = 0xFF;
         frame[1] = 0xF8;
         frame[4] = 0x00;
-        frame[5] = 0x00;
+        frame[5] = 0x01;  // NST=1 (1 subchannel in STC)
 
-        // TPL = 0b001010 (EEP profile 2)
-        frame[8] = 0x00;
-        frame[9] = 0x00;
-        frame[10] = 0x28;  // TPL=0b001010 (bits 7-2)
-        frame[11] = 0x00;
+        // Real-stream-style EEP 3-A entry: TPL=0x22 (EEP, option 0, level 3-A),
+        // STL=24 CUs. stc byte 2 = TPL<<2 = 0x88, byte 3 = STL low = 0x18.
+        frame[8] = 0x00;   // SCID=0, SAD high=0
+        frame[9] = 0x00;   // SAD low=0
+        frame[10] = 0x88;  // TPL=0b100010 (EEP, option 0, level 3-A)
+        frame[11] = 0x18;  // STL=24 CUs
 
         ProcessingConfig config;
         config.enable_threading = false;
@@ -457,6 +471,16 @@ private slots:
 
         auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
+
+        // Assert the correct EEP decode per EN 300 799 (was inverted: this
+        // fixture used to be decoded as "UEP level 34").
+        QCOMPARE(result.subchannels_from_stc.size(), static_cast<size_t>(1));
+        const auto& sc = result.subchannels_from_stc.front();
+        QCOMPARE(sc.sub_channel_id, static_cast<uint8_t>(0));
+        QVERIFY(!sc.uep_flag);                       // EEP, not UEP
+        QCOMPARE(sc.protection_option, static_cast<uint8_t>(0));  // EEP-A
+        QCOMPARE(sc.protection_level, static_cast<uint8_t>(3));   // 3-A (1-based)
+        QCOMPARE(sc.size, static_cast<uint16_t>(24));             // 24 CUs
     }
 
     /**
@@ -467,12 +491,12 @@ private slots:
         frame[0] = 0xFF;
         frame[1] = 0xF8;
         frame[4] = 0x00;
-        frame[5] = 0x00;
+        frame[5] = 0x01;  // NST=1
 
-        // STL = 0b11_11111111 = 1023
+        // STL = 0b11_11111111 = 1023 (STL is the raw 10-bit CU count, no +1)
         frame[8] = 0x00;
         frame[9] = 0x00;
-        frame[10] = 0x03;  // TPL, STL upper 2 bits=11
+        frame[10] = 0x03;  // TPL=0, STL upper 2 bits=11
         frame[11] = 0xFF;  // STL lower 8 bits
 
         ProcessingConfig config;
@@ -485,7 +509,9 @@ private slots:
 
         auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
-        // STL=1023 -> size=1024 CUs
+        // STL=1023 -> size=1023 CUs (raw STL value)
+        QCOMPARE(result.subchannels_from_stc.size(), static_cast<size_t>(1));
+        QCOMPARE(result.subchannels_from_stc.front().size, static_cast<uint16_t>(1023));
     }
 
     /**
@@ -679,9 +705,10 @@ private slots:
                     reinterpret_cast<const uint8_t*>(frame_data.data()), 6144});
 
             if (result.success) {
-                // FIC should be extractable if FICF=1
+                // The full 96-byte FIC (3 FIBs) should be extractable when FICF=1
                 auto fic = result.frame.get_fic_field();
-                QVERIFY(fic.fic_data.size() == 32);
+                QVERIFY(fic.size() == 96);
+                QVERIFY(fic.fibi_count() == 3);
             }
         }
 
@@ -723,10 +750,9 @@ private slots:
         frame[0] = 0xFF;
         frame[1] = 0xF8;
 
-        // NST field = 63 (64 streams, maximum)
-        // 63 = 0b00_111111
-        frame[4] = 0xC0;  // nst_upper=3
-        frame[5] = 0xF0;  // nst_lower=15
+        // NST = 64 (maximum valid, byte5 bits 6-0 = 0x40)
+        frame[4] = 0x1B;
+        frame[5] = 0x40;  // FICF=0, NST=64
 
         ProcessingConfig config;
         config.enable_threading = false;
@@ -739,11 +765,11 @@ private slots:
         auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(result.success);
 
-        // Test invalid NST (65 streams, over limit)
-        frame[4] = 0xC0;  // nst_upper=3
-        frame[5] = 0x00 | (0 << 4);  // This would be 64 which is > 64 limit
-        // Actually, NST field=64 means 65 streams, which should fail
-        // But the code checks actual_streams > 64, so field=64 is invalid
+        // Invalid NST (65 streams, over the 64 limit) must be rejected
+        frame[5] = 0x41;  // NST=65
+        auto result_invalid = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
+        QVERIFY(!result_invalid.success);
+        QCOMPARE(result_invalid.error_code, ETIParseErrorCode::INVALID_NST);
     }
 
     /**

@@ -20,6 +20,7 @@
  */
 
 #include "yaml_output_generator.hpp"
+#include "core/etsi_registered_tables.hpp"
 #include <QTextStream>
 #include <QFile>
 #include <QDebug>
@@ -238,7 +239,14 @@ QString YAMLOutputGenerator::formatServices() const {
     }
 
     for (const auto& service : m_data.services) {
-        out << "  - service_id: " << formatHex(static_cast<quint32>(service.service_id)) << "\n";
+        // F8: data services carry a full 32-bit SId ([ECC][CId|SRef-hi][SRef]);
+        // print 8 hex digits then, else the 16-bit programme SId (matches
+        // etisnoop's 0xF3200001-style output).
+        if (service.sid32 > 0xFFFF) {
+            out << "  - service_id: " << formatHex(service.sid32) << "\n";
+        } else {
+            out << "  - service_id: " << formatHex(static_cast<quint32>(service.service_id)) << "\n";
+        }
 
         // Service label from FIG 1/1 (etisnoop-compatible key: service_label)
         QString service_label = QString::fromStdString(service.label);
@@ -777,41 +785,13 @@ QString YAMLOutputGenerator::formatEEPProtectionLevel(uint8_t protection_level, 
 }
 
 QString YAMLOutputGenerator::getCountryName(uint8_t country_id, uint8_t extended_country_code) const {
-    // ENHANCED: More comprehensive country mapping
-    // Reference: ETSI TS 101 756 Table 9
+    // ENHANCED: ECC-aware country mapping keyed on (ECC, Country Id)
+    // Reference: ETSI TS 101 756 Table 1 (via etsi_registered_tables).
+    // The ECC is authoritative: e.g. ECC 0xF3 + CId 0x02 -> Thailand.
 
-    if (country_id == 0x0E && extended_country_code == 0xE1) {
-        return "Thailand";
-    } else if (country_id == 0x0D) {
-        return "France";
-    } else if (country_id == 0x09) {
-        return "Germany";
-    } else if (country_id == 0x0C) {
-        return "United Kingdom";
-    } else if (country_id == 0x0F) {
-        if (extended_country_code == 0xE0) return "Germany";
-        else if (extended_country_code == 0xE1) return "Thailand";
-        else if (extended_country_code == 0xE2) return "Algeria";
-        else if (extended_country_code == 0xE3) return "Andorra";
-        else if (extended_country_code == 0xE4) return "Israel";
-    } else if (country_id == 0x01) {
-        return "Albania";
-    } else if (country_id == 0x02) {
-        return "Austria";
-    } else if (country_id == 0x03) {
-        return "Belgium";
-    } else if (country_id == 0x04) {
-        return "Bulgaria";
-    } else if (country_id == 0x05) {
-        return "Switzerland";
-    } else if (country_id == 0x06) {
-        return "Czech Republic";
-    } else if (country_id == 0x08) {
-        return "Spain";
-    } else if (country_id == 0x0A) {
-        return "Greece";
-    } else if (country_id == 0x0B) {
-        return "Hungary";
+    const char* name = etsi::ts101756::getCountryName(extended_country_code, country_id);
+    if (name != nullptr && QString::fromLatin1(name) != "Reserved") {
+        return QString::fromLatin1(name);
     }
 
     return "Unknown";

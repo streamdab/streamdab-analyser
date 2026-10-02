@@ -119,6 +119,7 @@ add_executable(test_eti_ni_parser
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_fig_analyzer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
 )
 target_link_libraries(test_eti_ni_parser
@@ -141,16 +142,16 @@ add_test(NAME test_eti_ni_parser COMMAND test_eti_ni_parser)
 #)
 #add_test(NAME test_service_discovery COMMAND test_service_discovery)
 
-# Test 6: Charset Converter (Thai UTF-8)
-#add_executable(test_charset_converter
-#    test_charset_converter.cpp
-#    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
-#)
-#target_link_libraries(test_charset_converter
-#    Qt6::Test
-#    Qt6::Core
-#)
-#add_test(NAME test_charset_converter COMMAND test_charset_converter)
+# Test 6: Charset Converter (Thai UTF-8 + EBU Latin, F4)
+add_executable(test_charset_converter
+    test_charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+)
+target_link_libraries(test_charset_converter
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_charset_converter COMMAND test_charset_converter)
 
 # ============================================================================
 # PHASE 3A TESTS - Audio & Data Services (October 24, 2025)

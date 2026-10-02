@@ -76,3 +76,40 @@ std::string convert_ebu_to_utf8(const std::string& str)
     return utf8_str;
 }
 
+std::string convert_tis620_to_utf8(const std::string& str)
+{
+    // TIS-620 (Thai Industrial Standard 620-2533): single-byte, ASCII for
+    // 0x00-0x7F. The Thai block 0xA1-0xFB maps linearly to U+0E01..U+0E5B
+    // (0xA1 = U+0E01 'ก', 0xDF = U+0E3F '฿', 0xFB = U+0E5B).
+    string utf8_str;
+    utf8_str.reserve(str.size() * 3);
+
+    for (const uint8_t c : str) {
+        if (c < 0x80) {
+            utf8_str += static_cast<char>(c);  // ASCII
+        }
+        else if (c >= 0xA1 && c <= 0xFB) {
+            // Codepoint U+0E01..U+0E5B: linear TIS-620 -> Unicode mapping.
+            const uint32_t cp = 0x0E00u + (c - 0xA0u);
+            if (cp < 0x80) {
+                utf8_str += static_cast<char>(cp);
+            }
+            else if (cp < 0x800) {
+                utf8_str += static_cast<char>(0xC0 | (cp >> 6));
+                utf8_str += static_cast<char>(0x80 | (cp & 0x3F));
+            }
+            else {
+                utf8_str += static_cast<char>(0xE0 | (cp >> 12));
+                utf8_str += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+                utf8_str += static_cast<char>(0x80 | (cp & 0x3F));
+            }
+        }
+        else {
+            // Undefined TIS-620 range: keep the byte as-is.
+            utf8_str += static_cast<char>(c);
+        }
+    }
+
+    return utf8_str;
+}
+

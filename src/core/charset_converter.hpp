@@ -33,3 +33,12 @@
  *  Invalid input characters are converted to ⁇ (unicode U+2047).
  */
 std::string convert_ebu_to_utf8(const std::string& str);
+
+/*! Convert a TIS-620 (Thai) byte stream to a UTF-8 encoded string.
+ *
+ *  TIS-620 is single-byte and ASCII-compatible for 0x00-0x7F; the Thai
+ *  block 0xA1-0xFB maps linearly to U+0E01..U+0E5B (0xA1 = 'ก' = U+0E01,
+ *  0xDF = U+0E3F '฿', 0xFB = U+0E5B). Bytes outside the defined range
+ *  pass through unchanged.
+ */
+std::string convert_tis620_to_utf8(const std::string& str);

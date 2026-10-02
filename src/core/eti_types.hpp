@@ -45,7 +45,11 @@ constexpr std::chrono::microseconds ETI_FRAME_DURATION{24000}; // 24ms
 
 // ETSI EN 300 401 Constants
 constexpr size_t FIC_SIZE_BITS = 256;                      // bits
-constexpr size_t FIC_SIZE_BYTES = 32;                      // bytes
+constexpr size_t FIC_SIZE_BYTES = 32;                      // bytes (one FIB)
+constexpr size_t ETI_FIC_FIB_SIZE = 32;                    // bytes per FIB (Fast Information Block)
+constexpr size_t ETI_FIC_FIG_AREA_SIZE = 30;               // FIG data area per FIB (FIB = 30B FIG + 2B CRC)
+constexpr size_t ETI_FIC_MIN_SIZE = 96;                    // FIC length in Mode I/II/IV (3 FIBs)
+constexpr size_t ETI_FIC_MAX_SIZE = 128;                   // FIC length in Mode III (4 FIBs)
 constexpr size_t MAX_SUBCHANNEL_COUNT = 64;                // Maximum sub-channels
 constexpr size_t MAX_CAPACITY_UNITS = 864;                 // Maximum CUs per frame
 
@@ -255,16 +259,53 @@ struct EtiLidataField {
 
 /**
  * @brief ETSI-compliant FIC Field with FIG support
- * Reference: ETSI EN 300 401 Section 6.4
+ * Reference: ETSI EN 300 401 Section 6.4 / EN 300 799 Section 5.2
+ *
+ * Carries the complete Fast Information Channel (96 or 128 bytes = 3 or 4
+ * FIBs). Each FIB is 32 bytes: 30 bytes of FIG data plus a 2-byte CRC-16
+ * (complemented CCITT-FALSE over the 30 FIG bytes, big-endian).
+ *
+ * A 32-byte field (fib_count == 1) is treated as a legacy raw FIG area
+ * (e.g. a FIC dump with the CRC stripped) for backwards compatibility.
  */
 struct EtiFicField {
-    std::array<uint8_t, 32> fic_data;
+    std::array<uint8_t, ETI_FIC_MAX_SIZE> fic_data;
+    uint16_t fic_size;            // Number of valid bytes (0, 32, 96 or 128)
+    uint8_t fib_count;            // Number of complete FIBs carried (0, 1, 3 or 4)
 
-    EtiFicField() : fic_data{} {
-        fic_data.fill(0);
+    EtiFicField() : fic_data{}, fic_size(FIC_SIZE_BYTES), fib_count(1) {
     }
 
-    explicit EtiFicField(const std::array<uint8_t, 32>& data) : fic_data(data) {
+    explicit EtiFicField(const std::array<uint8_t, FIC_SIZE_BYTES>& data)
+        : fic_data{}, fic_size(FIC_SIZE_BYTES), fib_count(1) {
+        std::memcpy(fic_data.data(), data.data(), FIC_SIZE_BYTES);
+    }
+
+    EtiFicField(const uint8_t* data, size_t size)
+        : fic_data{}, fic_size(0), fib_count(0) {
+        if (data == nullptr || size == 0) {
+            return;
+        }
+        const size_t n = std::min(size, ETI_FIC_MAX_SIZE);
+        std::memcpy(fic_data.data(), data, n);
+        fic_size = static_cast<uint16_t>(n);
+        fib_count = static_cast<uint8_t>(n / ETI_FIC_FIB_SIZE);
+    }
+
+    /** @brief Number of valid bytes carried by this field. */
+    size_t size() const { return fic_size; }
+
+    /** @brief Number of FIBs carried (1 for raw 32-byte legacy data). */
+    size_t fibi_count() const {
+        if (fib_count > 0) {
+            return fib_count;
+        }
+        return fic_size / ETI_FIC_FIB_SIZE;
+    }
+
+    /** @brief True when the field carries complete FIB structure (96/128 B). */
+    bool is_fib_structured() const {
+        return fic_size > ETI_FIC_FIB_SIZE && fibi_count() >= 3;
     }
 
     std::vector<FigBlock> decode_fig_blocks() const;
@@ -277,14 +318,14 @@ struct EtiFicField {
  * Reference: ETSI EN 300 401 Section 5.2
  */
 struct FigBlock {
-    uint8_t fig_type : 5;         // FIG type (0-31)
-    uint8_t length : 3;           // Length field
+    uint8_t fig_type;             // FIG type (0-7; 7 = padding end marker)
+    uint8_t length;               // FIG data length in bytes (0-29)
     bool continuation_flag = false;     // C: Continuation flag
     bool other_ensemble_flag = false;   // OE: Other Ensemble flag
     std::vector<uint8_t> data;    // FIG data field
 
     bool is_valid() const {
-        return length <= MAX_FIG_LENGTH &&
+        return fig_type <= 7 && length <= MAX_FIG_LENGTH &&
                data.size() == length;
     }
 
@@ -301,8 +342,11 @@ struct SubChannelInfo {
     uint8_t sub_channel_id;     // SubChId (0-63)
     uint16_t start_address;     // Start address in CUs
     uint16_t size;              // Size in CUs
-    uint8_t protection_level;   // Protection level (1-5)
+    uint8_t protection_level;   // Protection level (1-based; EEP: 1-4, UEP: derived)
     bool uep_flag;             // Unequal Error Protection flag
+    // EEP protection option (EN 300 401 8.1.2.1 long form / STC TPL bits 4-2):
+    // 0 = EEP-x-A, 1 = EEP-x-B. Meaningless for UEP short form.
+    uint8_t protection_option{0};
 
     uint16_t get_end_address() const {
         return start_address + size - 1;
@@ -403,7 +447,10 @@ struct ServiceComponent {
  * Reference: ETSI EN 300 401 Section 8.1
  */
 struct DabService {
-    uint16_t service_id;               // SId: Service identifier
+    uint16_t service_id;               // SId: Service identifier (16-bit programme SId,
+                                       // or SRef = low 16 bits of a 32-bit data SId)
+    uint32_t sid32{0};                 // Full 32-bit SId for data services (PD=1):
+                                       // [ECC 8][CId(4)|SRef-high(4)][SRef 16]; 0 for programme services
     uint8_t country_id;                // Country ID
     uint8_t extended_country_code;     // ECC: Extended Country Code
     std::string label;                 // Service label
@@ -499,6 +546,9 @@ struct EtiFrame {
     std::array<uint8_t, ETI_FRAME_SIZE> frame_data;
     bool frame_valid;
     std::chrono::system_clock::time_point receive_timestamp;
+    // Number of valid FIC bytes stored at the normalized offset 12
+    // (96 or 128 for a full FIB-structured FIC; 0 = not set / legacy 32 B view)
+    uint16_t fic_field_size{0};
 
     EtiFrame() : frame_valid(false) {
         frame_data.fill(0);
@@ -541,7 +591,15 @@ struct EtiFrame {
 
     EtiFicField get_fic_field() const {
         EtiFicField fic;
-        std::memcpy(fic.fic_data.data(), frame_data.data() + 12, 32);
+        // The modern parsers normalize the full FIC (96/128 bytes) to offset 12
+        // and record the valid length in fic_field_size. Fall back to the legacy
+        // 32-byte single-FIB view when the length was never recorded.
+        const size_t n = (fic_field_size > 0)
+            ? std::min<size_t>(fic_field_size, ETI_FIC_MAX_SIZE)
+            : FIC_SIZE_BYTES;
+        std::memcpy(fic.fic_data.data(), frame_data.data() + 12, n);
+        fic.fic_size = static_cast<uint16_t>(n);
+        fic.fib_count = static_cast<uint8_t>(n / ETI_FIC_FIB_SIZE);
         return fic;
     }
 

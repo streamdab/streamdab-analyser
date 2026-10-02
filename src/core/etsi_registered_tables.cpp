@@ -144,8 +144,8 @@ const std::array<CountryInfo, 256> ECC_TABLE = {{
     {0xDC, 0x00, "Reserved", "XX"}, {0xDD, 0x00, "Reserved", "XX"},
     {0xDE, 0x00, "Reserved", "XX"}, {0xDF, 0x00, "Reserved", "XX"},
 
-    // 0xE0: Southeast Asia - Thailand (CRITICAL for this project)
-    {0xE0, 0x0E, "Thailand", "TH"},
+    // 0xE0: Unassigned in ETSI TS 101 756 Table 1
+    {0xE0, 0x00, "Reserved", "XX"},
 
     // 0xE1: Germany
     {0xE1, 0x01, "Germany", "DE"},
@@ -189,10 +189,13 @@ const std::array<CountryInfo, 256> ECC_TABLE = {{
     // 0xEE: Czech Republic
     {0xEE, 0x02, "Czech Republic", "CZ"},
 
-    // 0xEF-0xFF: Reserved/Future use
+    // 0xEF: Reserved
     {0xEF, 0x00, "Reserved", "XX"},
     {0xF0, 0x00, "Reserved", "XX"}, {0xF1, 0x00, "Reserved", "XX"},
-    {0xF2, 0x00, "Reserved", "XX"}, {0xF3, 0x00, "Reserved", "XX"},
+    {0xF2, 0x00, "Reserved", "XX"},
+    // 0xF3: Southeast Asia - Thailand (verified against the Bangkok DAB+
+    // ensemble: FIG 0/9 "Ensemble ECC: 0xF3", FIG 0/2 "ECC: 243, Country id: 2")
+    {0xF3, 0x02, "Thailand", "TH"},
     {0xF4, 0x00, "Reserved", "XX"}, {0xF5, 0x00, "Reserved", "XX"},
     {0xF6, 0x00, "Reserved", "XX"}, {0xF7, 0x00, "Reserved", "XX"},
     {0xF8, 0x00, "Reserved", "XX"}, {0xF9, 0x00, "Reserved", "XX"},

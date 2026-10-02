@@ -1143,6 +1143,9 @@ struct FigParsingResult {
     std::vector<std::string> compliance_violations;
     std::vector<std::string> compliance_warnings;
 
+    // FIB-level CRC statistics (number of FIBs skipped due to bad CRC)
+    uint32_t fib_crc_failures;
+
     void reset() {
         parsing_successful = false;
         parsing_time = std::chrono::nanoseconds::zero();
@@ -1159,6 +1162,7 @@ struct FigParsingResult {
         etsi_compliant = false;
         compliance_violations.clear();
         compliance_warnings.clear();
+        fib_crc_failures = 0;
     }
 };
 
@@ -1673,6 +1677,11 @@ private:
     // ETSI compliance tracking
     std::atomic<uint64_t> compliance_violations_count_;
     std::atomic<uint64_t> thai_encoding_issues_count_;
+
+    // Number of FIBs skipped in the last parseFicData() call due to bad CRC.
+    // Atomic: parseFicData() may run on worker threads while the GUI reads
+    // the counter from the main thread (documented single-writer, multi-reader).
+    std::atomic<uint32_t> fib_crc_failures_count_{0};
 
     // Parsing optimization data
     std::unordered_map<uint8_t, uint64_t> fig_type_frequency_;

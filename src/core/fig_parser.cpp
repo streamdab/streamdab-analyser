@@ -18,6 +18,7 @@
 
 #include "fig_parser.hpp"
 #include "charset_converter.hpp"
+#include "crc16.hpp"
 #include "../utils/logger.h"
 #include <algorithm>
 #include <bitset>
@@ -64,6 +65,7 @@ bool FigParser::initialize(bool enable_thai_support, bool strict_compliance) {
     resetStatistics();
     compliance_violations_count_ = 0;
     thai_encoding_issues_count_ = 0;
+    fib_crc_failures_count_.store(0);
 
     // Initialize performance optimization
     performance_optimization_time_ = std::chrono::steady_clock::now();
@@ -85,10 +87,14 @@ FigParsingResult FigParser::parseFicData(const EtiFicField& fic_data) {
         return result;
     }
 
+    // Reset per-call FIB CRC failure counter (populated by extractFigBlocks)
+    fib_crc_failures_count_.store(0);
+
     try {
         // Extract FIG blocks from FIC data
         auto fig_blocks = extractFigBlocks(fic_data);
         result.figs_processed = static_cast<uint32_t>(fig_blocks.size());
+        result.fib_crc_failures = fib_crc_failures_count_.load();
 
         Logger::instance().log(Logger::Debug, "FigParser",
             QString("Extracted %1 FIG blocks from FIC").arg(fig_blocks.size()));
@@ -509,17 +515,20 @@ std::vector<Fig01SubchannelInfo> FigParser::parseFig01_SubchannelOrganization(
                 continue;  // Skip this invalid subchannel
             }
 
-            // Parse form flag and size/protection
+            // Parse form flag and size/protection.
+            // EN 300 401 8.1.2.1: the form flag is bit 7 of byte 2 — set =
+            // LONG form (EEP, 4-byte entry), clear = SHORT form (UEP, 3-byte
+            // entry). (Standards-review F1: previous code inverted this.)
             uint8_t form_size = fig_data[offset++];
-            subchannel.short_form = (form_size & 0x80) != 0;
+            subchannel.short_form = (form_size & 0x80) == 0;
 
             if (subchannel.short_form) {
-                // Short form parsing
+                // Short form (UEP): TableSwitch(1) | TableIndex(6)
                 subchannel.table_switch = (form_size >> 6) & 0x01;
                 subchannel.table_index = form_size & 0x3F;
             } else {
-                // Long form parsing
-                if (offset + 2 > fig_data.size()) break;
+                // Long form (EEP): Option(3) | ProtectionLevel(2) | Size(10)
+                if (offset + 1 >= fig_data.size()) break;
 
                 subchannel.option = (form_size >> 4) & 0x07;
                 subchannel.protection_level = (form_size >> 2) & 0x03;
@@ -823,35 +832,70 @@ std::vector<ServiceLabel> FigParser::parseFig11_ProgrammeServiceLabels(
     return labels;
 }
 
+namespace {
+
+/** @brief Expected (complemented) FIB CRC over a 30-byte FIG area (EN 300 799 5.2).
+ *  Shared CRC-16/CCITT-FALSE lives in crc16.hpp (F6 dedup). */
+uint16_t fig_fib_crc_expected(const uint8_t* fig_area)
+{
+    return static_cast<uint16_t>(~eti::crc16ccitt_false(fig_area, ETI_FIC_FIG_AREA_SIZE));
+}
+
+} // anonymous namespace
+
 std::vector<FigBlock> FigParser::extractFigBlocks(const EtiFicField& fic_data) {
     std::vector<FigBlock> fig_blocks;
 
     try {
-        size_t offset = 0;
-        while (offset < 32) { // FIC size is 32 bytes
-            if (fic_data.fic_data[offset] == 0xFF) {
-                // End marker found
+        // A FIB-structured FIC (96/128 bytes) carries 3/4 FIBs; each FIB is
+        // 32 bytes: 30 bytes of FIG data + 2 bytes of CRC-16 (complemented
+        // CCITT-FALSE, big-endian). FIBs with a bad CRC are skipped.
+        // A legacy 32-byte field is treated as a single raw FIG area.
+        const bool fib_structured = fic_data.is_fib_structured();
+        const size_t fib_count = fib_structured ? fic_data.fibi_count() : 1;
+
+        for (size_t fib_idx = 0; fib_idx < fib_count; ++fib_idx) {
+            const size_t fib_base = fib_idx * ETI_FIC_FIB_SIZE;
+            if (fib_base + ETI_FIC_FIB_SIZE > fic_data.size()) {
                 break;
             }
+            const uint8_t* fib = fic_data.fic_data.data() + fib_base;
 
-            FigBlock fig_block;
-
-            // Parse FIG header
-            uint8_t header = fic_data.fic_data[offset++];
-            fig_block.fig_type = (header >> 5) & 0x07;
-            fig_block.length = header & 0x1F;
-
-            if (fig_block.length == 0 || offset + fig_block.length > 32) {
-                break; // Invalid FIG block
+            if (fib_structured) {
+                const uint16_t stored_crc = static_cast<uint16_t>((fib[30] << 8) | fib[31]);
+                if (fig_fib_crc_expected(fib) != stored_crc) {
+                    fib_crc_failures_count_.fetch_add(1);
+                    continue;  // Skip corrupted FIB
+                }
             }
 
-            // Extract FIG data
-            fig_block.data.resize(fig_block.length);
-            std::memcpy(fig_block.data.data(), &fic_data.fic_data[offset], fig_block.length);
-            offset += fig_block.length;
+            // Parse FIGs within the 30-byte FIG area of this FIB
+            size_t offset = 0;
+            const size_t area_size = ETI_FIC_FIG_AREA_SIZE;
+            while (offset + 1 < area_size) {
+                const uint8_t header = fib[offset];
+                if ((header >> 5) == 0x07) {
+                    // Padding end marker
+                    break;
+                }
 
-            if (fig_block.is_valid()) {
-                fig_blocks.push_back(fig_block);
+                FigBlock fig_block;
+                // FIG header: type (b7-b5), length (b4-b0)
+                fig_block.fig_type = static_cast<uint8_t>((header >> 5) & 0x07);
+                fig_block.length = static_cast<uint8_t>(header & 0x1F);
+
+                if (fig_block.length == 0 || offset + 1 + fig_block.length > area_size) {
+                    break; // Invalid FIG block
+                }
+
+                // Extract FIG data
+                fig_block.data.resize(fig_block.length);
+                std::memcpy(fig_block.data.data(), fib + offset + 1, fig_block.length);
+
+                if (fig_block.is_valid()) {
+                    fig_blocks.push_back(std::move(fig_block));
+                }
+                offset += 1 + fig_block.length;
             }
         }
     } catch (const std::exception& e) {
@@ -945,19 +989,17 @@ bool FigParser::parseFig01_Internal(const std::vector<uint8_t>& data, std::vecto
         // Extract Start Address - 10 bits (bits 1-0 of byte 0 + byte 1)
         subchannel.start_address = ((data[offset] & 0x03) << 8) | data[offset + 1];
 
-        // Extract protection and size information from byte 2
+        // Extract protection and size information from byte 2.
+        // EN 300 401 8.1.2.1: bit 7 set = LONG form (EEP, 4-byte entry:
+        // Option(3) | ProtectionLevel(2) | Size(10)); bit 7 clear = SHORT
+        // form (UEP, 3-byte entry: TableSwitch(1) | TableIndex(6)).
+        // (Standards-review F1: previous code had the branches inverted.)
         uint8_t protectionByte = data[offset + 2];
 
         if (protectionByte & 0x80) {
-            // Long form protection (UEP - Unequal Error Protection)
+            // Long form (EEP - Equal Error Protection)
             subchannel.short_form = false;
-            subchannel.table_switch = (protectionByte >> 6) & 0x01;
-            subchannel.table_index = protectionByte & 0x3F;
-            subchannel.protection_level = 0; // Derived from table
-            subchannel.subchannel_size = 0;  // Derived from table
-        } else {
-            // Short form protection (EEP - Equal Error Protection)
-            subchannel.short_form = true;
+            subchannel.option = (protectionByte >> 4) & 0x07;
             subchannel.protection_level = (protectionByte >> 2) & 0x03;
             subchannel.subchannel_size = ((protectionByte & 0x03) << 8);
 
@@ -968,6 +1010,13 @@ bool FigParser::parseFig01_Internal(const std::vector<uint8_t>& data, std::vecto
             } else {
                 break; // Incomplete entry
             }
+        } else {
+            // Short form (UEP - Unequal Error Protection)
+            subchannel.short_form = true;
+            subchannel.table_switch = (protectionByte >> 6) & 0x01;
+            subchannel.table_index = protectionByte & 0x3F;
+            subchannel.protection_level = 0; // Derived from table
+            subchannel.subchannel_size = 0;  // Derived from table
         }
 
         result.push_back(subchannel);

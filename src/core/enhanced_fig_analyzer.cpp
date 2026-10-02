@@ -65,77 +65,110 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::process_fic_data(const eti::EtiF
     auto start_time = std::chrono::steady_clock::now();
     
     try {
-        // Extract FIG blocks from FIC data
-        const uint8_t* fic_bytes = fic_data.fic_data.data();
-        size_t fic_size = 32;
-        
-        size_t offset = 0;
-        while (offset + 1 < fic_size) {
-            eti::FigBlock fig_block;
-            
-            // FIG header byte
-            uint8_t fig_header = fic_bytes[offset];
-            if (fig_header == 0xFF) {
-                // End marker - no more FIGs
+        // A FIB-structured FIC (96/128 bytes) carries 3/4 FIBs, each with a
+        // 30-byte FIG area and a 2-byte CRC; corrupted FIBs are skipped.
+        // A legacy 32-byte field is treated as a single raw FIG area.
+        const bool fib_structured = fic_data.is_fib_structured();
+        const size_t fib_count = fib_structured ? fic_data.fibi_count() : 1;
+
+        for (size_t fib = 0; fib < fib_count; ++fib) {
+            const size_t fib_base = fib * ETI_FIC_FIB_SIZE;
+            if (fib_base + ETI_FIC_FIB_SIZE > fic_data.size()) {
                 break;
             }
-            
-            fig_block.fig_type = (fig_header >> 5) & 0x07;
-            fig_block.length = fig_header & 0x1F;
-            
-            // Validate FIG structure
-            if (!validateFIGStructure(fig_block)) {
-                stats_.invalid_figs++;
-                if (m_error_recovery_enabled) {
-                    if (attemptErrorRecovery(fig_block)) {
-                        Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
-                                              "Recovered from FIG structure error");
+            const uint8_t* fic_bytes = fic_data.fic_data.data() + fib_base;
+
+            if (fib_structured) {
+                // Validate FIB CRC: complemented CRC-16/CCITT-FALSE over the
+                // 30 FIG bytes, stored big-endian (EN 300 799 clause 5.2)
+                uint16_t crc = 0xFFFF;
+                for (int i = 0; i < 30; ++i) {
+                    crc ^= static_cast<uint16_t>(fic_bytes[i]) << 8;
+                    for (int b = 0; b < 8; ++b) {
+                        if (crc & 0x8000) {
+                            crc = static_cast<uint16_t>((crc << 1) ^ 0x1021);
+                        } else {
+                            crc = static_cast<uint16_t>(crc << 1);
+                        }
+                    }
+                }
+                const uint16_t expected = static_cast<uint16_t>(~crc);
+                const uint16_t stored = static_cast<uint16_t>((fic_bytes[30] << 8) | fic_bytes[31]);
+                if (expected != stored) {
+                    stats_.crc_errors++;
+                    continue;  // Skip corrupted FIB
+                }
+            }
+
+            size_t offset = 0;
+            const size_t fic_size = ETI_FIC_FIG_AREA_SIZE;
+            while (offset + 1 < fic_size) {
+                eti::FigBlock fig_block;
+
+                // FIG header byte
+                uint8_t fig_header = fic_bytes[offset];
+                if (fig_header == 0xFF || (fig_header >> 5) == 0x07) {
+                    // End marker / padding - no more FIGs
+                    break;
+                }
+
+                fig_block.fig_type = (fig_header >> 5) & 0x07;
+                fig_block.length = fig_header & 0x1F;
+
+                // Validate FIG structure
+                if (!validateFIGStructure(fig_block)) {
+                    stats_.invalid_figs++;
+                    if (m_error_recovery_enabled) {
+                        if (attemptErrorRecovery(fig_block)) {
+                            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer",
+                                                  "Recovered from FIG structure error");
+                        } else {
+                            offset++; // Skip this byte and try next
+                            continue;
+                        }
                     } else {
                         offset++; // Skip this byte and try next
                         continue;
                     }
-                } else {
-                    offset++; // Skip this byte and try next
-                    continue;
                 }
+
+                // Check if we have enough data for this FIG
+                if (offset + 1 + fig_block.length > fic_size) {
+                    stats_.parsing_errors++;
+                    break;
+                }
+
+                // Copy FIG data
+                fig_block.data.resize(fig_block.length);
+                if (fig_block.length > 0) {
+                    std::memcpy(fig_block.data.data(), fic_bytes + offset + 1, fig_block.length);
+                }
+
+                // Validate FIG CRC if applicable
+                if (!validateFIGCRC(fig_block)) {
+                    stats_.crc_errors++;
+                    reportComplianceViolation("ETSI EN 300 401",
+                                            QString("FIG %1 CRC error").arg(fig_block.fig_type).toStdString(),
+                                            "Major");
+                }
+
+                // Store the length before moving the fig_block
+                uint8_t fig_length = fig_block.length;
+
+                // Process the FIG block
+                if (analyze_fig_block(fig_block)) {
+                    fig_blocks.push_back(std::move(fig_block));
+                }
+
+                offset += 1 + fig_length;
             }
-            
-            // Check if we have enough data for this FIG
-            if (offset + 1 + fig_block.length > fic_size) {
-                stats_.parsing_errors++;
-                break;
-            }
-            
-            // Copy FIG data
-            fig_block.data.resize(fig_block.length);
-            if (fig_block.length > 0) {
-                std::memcpy(fig_block.data.data(), fic_bytes + offset + 1, fig_block.length);
-            }
-            
-            // Validate FIG CRC if applicable
-            if (!validateFIGCRC(fig_block)) {
-                stats_.crc_errors++;
-                reportComplianceViolation("ETSI EN 300 401", 
-                                        QString("FIG %1 CRC error").arg(fig_block.fig_type).toStdString(),
-                                        "Major");
-            }
-            
-            // Store the length before moving the fig_block
-            uint8_t fig_length = fig_block.length;
-            
-            // Process the FIG block
-            if (analyze_fig_block(fig_block)) {
-                fig_blocks.push_back(std::move(fig_block));
-            }
-            
-            offset += 1 + fig_length;
         }
-        
+
         // Update carousel analysis if enabled
         if (m_carousel_analysis_enabled) {
             validateCarouselTiming();
         }
-        
+
     } catch (const std::exception& e) {
         Logger::instance().log(Logger::Error, "EnhancedFIGAnalyzer", 
                               QString("FIC processing error: %1").arg(e.what()));
@@ -452,18 +485,21 @@ bool EnhancedFIGAnalyzer::processFIG0_1_SubchannelOrg(const eti::FigBlock& fig)
         if (offset + 2 >= fig.data.size()) break;
         
         if (fig.data[offset + 2] & 0x80) {
-            // Long form (UEP)
+            // LONG form = EEP (EN 300 401 8.1.2.1): Option(3)|PL(2)|Size(10).
+            // (Standards-review F1: previous code mislabeled this UEP.)
             if (offset + 3 >= fig.data.size()) break;
-            subchannel.size = ((fig.data[offset + 2] & 0x03) << 8) | fig.data[offset + 3];
-            subchannel.protection_level = (fig.data[offset + 2] >> 2) & 0x1F;
-            subchannel.uep_flag = true;
+            const uint8_t b2 = fig.data[offset + 2];
+            subchannel.size = static_cast<uint16_t>(((b2 & 0x03) << 8) | fig.data[offset + 3]);
+            subchannel.protection_option = static_cast<uint8_t>((b2 >> 4) & 0x07);
+            subchannel.protection_level = static_cast<uint8_t>(((b2 >> 2) & 0x03) + 1);  // 0-based on wire, 1-based stored
+            subchannel.uep_flag = false;
             offset += 4;
         } else {
-            // Short form (EEP)
-            uint8_t size_protection = fig.data[offset + 2];
-            subchannel.size = (size_protection & 0x3F) * 8;
-            subchannel.protection_level = ((size_protection >> 6) & 0x03) + 1;
-            subchannel.uep_flag = false;
+            // SHORT form = UEP: TableSwitch(1)|TableIndex(6); size is
+            // derived from the UEP table (not encoded), left at 0.
+            subchannel.uep_flag = true;
+            subchannel.protection_level = 0;
+            subchannel.size = 0;
             offset += 3;
         }
         
