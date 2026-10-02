@@ -487,7 +487,40 @@ FIGAnalysisResult ModernETIFrameParser::analyzeFIGData(
 
         // Extract FIG blocks from FIC data
         auto fic_field = frame.get_fic_field();
-        result.fig_blocks = extractFIGBlocks(fic_field);
+        FicDecodeResult decode_result = extractFIGBlocks(fic_field);
+        result.fig_blocks = std::move(decode_result.fig_blocks);
+
+        // Per-frame FIG trace + FIC health (P1): parallel provenance/health
+        // data used by the headless CLI trace and the `figs:`/`fic_health:`
+        // summary blocks. A FIG from a raw walk (no FIB structure, 0xFF
+        // provenance) carries fib_index 0 and crc_ok true (no per-FIB CRC
+        // exists for raw dumps); FIB-CRC failures are reported separately.
+        result.fig_trace.reserve(result.fig_blocks.size());
+        for (size_t i = 0; i < result.fig_blocks.size(); ++i) {
+            const auto& fig_block = result.fig_blocks[i];
+            const uint8_t fib0 = (i < decode_result.fig_fib_indices.size())
+                ? decode_result.fig_fib_indices[i] : 0xFF;
+            FIGTraceEntry entry;
+            entry.fig_type = fig_block.fig_type;
+            // FIG 1 label blocks: the extension occupies bits 2-0 of the
+            // first data byte (the upper nibble is the charset flag); using
+            // the generic & 0x1F would fold UTF-8 (3) into ext 17. Mirrors
+            // the analyzeFIGData dispatch so the trace matches the decode.
+            entry.extension = (fig_block.fig_type == 1 && !fig_block.data.empty())
+                ? static_cast<uint8_t>(fig_block.data[0] & 0x07)
+                : fig_block.get_extension();
+            entry.length = fig_block.length;
+            entry.fib_index = (fib0 < 8 && decode_result.fib_count > 0)
+                ? static_cast<uint8_t>(fib0 + 1) : 0;
+            entry.crc_ok = (fib0 < 8)
+                ? ((decode_result.fib_crc_ok_mask >> fib0) & 1u) != 0
+                : true;
+            result.fig_trace.push_back(entry);
+        }
+        result.total_fibs = decode_result.fib_count;
+        result.fib_crc_failures = decode_result.fib_crc_failures;
+        result.erroneous_figs = decode_result.erroneous_figs;
+        result.raw_fallback_used = decode_result.raw_fallback_used;
 
         // Process each FIG block
         for (const auto& fig_block : result.fig_blocks) {
@@ -802,7 +835,7 @@ eti::EtiFrame ModernETIFrameParser::parseFrameStructure(std::span<const uint8_t,
     return frame;
 }
 
-std::vector<eti::FigBlock> ModernETIFrameParser::extractFIGBlocks(const eti::EtiFicField& fic)
+::eti::FicDecodeResult ModernETIFrameParser::extractFIGBlocks(const eti::EtiFicField& fic)
 {
     // Mode-aware FIB decode (option-variant matrix row 4/5): the user-selected
     // fic_mode setting (strict/raw/auto, default auto) drives the shared
@@ -817,7 +850,7 @@ std::vector<eti::FigBlock> ModernETIFrameParser::extractFIGBlocks(const eti::Eti
             "FIG stream (no per-FIB CRC). Use --fic-mode strict or DABX_FIC_MODE=strict "
             "to disable.");
     }
-    return std::move(decode_result.fig_blocks);
+    return decode_result;
 }
 
 void ModernETIFrameParser::updateFrameStats(std::chrono::nanoseconds parse_time)

@@ -294,11 +294,32 @@ enum class FicDecodeMode : uint8_t {
 
 /**
  * @brief Result of a mode-aware FIC decode.
+ *
+ * In addition to the decoded FIG blocks the result carries per-FIG / per-FIB
+ * provenance and health so consumers can build chronological FIG traces and
+ * aggregate FIC-health counters without re-walking the FIC (CLI detail wave,
+ * P1: per-frame FIG instance trace + FIG inventory).
  */
 struct FicDecodeResult {
-    std::vector<FigBlock> fig_blocks;   // Decoded FIG blocks
-    uint32_t fib_crc_failures{0};       // FIBs skipped in the strict walk
-    bool raw_fallback_used{false};      // True when a raw walk produced the blocks
+    std::vector<FigBlock> fig_blocks;      // Decoded FIG blocks
+    uint32_t fib_crc_failures{0};          // FIBs skipped in the strict walk
+    bool raw_fallback_used{false};         // True when a raw walk produced the blocks
+
+    // FIG provenance: parallel to fig_blocks. 0-based FIB index each FIG came
+    // from (0 .. fib_count-1); 0xFF marks FIGs produced by a raw whole-FIC
+    // walk (explicit Raw mode or the auto-fallback re-walk), which have no
+    // per-FIB CRC.
+    std::vector<uint8_t> fig_fib_indices;
+
+    // FIB health in the strict walk: bit i of fib_crc_ok_mask is set when
+    // FIB i's CRC validated OK (a legacy 32-byte raw field has no CRC and
+    // sets bit 0). fib_count is the number of FIBs (or legacy fields) walked.
+    uint8_t fib_crc_ok_mask{0};
+    uint8_t fib_count{0};
+
+    // FIG headers skipped because of length/padding anomalies (length 0,
+    // length overflowing the FIB area, or an out-of-spec length > 29).
+    uint32_t erroneous_figs{0};
 };
 
 struct EtiFicField {
@@ -414,8 +435,15 @@ inline uint16_t fib_crc_expected(const uint8_t* fig_area)
  * FIG header: type (3 bits, b7-b5; 7 = padding), length (5 bits, b4-b0).
  * FIGs never span FIB boundaries (ETSI EN 300 401 clause 5.2); the raw walk
  * over a whole FIC uses the same rules and ends on type 7 or the area bound.
+ *
+ * @param area         FIG area bytes
+ * @param area_size    Valid bytes in @p area
+ * @param erroneous    Optional out-counter for FIG headers skipped due to
+ *                     length/padding anomalies (length 0, truncation, or an
+ *                     out-of-spec length > 29). Never null-dereferenced.
  */
-inline std::vector<FigBlock> parse_fig_area(const uint8_t* area, size_t area_size)
+inline std::vector<FigBlock> parse_fig_area(const uint8_t* area, size_t area_size,
+                                            uint32_t* erroneous = nullptr)
 {
     std::vector<FigBlock> fig_blocks;
     size_t offset = 0;
@@ -432,13 +460,29 @@ inline std::vector<FigBlock> parse_fig_area(const uint8_t* area, size_t area_siz
         const uint8_t length = header & 0x1F;
 
         if (length == 0 || offset + 1 + length > area_size) {
-            // Invalid or truncated FIG — stop processing this area
+            // Invalid or truncated FIG — stop processing this area. Count the
+            // anomaly for FIC-health diagnostics (the walk itself is unchanged).
+            if (erroneous != nullptr) {
+                ++(*erroneous);
+            }
             break;
         }
 
         FigBlock fig_block;
         fig_block.fig_type = fig_type;
         fig_block.length = length;
+
+        // Out-of-spec lengths (30/31, > MAX_FIG_LENGTH): the historical walk
+        // skips such blocks via is_valid() but keeps advancing; only count the
+        // anomaly for diagnostics, never change the produced blocks.
+        if (length > MAX_FIG_LENGTH) {
+            if (erroneous != nullptr) {
+                ++(*erroneous);
+            }
+            offset += 1 + length;
+            continue;
+        }
+
         fig_block.data.assign(area + offset + 1, area + offset + 1 + length);
 
         // FIG 0 header extension bits: C/N (b7), O/E (b6) of the ext byte
@@ -482,7 +526,11 @@ inline FicDecodeResult EtiFicField::decodeFigBlocks(FicDecodeMode mode, bool ign
     // Explicit raw mode: walk the whole FIC area as one FIG stream.
     if (effective == FicDecodeMode::Raw) {
         result.raw_fallback_used = true;
-        result.fig_blocks = parse_fig_area(fic_data.data(), fic_size);
+        result.fig_blocks = parse_fig_area(fic_data.data(), fic_size,
+                                           &result.erroneous_figs);
+        // Raw walk: no per-FIB structure; mark FIG provenance as unknown.
+        result.fig_fib_indices.assign(result.fig_blocks.size(), 0xFF);
+        result.fib_count = 0;
         return result;
     }
 
@@ -491,6 +539,8 @@ inline FicDecodeResult EtiFicField::decodeFigBlocks(FicDecodeMode mode, bool ign
     // FIB CRC is validated, corrupted FIBs skipped. A legacy 32-byte field is
     // walked as a single 30-byte raw FIG area.
     const size_t fib_count_effective = fib_structured ? fibi_count() : 1;
+    result.fib_count = static_cast<uint8_t>(fib_count_effective);
+    uint32_t per_fib_erroneous = 0;
     for (size_t fib = 0; fib < fib_count_effective; ++fib) {
         const size_t fib_base = fib * ETI_FIC_FIB_SIZE;
         if (fib_base + ETI_FIC_FIB_SIZE > fic_size) {
@@ -498,17 +548,29 @@ inline FicDecodeResult EtiFicField::decodeFigBlocks(FicDecodeMode mode, bool ign
         }
         const uint8_t* fib_data = fic_data.data() + fib_base;
 
+        bool fib_crc_ok = true;
         if (fib_structured) {
             const uint16_t stored_crc = static_cast<uint16_t>((fib_data[30] << 8) | fib_data[31]);
             if (fib_crc_expected(fib_data) != stored_crc) {
                 ++result.fib_crc_failures;
+                fib_crc_ok = false;
                 if (!ignore_fib_crc) {
                     continue;
                 }
             }
         }
+        if (fib_crc_ok) {
+            result.fib_crc_ok_mask |= static_cast<uint8_t>(1u << fib);
+        }
 
-        auto fib_figs = parse_fig_area(fib_data, ETI_FIC_FIG_AREA_SIZE);
+        per_fib_erroneous = 0;
+        auto fib_figs = parse_fig_area(fib_data, ETI_FIC_FIG_AREA_SIZE,
+                                       &per_fib_erroneous);
+        result.erroneous_figs += per_fib_erroneous;
+        result.fig_fib_indices.reserve(result.fig_fib_indices.size() + fib_figs.size());
+        for (size_t i = 0; i < fib_figs.size(); ++i) {
+            result.fig_fib_indices.push_back(static_cast<uint8_t>(fib));
+        }
         result.fig_blocks.insert(result.fig_blocks.end(),
                                  std::make_move_iterator(fib_figs.begin()),
                                  std::make_move_iterator(fib_figs.end()));
@@ -524,7 +586,10 @@ inline FicDecodeResult EtiFicField::decodeFigBlocks(FicDecodeMode mode, bool ign
         fib_structured &&
         result.fib_crc_failures == fib_count_effective) {
         result.raw_fallback_used = true;
-        result.fig_blocks = parse_fig_area(fic_data.data(), fic_size);
+        const auto fallback_blocks = parse_fig_area(fic_data.data(), fic_size,
+                                                    &result.erroneous_figs);
+        result.fig_blocks = fallback_blocks;
+        result.fig_fib_indices.assign(result.fig_blocks.size(), 0xFF);
     }
 
     return result;

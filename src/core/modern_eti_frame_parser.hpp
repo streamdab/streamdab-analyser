@@ -135,6 +135,22 @@ struct ProcessingConfig {
 };
 
 /**
+ * @brief One observed FIG instance in a frame (CLI detail wave, P1).
+ *
+ * Chronological FIG trace backbone: which FIG (type/ext), how long, which
+ * FIB it came from and whether that FIB's CRC validated. Consumers combine
+ * the entries with the parallel decoded data (labels, ensemble, subchannel /
+ * component counts) to print a readable per-frame FIG trace.
+ */
+struct FIGTraceEntry {
+    uint8_t fig_type{0};         // FIG type (0-7)
+    uint8_t extension{0};        // Extension (FIG 0/1-data byte & 0x1F; label charset low bits for FIG 1)
+    uint8_t length{0};           // FIG data length in bytes
+    uint8_t fib_index{0};        // 1-based FIB index (1..4); 0 = raw walk / no FIB structure
+    bool crc_ok{true};           // True when the carrying FIB CRC validated (or no per-FIB CRC exists)
+};
+
+/**
  * @brief Advanced FIG processing result
  */
 struct FIGAnalysisResult {
@@ -142,6 +158,18 @@ struct FIGAnalysisResult {
     ::eti::Ensemble ensemble_info;
     std::vector<::eti::DabService> discovered_services;
     std::vector<::eti::SubChannelInfo> subchannels;
+
+    // Per-frame FIG trace (P1): parallel to fig_blocks — one entry per block
+    // with FIB provenance + CRC health for the chronological trace output.
+    std::vector<FIGTraceEntry> fig_trace;
+
+    // Per-frame FIC health (P1): FIBs walked, FIB CRC failures, FIG headers
+    // skipped for length/padding anomalies, and whether the raw auto-fallback
+    // produced the blocks (all-FIB-CRC-fail CRC-less dump heuristic).
+    uint32_t total_fibs{0};
+    uint32_t fib_crc_failures{0};
+    uint32_t erroneous_figs{0};
+    bool raw_fallback_used{false};
 
     struct ComplianceMetrics {
         double etsi_en_300_799_score{100.0};
@@ -331,7 +359,7 @@ private:
     // Core processing methods
     [[nodiscard]] bool validateFrameHeader(std::span<const uint8_t, ETI_FRAME_SIZE> data) const noexcept;
     [[nodiscard]] ::eti::EtiFrame parseFrameStructure(std::span<const uint8_t, ETI_FRAME_SIZE> data);
-    [[nodiscard]] std::vector<eti::FigBlock> extractFIGBlocks(const eti::EtiFicField& fic);
+    [[nodiscard]] ::eti::FicDecodeResult extractFIGBlocks(const eti::EtiFicField& fic);
 
     // ETI-LI parsing (original implementation)
     [[nodiscard]] ETIParseResult parseETI_LI_Frame(std::span<const uint8_t, ETI_FRAME_SIZE> frame_data);

@@ -77,6 +77,13 @@ public:
         bool verbose_mode = false;
         std::vector<cli::FrameAnalysisData> frame_analyses;  // Per-frame data
 
+        // P1 (CLI FIG detail wave): per-frame FIG instance trace lines, the
+        // aggregated FIG inventory and FIC/FIB health counters. fig_inventory
+        // is sorted by (fig_type, extension); frames are 1-based.
+        QStringList fig_trace_lines;                 // "fig-trace: frame=.. type=.. .."
+        std::vector<cli::FIGInventoryEntry> fig_inventory;
+        cli::FICHealth fic_health;
+
         // Row 11 (strict_frame_crc): number of frames whose EOH gap CRC
         // (bytes 8+4*NST .. 11+4*NST, CCITT-FALSE complement) mismatched.
         // Only counted when the setting is enabled; decode stays independent.
@@ -120,6 +127,28 @@ public:
      * @param verbose Enable verbose mode
      */
     void setVerboseMode(bool verbose) { m_verbose_mode = verbose; }
+
+    /**
+     * @brief Enable per-frame FIG instance trace output (P1).
+     *
+     * When enabled (or when verbose mode is on), a compact
+     * "fig-trace: frame=.. type=.. ext=.. len=.. fib=.. crc=.. reconfig=.."
+     * line is emitted to stderr for every FIG instance of every parsed frame.
+     *
+     * @param enabled Enable the FIG instance trace
+     */
+    void setFigTraceMode(bool enabled) { m_fig_trace_mode = enabled; }
+
+    /**
+     * @brief Limit the number of processed frames (0 = all).
+     *
+     * Stops the frame loop after @p maxFrames complete frames have been
+     * processed. Statistics (frames, FIG inventory, FIC health) then cover
+     * the processed prefix only.
+     *
+     * @param maxFrames Maximum frames to process, 0 for no limit
+     */
+    void setMaxFrames(int maxFrames) { m_max_frames = maxFrames; }
 
     /**
      * @brief Get processing progress (0.0 to 1.0)
@@ -187,6 +216,8 @@ private:  // NOLINTNEXTLINE(readability-redundant-access-specifiers) - Required 
     ProcessingResult m_currentResult;
     QElapsedTimer m_processingTimer;
     bool m_verbose_mode = false;  // Verbose frame-by-frame output
+    bool m_fig_trace_mode = false;  // P1: per-frame FIG instance trace
+    int m_max_frames = 0;           // P1: process at most N frames (0 = all)
 
     // User-selected analyzer decode options (option-variant matrix rows 1-14).
     eti::AnalyzerSettings m_settings;

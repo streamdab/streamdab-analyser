@@ -43,6 +43,43 @@
 namespace cli {
 
 /**
+ * @brief One observed FIG type/extension in the FIG inventory (P1).
+ *
+ * Aggregated over all processed frames: how many instances of this FIG were
+ * seen, in which frame range, and how many of those instances were carried
+ * by a FIB whose CRC failed. Frames are 1-based.
+ */
+struct FIGInventoryEntry {
+    uint8_t fig_type{0};
+    uint8_t extension{0};
+    quint64 count{0};
+    quint64 first_frame{0};
+    quint64 last_frame{0};
+    quint64 crc_failures{0};
+};
+
+/**
+ * @brief Aggregated FIC/FIB health counters (P1).
+ *
+ * fib_crc_failures: FIBs whose CRC-16 (CCITT-FALSE, complemented) mismatched
+ *   in the strict FIB walk. When the auto-fallback raw re-walk produced the
+ *   blocks (CRC-less dump heuristic), the strict walk failures are retained
+ *   (every FIB failed) — the raw re-walk only prevents the FIGs from being
+ *   lost, it does not clear the failure count.
+ * total_fibs: FIBs walked (3/4 per frame on structured FICs; 1 per legacy
+ *   32-byte raw field). Raw-mode decodes walk no FIBs.
+ * erroneous_figs: FIG headers skipped for length/padding anomalies.
+ * reconfiguration_count: frames whose MCI state (ensemble id / service id
+ *   set / subchannel set) changed vs the previous frame.
+ */
+struct FICHealth {
+    quint64 fib_crc_failures{0};
+    quint64 total_fibs{0};
+    quint64 erroneous_figs{0};
+    quint64 reconfiguration_count{0};
+};
+
+/**
  * @brief Per-frame detailed analysis data
  */
 struct FrameAnalysisData {
@@ -216,6 +253,18 @@ public:
      */
     void setFrameCrcStats(bool enabled, quint64 failures);
 
+    /**
+     * @brief Set the aggregated FIG inventory (P1, `figs:` section).
+     * @param inventory Observed FIG type/extension entries with frame ranges
+     */
+    void setFigInventory(const QList<FIGInventoryEntry>& inventory);
+
+    /**
+     * @brief Set the aggregated FIC/FIB health counters (P1, `fic_health:`).
+     * @param health FIB CRC failures / total FIBs / erroneous FIGs / reconfigs
+     */
+    void setFicHealth(const FICHealth& health);
+
     // ========================================================================
     // Verbose Mode - Frame-by-Frame Analysis
     // ========================================================================
@@ -296,6 +345,10 @@ private:
         bool frame_crc_stats_enabled{false};
         quint64 frame_crc_failures{0};
 
+        // FIG inventory + FIC health (P1, additive sections)
+        QList<FIGInventoryEntry> fig_inventory;
+        FICHealth fic_health;
+
         // Verbose mode data
         bool verbose_mode{false};
         QList<FrameAnalysisData> frame_analyses;
@@ -337,6 +390,18 @@ private:
      * @return YAML formatted FIG statistics
      */
     QString formatFIGStatistics() const;
+
+    /**
+     * @brief Format the FIG inventory section (P1: `figs:`)
+     * @return YAML formatted observed-FIG list with frame ranges
+     */
+    QString formatFIGInventory() const;
+
+    /**
+     * @brief Format the FIC/FIB health section (P1: `fic_health:`)
+     * @return YAML formatted FIB/FIG error + reconfiguration counters
+     */
+    QString formatFICHealth() const;
 
     /**
      * @brief Format ETSI compliance section
