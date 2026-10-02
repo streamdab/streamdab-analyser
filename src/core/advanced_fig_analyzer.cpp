@@ -23,6 +23,7 @@
 #include "analyzer_settings.hpp"
 #include <QtCore/QDebug>
 #include <QtCore/QDateTime>
+#include <QTimeZone>
 #include <algorithm>
 #include "crc16.hpp"
 
@@ -3485,7 +3486,7 @@ QDateTime FIGParsingUtils::mjdToDateTime(uint32_t mjd, uint8_t hours, uint8_t mi
     QDate date(year, month, day);
     QTime time(hours, minutes, seconds);
     
-    return QDateTime(date, time, Qt::UTC);
+    return QDateTime(date, time, QTimeZone::UTC);
 }
 
 

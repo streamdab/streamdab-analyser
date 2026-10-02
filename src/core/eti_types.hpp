@@ -240,7 +240,10 @@ struct EtiLidataField {
     uint8_t fp : 3;            // Frame Phase (0-7)
     uint8_t mid : 2;           // Mode Identity (1-4)
     uint16_t fl : 11;          // Frame Length (11 bits fits in uint16_t)
-    uint32_t tist;             // Time Stamp (32-bit)
+    uint32_t tist;             // Time Stamp (32-bit) — LEGACY LI position (bytes 8-11).
+                               // NOTE: ETI-NI/RAW uses the frame-tail TIST
+                               // (get_tail_tist()); this LI-position read has not
+                               // been validated against a real ETI-LI capture yet.
 
     bool validate_frame_count(uint8_t expected_fc) const {
         return fc == expected_fc || fc == ((expected_fc + 1) % 250);

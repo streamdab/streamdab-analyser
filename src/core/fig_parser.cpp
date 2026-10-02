@@ -1641,7 +1641,7 @@ QDateTime DateAndTime::mjdToDateTime(uint32_t mjd, uint8_t hour, uint8_t minute,
     }
 
     // Combine into QDateTime with UTC timezone
-    return QDateTime(date, time, Qt::UTC);
+    return QDateTime(date, time, QTimeZone::UTC);
 }
 
 uint32_t DateAndTime::dateTimeToMjd(const QDateTime& datetime) {

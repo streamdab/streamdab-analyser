@@ -9,6 +9,7 @@
  */
 
 #include "journaline_decoder.hpp"
+#include <QTimeZone>
 #include <QDebug>
 #include <cmath>
 
@@ -628,7 +629,7 @@ QDateTime JournalineDecoder::convertMJDtoQDateTime(uint16_t mjd, uint32_t utc_ti
         return QDateTime();
     }
 
-    QDateTime dt(date, time, Qt::UTC);
+    QDateTime dt(date, time, QTimeZone::UTC);
     return dt;
 }
 
