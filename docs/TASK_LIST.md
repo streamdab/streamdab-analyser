@@ -27,6 +27,12 @@ Living checklist for active work. Check off items when done (add commit ref).
 - [x] **T11: CLI FIG detail (P1)** — `--fig-trace` (per-frame FIG instances + readable label/ECC/ensemble values + reconfig flags) + `figs:` inventory + `fic_health:` (FIB CRC / erroneous FIG / MCI reconfig) + `--max-frames` enforced — committed `94126b4`; evaluation + P2/P3 backlog in `docs/fixes/CLI_FIG_COVERAGE.md`.
 - [x] **T12: GUI panel real-data wiring** — per `docs/gui/PANEL_AUDIT.md`: GUI decode path fix (FIB-aware, charset, offsets) + simulator removed + Tab 2 real data + Tab 3 FIG tracer/details tree + FIC overview real + FIB-CRC error row + short-label etisnoop parity + reload reset — committed `bd47999` (GUI dock tests 14/14 on the real fixture; review findings 1–10 fixed).
 
+## v1.4 close-out (2026-10-02)
+
+- [x] **T13: Perf budgets retargeted** (week1/week2/fig015 → measured capability + margin, documented) `a5a1a56`; **FIG backlog P2/P3** (1/2+1/3, 0/21, 0/22, type 2, --figs-by-type, --fib-hex, EEP/UEP tables, CLI 1/1 P/D align) `16f948f` — **ctest 49/49 = 100%**.
+- [x] **T14: Housekeeping** — QDateTime deprecations fixed (0 warnings), 7 tracked *.backup removed, LI-TIST note — `ea07065`.
+- [ ] **T15: Coverage re-measure + merge feature→main + tag** (in progress) — then v2.0 EWS branch.
+
 ## Later (see `docs/PHASE_E_PLAN.md`)
 
 - v1.4 — test closeout (fix `test_performance_fig019_parsing_speed` 7.6 µs vs 5 µs threshold and `test_fig10_basic_parsing` <50 µs flake (31–51 µs measured) → 100 % pass).

@@ -95,5 +95,11 @@ manual describes. Recommendation: implement P1 now (CLI), P2 when the GUI tab2/t
 values: ensemble/labels/ECC/subch/components; reconfig flags), `figs:` inventory section (type/ext/count/frames/
 crc_failures), `fic_health:` block (fib_crc_failures/total_fibs/erroneous_figs/reconfiguration_count),
 `--max-frames` now enforced. Default output byte-identical + new sections only. GUI Tab-3 tracer + details sharing
-the same decoded data landed in `bd47999` (see `docs/gui/PANEL_AUDIT.md`). P2/P3 remain open (0/21 frequency,
-0/22 coordinates, 1/2+1/3 labels, FIG type 2, `--fib-hex`, `--figs-by-type`).
+the same decoded data landed in `bd47999` (see `docs/gui/PANEL_AUDIT.md`). 
+
+**UPDATE 2026-10-02 (P2/P3 implemented, commit `16f948f`):** FIG 1/2 (component label) + 1/3 (data-service label)
+charset-incl. TIS-620; FIG 0/21 frequency (DAB/FM/AM etisnoop parity); FIG 0/22 geographical location (TII walk,
+2's complement); FIG type 2 (OTH) header/identifier/label; `--figs-by-type` grouped view; `--fib-hex` with FIG
+byte-range markers; EEP/UEP full size tables (`protection_table` additive yaml field); CLI FIG 1/1 P/D aligned to
+GUI (32-bit data SIds). ctest 49/49 = 100% (after v1.4 budget retarget `a5a1a56`). Remaining backlog: `--advanced-fig`
+(CLI benchmark mode from PHASE_E_PLAN) — deferred.
