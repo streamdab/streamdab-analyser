@@ -76,6 +76,12 @@ CLIOptions CLIArgumentParser::parse(int argc, char** argv) {
             continue;
         }
 
+        // FIG trace flag (per-frame FIG instance trace, P1)
+        if (arg == "--fig-trace") {
+            options.fig_trace = true;
+            continue;
+        }
+
         // Input file (requires value)
         if (arg == "--input") {
             if (i + 1 >= argc) {
@@ -355,6 +361,10 @@ void CLIArgumentParser::printUsage() {
     out << "  --quiet                 Minimal console output (errors only)\n";
     out << "  --verbose               Detailed progress logging\n";
     out << "  --verbose-frames        Frame-by-frame detailed output (LARGE files)\n";
+    out << "  --fig-trace             Per-frame FIG instance trace to stderr\n";
+    out << "                          (fig-trace: frame=N type=T ext=E len=L fib=F\n";
+    out << "                          crc=ok|bad reconfig=bool, with readable values\n";
+    out << "                          for decoded FIGs; also enabled by --verbose-frames)\n";
     out << "  --max-frames <n>        Process first N frames only (default: all)\n";
     out << "  --cli                   Explicitly enable CLI mode (auto-detected)\n\n";
 

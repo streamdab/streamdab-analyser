@@ -171,6 +171,20 @@ int cli_main(int argc, char** argv) {
             printProgress("Verbose frame-by-frame analysis: ENABLED", options.quiet);
         }
 
+        // P1: per-frame FIG instance trace (--fig-trace; --verbose-frames
+        // includes the same lines by definition).
+        if (options.fig_trace || options.verbose_frames) {
+            processor.setFigTraceMode(true);
+            if (options.fig_trace && !options.quiet) {
+                printProgress("FIG instance trace: ENABLED (lines on stderr)", false);
+            }
+        }
+
+        // P1: limit the processed frame prefix (--max-frames).
+        if (options.max_frames > 0) {
+            processor.setMaxFrames(options.max_frames);
+        }
+
         // Connect progress signals for non-quiet mode
         if (!options.quiet) {
             QObject::connect(&processor, &HeadlessETIProcessor::status_changed,
@@ -261,6 +275,17 @@ int cli_main(int argc, char** argv) {
 
         // AGENT 45 FIX: Set FIG type statistics
         yamlGenerator.setFIGStatistics(result.fig_type_counts);
+
+        // P1: FIG inventory + FIC/FIB health (additive `figs:`/`fic_health:`).
+        {
+            QList<cli::FIGInventoryEntry> inventory;
+            inventory.reserve(static_cast<int>(result.fig_inventory.size()));
+            for (const auto& entry : result.fig_inventory) {
+                inventory.append(entry);
+            }
+            yamlGenerator.setFigInventory(inventory);
+        }
+        yamlGenerator.setFicHealth(result.fic_health);
 
         // Set ETSI compliance
         yamlGenerator.setETSICompliance(

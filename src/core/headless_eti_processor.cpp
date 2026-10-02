@@ -34,6 +34,9 @@
 #include <QMap>
 #include <QDateTime>
 
+#include <iostream>
+#include <set>
+
 // Define logging category for CLI mode
 Q_LOGGING_CATEGORY(etiMain, "streamdab.eti")
 
@@ -66,6 +69,182 @@ bool validateEohCrc(const uint8_t* frameData, quint64 nst)
     return calc == stored;
 }
 
+/**
+ * @brief Escape a FIG trace label value for key=value output.
+ *
+ * The trace lines stay machine-parseable: values are double-quoted and
+ * embedded quotes/backslashes are escaped. Thai UTF-8 passes through raw.
+ */
+QString escapeTraceValue(const QString& value)
+{
+    QString escaped = value;
+    escaped.replace('\\', "\\\\");
+    escaped.replace('"', "\\\"");
+    escaped.replace('\n', " ");
+    return escaped;
+}
+
+/**
+ * @brief Count sub-channel entries carried by one FIG 0/1 instance.
+ *
+ * Mirrors ModernETIFrameParser::processFIG01_SubchannelOrg's entry walk:
+ * [ext byte] then per entry SubChId|SADr (2 bytes) + form bit at entry byte 2
+ * (long/EEP form = 4 bytes, short/UEP form = 3 bytes).
+ */
+int countFig01Subchannels(const eti::FigBlock& fig)
+{
+    if (fig.data.size() < 2) {
+        return 0;
+    }
+    int count = 0;
+    size_t offset = 1;  // Skip the FIG 0 extension byte
+    while (offset + 2 < fig.data.size()) {
+        if (fig.data[offset + 2] & 0x80) {
+            // Long form (EEP): needs the 4th byte
+            if (offset + 3 >= fig.data.size()) {
+                break;
+            }
+            offset += 4;
+        } else {
+            // Short form (UEP)
+            offset += 3;
+        }
+        ++count;
+    }
+    return count;
+}
+
+/**
+ * @brief Count service components carried by one FIG 0/2 instance.
+ *
+ * Mirrors ModernETIFrameParser::processFIG02_ServiceOrg's entry walk:
+ * [ext byte] then per service entry: SId (2 bytes programme / 4 bytes data,
+ * P/D flag of the ext byte), 1 byte local|CAid|ncomp, ncomp x 2-byte
+ * components. Returns the number of component entries consumed.
+ */
+int countFig02Components(const eti::FigBlock& fig)
+{
+    if (fig.data.size() < 4) {
+        return 0;
+    }
+    const bool pd = (fig.data[0] & 0x20) != 0;  // P/D flag
+    int components = 0;
+    size_t offset = 1;
+    while (offset + 3 < fig.data.size()) {
+        offset += pd ? 4 : 2;
+        if (offset >= fig.data.size()) {
+            break;
+        }
+        const uint8_t ncomp = fig.data[offset] & 0x0F;
+        ++offset;
+        uint8_t consumed = 0;
+        for (; consumed < ncomp && offset + 1 < fig.data.size(); ++consumed) {
+            offset += 2;
+        }
+        components += consumed;
+    }
+    return components;
+}
+
+/**
+ * @brief Number of service-label entries carried by one FIG 1/1 instance.
+ *
+ * Entry layout: [charset|OE|ext 1B] [SId 2B] [label 16B] (+[mask 2B] when the
+ * 21-byte form fits), i.e. 19 or 21 bytes per entry.
+ */
+int countFig11Labels(const eti::FigBlock& fig)
+{
+    int entries = 0;
+    size_t pos = 0;
+    const size_t size = fig.data.size();
+    while (pos + 19 <= size) {
+        pos += (pos + 21 <= size) ? 21 : 19;
+        ++entries;
+    }
+    return entries;
+}
+
+/**
+ * @brief Compact readable summary for a decoded FIG instance.
+ *
+ * Appends key=value pairs (comma-separated, already prefixed with a space)
+ * for the FIGs whose decoded data is available:
+ *   FIG 0/0 -> ensemble id, FIG 0/1 -> sub-channel entry count,
+ *   FIG 0/2 -> service component count, FIG 0/9 -> ECC,
+ *   FIG 1/0 -> ensemble label, FIG 1/1 -> per-instance service labels
+ * (charset-decoded by the parser; labels are drawn from the per-frame
+ * decoded service list in FIG order).
+ *
+ * @param fig            The FIG block
+ * @param ensembleLabel  Charset-decoded ensemble label (FIG 1/0)
+ * @param serviceLabels  Per-frame decoded service labels in FIG order (FIG 1/1)
+ * @param labelsConsumed  In/out: how many labels of @p serviceLabels were
+ *                        already assigned to earlier 1/1 instances
+ * @return Empty string or " key=value key=value .." (leading space)
+ */
+QString figReadableSummary(const eti::FigBlock& fig,
+                           const QString& ensembleLabel,
+                           const QStringList& serviceLabels,
+                           size_t& labelsConsumed)
+{
+    QString out;
+    const uint8_t ext = fig.get_extension();
+
+    switch (fig.fig_type) {
+        case 0:
+            if (ext == 0 && fig.data.size() >= 5) {
+                const uint16_t eid = static_cast<uint16_t>((fig.data[1] << 8) | fig.data[2]);
+                out += QString(" ensemble=0x%1").arg(eid, 4, 16, QChar('0'));
+            } else if (ext == 1) {
+                out += QString(" subch=%1").arg(countFig01Subchannels(fig));
+            } else if (ext == 2) {
+                out += QString(" components=%1").arg(countFig02Components(fig));
+            } else if (ext == 9 && fig.data.size() >= 3) {
+                out += QString(" ecc=0x%1").arg(fig.data[2], 2, 16, QChar('0'));
+            }
+            break;
+        case 1:
+            if (ext == 0 && !ensembleLabel.isEmpty()) {
+                out += QString(" label=\"%1\"").arg(escapeTraceValue(ensembleLabel));
+            } else if (ext == 1) {
+                const int entries = countFig11Labels(fig);
+                QStringList labels;
+                while (labels.size() < entries && labelsConsumed < serviceLabels.size()) {
+                    labels.append(serviceLabels[labelsConsumed]);
+                    ++labelsConsumed;
+                }
+                if (!labels.isEmpty()) {
+                    out += QString(" label=\"%1\"")
+                               .arg(escapeTraceValue(labels.join("|")));
+                }
+            }
+            break;
+        default:
+            break;
+    }
+    return out;
+}
+
+/**
+ * @brief Per-frame MCI state used for reconfiguration detection (P1).
+ *
+ * "MCI change" = the ensemble id, the set of service ids, or the set of
+ * sub-channel ids decoded from this frame differs from the previous frame's.
+ */
+struct MciState {
+    uint16_t ensembleId{0};
+    std::set<uint32_t> services;
+    std::set<uint16_t> subchannels;
+    bool valid{false};
+
+    bool operator==(const MciState& other) const {
+        return ensembleId == other.ensembleId &&
+               services == other.services &&
+               subchannels == other.subchannels;
+    }
+    bool operator!=(const MciState& other) const { return !(*this == other); }
+};
+
 } // namespace
 
 HeadlessETIProcessor::HeadlessETIProcessor(QObject* parent)
@@ -73,6 +252,8 @@ HeadlessETIProcessor::HeadlessETIProcessor(QObject* parent)
     , m_progress(0.0)
     , m_statusText("")
     , m_verbose_mode(false)
+    , m_fig_trace_mode(false)
+    , m_max_frames(0)
 {
     Logger::instance().log(Logger::Info, "HeadlessETIProcessor", "HeadlessETIProcessor created for batch processing");
 }
@@ -174,6 +355,18 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
     QMap<uint8_t, eti::SubChannelInfo> discovered_subchannels;
     QMap<QString, int> fig_type_counts;
 
+    // P1 (CLI FIG detail wave): per-frame FIG trace lines, FIG inventory
+    // (key = (type << 8) | extension, deterministic ordering), FIC health
+    // counters and the MCI reconfiguration detector.
+    QStringList figTraceLines;
+    QMap<quint32, cli::FIGInventoryEntry> figInventory;
+    quint64 totalFibs = 0;
+    quint64 fibCrcFailures = 0;
+    quint64 erroneousFigs = 0;
+    quint64 reconfigurationCount = 0;
+    MciState accMciState;
+    const bool traceEnabled = (m_verbose_mode || m_fig_trace_mode);
+
 
     // Process frames with real ETI parsing
     qint64 processedFrames = 0;
@@ -217,6 +410,155 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
 
                         // Step 2: Analyze FIG data from the frame
                         auto figResult = m_frameParser->analyzeFIGData(parseResult.frame, parseResult);
+
+                        // ============================================================
+                        // P1: per-frame FIG trace, FIG inventory + FIC health
+                        // ============================================================
+                        const bool frameHasFic = !figResult.fig_trace.empty();
+
+                        // MCI reconfiguration detection: a frame "reconfigures" the multiplex when
+                        // its decoded MCI state grows the ACCUMULATED
+                        // configuration — a new ensemble id, new sub-channel
+                        // ids, or new component-carrying service ids (FIG
+                        // 0/2). The on-air FIC rotates FIG 0/1/0/2 table
+                        // slices across frames (16 sub-channels cannot fit a
+                        // single 3-FIB FIC), so comparing consecutive frames
+                        // directly would flag every rotation as a change on a
+                        // perfectly static mux; the accumulated comparison
+                        // yields the true reconfigurations (initial lock-in +
+                        // real config changes). Pure label rotation (FIG 1/1
+                        // creates label-only service entries) is excluded, and
+                        // FIG 0/0 (every 4th frame here) carries its ensemble
+                        // id forward so its absence is not a change.
+                        bool frameReconfigured = false;
+                        if (frameHasFic) {
+                            MciState state;
+                            if (figResult.ensemble_info.validate_ensemble_id()) {
+                                state.ensembleId = figResult.ensemble_info.ensemble_id;
+                            } else if (accMciState.valid && accMciState.ensembleId != 0) {
+                                state.ensembleId = accMciState.ensembleId;
+                            }
+                            for (const auto& service : figResult.discovered_services) {
+                                if (!service.validate_service_id()) {
+                                    continue;
+                                }
+                                // Only services with components define the MCI;
+                                // FIG 1/1 label entries (no components) rotate
+                                // and must not count as a reconfiguration.
+                                if (service.components.empty()) {
+                                    continue;
+                                }
+                                state.services.insert(service.service_id);
+                                if (service.sid32 > 0xFFFF) {
+                                    state.services.insert(service.sid32);
+                                }
+                            }
+                            // Sub-channels from FIG 0/1 plus the STC-carrying
+                            // sub-channels of the frame.
+                            for (const auto& subchannel : figResult.subchannels) {
+                                if (subchannel.validate_sub_channel_id()) {
+                                    state.subchannels.insert(subchannel.sub_channel_id);
+                                }
+                            }
+                            for (const auto& subchannel : parseResult.subchannels_from_stc) {
+                                if (subchannel.validate_sub_channel_id()) {
+                                    state.subchannels.insert(subchannel.sub_channel_id);
+                                }
+                            }
+
+                            // Accumulate: this frame reconfigures the mux iff
+                            // it introduces elements unknown to the merged
+                            // configuration seen so far.
+                            if (!accMciState.valid) {
+                                accMciState = state;
+                                accMciState.valid = true;
+                                frameReconfigured = !state.services.empty() ||
+                                                    !state.subchannels.empty();
+                            } else {
+                                if (state.ensembleId != accMciState.ensembleId) {
+                                    accMciState.ensembleId = state.ensembleId;
+                                    frameReconfigured = true;
+                                }
+                                for (const uint32_t sid : state.services) {
+                                    if (accMciState.services.insert(sid).second) {
+                                        frameReconfigured = true;
+                                    }
+                                }
+                                for (const uint16_t scid : state.subchannels) {
+                                    if (accMciState.subchannels.insert(scid).second) {
+                                        frameReconfigured = true;
+                                    }
+                                }
+                            }
+                            if (frameReconfigured) {
+                                ++reconfigurationCount;
+                            }
+                        }
+
+                        // Per-instance trace + inventory walk
+                        QStringList frameServiceLabels;  // per-frame, FIG order
+                        {
+                            for (const auto& service : figResult.discovered_services) {
+                                const QString label = QString::fromStdString(service.label);
+                                if (!label.isEmpty()) {
+                                    frameServiceLabels.append(label);
+                                }
+                            }
+
+                            size_t labelsConsumed = 0;
+                            for (size_t i = 0; i < figResult.fig_trace.size(); ++i) {
+                                const auto& entry = figResult.fig_trace[i];
+                                const eti::FigBlock& block = figResult.fig_blocks[i];
+
+                                // Inventory aggregation (always — feeds YAML)
+                                {
+                                    const quint32 key = (static_cast<quint32>(entry.fig_type) << 8) |
+                                                        entry.extension;
+                                    auto it = figInventory.find(key);
+                                    if (it == figInventory.end()) {
+                                        cli::FIGInventoryEntry invEntry;
+                                        invEntry.fig_type = entry.fig_type;
+                                        invEntry.extension = entry.extension;
+                                        invEntry.count = 1;
+                                        invEntry.first_frame = static_cast<quint64>(processedFrames);
+                                        invEntry.last_frame = static_cast<quint64>(processedFrames);
+                                        invEntry.crc_failures = entry.crc_ok ? 0 : 1;
+                                        figInventory.insert(key, invEntry);
+                                    } else {
+                                        it->count++;
+                                        it->last_frame = static_cast<quint64>(processedFrames);
+                                        if (!entry.crc_ok) {
+                                            it->crc_failures++;
+                                        }
+                                    }
+                                }
+
+                                // Trace line (diagnostics mode)
+                                if (traceEnabled) {
+                                    QString line = QString("fig-trace: frame=%1 type=%2 ext=%3 len=%4 fib=%5 crc=%6 reconfig=%7")
+                                        .arg(processedFrames)
+                                        .arg(entry.fig_type)
+                                        .arg(entry.extension)
+                                        .arg(entry.length)
+                                        .arg(entry.fib_index)
+                                        .arg(entry.crc_ok ? "ok" : "bad")
+                                        .arg(frameReconfigured ? "true" : "false");
+                                    const QString ensembleLabel =
+                                        QString::fromStdString(figResult.ensemble_info.label);
+                                    line += figReadableSummary(block, ensembleLabel,
+                                                               frameServiceLabels,
+                                                               labelsConsumed);
+                                    figTraceLines.append(line);
+                                    std::cerr << line.toStdString() << std::endl;
+                                }
+                            }
+                        }
+
+                        // FIC health counters (always aggregated)
+                        totalFibs += figResult.total_fibs;
+                        fibCrcFailures += figResult.fib_crc_failures;
+                        erroneousFigs += figResult.erroneous_figs;
+                        // ============================================================
 
                         // *** VERBOSE MODE: Collect per-frame data ***
                         if (m_verbose_mode) {
@@ -437,6 +779,12 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                     qCWarning(etiMain) << "Exception parsing frame" << processedFrames << ":" << e.what();
                 }
 
+                // P1: --max-frames limit — stop after N complete frames have
+                // been processed (all statistics then cover the prefix).
+                if (m_max_frames > 0 && processedFrames >= m_max_frames) {
+                    break;
+                }
+
                 // Update progress
                 double progress = static_cast<double>(processedFrames) / expectedFrames;
                 m_progress = qMin(progress, 1.0);
@@ -561,6 +909,18 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
 
     // AGENT 45 FIX: Populate FIG type counts
     result.fig_type_counts = fig_type_counts;
+
+    // P1: FIG inventory (sorted by (type, ext) via QMap key order), FIC/FIB
+    // health counters and the per-frame FIG trace lines.
+    result.fig_inventory.reserve(static_cast<size_t>(figInventory.size()));
+    for (const auto& entry : figInventory) {
+        result.fig_inventory.push_back(entry);
+    }
+    result.fic_health.fib_crc_failures = fibCrcFailures;
+    result.fic_health.total_fibs = totalFibs;
+    result.fic_health.erroneous_figs = erroneousFigs;
+    result.fic_health.reconfiguration_count = reconfigurationCount;
+    result.fig_trace_lines = figTraceLines;
 
     // ETSI compliance
     result.etsiCompliant = (errorFrames == 0);

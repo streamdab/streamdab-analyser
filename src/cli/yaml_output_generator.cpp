@@ -91,6 +91,14 @@ void YAMLOutputGenerator::setFrameCrcStats(bool enabled, quint64 failures) {
     m_data.frame_crc_failures = failures;
 }
 
+void YAMLOutputGenerator::setFigInventory(const QList<FIGInventoryEntry>& inventory) {
+    m_data.fig_inventory = inventory;
+}
+
+void YAMLOutputGenerator::setFicHealth(const FICHealth& health) {
+    m_data.fic_health = health;
+}
+
 // ============================================================================
 // Verbose Mode Setters
 // ============================================================================
@@ -139,6 +147,13 @@ QString YAMLOutputGenerator::generateYAML() const {
 
     // Subchannels section
     out << formatSubchannels();
+    out << "\n";
+
+    // FIG inventory + FIC health sections (P1, additive extensions: every
+    // existing section above/below keeps its exact historical shape).
+    out << formatFIGInventory();
+    out << "\n";
+    out << formatFICHealth();
     out << "\n";
 
     // FIG statistics section
@@ -453,6 +468,44 @@ QString YAMLOutputGenerator::formatFIGStatistics() const {
         for (const QString& key : keys) {
             out << "    \"" << key << "\": " << m_data.fig_counts[key] << "\n";
         }
+    }
+
+    return section;
+}
+
+QString YAMLOutputGenerator::formatFICHealth() const {
+    QString section;
+    QTextStream out(&section);
+
+    out << "fic_health:\n";
+    out << "  fib_crc_failures: " << m_data.fic_health.fib_crc_failures << "\n";
+    out << "  total_fibs: " << m_data.fic_health.total_fibs << "\n";
+    out << "  erroneous_figs: " << m_data.fic_health.erroneous_figs << "\n";
+    out << "  reconfiguration_count: " << m_data.fic_health.reconfiguration_count << "\n";
+
+    return section;
+}
+
+QString YAMLOutputGenerator::formatFIGInventory() const {
+    QString section;
+    QTextStream out(&section);
+
+    out << "figs:\n";
+
+    if (m_data.fig_inventory.isEmpty()) {
+        out << "  []\n";
+        return section;
+    }
+
+    // Entries arrive sorted by (fig_type, extension) from the headless
+    // processor; render in that deterministic order.
+    for (const auto& entry : m_data.fig_inventory) {
+        out << "  - fig: \"" << static_cast<int>(entry.fig_type) << "/"
+            << static_cast<int>(entry.extension) << "\"\n";
+        out << "    count: " << entry.count << "\n";
+        out << "    first_frame: " << entry.first_frame << "\n";
+        out << "    last_frame: " << entry.last_frame << "\n";
+        out << "    crc_failures: " << entry.crc_failures << "\n";
     }
 
     return section;

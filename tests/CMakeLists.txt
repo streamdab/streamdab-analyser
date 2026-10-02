@@ -87,6 +87,36 @@ target_link_libraries(test_fig1_processor
 )
 add_test(NAME test_fig1_processor COMMAND test_fig1_processor)
 
+# GUI decode path: AdvancedFIGAnalyzer FIC/FIB-walk + charset-aware labels
+# (real frame-5 FIBs of eti/bkk_20062022_141637.eti, FIB CRC modes, TIS-620 /
+# EBU-Latin charset conversion, analyzer settings wiring).
+add_executable(test_advanced_fig_analyzer
+    test_advanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
+)
+target_link_libraries(test_advanced_fig_analyzer
+    Qt6::Test
+    Qt6::Core
+    pthread
+)
+add_test(NAME test_advanced_fig_analyzer COMMAND test_advanced_fig_analyzer)
+
+# P1 CLI FIG detail wave (docs/fixes/CLI_FIG_COVERAGE.md): per-frame FIG
+# instance trace (--fig-trace) + `figs:`/`fic_health:` YAML sections.
+# Launches the real streamdab-cli (QProcess) on eti/bkk_20062022_141637.eti,
+# frame-limited via --max-frames 200 for a < 60 s budget.
+add_executable(test_cli_fig_trace
+    test_cli_fig_trace.cpp
+)
+target_link_libraries(test_cli_fig_trace
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_cli_fig_trace COMMAND test_cli_fig_trace)
+set_tests_properties(test_cli_fig_trace PROPERTIES TIMEOUT 60)
+
 # Test 4: ETI LI CRC Validation
 add_executable(test_eti_li_crc_validation
     test_eti_li_crc_validation.cpp

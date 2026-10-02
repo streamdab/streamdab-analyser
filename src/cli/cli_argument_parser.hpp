@@ -23,6 +23,7 @@ struct CLIOptions {
     bool quiet{false};              // Minimal console output
     bool verbose{false};            // Detailed progress logging
     bool verbose_frames{false};     // NEW: Frame-by-frame detailed output
+    bool fig_trace{false};          // P1: per-frame FIG instance trace output
     bool show_help{false};          // Show help text and exit
     bool show_version{false};       // Show version info and exit
     int max_frames{0};              // Process first N frames (0 = all)
