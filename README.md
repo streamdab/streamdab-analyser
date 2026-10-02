@@ -218,7 +218,7 @@ cmake --build build
 cd build && ctest --output-on-failure
 
 # Run application
-./DABAnalyzer_Enhanced_FilteringBuild
+./StreamDABAnalyzer
 
 # ✅ Expected result: Professional Qt6 GUI with real ETI processing
 ```
@@ -226,7 +226,7 @@ cd build && ctest --output-on-failure
 ### **Application Usage**
 ```bash
 # Launch application
-./DABAnalyzer_Enhanced_FilteringBuild
+./build/StreamDABAnalyzer
 
 # Current features:
 ✅ File -> Open ETI File (real ETI-LI processing)

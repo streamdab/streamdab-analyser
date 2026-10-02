@@ -609,10 +609,50 @@ if(CAN_RUN_GUI_TESTS)
         TIMEOUT 30
     )
 
+    # Test 5: Qt-ADS Docking Layout (v1.3 GUI migration, October 2026)
+    # Compiles the REAL application sources so the actual DABAnalyzerWindow
+    # (src/main.cpp via GUI_TEST_MODE, main() excluded) can be validated:
+    #   4 CDockManagers, 26 docks, 3-column Tab 1, persistence round-trip.
+    set(DOCK_TEST_SOURCES
+        gui/test_gui_dock_layout.cpp
+    )
+    # Everything the app links, minus src/main.cpp (included by the test file).
+    # ${SOURCES} etc. hold paths relative to the top-level source dir.
+    foreach(src ${SOURCES} ${EDI_SOURCES} ${CLI_SOURCES})
+        if(NOT src STREQUAL "src/main.cpp")
+            list(APPEND DOCK_TEST_SOURCES ${CMAKE_SOURCE_DIR}/${src})
+        endif()
+    endforeach()
+    add_executable(test_gui_dock_layout ${DOCK_TEST_SOURCES})
+    target_link_libraries(test_gui_dock_layout
+        Qt6::Test
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
+        qtadvanceddocking-qt6
+        ${ZMQ_LIBRARIES}
+        pthread
+    )
+    target_compile_definitions(test_gui_dock_layout PRIVATE GUI_TEST_MODE)
+    # test_gui_dock_layout.cpp includes ../src/main.cpp, whose trailing
+    # `#include "main.moc"` needs the moc output that AUTOMOC generates for the
+    # app target. Ensure the app target (and its autogen dir) builds first, then
+    # expose its autogen include directory.
+    add_dependencies(test_gui_dock_layout DABAnalyzer_Enhanced_FilteringBuild)
+    target_include_directories(test_gui_dock_layout PRIVATE
+        ${CMAKE_BINARY_DIR}/DABAnalyzer_Enhanced_FilteringBuild_autogen/include)
+    add_test(NAME test_gui_dock_layout
+             COMMAND test_gui_dock_layout)
+    set_tests_properties(test_gui_dock_layout PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 30
+    )
+
     message(STATUS "  ✓ test_gui_stream_info_panel (10 widget tests)")
     message(STATUS "  ✓ test_gui_service_discovery_panel (13 widget tests)")
     message(STATUS "  ✓ test_gui_fig_type_display_panel (15 widget tests)")
     message(STATUS "  ✓ test_gui_main_window (16 integration tests)")
+    message(STATUS "  ✓ test_gui_dock_layout (7 dock layout tests)")
 
 else()
     message(STATUS "  Skipping GUI tests (no display environment)")

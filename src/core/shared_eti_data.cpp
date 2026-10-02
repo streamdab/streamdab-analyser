@@ -15,7 +15,12 @@ SharedETIData::SharedETIData(QObject *parent)
     qRegisterMetaType<ServiceInfo>("ServiceInfo");
     qRegisterMetaType<SubchannelConfig>("SubchannelConfig");
     qRegisterMetaType<MSCData>("MSCData");
-    qRegisterMetaType<ErrorStats>("ErrorStats");
+    // NOTE (v1.3 crash fix): register under the fully-qualified name. The
+    // reader thread (eti_reader_thread.cpp) also registers its own *different*
+    // global `ErrorStats` under the bare name "ErrorStats"; the duplicate name
+    // caused an undefined registration-order race where queued delivery copied
+    // the wrong struct size (stack corruption / random SIGSEGV).
+    qRegisterMetaType<ErrorStats>("streamdab::core::ErrorStats");
 }
 
 // ============================================================================
