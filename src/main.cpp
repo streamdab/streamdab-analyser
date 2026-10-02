@@ -43,6 +43,8 @@
 #include "DockSplitter.h"
 #include <QSettings>
 #include <QStandardPaths>
+#include <QHash>
+#include <QSet>
 #include <chrono>
 #include <memory>
 #include <map>
@@ -845,6 +847,11 @@ private slots:
     {
         if (m_sourceInputStack) {
             m_sourceInputStack->setCurrentIndex(networkSelected ? 1 : 0);
+            // UI redesign (Step A): the toolbar is a compact single row by
+            // default; the network row (URL + quick examples + connect/
+            // disconnect/record + stream stats) expands only when the
+            // "Network Stream" radio is selected.
+            m_sourceInputStack->setVisible(networkSelected);
         }
     }
     
@@ -2849,8 +2856,8 @@ private:
         // Shared bottom docking area (window-level, consistent across all tabs).
         // Replaces the old sharedBottomPanel QTabWidget: a window-level CDockManager
         // pinned at the bottom of the mainVerticalSplitter, whose Bottom dock area
-        // hosts the 5 tabbed bottom docks (System Messages / Performance / Error
-        // Detection / Logging / Constellation).
+        // hosts the 6 tabbed bottom docks (System Messages / Performance / Error
+        // Detection / Logging / Constellation / Messages).
         QWidget* bottomHost = new QWidget();
         QVBoxLayout* bottomLayout = new QVBoxLayout(bottomHost);
         bottomLayout->setContentsMargins(0, 0, 0, 0);
@@ -2878,9 +2885,17 @@ private:
         mainLayout->setContentsMargins(4, 4, 4, 4);
         mainLayout->setSpacing(4);
 
+        // UI redesign (Step A): the compact Input Source toolbar sits at the
+        // TOP of the tab-1 page, above the page's own CDockManager. It
+        // replaces the old tab1_InputSource dock (removed from the center
+        // column registration); all member widgets and slot wiring are reused
+        // unchanged, so file-open and network flows behave identically.
+        QWidget* inputToolbar = createLiveStreamInputPanel();
+        mainLayout->addWidget(inputToolbar);
+
         // Tab 1 gets its OWN CDockManager. The three column helpers below were
         // refactored to return per-dock sections; registerTab1Docks() wraps each
-        // section in a CDockWidget and arranges the 3-column layout.
+        // section in a CDockWidget and arranges the grouped 3-column layout.
         m_tab1DockManager = new ads::CDockManager(tab);
         m_tab1DockManager->setObjectName("tab1DockManager");
         registerTab1Docks();
@@ -2904,36 +2919,87 @@ private:
             return;
         }
 
-        // Build the per-column sections (section builders themselves untouched).
+        // UI redesign (Steps B/C): the Input Source dock is gone (now the
+        // toolbar above the page) and Messages moved to the shared bottom
+        // strip; the remaining 14 panels are grouped into tabbed dock areas:
+        //   LEFT  : Transport (Player | Decoder), System
+        //   CENTER: Signal Analysis (Ensemble Explorer | Subchannel Org |
+        //           CU Usage), Frame Analysis (ETI Frame Navigator |
+        //           Hex/ETSI Compliance), Now Playing
+        //   RIGHT : Signal Info (ETI Overview | Status | Timing),
+        //           Error & Statistics (DAB Error Counter | Stream Stats)
+        // Each panel keeps its OWN CDockWidget (float/auto-hide/close-one-tab
+        // intact); addDockWidgetTabToArea() only groups them. Registration
+        // order defines the tab order; the first dock of each group is the
+        // default active tab.
         const QList<DockSection> leftSections = createTab1_LeftPanel();
         const QList<DockSection> centerSections = createTab1_CenterPanel();
         const QList<DockSection> rightSections = createTab1_RightPanel();
 
-        QList<ads::CDockWidget*> leftDocks, centerDocks, rightDocks;
-        for (const DockSection& s : leftSections)
-            leftDocks.append(makeDock(m_tab1DockManager, s.objectName, s.title, s.widget));
-        for (const DockSection& s : centerSections)
-            centerDocks.append(makeDock(m_tab1DockManager, s.objectName, s.title, s.widget));
-        for (const DockSection& s : rightSections)
-            rightDocks.append(makeDock(m_tab1DockManager, s.objectName, s.title, s.widget));
+        QHash<QString, ads::CDockWidget*> dock;
+        auto registerSections = [this, &dock](const QList<DockSection>& sections) {
+            for (const DockSection& s : sections) {
+                dock.insert(s.objectName, makeDock(m_tab1DockManager, s.objectName, s.title, s.widget));
+            }
+        };
+        registerSections(leftSections);
+        registerSections(centerSections);
+        registerSections(rightSections);
+        auto D = [&dock](const char* n) -> ads::CDockWidget* {
+            ads::CDockWidget* d = dock.value(QLatin1String(n));
+            Q_ASSERT(d);  // Catch a missing dock name (hypothetical null panel builder) early.
+            return d;
+        };
 
         // ============================================================
-        // STACKING RECIPE (empirically verified on Qt-ADS 4.5.0, see
-        // report): repeated no-target addDockWidget() calls with
+        // GROUPED STACKING RECIPE (Qt-ADS 4.5.0, empirically verified):
+        // repeated no-target addDockWidget() calls with
         //   - CenterDockWidgetArea -> areas append VERTICALLY in the root
         //   - LeftDockWidgetArea  -> areas insert side-by-side (horizontal)
         //   - RightDockWidgetArea -> areas append side-by-side (horizontal)
-        // Qt-ADS has no API to stack multiple docks vertically inside a
+        // Qt-ADS has no API to stack multiple dock areas vertically inside a
         // Left/Right strip, so after registering we "surgery" the splitter
         // tree: both side strips become vertical CDockSplitter columns that
         // are re-inserted into the root (left | center | right).
         // ============================================================
-        for (ads::CDockWidget* d : centerDocks)
-            m_tab1DockManager->addDockWidget(ads::CenterDockWidgetArea, d, nullptr);
-        for (ads::CDockWidget* d : leftDocks)
-            m_tab1DockManager->addDockWidget(ads::LeftDockWidgetArea, d, nullptr);
-        for (ads::CDockWidget* d : rightDocks)
-            m_tab1DockManager->addDockWidget(ads::RightDockWidgetArea, d, nullptr);
+
+        // === LEFT column: Transport group + System (standalone) ===
+        ads::CDockWidget* transportFirst = D("tab1_Player");
+        m_tab1DockManager->addDockWidget(ads::LeftDockWidgetArea, transportFirst, nullptr);
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Decoder"), transportFirst->dockAreaWidget());
+        // Default active tab: the first dock of the Transport group (Player).
+        transportFirst->dockAreaWidget()->setCurrentDockWidget(transportFirst);
+        m_tab1DockManager->addDockWidget(ads::LeftDockWidgetArea, D("tab1_System"), nullptr);
+
+        // === CENTER column: Signal Analysis, Frame Analysis, Now Playing ===
+        ads::CDockWidget* signalAnalysisFirst = D("tab1_EnsembleExplorer");
+        m_tab1DockManager->addDockWidget(ads::CenterDockWidgetArea, signalAnalysisFirst, nullptr);
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_SubchannelOrg"), signalAnalysisFirst->dockAreaWidget());
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_CUUsage"), signalAnalysisFirst->dockAreaWidget());
+        // Default active tab: the first dock of the Signal Analysis group.
+        signalAnalysisFirst->dockAreaWidget()->setCurrentDockWidget(signalAnalysisFirst);
+
+        ads::CDockWidget* frameAnalysisFirst = D("tab1_FrameNavigator");
+        m_tab1DockManager->addDockWidget(ads::CenterDockWidgetArea, frameAnalysisFirst, nullptr);
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_HexCompliance"), frameAnalysisFirst->dockAreaWidget());
+        // Default active tab: the first dock of the Frame Analysis group.
+        frameAnalysisFirst->dockAreaWidget()->setCurrentDockWidget(frameAnalysisFirst);
+
+        m_tab1DockManager->addDockWidget(ads::CenterDockWidgetArea, D("tab1_NowPlaying"), nullptr);
+
+        // === RIGHT column: Signal Info group + Error & Statistics group ===
+        ads::CDockWidget* signalInfoFirst = D("tab1_ETIOverview");
+        m_tab1DockManager->addDockWidget(ads::RightDockWidgetArea, signalInfoFirst, nullptr);
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Status"), signalInfoFirst->dockAreaWidget());
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Timing"), signalInfoFirst->dockAreaWidget());
+        // Default active tab: the first dock of the Signal Info group.
+        signalInfoFirst->dockAreaWidget()->setCurrentDockWidget(signalInfoFirst);
+
+        ads::CDockWidget* errorStatsFirst = D("tab1_ErrorCounter");
+        m_tab1DockManager->addDockWidget(ads::RightDockWidgetArea, errorStatsFirst, nullptr);
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_StreamStats"), errorStatsFirst->dockAreaWidget());
+        // Default active tab: the first dock of the Error & Statistics group.
+        errorStatsFirst->dockAreaWidget()->setCurrentDockWidget(errorStatsFirst);
 
         // Locate the top-level splitter of this manager's container.
         QSplitter* root = nullptr;
@@ -2955,39 +3021,110 @@ private:
             s->setChildrenCollapsible(false);
             return s;
         };
+        // Direct child of the root that is the ancestor of a given dock area
+        // (i.e. the column splitter the area lives in).
+        auto columnSplitterFor = [](QSplitter* rootSplitter, QWidget* area) -> QSplitter* {
+            QWidget* w = area;
+            while (w && w->parentWidget() != rootSplitter) {
+                w = w->parentWidget();
+            }
+            return qobject_cast<QSplitter*>(w);
+        };
         ads::CDockSplitter* leftV = newColumnSplitter();
         ads::CDockSplitter* rightV = newColumnSplitter();
+        ads::CDockSplitter* centerV = newColumnSplitter();
 
-        // Move the left/right dock areas out of the root into their column
-        // splitters, preserving top->bottom order. QSplitter::addWidget()
-        // reparents the area widget (removing it from the root splitter).
+        // The Qt-ADS built center column that currently holds the center
+        // areas (it also contains an empty bookkeeping "ghost" splitter left
+        // over from the sequential center-area inserts). Captured BEFORE the
+        // moves below; it will be swapped out of the root afterwards.
+        QWidget* adsCenterColumn = columnSplitterFor(root, D("tab1_EnsembleExplorer")->dockAreaWidget());
+
+        // Move the left/right/center dock areas out of the Qt-ADS built
+        // structure into our column splitters, preserving top->bottom order
+        // (QSplitter::addWidget() reparents an area out of its old splitter).
+        // Tabified docks SHARE one CDockAreaWidget -> add each unique area once.
+        // Center order (mockup, top->bottom): Signal Analysis, Frame Analysis,
+        // Now Playing.
+        QSet<ads::CDockAreaWidget*> moved;
+        const QList<ads::CDockWidget*> centerDocks = {
+            D("tab1_EnsembleExplorer"), D("tab1_SubchannelOrg"), D("tab1_CUUsage"),
+            D("tab1_FrameNavigator"), D("tab1_HexCompliance"),
+            D("tab1_NowPlaying")};
+        for (ads::CDockWidget* d : centerDocks) {
+            if (ads::CDockAreaWidget* a = d->dockAreaWidget()) {
+                if (!moved.contains(a)) {
+                    centerV->addWidget(a);
+                    moved.insert(a);
+                }
+            }
+        }
+        moved.clear();
+        const QList<ads::CDockWidget*> leftDocks = {
+            D("tab1_Player"), D("tab1_Decoder"), D("tab1_System")};
         for (ads::CDockWidget* d : leftDocks) {
             if (ads::CDockAreaWidget* a = d->dockAreaWidget()) {
-                leftV->addWidget(a);
+                if (!moved.contains(a)) {
+                    leftV->addWidget(a);
+                    moved.insert(a);
+                }
             }
         }
+        moved.clear();
+        const QList<ads::CDockWidget*> rightDocks = {
+            D("tab1_ETIOverview"), D("tab1_Status"), D("tab1_Timing"),
+            D("tab1_ErrorCounter"), D("tab1_StreamStats")};
         for (ads::CDockWidget* d : rightDocks) {
             if (ads::CDockAreaWidget* a = d->dockAreaWidget()) {
-                rightV->addWidget(a);
+                if (!moved.contains(a)) {
+                    rightV->addWidget(a);
+                    moved.insert(a);
+                }
             }
         }
 
-        // The root now contains only the (Qt-ADS built) center vertical
-        // splitter. Re-insert the two column splitters around it.
+        // The root now contains only the Qt-ADS built center column, which
+        // also holds an empty bookkeeping splitter (ghost) left over from the
+        // sequential center-area inserts. Rebuild the root as
+        // [leftV | centerV | rightV]: swap our clean center column in and
+        // drop the ADS one (its areas were moved out, so it is empty).
         root->insertWidget(0, leftV);
         root->addWidget(rightV);
+        if (adsCenterColumn && adsCenterColumn->parentWidget() == root) {
+            const int adsIdx = root->indexOf(adsCenterColumn);
+            root->insertWidget(adsIdx, centerV);
+            adsCenterColumn->setParent(nullptr);  // drop from the root splitter
+            delete adsCenterColumn;               // empty structure incl. ghost
+        } else {
+            root->addWidget(centerV);  // fallback: append our center column
+        }
 
-        // First-launch horizontal proportions: left | center | right.
-        root->setSizes({300, 600, 300});
+        // ============================================================
+        // STEP D — first-launch sizes ≈ mockup (residual differences are
+        // expected: Qt-ADS 4.5.0 approximates per-dock vertical stretch and
+        // QSplitter::setSizes() respects each area's minimumSizeHint, so the
+        // exact mockup pixels are not guaranteed — documented residual).
+        // ============================================================
+        root->setSizes({230, 698, 272});   // left | center | right widths ≈ 230/flex/272
+        leftV->setSizes({178, 320});       // Transport ≈ 178, System grows
+        rightV->setSizes({210, 240});      // Signal Info ≈ 210, Error & Stats grows
+
+        // Now Playing: compact, fixed ≈ 82 px at the bottom of the center.
+        if (ads::CDockAreaWidget* nowPlayingArea = D("tab1_NowPlaying")->dockAreaWidget()) {
+            nowPlayingArea->setMinimumHeight(82);
+        }
+        if (centerV->count() == 3) {
+            centerV->setSizes({190, 150, 82});  // Signal Analysis ≈ 190, Frame Analysis flex, Now Playing 82
+        }
     }
 
     QList<DABAnalyzerWindow::DockSection> createTab1_LeftPanel()
     {
         QList<DockSection> sections;
 
-        // LEFT Column per DATA_AVAILABILITY_MATRIX.md specification
-        // Each section becomes one dock widget, stacked top->bottom:
-        // Player, Decoder, System, Messages.
+        // LEFT Column (UI redesign Steps B/C) — each section becomes one dock:
+        // Player + Decoder form the Transport group; System stays standalone.
+        // Messages moved to the shared bottom strip (bottom_Messages).
         
         // 1. Player Panel (Item #1) - 20%
         QGroupBox* playerPanel = createPlayerPanel();
@@ -3006,44 +3143,31 @@ private:
         if (systemPanel) {
             sections.append({QStringLiteral("tab1_System"), QStringLiteral("System"), systemPanel});
         }
-        
-        // 4. Messages Panel (Item #4) - 20%
-        QGroupBox* messagesPanel = createLoggingPanel();
-        if (messagesPanel) {
-            sections.append({QStringLiteral("tab1_Messages"), QStringLiteral("Messages"), messagesPanel});
-        }
 
         return sections;
     }
 
     QWidget* createLiveStreamInputPanel()
     {
-        QGroupBox* panel = new QGroupBox("Input Source");
+        // UI redesign (Step A): the former tab1_InputSource dock becomes a
+        // compact toolbar pinned at the TOP of the Tab-1 page (above the page's
+        // CDockManager). Row 1 (always visible): File/Network radios · path
+        // edit · Browse… · Load File. Row 2 (m_sourceInputStack, hidden in
+        // File mode): network controls + stream statistics — the old network
+        // page content, reused verbatim. All member widgets and slot wiring
+        // are unchanged.
+        QWidget* panel = new QWidget();
+        panel->setObjectName(QStringLiteral("inputToolbar"));
         QVBoxLayout* mainLayout = new QVBoxLayout(panel);
         mainLayout->setContentsMargins(8, 8, 8, 8);
         mainLayout->setSpacing(6);
-        
-        // Source type selection (File vs Network Stream)
-        QHBoxLayout* sourceTypeLayout = new QHBoxLayout();
+
+        // === ROW 1: Source type + file path + Browse + Load (always visible) ===
+        QHBoxLayout* row1 = new QHBoxLayout();
         m_fileSourceRadio = new QRadioButton("File");
         m_networkSourceRadio = new QRadioButton("Network Stream");
         m_fileSourceRadio->setChecked(true);  // Default to file input
-        
-        sourceTypeLayout->addWidget(m_fileSourceRadio);
-        sourceTypeLayout->addWidget(m_networkSourceRadio);
-        sourceTypeLayout->addStretch();
-        mainLayout->addLayout(sourceTypeLayout);
-        
-        // Stacked widget for File vs Network input
-        m_sourceInputStack = new QStackedWidget();
-        
-        // === PAGE 0: File Input ===
-        QWidget* fileInputPage = new QWidget();
-        QVBoxLayout* fileLayout = new QVBoxLayout(fileInputPage);
-        fileLayout->setContentsMargins(4, 4, 4, 4);
-        fileLayout->setSpacing(4);
-        
-        QHBoxLayout* filePathLayout = new QHBoxLayout();
+
         QLabel* fileLabel = new QLabel("File:");
         fileLabel->setMinimumWidth(40);
         m_filePathEdit = new QLineEdit();
@@ -3052,21 +3176,34 @@ private:
         m_browseFileButton = new QPushButton("Browse...");
         m_loadFileButton = new QPushButton("Load File");
         m_loadFileButton->setStyleSheet("font-weight: bold; background-color: #0078D4; color: white;");
-        
-        filePathLayout->addWidget(fileLabel);
-        filePathLayout->addWidget(m_filePathEdit, 1);
-        filePathLayout->addWidget(m_browseFileButton);
-        filePathLayout->addWidget(m_loadFileButton);
-        fileLayout->addLayout(filePathLayout);
-        
+
+        row1->addWidget(m_fileSourceRadio);
+        row1->addWidget(m_networkSourceRadio);
+        row1->addSpacing(8);
+        row1->addWidget(fileLabel);
+        row1->addWidget(m_filePathEdit, 1);
+        row1->addWidget(m_browseFileButton);
+        row1->addWidget(m_loadFileButton);
+        mainLayout->addLayout(row1);
+
+        // === ROW 2: expandable network row ===
+        // Stacked widget for File vs Network input. In File mode the whole row
+        // is hidden (compact single-row bar); when "Network Stream" is selected
+        // onSourceTypeChanged() shows it and jumps to the network page.
+        m_sourceInputStack = new QStackedWidget();
+        m_sourceInputStack->setObjectName(QStringLiteral("inputToolbarNetworkRow"));
+        m_sourceInputStack->setVisible(false);  // File mode by default
+
+        // === PAGE 0: File Input (kept for stack index semantics — File page index 0) ===
+        QWidget* fileInputPage = new QWidget();
         m_sourceInputStack->addWidget(fileInputPage);
-        
+
         // === PAGE 1: Network Stream Input ===
         QWidget* networkInputPage = new QWidget();
         QVBoxLayout* networkLayout = new QVBoxLayout(networkInputPage);
         networkLayout->setContentsMargins(4, 4, 4, 4);
         networkLayout->setSpacing(6);
-        
+
         // Stream URL input
         QHBoxLayout* urlLayout = new QHBoxLayout();
         QLabel* urlLabel = new QLabel("Stream URL:");
@@ -3077,7 +3214,7 @@ private:
         urlLayout->addWidget(urlLabel);
         urlLayout->addWidget(m_streamUrlEdit, 1);
         networkLayout->addLayout(urlLayout);
-        
+
         // Quick Examples dropdown
         QHBoxLayout* examplesLayout = new QHBoxLayout();
         QLabel* examplesLabel = new QLabel("Quick Examples:");
@@ -3090,7 +3227,7 @@ private:
         examplesLayout->addWidget(examplesLabel);
         examplesLayout->addWidget(m_quickExampleCombo, 1);
         networkLayout->addLayout(examplesLayout);
-        
+
         // Connect/Disconnect buttons and status
         QHBoxLayout* controlLayout = new QHBoxLayout();
         m_connectBtn = new QPushButton("Connect");
@@ -3102,7 +3239,7 @@ private:
         m_recordBtn->setStyleSheet("background-color: #D32F2F; color: white;");
         m_streamStatus = new QLabel("<span style='color: #666;'>● Disconnected</span>");
         m_streamStatus->setFont(QFont("Arial", 10, QFont::Bold));
-        
+
         controlLayout->addWidget(m_connectBtn);
         controlLayout->addWidget(m_disconnectBtn);
         controlLayout->addWidget(m_recordBtn);
@@ -3110,17 +3247,17 @@ private:
         controlLayout->addWidget(m_streamStatus);
         controlLayout->addStretch();
         networkLayout->addLayout(controlLayout);
-        
+
         // Stream Statistics GroupBox
         QGroupBox* statsGroup = new QGroupBox("Stream Statistics");
         QGridLayout* statsLayout = new QGridLayout(statsGroup);
         statsLayout->setContentsMargins(6, 6, 6, 6);
         statsLayout->setSpacing(4);
-        
+
         // Create statistics labels (2-column layout)
         QFont labelFont("Arial", 9);
         QFont dataFont("Consolas", 9, QFont::Bold);
-        
+
         // Row 0: Frame Rate
         QLabel* frLabel = new QLabel("Frame Rate:");
         frLabel->setFont(labelFont);
@@ -3129,7 +3266,7 @@ private:
         m_streamFrameRate->setStyleSheet("color: #0078D4;");
         statsLayout->addWidget(frLabel, 0, 0);
         statsLayout->addWidget(m_streamFrameRate, 0, 1);
-        
+
         // Row 0: Frames Received
         QLabel* fcLabel = new QLabel("Frames Received:");
         fcLabel->setFont(labelFont);
@@ -3138,7 +3275,7 @@ private:
         m_streamFramesReceived->setStyleSheet("color: #0078D4;");
         statsLayout->addWidget(fcLabel, 0, 2);
         statsLayout->addWidget(m_streamFramesReceived, 0, 3);
-        
+
         // Row 1: Frame Loss
         QLabel* flLabel = new QLabel("Frame Loss:");
         flLabel->setFont(labelFont);
@@ -3147,7 +3284,7 @@ private:
         m_streamFrameLoss->setStyleSheet("color: #107C10;");
         statsLayout->addWidget(flLabel, 1, 0);
         statsLayout->addWidget(m_streamFrameLoss, 1, 1);
-        
+
         // Row 1: Network Latency
         QLabel* latLabel = new QLabel("Network Latency:");
         latLabel->setFont(labelFont);
@@ -3156,7 +3293,7 @@ private:
         m_streamLatency->setStyleSheet("color: #107C10;");
         statsLayout->addWidget(latLabel, 1, 2);
         statsLayout->addWidget(m_streamLatency, 1, 3);
-        
+
         // Row 2: Buffer Status
         QLabel* bufLabel = new QLabel("Buffer Status:");
         bufLabel->setFont(labelFont);
@@ -3165,7 +3302,7 @@ private:
         m_streamBuffer->setStyleSheet("color: #0078D4;");
         statsLayout->addWidget(bufLabel, 2, 0);
         statsLayout->addWidget(m_streamBuffer, 2, 1);
-        
+
         // Row 2: Data Rate
         QLabel* drLabel = new QLabel("Data Rate:");
         drLabel->setFont(labelFont);
@@ -3174,7 +3311,7 @@ private:
         m_streamDataRate->setStyleSheet("color: #0078D4;");
         statsLayout->addWidget(drLabel, 2, 2);
         statsLayout->addWidget(m_streamDataRate, 2, 3);
-        
+
         // Row 3: Uptime (spans 2 columns)
         QLabel* upLabel = new QLabel("Uptime:");
         upLabel->setFont(labelFont);
@@ -3183,13 +3320,13 @@ private:
         m_streamUptime->setStyleSheet("color: #107C10;");
         statsLayout->addWidget(upLabel, 3, 0);
         statsLayout->addWidget(m_streamUptime, 3, 1);
-        
+
         networkLayout->addWidget(statsGroup);
-        
+
         m_sourceInputStack->addWidget(networkInputPage);
-        
+
         mainLayout->addWidget(m_sourceInputStack);
-        
+
         // Connect signals
         connect(m_fileSourceRadio, &QRadioButton::toggled, this, [this](bool checked) {
             onSourceTypeChanged(!checked);
@@ -3204,12 +3341,12 @@ private:
         connect(m_recordBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onRecordClicked);
         connect(m_browseFileButton, &QPushButton::clicked, this, &DABAnalyzerWindow::onBrowseFileClicked);
         connect(m_loadFileButton, &QPushButton::clicked, this, &DABAnalyzerWindow::onLoadFileClicked);
-        
+
         // Initialize statistics timer (but don't start it)
         m_statsTimer = new QTimer(this);
         // NOTE: Stream statistics are updated from onProcessingComplete() with frame/time parameters
         // No periodic timer update needed for file-based processing
-        
+
         return panel;
     }
 
@@ -3217,17 +3354,14 @@ private:
     {
         QList<DockSection> sections;
 
-        // CENTER Column per DATA_AVAILABILITY_MATRIX.md specification
-        // Each section becomes one dock widget, stacked top->bottom:
-        // Input Source, DAB Ensemble Explorer, ETI Frame Navigator,
-        // Hex Viewer / ETSI Compliance, Subchannel Organization, Now Playing.
-        
-        // 0. Live Stream Input (NEW - placed above Ensemble Explorer) - 10%
-        QWidget* liveStreamPanel = createLiveStreamInputPanel();
-        if (liveStreamPanel) {
-            sections.append({QStringLiteral("tab1_InputSource"), QStringLiteral("Input Source"), liveStreamPanel});
-        }
-        
+        // CENTER Column (UI redesign Steps A/B) — each section becomes one
+        // dock; registerTab1Docks() groups them:
+        //   Signal Analysis (Ensemble Explorer | Subchannel Org | CU Usage),
+        //   Frame Analysis (ETI Frame Navigator | Hex/ETSI Compliance),
+        //   Now Playing (standalone, compact bottom).
+        // The old tab1_InputSource dock is gone (the toolbar replaced it).
+        // CU Usage moved here from the right column (mockup grouping).
+
         // 1. DAB Ensemble Explorer (Item #5) - moved from LEFT - 15%
         QGroupBox* ensembleGroup = new QGroupBox("DAB Ensemble Explorer");
         QVBoxLayout* ensembleLayout = new QVBoxLayout(ensembleGroup);
@@ -3298,7 +3432,13 @@ private:
         
         sections.append({QStringLiteral("tab1_SubchannelOrg"), QStringLiteral("Subchannel Organization"), subchannelGroup});
 
-        // 5. Now Playing (DLS+) (Item #9) - moved from RIGHT - 25%
+        // 5. CU Usage (Item #13) - moved from RIGHT (mockup: Signal Analysis group)
+        QGroupBox* cuUsagePanel = createCUUsagePanel();
+        if (cuUsagePanel) {
+            sections.append({QStringLiteral("tab1_CUUsage"), QStringLiteral("CU Usage"), cuUsagePanel});
+        }
+
+        // 6. Now Playing (DLS+) (Item #9) - moved from RIGHT - 25%
         QGroupBox* nowPlayingPanel = createNowPlayingPanel();
         if (nowPlayingPanel) {
             sections.append({QStringLiteral("tab1_NowPlaying"), QStringLiteral("Now Playing (DLS+)"), nowPlayingPanel});
@@ -3337,10 +3477,10 @@ private:
     {
         QList<DockSection> sections;
 
-        // RIGHT Column per DATA_AVAILABILITY_MATRIX.md specification
-        // Each section becomes one dock widget, stacked top->bottom:
-        // ETI Overview, DAB Error Counter, Status, Timing, CU Usage,
-        // DAB Stream Statistics.
+        // RIGHT Column (UI redesign Step B) — each section becomes one dock:
+        // ETI Overview | Status | Timing form the Signal Info group,
+        // DAB Error Counter + DAB Stream Statistics the Error & Statistics
+        // group. CU Usage moved to the CENTER column (Signal Analysis group).
 
         // 1. ETI Overview (Item #10) - 25%
         QGroupBox* etiOverviewPanel = createETIOverviewPanel();
@@ -3381,13 +3521,11 @@ private:
             sections.append({QStringLiteral("tab1_Timing"), QStringLiteral("Timing"), timingPanel});
         }
 
-        // 5. CU Usage (Item #13) - 20%
-        QGroupBox* cuUsagePanel = createCUUsagePanel();
-        if (cuUsagePanel) {
-            sections.append({QStringLiteral("tab1_CUUsage"), QStringLiteral("CU Usage"), cuUsagePanel});
-        }
+        // NOTE: CU Usage moved to the CENTER column (Signal Analysis group,
+        // UI redesign Step B) — right column keeps Overview/ErrorCounter/
+        // Status/Timing/StreamStats only.
 
-        // 6. Stream Statistics (Item #14) - 15%
+        // 5. Stream Statistics (Item #14) - 15%
         QGroupBox* streamStatsPanel = createStreamStatisticsPanel();
         if (streamStatsPanel) {
             sections.append({QStringLiteral("tab1_StreamStats"), QStringLiteral("DAB Stream Statistics"), streamStatsPanel});
@@ -3820,7 +3958,7 @@ private:
             return;
         }
 
-        // The five bottom tabs become five TABBED CDockWidgets hosted by the
+        // The six bottom tabs become six TABBED CDockWidgets hosted by the
         // window-level bottom CDockManager. The page-widget builders themselves
         // are untouched.
 
@@ -3859,6 +3997,17 @@ private:
             QStringLiteral("bottom_Constellation"), QStringLiteral("Constellation"),
             createConstellationTab());
         m_bottomDockManager->addDockWidgetTabToArea(d5, d1->dockAreaWidget());
+
+        // Tab 6: Messages (UI redesign Step C) — moved from the Tab-1 left
+        // column; wraps the SAME createLoggingPanel() widget/members. Being a
+        // window-level strip dock it is automatically shared by all 3 tabs.
+        ads::CDockWidget* d6 = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_Messages"), QStringLiteral("Messages"),
+            createLoggingPanel());
+        m_bottomDockManager->addDockWidgetTabToArea(d6, d1->dockAreaWidget());
+
+        // Default active tab of the bottom strip: System Messages (first dock).
+        d1->dockAreaWidget()->setCurrentDockWidget(d1);
     }
 
     // ========================================================================
@@ -3871,6 +4020,20 @@ private:
         const QByteArray geometry = s.value(QStringLiteral("window/geometry")).toByteArray();
         if (!geometry.isEmpty() && !restoreGeometry(geometry)) {
             qWarning() << "Failed to restore window geometry";
+        }
+
+        // UI redesign (Step E): dock states saved by the v1.3 layout (26 docks,
+        // no grouped areas) are incompatible with the redesign. The stored
+        // layout version guards a ONE-TIME reset: any version != 2 discards the
+        // saved dock states (docking/tab1|tab2|tab3|bottom) so the first run
+        // after the upgrade shows the new default layout; window geometry is
+        // kept. Version 2 is written again on the next saveDockingState().
+        const int layoutVersion = s.value(QStringLiteral("docking/layout_version"), 1).toInt();
+        if (layoutVersion != DOCKING_LAYOUT_VERSION) {
+            qInfo() << "Docking layout version" << layoutVersion
+                    << "!= expected" << DOCKING_LAYOUT_VERSION
+                    << "- discarding saved dock states (redesign first run)";
+            return;
         }
 
         if (m_tab1DockManager && !s.value(QStringLiteral("docking/tab1")).isNull()) {
@@ -3898,6 +4061,7 @@ private:
     void saveDockingState()
     {
         QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        s.setValue(QStringLiteral("docking/layout_version"), DOCKING_LAYOUT_VERSION);
         s.setValue(QStringLiteral("window/geometry"), saveGeometry());
         if (m_tab1DockManager) {
             s.setValue(QStringLiteral("docking/tab1"), m_tab1DockManager->saveState());
@@ -5595,7 +5759,7 @@ private:
     QCheckBox* m_enableFicAnalysis = nullptr;
     QCheckBox* m_enableMscAnalysis = nullptr;
     
-    // Live Stream Input widgets (Tab 1 Center Panel)
+    // Live Stream Input widgets (Tab 1 Input toolbar — UI redesign Step A)
     QLabel* m_streamFrameRate = nullptr;
     QLabel* m_streamFramesReceived = nullptr;
     QLabel* m_streamFrameLoss = nullptr;
@@ -5754,6 +5918,11 @@ private:
     static constexpr int TIMING_UPDATE_INTERVAL_MS = 200;  // 5 fps
     static constexpr int FRAME_LIST_UPDATE_THROTTLE = 10;  // ~10 fps (update every 10 frames)
     static constexpr int ERROR_COUNTER_UPDATE_THROTTLE = 20;  // 5 fps (update every 20 frames)
+
+    // UI redesign (Step E): bumped from 1 -> 2 when the dock layout changed
+    // (Input Source -> toolbar, Messages -> bottom strip, Tab-1 regrouped dock
+    // areas). Any saved version != 2 is discarded once on restore.
+    static constexpr int DOCKING_LAYOUT_VERSION = 2;
     
     // Phase 1: Processing counters
     int m_processedFrames{0};

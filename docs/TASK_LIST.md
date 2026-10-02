@@ -23,6 +23,7 @@ Living checklist for active work. Check off items when done (add commit ref).
 - [x] **T7: Commit decode fix + review fixes** — committed with the F1–F9 fix wave + review docs (see commit log; ctest 44/45, only known v1.4 perf failure).
 - [ ] **T8: ETI/FIG settings feature** — implement the matrix `SETTING` rows (rows 1,2,3,4,5,6,8,9,10,11,12,14): `AnalyzerSettings` (QSettings `analyzer/...`) + GUI section in `settings_dialog.cpp` + CLI flags; **etisnoop-parity defaults** (matrix `KEEP` column) — output stays byte-identical on default config. — committed (see commit log; ctest 45/46).
 - [x] **T9: Matrix FIX leftovers** — auto raw-FIC fallback when all FIB CRCs fail (row 4, `DABX_FIC_MODE` env hook) + tail TIST for ETI-NI (row 10) — committed (see commit log).
+- [x] **T10: UI redesign (v2) — Tab-1 regroup + Input toolbar + Messages→strip + layout v2** — plan `docs/gui/UI_REDESIGN_PLAN.md` (docs-only commit `2c4055a`); implementation: Input Source dock → `inputToolbar` (page top), grouped tabbed dock areas (Transport / Signal Analysis / Frame Analysis / Signal Info / Error & Statistics), CU Usage moved to center, Messages → `bottom_Messages` (6th strip tab), `docking/layout_version = 2` one-time reset, first-launch sizes ≈ mockup, test + `QT_ADS_DOCKING.md` updated (25 docks: 14 tab1 + 3 tab2 + 2 tab3 + 6 bottom; ctest 45/46 with only the known v1.4 perf failure; CLI parity byte-identical vs `fe1c431`; review PASSED — default active tab per group fixed + null-safety/test gap closed).
 
 ## Later (see `docs/PHASE_E_PLAN.md`)
 
