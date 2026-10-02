@@ -151,6 +151,92 @@ struct FIGTraceEntry {
 };
 
 /**
+ * @brief One decoded FIG 0/21 (frequency information) entry (backlog P2/P3).
+ *
+ * RegionId/cei are kept for diagnostics; the readable trace value is the
+ * carrier frequency in MHz (DAB R&M 0/1 entries, EN 300 401 8.1.8). freq_khz
+ * is 0 for frequency-information entries whose R&M is not a DAB frequency
+ * (FM/AM/DRM entries carry their own units — see fig0_21.cpp).
+ */
+struct FrequencyInfoEntry {
+    uint16_t region_id{0};       // RegionId (13 bits)
+    uint16_t id_field{0};        // FI Id field (EId / RDS PI / service id)
+    uint8_t randm{0};            // R&M: 0/1 = DAB ensemble, 8/9 = FM RDS...
+    uint32_t freq_khz{0};        // Carrier frequency in kHz (0 = n/a)
+};
+
+/**
+ * @brief One decoded FIG 0/22 (geographical location) TII field (backlog P2/P3).
+ *
+ * Main identifiers (is_main) carry an absolute lat/lon from the coarse/fine
+ * fields; sub identifiers carry TD + lat/lon offsets (EN 300 401 8.1.9). The
+ * absolute position of a sub identifier is only resolvable when the matching
+ * main identifier was seen earlier in the same FIG (the CLI reports the
+ * offsets as-is; referential resolution is a GUI/DB concern).
+ */
+struct GeoCoordEntry {
+    bool is_main{true};          // TII Main identifier vs Sub identifier
+    uint8_t main_id{0};          // MainId / MainId of the sub field (7 bits)
+    uint8_t sub_id{0};           // SubId (5 bits; 0 for main fields)
+    uint16_t td{0};              // Sub identifier time delay (us)
+    double latitude{0.0};        // Degrees, north positive (absolute or base)
+    double longitude{0.0};       // Degrees, east positive
+    int16_t lat_offset{0};       // Sub identifier latitude offset (raw)
+    int16_t lon_offset{0};       // Sub identifier longitude offset (raw)
+};
+
+/**
+ * @brief One decoded FIG 1/2 or FIG 1/3 label (backlog P2/P3).
+ *
+ * FIG 1/2 = service component label ([charset|OE|ext][SCIdS 6b|Rfu|P/D]
+ * [SId 16/32][label 16][flag 2]); FIG 1/3 = data service label ([charset|OE|
+ * ext][SId 32][label 16][flag 2]). Labels are charset-decoded with the same
+ * pipeline as FIG 1/0/1/1 (EBU Latin / UTF-8 / TIS-620, force_charset and
+ * fallback policy honoured).
+ */
+struct ComponentLabelInfo {
+    uint8_t extension{2};        // 2 = service component label, 3 = data label
+    uint32_t service_id{0};      // Full SId as read (16-bit P/D=0, 32-bit P/D=1)
+    uint16_t scids{0};           // FIG 1/2 SCIdS (6 bits); 0 for FIG 1/3
+    std::string label;           // Full label, UTF-8, trailing spaces trimmed
+    std::string short_label;     // Mask-derived short label (when flag present)
+    uint16_t character_flag{0};  // 16-bit character flag (0 when absent)
+};
+
+/**
+ * @brief Minimal decode of one FIG type 2 (OTH) instance (backlog P2/P3).
+ *
+ * FIG type 2 carries segmented UTF-8/UCS-2 labels (ETSI TS 101 756 /
+ * EN 300 401 8.1.13): [toggle|segment|rfu|ext] [identifier] [enc|segcount|rfa]
+ * [char flag] [label segment bytes]. Only the first segment of UTF-8 labels
+ * is surfaced readably; UCS-2 segments are marked but not converted.
+ */
+struct FigType2Info {
+    uint8_t extension{0};        // 0 ensemble, 1 programme, 4 comp, 5 data...
+    uint8_t toggle{0};           // Toggle flag
+    uint8_t segment_index{0};    // Segment index (0-based)
+    uint8_t rfu{0};              // Rfu / text-control
+    uint32_t service_id{0};      // Identifier (EId / SId as carried)
+    std::string label;           // First-segment label bytes (UTF-8 passthrough)
+    bool ucs2{false};            // True when the segment is UCS-2 encoded
+};
+
+/**
+ * @brief Number of backlog-decoder entries produced by one FIG block.
+ *
+ * Parallel to fig_blocks: the headless trace/inventory walk pairs each
+ * fig_trace entry with the readable values its block's decoder appended to
+ * the result vectors (frequency_infos / geo_coords / component_labels /
+ * fig2_infos) via running consumed-counters.
+ */
+struct FigDecodeCounts {
+    uint8_t frequencies{0};
+    uint8_t geos{0};
+    uint8_t component_labels{0};
+    uint8_t fig2{0};
+};
+
+/**
  * @brief Advanced FIG processing result
  */
 struct FIGAnalysisResult {
@@ -158,6 +244,18 @@ struct FIGAnalysisResult {
     ::eti::Ensemble ensemble_info;
     std::vector<::eti::DabService> discovered_services;
     std::vector<::eti::SubChannelInfo> subchannels;
+
+    // Backlog P2/P3 decoders (appended in FIG block order, so the headless
+    // trace walk can pair them with the matching fig_trace entries via
+    // running consumed-counters).
+    std::vector<FrequencyInfoEntry> frequency_infos;      // FIG 0/21
+    std::vector<GeoCoordEntry> geo_coords;                // FIG 0/22
+    std::vector<ComponentLabelInfo> component_labels;     // FIG 1/2 + 1/3
+    std::vector<FigType2Info> fig2_infos;                 // FIG type 2
+
+    // Per-block entry counts (parallel to fig_blocks) — pairing metadata for
+    // the trace walk above.
+    std::vector<FigDecodeCounts> fig_decode_counts;
 
     // Per-frame FIG trace (P1): parallel to fig_blocks — one entry per block
     // with FIB provenance + CRC health for the chronological trace output.
@@ -373,8 +471,13 @@ private:
     void processFIG02_ServiceOrg(const eti::FigBlock& fig, FIGAnalysisResult& result);
     void processFIG03_ServiceComponent(const eti::FigBlock& fig, FIGAnalysisResult& result);
     void processFIG09_CountryLTO(const eti::FigBlock& fig, FIGAnalysisResult& result);
+    void processFIG021_FrequencyInfo(const eti::FigBlock& fig, FIGAnalysisResult& result);
+    void processFIG022_GeoLocation(const eti::FigBlock& fig, FIGAnalysisResult& result);
     void processFIG10_EnsembleLabel(const eti::FigBlock& fig, FIGAnalysisResult& result);
     void processFIG11_ServiceLabel(const eti::FigBlock& fig, FIGAnalysisResult& result);
+    void processFIG12_ServiceComponentLabel(const eti::FigBlock& fig, FIGAnalysisResult& result);
+    void processFIG13_DataServiceLabel(const eti::FigBlock& fig, FIGAnalysisResult& result);
+    void processFIG2_Other(const eti::FigBlock& fig, FIGAnalysisResult& result);
 
     // FIG 1 label charset decoding (EN 300 401 8.1.13): EBU Latin / UTF-8 /
     // TIS-620; honours force_charset and charset_fallback_policy settings.

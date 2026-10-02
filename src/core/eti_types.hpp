@@ -609,6 +609,13 @@ struct SubChannelInfo {
     // 0 = EEP-x-A, 1 = EEP-x-B. Meaningless for UEP short form.
     uint8_t protection_option{0};
 
+    // Short-form (UEP) protection table selector (EN 300 401 8.1.2.1 / STC
+    // TPL): table_switch (1 bit) + table_index (6 bits in FIG 0/1, 3 bits in
+    // the STC TPL). The UEP sub-channel size is derived from the protection
+    // table (protection_tables.hpp), not signalled in the stream.
+    uint8_t table_switch{0};
+    uint8_t table_index{0};
+
     uint16_t get_end_address() const {
         return start_address + size - 1;
     }

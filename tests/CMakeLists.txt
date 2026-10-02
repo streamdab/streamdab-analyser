@@ -117,6 +117,21 @@ target_link_libraries(test_cli_fig_trace
 add_test(NAME test_cli_fig_trace COMMAND test_cli_fig_trace)
 set_tests_properties(test_cli_fig_trace PROPERTIES TIMEOUT 60)
 
+# P2/P3 CLI FIG-detail wave (docs/fixes/CLI_FIG_COVERAGE.md backlog): FIG 1/2 +
+# 1/3 Thai labels, FIG 0/21 + 0/22 readable decodes, FIG type 2, 32-bit SId
+# FIG 1/1 (GUI/CLI P/D alignment), EEP/UEP protection tables, --figs-by-type
+# + --fib-hex. Also launches the real streamdab-cli on synthetic streams and
+# the fixture (frame-limited).
+add_executable(test_cli_fig_extended
+    test_cli_fig_extended.cpp
+)
+target_link_libraries(test_cli_fig_extended
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_cli_fig_extended COMMAND test_cli_fig_extended)
+set_tests_properties(test_cli_fig_extended PROPERTIES TIMEOUT 60)
+
 # Test 4: ETI LI CRC Validation
 add_executable(test_eti_li_crc_validation
     test_eti_li_crc_validation.cpp

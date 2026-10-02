@@ -180,6 +180,20 @@ int cli_main(int argc, char** argv) {
             }
         }
 
+        // Backlog P2/P3: grouped-by-FIG view + per-FIB hex dumps (stderr).
+        if (options.figs_by_type) {
+            processor.setFigsByTypeMode(true);
+            if (!options.quiet) {
+                printProgress("FIG grouped view (--figs-by-type): ENABLED (lines on stderr)", false);
+            }
+        }
+        if (options.fib_hex) {
+            processor.setFibHexMode(true);
+            if (!options.quiet) {
+                printProgress("FIB hex dumps (--fib-hex): ENABLED (lines on stderr)", false);
+            }
+        }
+
         // P1: limit the processed frame prefix (--max-frames).
         if (options.max_frames > 0) {
             processor.setMaxFrames(options.max_frames);

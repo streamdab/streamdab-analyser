@@ -82,6 +82,18 @@ CLIOptions CLIArgumentParser::parse(int argc, char** argv) {
             continue;
         }
 
+        // Grouped-by-FIG view flag (backlog P2/P3)
+        if (arg == "--figs-by-type") {
+            options.figs_by_type = true;
+            continue;
+        }
+
+        // Per-FIB hex dump flag (backlog P2/P3)
+        if (arg == "--fib-hex") {
+            options.fib_hex = true;
+            continue;
+        }
+
         // Input file (requires value)
         if (arg == "--input") {
             if (i + 1 >= argc) {
@@ -365,6 +377,12 @@ void CLIArgumentParser::printUsage() {
     out << "                          (fig-trace: frame=N type=T ext=E len=L fib=F\n";
     out << "                          crc=ok|bad reconfig=bool, with readable values\n";
     out << "                          for decoded FIGs; also enabled by --verbose-frames)\n";
+    out << "  --figs-by-type          Grouped view: one section per FIG type/ext\n";
+    out << "                          (frames + aggregate readable values: labels,\n";
+    out << "                          frequencies, coordinates; FIC-XTractor style)\n";
+    out << "  --fib-hex               Per-FIB hex dump with analyzed FIG byte ranges\n";
+    out << "                          (fib-hex: frame=N fib=F crc=ok|bad; 30-byte hex\n";
+    out << "                          line + [a-b] FIG t/e markers; FIB-Hex panel style)\n";
     out << "  --max-frames <n>        Process first N frames only (default: all)\n";
     out << "  --cli                   Explicitly enable CLI mode (auto-detected)\n\n";
 
