@@ -9,11 +9,11 @@ Living checklist for active work. Check off items when done (add commit ref).
   - Update live docs that reference the legacy binary name `./DABAnalyzer_Enhanced_FilteringBuild` (runnable is now `./build/StreamDABAnalyzer`): `README.md`, `docs/ETI_TEST_DATA.md`, `docs/SESSION_RESUMPTION_GUIDE.md`, `docs/PDCA_WORKFLOW.md`, `docs/fixes/*`, `docs/agents/*`, and other non-archive docs. **Skip `docs/archive/`** (historical record).
   - Verify: rebuild + run `./build/StreamDABAnalyzer` + `ctest`.
 
-- [ ] **T2: Qt-ADS 4.5.0 layout-preserving migration** *(revised 2026-10-02: placeholder-panel experiment rejected — restore original `DABAnalyzerWindow` layout, wrap existing panels in per-tab `CDockManager`s; 16 tab1 docks + 3 tab2 + 2 tab3 + 5 shared bottom strip; QSettings persistence; auto-hide enabled)*
+- [x] **T2: Qt-ADS 4.5.0 layout-preserving migration** *(revised 2026-10-02: placeholder-panel experiment rejected — restore original `DABAnalyzerWindow` layout, wrap existing panels in per-tab `CDockManager`s; 16 tab1 docks + 3 tab2 + 2 tab3 + 5 shared bottom strip; QSettings persistence; auto-hide enabled)* — committed `263bcab`.
   - View-menu dock toggles / per-tab bottom strips are NOT in v1.3 (documented decisions); rich panel content porting not needed (panels preserved from original).
   - Reference: `docs/gui/QT_ADS_DOCKING.md` (architecture + 26-dock registry, QSettings keys).
 
-- [ ] **T3: v1.3 code review + commit** — review must pass before commit (AGENTS.md mandatory workflow), then commit on `feature/gui-qtads`.
+- [x] **T3: v1.3 code review + commit** — review PASSED (no CRITICAL/HIGH; 3 MEDIUM + 4 LOW all addressed), committed `263bcab` on `feature/gui-qtads`.
 - [ ] **T4: v1.3.x QA — manual drag/float/auto-hide interaction pass on the ship layout** (headless CI covers only visibility + floating round-trip).
 
 ## Later (see `docs/PHASE_E_PLAN.md`)
