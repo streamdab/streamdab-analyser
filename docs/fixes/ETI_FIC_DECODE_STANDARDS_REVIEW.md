@@ -115,7 +115,5 @@ tests `test_eti_ni_parser`, `test_etsi_registered_tables`, `test_yaml_output_gen
 - [x] Decode fix (root cause) — **committed** (see commit log for T5/T7)
 - [x] Standards review (this record) — PASSED after F1–F9
 - [x] Commit decode fix + review docs (T7)
-- [ ] **Analyzer settings feature** — implement the `SETTING` rows of
-      [`OPTION_VARIANT_MATRIX.md`](OPTION_VARIANT_MATRIX.md) (GUI settings dialog + QSettings + CLI flags,
-      grouped per case; etisnoop defaults stay the defaults)
-- [ ] Matrix FIX leftovers — auto raw-FIC fallback (row 4), tail TIST for ETI-NI (row 10)
+- [x] **Analyzer settings feature** — matrix `SETTING` rows implemented (AnalyzerSettings + settings-dialog Analyzer tab + 13 CLI flags; etisnoop-parity defaults byte-identical)
+- [x] Matrix FIX leftovers — auto raw-FIC fallback (row 4), tail TIST for ETI-NI (row 10)

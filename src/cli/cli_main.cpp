@@ -26,6 +26,7 @@
 #include "cli_argument_parser.hpp"
 #include "yaml_output_generator.hpp"
 #include "../core/headless_eti_processor.hpp"
+#include "../core/analyzer_settings.hpp"
 #include "../utils/logger.h"
 #include <QFile>
 #include <QElapsedTimer>
@@ -152,6 +153,18 @@ int cli_main(int argc, char** argv) {
         // Create headless ETI processor
         HeadlessETIProcessor processor;
 
+        // Build the AnalyzerSettings from defaults + the provided CLI flags.
+        // NOTE: the CLI deliberately does NOT read the GUI QSettings so that a
+        // default-config run is byte-identical to the baseline (gate 2).
+        eti::AnalyzerSettings analyzerSettings = eti::AnalyzerSettings::defaults();
+        analyzerSettings.applyCliOverrides(options.analyzerOverrides());
+        QString settingsError;
+        if (!analyzerSettings.validate(&settingsError)) {
+            std::cerr << "WARNING: invalid analyzer setting: "
+                      << settingsError.toStdString() << " (using sane defaults)\n";
+        }
+        processor.setAnalyzerSettings(analyzerSettings);
+
         // *** ENABLE VERBOSE MODE IF REQUESTED ***
         if (options.verbose_frames) {
             processor.setVerboseMode(true);
@@ -199,6 +212,13 @@ int cli_main(int argc, char** argv) {
         printProgress("Generating YAML output...", options.quiet);
 
         YAMLOutputGenerator yamlGenerator;
+
+        // Thread the analyzer settings into the output layer (rows 6/8/12).
+        yamlGenerator.setAnalyzerSettings(analyzerSettings);
+
+        // Row 11 diagnostics: emitted only when strict_frame_crc is enabled.
+        yamlGenerator.setFrameCrcStats(analyzerSettings.strict_frame_crc,
+                                       result.frame_crc_failures);
 
         // Enable verbose mode if requested
         if (options.verbose_frames) {

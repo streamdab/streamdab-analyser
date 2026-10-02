@@ -48,6 +48,6 @@ user option · **FIX** = implement correctly first (was deviating / absent).
 ## Status
 
 - [x] Review + fix wave F1–F9 (see `ETI_FIC_DECODE_STANDARDS_REVIEW.md`)
-- [ ] Matrix `FIX` leftovers: auto raw-FIC fallback (row 4), tail TIST for NI (row 10)
-- [ ] Settings feature: storage + GUI + CLI per roadmap (§1–4)
-- [ ] Commit decode fix, then settings feature
+- [x] Matrix `FIX` leftovers: auto raw-FIC fallback (row 4) + tail TIST for NI (row 10)
+- [x] **Settings feature (rows 1,2,3,4,5,6,8,9,10,11,12,14)**: `AnalyzerSettings` (QSettings group `analyzer/`) + CLI flags (13) + GUI "Analyzer" tab in `settings_dialog.cpp` — etisnoop-parity defaults keep default-config output byte-identical; `--show-short-labels` matches etisnoop short-label set exactly on the fixture; new `test_analyzer_settings` (15 tests). Committed with the T8 commit.
+- [ ] Remaining matrix notes: row 9 full EEP/UEP size tables for reporting (future; decode itself matches etisnoop)

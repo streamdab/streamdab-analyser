@@ -38,6 +38,7 @@
 #include <QTextStream>
 #include "../core/eti_types.hpp"
 #include "../core/fig_parser.hpp"
+#include "../core/analyzer_settings.hpp"
 
 namespace cli {
 
@@ -196,6 +197,25 @@ public:
      */
     void setETIStreamInfo(int total_frames, int valid_frames, int error_frames, int crc_errors);
 
+    /**
+     * @brief Set the user-selected analyzer decode options (rows 8/12/6).
+     *
+     * Drives service_id rendering (sid_display_mode), the optional
+     * service_short_label / ensemble_short_label emission (show_short_labels)
+     * and the ECC used for country lookup (ecc_override). Defaults match the
+     * pre-settings output so default runs are byte-identical.
+     *
+     * @param settings Analyzer decode options to use
+     */
+    void setAnalyzerSettings(const eti::AnalyzerSettings& settings) { m_data.settings = settings; }
+
+    /**
+     * @brief Enable the strict frame-CRC stats line in the ETI stream section.
+     * @param enabled When true a "frame_crc_failures" line is emitted
+     * @param failures Number of frames with a mismatching EOH gap CRC
+     */
+    void setFrameCrcStats(bool enabled, quint64 failures);
+
     // ========================================================================
     // Verbose Mode - Frame-by-Frame Analysis
     // ========================================================================
@@ -272,9 +292,16 @@ private:
         qint64 processing_time_ms{0};
         double frames_per_second{0.0};
 
+        // Strict frame-CRC stats (row 11) — line only emitted when enabled
+        bool frame_crc_stats_enabled{false};
+        quint64 frame_crc_failures{0};
+
         // Verbose mode data
         bool verbose_mode{false};
         QList<FrameAnalysisData> frame_analyses;
+
+        // User-selected analyzer decode options (rows 6/8/12)
+        eti::AnalyzerSettings settings;
     } m_data;
 
     // ========================================================================

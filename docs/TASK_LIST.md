@@ -21,7 +21,7 @@ Living checklist for active work. Check off items when done (add commit ref).
 - [x] **T5: ETI-NI/FIG decode root-cause fix** (CLI vs etisnoop mismatch) — FC bit layout (NST=`p[5]&0x7F` no −1, FICF=`p[5]` bit7), FIC at `12+4*NST` (96/128 B, 3/4 FIBs × 30 B data + 2 B FIB CRC), MSC offset `12+4*NST+fic_len` — committed (see T7).
 - [x] **T6: Standards review (EN 300 799/EN 300 401/TS 101 756 vs etisnoop)** — PASSED after F1–F9; record in `docs/fixes/ETI_FIC_DECODE_STANDARDS_REVIEW.md`; option-variant matrix (14 decision points) in `docs/fixes/OPTION_VARIANT_MATRIX.md`.
 - [x] **T7: Commit decode fix + review fixes** — committed with the F1–F9 fix wave + review docs (see commit log; ctest 44/45, only known v1.4 perf failure).
-- [ ] **T8: ETI/FIG settings feature** — implement the matrix `SETTING` rows (rows 1,2,3,4,5,6,8,9,10,11,12,14): `AnalyzerSettings` (QSettings `analyzer/...`) + GUI section in `settings_dialog.cpp` + CLI flags; **etisnoop-parity defaults** (matrix `KEEP` column) — output stays byte-identical on default config.
+- [ ] **T8: ETI/FIG settings feature** — implement the matrix `SETTING` rows (rows 1,2,3,4,5,6,8,9,10,11,12,14): `AnalyzerSettings` (QSettings `analyzer/...`) + GUI section in `settings_dialog.cpp` + CLI flags; **etisnoop-parity defaults** (matrix `KEEP` column) — output stays byte-identical on default config. — committed (see commit log; ctest 45/46).
 - [x] **T9: Matrix FIX leftovers** — auto raw-FIC fallback when all FIB CRCs fail (row 4, `DABX_FIC_MODE` env hook) + tail TIST for ETI-NI (row 10) — committed (see commit log).
 
 ## Later (see `docs/PHASE_E_PLAN.md`)

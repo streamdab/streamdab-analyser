@@ -3,6 +3,8 @@
 
 #include <QString>
 #include <QStringList>
+#include <QMap>
+#include <QVariant>
 #include <stdexcept>
 
 namespace cli {
@@ -29,6 +31,32 @@ struct CLIOptions {
     bool advanced_fig{false};       // Advanced FIG analysis
     bool benchmark{false};          // Performance benchmarking
     QStringList fig_filters;        // FIG type filters
+
+    // ========================================================================
+    // Analyzer settings flags (option-variant matrix rows 1-14; defaults
+    // mirror the etisnoop-parity behavior — see AnalyzerSettings::defaults()).
+    // Empty strings / -1 / false mean "not specified, keep the default".
+    // ========================================================================
+    int force_charset{-1};                 // Row 1: -1 follow stream, 0/3/6 override
+    QString charset_fallback_policy;       // Row 1: "raw"|"utf8"|"skip"
+    QString eti_mode;                      // Row 2: "auto"|"li"|"ni"
+    bool nst_offset_1{false};              // Row 3: legacy NST count-1 correction
+    QString fic_mode;                      // Row 4: "strict"|"raw"|"auto"
+    bool fib_ignore_crc{false};            // Row 5: decode FIBs despite CRC failures
+    bool strict_frame_crc{false};          // Row 11: validate + count EOH gap CRC
+    int ecc_override{-1};                  // Row 6: manual ECC for country lookup
+    bool service_ecc_deep_parse{false};    // Row 14: FIG 0/9 per-service ECC
+    QString label_source_priority;         // Row 8: "fig016"|"fig11"
+    bool show_short_labels{false};         // Row 8: emit service/ensemble_short_label
+    QString timestamp_source;              // Row 10: "tist"|"mtime"
+    QString sid_display_mode;              // Row 12: "hex32"|"ecc-sid"|"hex16"
+
+    /**
+     * @brief Build the AnalyzerSettings override map from the flags that were
+     *        explicitly provided. Keys match AnalyzerSettings::applyCliOverrides().
+     * @return Sparse map of setting-name -> value (absent = keep default)
+     */
+    QMap<QString, QVariant> analyzerOverrides() const;
 };
 
 /**
