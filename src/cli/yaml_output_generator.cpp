@@ -21,6 +21,7 @@
 
 #include "yaml_output_generator.hpp"
 #include "core/etsi_registered_tables.hpp"
+#include "core/protection_tables.hpp"
 #include <QTextStream>
 #include <QFile>
 #include <QDebug>
@@ -404,13 +405,24 @@ QString YAMLOutputGenerator::formatSubchannels() const {
         out << "  - subchannel_id: " << static_cast<int>(subchannel.subchannel_id) << "\n";
         out << "    start_address: " << formatHex(subchannel.start_address) << "\n";
 
-        // Calculate size from table index or use subchannel_size for long form
-        int size = subchannel.short_form ? (subchannel.table_index * 8) : subchannel.subchannel_size;
+        // Size: long form (EEP) carries it in the stream; short form (UEP)
+        // derives it from the UEP protection table (EN 300 401 Table 6.2,
+        // backlog item 8) via the wire table index.
+        int size = subchannel.short_form
+            ? static_cast<int>(eti::uepSizeCu(subchannel.table_index))
+            : subchannel.subchannel_size;
         out << "    size: " << size << "\n";
 
         // Protection level, etisnoop-compatible combined form (e.g., "UEP", "EEP-3A")
         out << "    protection_form: \"" << formatProtectionLevel(subchannel) << "\"\n";
         out << "    protection_level: " << static_cast<int>(subchannel.get_protection_level()) << "\n";
+
+        // Backlog item 8 (additive): protection table name ("EEP-A"/"EEP-B"
+        // for the long form, "UEP-1".."UEP-5" for the short form).
+        const QString protectionTable = QString::fromStdString(
+            eti::protectionTableName(subchannel.option, subchannel.short_form,
+                                     subchannel.table_index));
+        out << "    protection_table: \"" << protectionTable << "\"\n";
 
         // Estimate bitrate (CUs * 8 kbps)
         int bitrate = size * 8;
@@ -601,6 +613,8 @@ QString YAMLOutputGenerator::formatSingleFrame(const FrameAnalysisData& frame, i
             out << ind << "      stl: " << stc.stl << "\n";
             out << ind << "      protection_form: \"" << stc.protection_form << "\"\n";
             out << ind << "      protection_level: \"" << stc.protection_level << "\"\n";
+            out << ind << "      protection_table: \"" << stc.protection_table << "\"\n";
+            out << ind << "      cu_size: " << stc.cu_size << "\n";
             out << ind << "      size_cu: " << stc.size_cu << "\n";
             out << ind << "      bitrate_kbps: " << stc.bitrate_kbps << "\n";
         }

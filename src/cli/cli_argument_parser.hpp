@@ -24,6 +24,8 @@ struct CLIOptions {
     bool verbose{false};            // Detailed progress logging
     bool verbose_frames{false};     // NEW: Frame-by-frame detailed output
     bool fig_trace{false};          // P1: per-frame FIG instance trace output
+    bool figs_by_type{false};       // P2/P3: grouped-by-FIG view
+    bool fib_hex{false};            // P2/P3: per-FIB hex dumps with FIG markers
     bool show_help{false};          // Show help text and exit
     bool show_version{false};       // Show version info and exit
     int max_frames{0};              // Process first N frames (0 = all)

@@ -14,6 +14,7 @@
 #include "modern_eti_frame_parser.hpp"
 #include "eti_types.hpp"
 #include "charset_converter.hpp"
+#include "protection_tables.hpp"
 #include "utils/logger.h"
 #include <algorithm>
 #include <execution>
@@ -362,6 +363,8 @@ ETIParseResult ModernETIFrameParser::parseETI_NI_Frame(std::span<const uint8_t, 
         } else {
             sc.uep_flag = true;
             sc.protection_level = static_cast<uint8_t>((tpl & 0x07) + 1);  // UEP table index (display only)
+            sc.table_switch = static_cast<uint8_t>((tpl >> 3) & 0x01);
+            sc.table_index = static_cast<uint8_t>(tpl & 0x07);
         }
 
         // Subchannel size in CUs (STL is 0-based per EN 300 799)
@@ -504,9 +507,13 @@ FIGAnalysisResult ModernETIFrameParser::analyzeFIGData(
             entry.fig_type = fig_block.fig_type;
             // FIG 1 label blocks: the extension occupies bits 2-0 of the
             // first data byte (the upper nibble is the charset flag); using
-            // the generic & 0x1F would fold UTF-8 (3) into ext 17. Mirrors
-            // the analyzeFIGData dispatch so the trace matches the decode.
-            entry.extension = (fig_block.fig_type == 1 && !fig_block.data.empty())
+            // the generic & 0x1F would fold UTF-8 (3) into ext 17. FIG type 2
+            // (OTH) packs toggle/segment/rfu into the high bits of data[0],
+            // so its extension is likewise the low 3 bits (etisnoop
+            // fig2_common_t::ext()). Mirrors the analyzeFIGData dispatch so
+            // the trace matches the decode.
+            entry.extension = ((fig_block.fig_type == 1 || fig_block.fig_type == 2)
+                               && !fig_block.data.empty())
                 ? static_cast<uint8_t>(fig_block.data[0] & 0x07)
                 : fig_block.get_extension();
             entry.length = fig_block.length;
@@ -524,6 +531,14 @@ FIGAnalysisResult ModernETIFrameParser::analyzeFIGData(
 
         // Process each FIG block
         for (const auto& fig_block : result.fig_blocks) {
+            // Backlog P2/P3 pairing counters: how many readable entries the
+            // block's decoder appended (0 for blocks without a decoder).
+            FigDecodeCounts counts;
+            const size_t freq_before = result.frequency_infos.size();
+            const size_t geo_before = result.geo_coords.size();
+            const size_t comp_before = result.component_labels.size();
+            const size_t fig2_before = result.fig2_infos.size();
+
             switch (fig_block.fig_type) {
                 case 0:
                     switch (fig_block.get_extension()) {
@@ -532,6 +547,8 @@ FIGAnalysisResult ModernETIFrameParser::analyzeFIGData(
                         case 2: processFIG02_ServiceOrg(fig_block, result); break;
                         case 3: processFIG03_ServiceComponent(fig_block, result); break;
                         case 9: processFIG09_CountryLTO(fig_block, result); break;
+                        case 21: processFIG021_FrequencyInfo(fig_block, result); break;
+                        case 22: processFIG022_GeoLocation(fig_block, result); break;
                     }
                     break;
                 case 1: {
@@ -545,10 +562,25 @@ FIGAnalysisResult ModernETIFrameParser::analyzeFIGData(
     switch (label_ext) {
         case 0: processFIG10_EnsembleLabel(fig_block, result); break;
         case 1: processFIG11_ServiceLabel(fig_block, result); break;
+        case 2: processFIG12_ServiceComponentLabel(fig_block, result); break;
+        case 3: processFIG13_DataServiceLabel(fig_block, result); break;
     }
     break;
 }
+                case 2:
+                    processFIG2_Other(fig_block, result);
+                    break;
             }
+
+            counts.frequencies = static_cast<uint8_t>(
+                result.frequency_infos.size() - freq_before);
+            counts.geos = static_cast<uint8_t>(
+                result.geo_coords.size() - geo_before);
+            counts.component_labels = static_cast<uint8_t>(
+                result.component_labels.size() - comp_before);
+            counts.fig2 = static_cast<uint8_t>(
+                result.fig2_infos.size() - fig2_before);
+            result.fig_decode_counts.push_back(counts);
         }
 
         // Calculate ETSI compliance scores
@@ -1067,19 +1099,22 @@ void ModernETIFrameParser::processFIG01_SubchannelOrg(const eti::FigBlock& fig, 
             offset += 4;
         } else {
             // Short form (UEP): size is not encoded in the stream; it is
-            // derived from the UEP protection table. No UEP table is
-            // available yet, so the size stays 0 (a later settings feature
-            // will add table-driven sizing).
+            // derived from the UEP protection table (protection_tables.hpp);
+            // the wire 1-bit table_switch + 6-bit table_index select the
+            // table entry (EN 300 401 8.1.2.1).
             const uint8_t b2 = fig.data[offset + 2];
             subchannel.uep_flag = true;
             subchannel.protection_level = 0;
             subchannel.size = 0;
+            subchannel.table_switch = static_cast<uint8_t>((b2 >> 6) & 0x01);
+            subchannel.table_index = static_cast<uint8_t>(b2 & 0x3F);
             Logger::instance().log(Logger::Debug, "ModernETIFrameParser",
                                   QString("FIG 0/1: UEP short form SubCh %1 (table_switch=%2, table_index=%3) — "
-                                          "size not encoded; requires UEP table")
+                                          "size derived from UEP table UEP-%4")
                                   .arg(subchannel.sub_channel_id)
-                                  .arg((b2 >> 6) & 0x01)
-                                  .arg(b2 & 0x3F));
+                                  .arg(subchannel.table_switch)
+                                  .arg(subchannel.table_index)
+                                  .arg(uepLevel1Based(subchannel.table_index)));
             offset += 3;
         }
 
@@ -1248,13 +1283,39 @@ void ModernETIFrameParser::processFIG10_EnsembleLabel(const eti::FigBlock& fig, 
 
 void ModernETIFrameParser::processFIG11_ServiceLabel(const eti::FigBlock& fig, FIGAnalysisResult& result)
 {
-    // FIG 1/1 data: [charset(4)|OE(1)|ext(3) 1B] [SId 2B] [label 16B] [mask 2B]
+    // FIG 1/1 data: [charset(4)|OE(1)|ext(3) 1B] [SId 2B or 4B] [label 16B] [mask 2B]
+    //
+    // P/D alignment (backlog item 7, GUI/CLI parity): the P/D flag is the
+    // MOST SIGNIFICANT BIT of the Service Identifier (EN 300 401 8.1.14.1 /
+    // etisnoop fig1.cpp / ODR-DabMux; AdvancedFIGAnalyzer::processFIG1_1):
+    //   P/D=0 -> 16-bit programme SId at data[1..2] (bit 15 = 0)
+    //   P/D=1 -> 32-bit data SId [ECC|CId/SRef-hi|SRef] at data[1..4]
+    // The previous CLI read always consumed 16 bits at the fixed offset,
+    // mis-keying 32-bit data-service labels (a data SId's MSB is 0x80+).
     if (fig.data.size() < 19) return;
 
-    const uint16_t service_id = (fig.data[1] << 8) | fig.data[2];
     const uint8_t charset = static_cast<uint8_t>((fig.data[0] >> 4) & 0x0F);
+    const bool is_data_service = (fig.data[1] & 0x80) != 0;
+    if (is_data_service && fig.data.size() < 21) return;  // ext(1)+SId(4)+label(16)
 
-    std::string label = decodeLabelCharacters(charset, fig.data.data() + 3, 16);
+    uint32_t service_id32 = 0;   // full 32-bit SId (data services)
+    uint16_t service_id = 0;     // 16-bit key (SRef for data services)
+    size_t label_offset = 0;
+    if (is_data_service) {
+        service_id32 = (static_cast<uint32_t>(fig.data[1]) << 24) |
+                       (static_cast<uint32_t>(fig.data[2]) << 16) |
+                       (static_cast<uint32_t>(fig.data[3]) << 8) |
+                       static_cast<uint32_t>(fig.data[4]);
+        service_id = static_cast<uint16_t>(service_id32 & 0xFFFF);
+        label_offset = 5;
+    } else {
+        // Programme services: 16-bit SId at data[1..2]; bit 15 is the P/D
+        // flag (0 here) and is masked off exactly like the GUI path.
+        service_id = static_cast<uint16_t>(((fig.data[1] & 0x7F) << 8) | fig.data[2]);
+        label_offset = 3;
+    }
+
+    std::string label = decodeLabelCharacters(charset, fig.data.data() + label_offset, 16);
 
     // Remove trailing spaces
     while (!label.empty() && label.back() == ' ') {
@@ -1262,34 +1323,49 @@ void ModernETIFrameParser::processFIG11_ServiceLabel(const eti::FigBlock& fig, F
     }
 
     // Short label (row 8): 16-char label + 16-bit mask (EN 300 401 8.1.14).
-    // Some frames carry the 19-byte form (no mask) for the same service after
-    // a 21-byte one; do not clear an already-known mask/short label then.
-    const uint16_t mask = (fig.data.size() >= 21)
-        ? static_cast<uint16_t>((fig.data[19] << 8) | fig.data[20])
+    // Some frames carry the 19/21-byte form (no mask) for the same service
+    // after a masked one; do not clear an already-known mask/short label.
+    const bool has_mask = fig.data.size() >= label_offset + 18;
+    const uint16_t mask = has_mask
+        ? static_cast<uint16_t>((fig.data[label_offset + 16] << 8) |
+                                fig.data[label_offset + 17])
         : 0;
-    const std::string short_label = (fig.data.size() >= 21)
-        ? decodeShortLabel(charset, fig.data.data() + 3, 16, mask)
+    const std::string short_label = has_mask
+        ? decodeShortLabel(charset, fig.data.data() + label_offset, 16, mask)
         : std::string();
 
-    // Update service in result — the FIG 1/1 may arrive in a frame/FIB that
-    // does not carry the matching FIG 0/2, so the service is created when
-    // unknown rather than dropping the label.
+    // Build the service record (created when unknown — the FIG 1/1 may
+    // arrive in a frame/FIB without the matching FIG 0/2).
+    eti::DabService label_service;
+    label_service.service_id = service_id;
+    label_service.is_programme = !is_data_service;
+    label_service.label = label;
+    label_service.character_flag = mask;
+    label_service.short_label = short_label;
+    if (is_data_service) {
+        label_service.sid32 = service_id32;
+        label_service.extended_country_code = fig.data[1];                    // ECC
+        label_service.country_id = static_cast<uint8_t>((fig.data[2] >> 4) & 0x0F);
+    } else {
+        label_service.country_id = static_cast<uint8_t>(service_id >> 12);
+    }
+
+    // Update service in result (merge, keep the existing record's country /
+    // components; the label is refreshed every FIG instance).
     auto service_it = std::find_if(result.discovered_services.begin(), result.discovered_services.end(),
                                    [service_id](const eti::DabService& s) {
                                        return s.service_id == service_id;
                                    });
     if (service_it == result.discovered_services.end()) {
-        eti::DabService service;
-        service.service_id = service_id;
-        service.country_id = static_cast<uint8_t>(service_id >> 12);
-        service.is_programme = true;
-        service.label = label;
-        service.character_flag = mask;
-        service.short_label = short_label;
-        result.discovered_services.push_back(service);
+        result.discovered_services.push_back(label_service);
     } else {
         service_it->label = label;
-        if (fig.data.size() >= 21 || service_it->short_label.empty()) {
+        // F8: keep the full 32-bit SId of data services once known.
+        if (is_data_service && service_it->sid32 == 0 && label_service.sid32 != 0) {
+            service_it->sid32 = label_service.sid32;
+            service_it->extended_country_code = label_service.extended_country_code;
+        }
+        if (has_mask || service_it->short_label.empty()) {
             service_it->character_flag = mask;
             service_it->short_label = short_label;
         }
@@ -1301,22 +1377,317 @@ void ModernETIFrameParser::processFIG11_ServiceLabel(const eti::FigBlock& fig, F
                                       return s.service_id == service_id;
                                   });
     if (cached_it == discovered_services_.end()) {
-        eti::DabService service;
-        service.service_id = service_id;
-        service.country_id = static_cast<uint8_t>(service_id >> 12);
-        service.is_programme = true;
-        service.label = label;
-        service.character_flag = mask;
-        service.short_label = short_label;
-        discovered_services_.push_back(service);
+        discovered_services_.push_back(label_service);
     } else {
         cached_it->label = label;
-        if (fig.data.size() >= 21 || cached_it->short_label.empty()) {
+        if (is_data_service && cached_it->sid32 == 0 && label_service.sid32 != 0) {
+            cached_it->sid32 = label_service.sid32;
+            cached_it->extended_country_code = label_service.extended_country_code;
+        }
+        if (has_mask || cached_it->short_label.empty()) {
             cached_it->character_flag = mask;
             cached_it->short_label = short_label;
         }
         // emit serviceDiscovered(*cached_it);
     }
+}
+
+void ModernETIFrameParser::processFIG12_ServiceComponentLabel(const eti::FigBlock& fig,
+                                                               FIGAnalysisResult& result)
+{
+    // FIG 1/2: Service component label (EN 300 401 8.1.14.3, V2.1.1
+    // numbering; etisnoop fig1.cpp case 4 layout with a 6-bit SCIdS):
+    //   data[0] = charset(4) | OE(1) | ext(3) = 2
+    //   data[1] = SCIdS (6 bits, b7-b2) | Rfu (b1) | P/D (b0)
+    //   data[2..3]  = SId 16-bit BE (P/D=0)  /  data[2..5] = SId 32-bit (P/D=1)
+    //   then 16-byte label, then optional 2-byte character flag.
+    if (fig.data.size() < 20) return;  // header(2) + SId(2) + label(16)
+
+    const uint8_t charset = static_cast<uint8_t>((fig.data[0] >> 4) & 0x0F);
+    const uint8_t scids = static_cast<uint8_t>((fig.data[1] >> 2) & 0x3F);
+    const bool is_data = (fig.data[1] & 0x01) != 0;
+    if (is_data && fig.data.size() < 22) return;  // header(2) + SId(4) + label(16)
+
+    ComponentLabelInfo info;
+    info.extension = 2;
+    info.scids = scids;
+    if (is_data) {
+        info.service_id = (static_cast<uint32_t>(fig.data[2]) << 24) |
+                          (static_cast<uint32_t>(fig.data[3]) << 16) |
+                          (static_cast<uint32_t>(fig.data[4]) << 8) |
+                          static_cast<uint32_t>(fig.data[5]);
+        info.label = decodeLabelCharacters(charset, fig.data.data() + 6, 16);
+    } else {
+        info.service_id = (static_cast<uint32_t>(fig.data[2]) << 8) |
+                          static_cast<uint32_t>(fig.data[3]);
+        info.label = decodeLabelCharacters(charset, fig.data.data() + 4, 16);
+    }
+    // Remove trailing spaces (matches FIG 1/0/1/1 handling).
+    while (!info.label.empty() && info.label.back() == ' ') {
+        info.label.pop_back();
+    }
+
+    const size_t label_offset = is_data ? 6 : 4;
+    if (fig.data.size() >= label_offset + 18) {
+        info.character_flag = static_cast<uint16_t>((fig.data[label_offset + 16] << 8) |
+                                                    fig.data[label_offset + 17]);
+        info.short_label = decodeShortLabel(charset, fig.data.data() + label_offset,
+                                            16, info.character_flag);
+    }
+
+    result.component_labels.push_back(std::move(info));
+}
+
+void ModernETIFrameParser::processFIG13_DataServiceLabel(const eti::FigBlock& fig,
+                                                         FIGAnalysisResult& result)
+{
+    // FIG 1/3: Data service label (EN 300 401 8.1.14.2, V2.1.1 numbering;
+    // etisnoop fig1.cpp case 5 layout):
+    //   data[0] = charset(4) | OE(1) | ext(3) = 3
+    //   data[1..4] = 32-bit SId [ECC | CId/SRef-hi | SRef]
+    //   then 16-byte label, then optional 2-byte character flag.
+    if (fig.data.size() < 21) return;  // header(1) + SId(4) + label(16)
+
+    const uint8_t charset = static_cast<uint8_t>((fig.data[0] >> 4) & 0x0F);
+    ComponentLabelInfo info;
+    info.extension = 3;
+    info.service_id = (static_cast<uint32_t>(fig.data[1]) << 24) |
+                      (static_cast<uint32_t>(fig.data[2]) << 16) |
+                      (static_cast<uint32_t>(fig.data[3]) << 8) |
+                      static_cast<uint32_t>(fig.data[4]);
+    info.label = decodeLabelCharacters(charset, fig.data.data() + 5, 16);
+    while (!info.label.empty() && info.label.back() == ' ') {
+        info.label.pop_back();
+    }
+
+    if (fig.data.size() >= 23) {
+        info.character_flag = static_cast<uint16_t>((fig.data[21] << 8) |
+                                                    fig.data[22]);
+        info.short_label = decodeShortLabel(charset, fig.data.data() + 5,
+                                            16, info.character_flag);
+    }
+
+    result.component_labels.push_back(std::move(info));
+}
+
+void ModernETIFrameParser::processFIG021_FrequencyInfo(const eti::FigBlock& fig,
+                                                       FIGAnalysisResult& result)
+{
+    // FIG 0/21: Frequency information (EN 300 401 8.1.8; etisnoop fig0_21.cpp).
+    //   data[0] = ext byte (CN/OE/PD/ext=21)
+    //   then region entries: RegionId(13 bits, 2 B) | Length_FI_list(5 bits)
+    //   each FI: Id_field(16) | R&M(4) | Continuity(1) | Length_Freq_list(3)
+    //   then per R&M frequencies: DAB (0/1) 3-byte entries:
+    //       freq_khz = 16 * ((b0&7)<<16 | b1<<8 | b2)
+    //   FM (8/9): 1-byte, MHz = 87.5 + b*0.1; AM (0xC): 2-byte, 5*kHz;
+    //   length 0 freq list = CEI (change event indication).
+    if (fig.data.size() < 2) return;
+
+    size_t i = 1;
+    while (i + 1 < fig.data.size()) {
+        const uint16_t region_id = static_cast<uint16_t>((fig.data[i] << 3) |
+                                                         (fig.data[i + 1] >> 5));
+        const uint8_t len_fi_list = fig.data[i + 1] & 0x1F;
+        i += 2;
+        const size_t fi_end = i + len_fi_list;
+        if (fi_end > fig.data.size()) break;
+
+        while (i + 2 < fi_end) {
+            const uint16_t id_field = static_cast<uint16_t>((fig.data[i] << 8) |
+                                                            fig.data[i + 1]);
+            const uint8_t randm = fig.data[i + 2] >> 4;
+            const uint8_t len_freq = fig.data[i + 2] & 0x07;
+            i += 3;
+
+            FrequencyInfoEntry entry;
+            entry.region_id = region_id;
+            entry.id_field = id_field;
+            entry.randm = randm;
+
+            if (len_freq == 0) {
+                // CEI: no frequency list carried; register the FI alone.
+                result.frequency_infos.push_back(entry);
+                continue;
+            }
+
+            if ((randm == 0x0 || randm == 0x1) && i + len_freq <= fi_end) {
+                // DAB ensemble: 3 bytes per frequency.
+                for (size_t n = 0; n + 3 <= len_freq; n += 3) {
+                    const uint32_t freq = 16u * (
+                        ((static_cast<uint32_t>(fig.data[i + n] & 0x07)) << 16) |
+                        (static_cast<uint32_t>(fig.data[i + n + 1]) << 8) |
+                        static_cast<uint32_t>(fig.data[i + n + 2]));
+                    entry.freq_khz = freq;
+                    result.frequency_infos.push_back(entry);
+                }
+            } else if ((randm == 0x8 || randm == 0x9) && i + len_freq <= fi_end) {
+                // FM with/without RDS: 1 byte each, 87.5 + 0.1*b MHz.
+                for (size_t n = 0; n < len_freq; ++n) {
+                    entry.freq_khz = static_cast<uint32_t>((87500 + fig.data[i + n] * 100));
+                    result.frequency_infos.push_back(entry);
+                }
+            } else if (randm == 0xC && i + len_freq <= fi_end) {
+                // AM: 2 bytes each, 5*b kHz.
+                for (size_t n = 0; n + 2 <= len_freq; n += 2) {
+                    const uint16_t f = static_cast<uint16_t>((fig.data[i + n] << 8) |
+                                                             fig.data[i + n + 1]);
+                    entry.freq_khz = static_cast<uint32_t>(f) * 5u;
+                    result.frequency_infos.push_back(entry);
+                }
+            } else {
+                // DRM/AMSS (0x6/0xE) or malformed: register the FI header
+                // without a carrier frequency.
+                result.frequency_infos.push_back(entry);
+            }
+            i += len_freq;
+        }
+        i = fi_end;
+    }
+}
+
+void ModernETIFrameParser::processFIG022_GeoLocation(const eti::FigBlock& fig,
+                                                     FIGAnalysisResult& result)
+{
+    // FIG 0/22: Geographical location / transmitter identification
+    // (EN 300 401 8.1.9; etisnoop fig0_22.cpp):
+    //   data[0] = ext byte (CN/OE/PD/ext=22)
+    //   TII fields: M/S(1) | MainId(7); then for M/S=0 (main):
+    //     Latitude_coarse(16) | Longitude_coarse(16) | Lat_fine(4)|Lon_fine(4)
+    //     lat = int24(lat_coarse,fine) * 90 / 524288, lon = int24 * 180/524288
+    //   for M/S=1 (sub): Rfu(5)|Nb_SubId_fields(3), then per field:
+    //     SubId(5)|Rfu(3)|TD(10) | Lat_offset(16) | Lon_offset(16)
+    if (fig.data.size() < 2) return;
+
+    size_t i = 1;
+    // Per-FIG main-position cache so sub identifiers resolve against the
+    // main transmitter seen earlier in the same FIG (etisnoop DB behaviour,
+    // scoped to the instance for the CLI).
+    std::vector<GeoCoordEntry> mains;
+
+    while (i < fig.data.size()) {
+        const bool ms = (fig.data[i] >> 7) != 0;
+        const uint8_t main_id = fig.data[i] & 0x7F;
+        ++i;
+
+        GeoCoordEntry entry;
+        entry.is_main = !ms;
+        entry.main_id = main_id;
+
+        if (!ms) {
+            // Main identifier: absolute latitude/longitude.
+            if (i + 5 > fig.data.size()) break;
+            // 2's-complement sign enters via the int16_t coarse values
+            // (etisnoop fig0_22.cpp parity: (int32_t)coarse << 4 | fine).
+            const int16_t lat_coarse = static_cast<int16_t>((fig.data[i] << 8) |
+                                                            fig.data[i + 1]);
+            const int16_t lon_coarse = static_cast<int16_t>((fig.data[i + 2] << 8) |
+                                                            fig.data[i + 3]);
+            const int32_t lat24 = (static_cast<int32_t>(lat_coarse) << 4) |
+                                  (fig.data[i + 4] >> 4);
+            const int32_t lon24 = (static_cast<int32_t>(lon_coarse) << 4) |
+                                  (fig.data[i + 4] & 0x0F);
+            entry.latitude = static_cast<double>(lat24) * 90.0 / 524288.0;
+            entry.longitude = static_cast<double>(lon24) * 180.0 / 524288.0;
+            i += 5;
+            mains.push_back(entry);
+            result.geo_coords.push_back(entry);
+        } else {
+            // Sub identifier: TD + lat/lon offsets relative to the main.
+            if (i >= fig.data.size()) break;
+            const uint8_t n_sub = fig.data[i] & 0x07;
+            ++i;
+            for (uint8_t s = 0; s < n_sub && i + 6 <= fig.data.size(); ++s) {
+                GeoCoordEntry sub;
+                sub.is_main = false;
+                sub.main_id = main_id;
+                sub.sub_id = static_cast<uint8_t>(fig.data[i] >> 3);
+                sub.td = static_cast<uint16_t>(((fig.data[i] & 0x03) << 8) |
+                                               fig.data[i + 1]);
+                sub.lat_offset = static_cast<int16_t>((fig.data[i + 2] << 8) |
+                                                      fig.data[i + 3]);
+                sub.lon_offset = static_cast<int16_t>((fig.data[i + 4] << 8) |
+                                                      fig.data[i + 5]);
+                // Resolve absolute position when the main transmitter of this
+                // FIG is known (same MainId); otherwise report offsets only.
+                for (const GeoCoordEntry& main : mains) {
+                    if (main.main_id == main_id) {
+                        sub.latitude = main.latitude +
+                            static_cast<double>(sub.lat_offset) * 90.0 / 524288.0;
+                        sub.longitude = main.longitude +
+                            static_cast<double>(sub.lon_offset) * 180.0 / 524288.0;
+                        break;
+                    }
+                }
+                i += 6;
+                result.geo_coords.push_back(sub);
+            }
+            if (i + 6 > fig.data.size()) {
+                i = fig.data.size();  // truncated tail
+            }
+        }
+    }
+}
+
+void ModernETIFrameParser::processFIG2_Other(const eti::FigBlock& fig, FIGAnalysisResult& result)
+{
+    // FIG type 2 (OTH): segmented UTF-8/UCS-2 labels (ETSI TS 101 756 /
+    // EN 300 401 8.1.13; etisnoop fig2.cpp). Minimal readable decode:
+    //   data[0] = toggle(1) | segment_index(3) | rfu(1) | ext(3)
+    //   identifier (length depends on ext: 0/1 -> 2 B, 4 -> 3/5 B, 5 -> 4 B,
+    //   6 -> 4/6 B per etisnoop fig2_common_t::identifier_len)
+    //   label field: encoding(1)|segment_count(3)|rfa(4), char flag (2 B,
+    //   first segment only), then segment bytes (UTF-8 passthrough).
+    if (fig.data.size() < 3) return;
+
+    FigType2Info info;
+    info.toggle = static_cast<uint8_t>((fig.data[0] >> 7) & 0x01);
+    info.segment_index = static_cast<uint8_t>((fig.data[0] >> 4) & 0x07);
+    info.rfu = static_cast<uint8_t>((fig.data[0] >> 3) & 0x01);
+    info.extension = static_cast<uint8_t>(fig.data[0] & 0x07);
+
+    // Identifier length per extension (etisnoop fig2_common_t::identifier_len).
+    size_t id_len = 0;
+    switch (info.extension) {
+        case 0:  // Ensemble label
+        case 1:  // Programme service label
+            id_len = 2;
+            break;
+        case 4:  // Service component label
+            id_len = (fig.data.size() > 1 && (fig.data[1] & 0x80)) ? 5 : 3;
+            break;
+        case 5:  // Data service label
+            id_len = 4;
+            break;
+        case 6:  // X-PAD user application label
+            id_len = (fig.data.size() > 1 && (fig.data[1] & 0x80)) ? 6 : 4;
+            break;
+        default:
+            break;
+    }
+    if (id_len == 0 || fig.data.size() < 1 + id_len) {
+        result.fig2_infos.push_back(info);
+        return;
+    }
+    for (size_t b = 0; b < id_len; ++b) {
+        info.service_id = (info.service_id << 8) | fig.data[1 + b];
+    }
+
+    // Label field starts after the identifier; first segment also carries the
+    // encoding/segment-count header (+ optional character flag).
+    size_t label_pos = 1 + id_len;
+    if (info.segment_index == 0 && label_pos < fig.data.size()) {
+        const uint8_t enc = (fig.data[label_pos] >> 7) & 0x01;
+        info.ucs2 = (enc != 0);
+        const size_t flag_len = (info.rfu == 0) ? 3 : 1;  // +2-byte char flag
+        label_pos += flag_len;
+    }
+    if (label_pos < fig.data.size()) {
+        // Surface the segment bytes (UTF-8 passthrough; UCS-2 marked only).
+        info.label.assign(reinterpret_cast<const char*>(fig.data.data() + label_pos),
+                          fig.data.size() - label_pos);
+    }
+
+    result.fig2_infos.push_back(std::move(info));
 }
 
 std::string ModernETIFrameParser::decodeLabelCharacters(uint8_t charset, const uint8_t* bytes, size_t count)

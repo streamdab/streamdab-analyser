@@ -84,6 +84,14 @@ public:
         std::vector<cli::FIGInventoryEntry> fig_inventory;
         cli::FICHealth fic_health;
 
+        // Backlog (P2/P3, docs/fixes/CLI_FIG_COVERAGE.md): grouped-by-FIG
+        // view lines ("figs-by-type: fig=T/E count=.. frames=.. values=[..]")
+        // and per-FIB hex dump lines ("fib-hex: frame=.. fib=.. crc=.." +
+        // a 30-byte hex line and a FIG marker line). Both feed stderr in the
+        // same diagnostic channel as the trace lines.
+        QStringList figs_by_type_lines;
+        QStringList fib_hex_lines;
+
         // Row 11 (strict_frame_crc): number of frames whose EOH gap CRC
         // (bytes 8+4*NST .. 11+4*NST, CCITT-FALSE complement) mismatched.
         // Only counted when the setting is enabled; decode stays independent.
@@ -149,6 +157,29 @@ public:
      * @param maxFrames Maximum frames to process, 0 for no limit
      */
     void setMaxFrames(int maxFrames) { m_max_frames = maxFrames; }
+
+    /**
+     * @brief Enable the grouped-by-FIG view (backlog P2/P3, --figs-by-type).
+     *
+     * Emits one "figs-by-type: fig=T/E count=N frames=.. values=[..]" line to
+     * stderr per observed FIG type/extension, aggregating the per-frame trace
+     * data (frame numbers + representative readable values).
+     *
+     * @param enabled Enable the grouped view
+     */
+    void setFigsByTypeMode(bool enabled) { m_figs_by_type_mode = enabled; }
+
+    /**
+     * @brief Enable per-FIB hex dumps (backlog P2/P3, --fib-hex).
+     *
+     * For every processed frame with a structured FIC, prints a line per FIB:
+     * "fib-hex: frame=N fib=F crc=ok|bad" followed by the 30 FIG-area bytes
+     * and one marker line with the analyzed FIG byte ranges ("[0-5] FIG 0/0").
+     * Frame selection honours --max-frames / --verbose-frames.
+     *
+     * @param enabled Enable the FIB hex dumps
+     */
+    void setFibHexMode(bool enabled) { m_fib_hex_mode = enabled; }
 
     /**
      * @brief Get processing progress (0.0 to 1.0)
@@ -217,6 +248,8 @@ private:  // NOLINTNEXTLINE(readability-redundant-access-specifiers) - Required 
     QElapsedTimer m_processingTimer;
     bool m_verbose_mode = false;  // Verbose frame-by-frame output
     bool m_fig_trace_mode = false;  // P1: per-frame FIG instance trace
+    bool m_figs_by_type_mode = false;  // P2/P3: grouped-by-FIG view
+    bool m_fib_hex_mode = false;       // P2/P3: per-FIB hex dumps
     int m_max_frames = 0;           // P1: process at most N frames (0 = all)
 
     // User-selected analyzer decode options (option-variant matrix rows 1-14).

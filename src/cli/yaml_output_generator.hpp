@@ -111,6 +111,11 @@ struct FrameAnalysisData {
         QString protection_level;// "3-A", "4-B", etc.
         uint16_t size_cu{0};     // Size in CUs
         uint32_t bitrate_kbps{0};// Calculated bitrate
+
+        // Backlog item 8: protection table name ("EEP-A", "UEP-3"...) and the
+        // table CU size (EEP-A 16/8/6/4, EEP-B 27/21/18/15, UEP per Table 6.2).
+        QString protection_table;
+        uint16_t cu_size{0};
     };
     QList<STCField> stc_fields;
 
