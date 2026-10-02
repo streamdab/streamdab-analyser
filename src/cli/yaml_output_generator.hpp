@@ -38,8 +38,46 @@
 #include <QTextStream>
 #include "../core/eti_types.hpp"
 #include "../core/fig_parser.hpp"
+#include "../core/analyzer_settings.hpp"
 
 namespace cli {
+
+/**
+ * @brief One observed FIG type/extension in the FIG inventory (P1).
+ *
+ * Aggregated over all processed frames: how many instances of this FIG were
+ * seen, in which frame range, and how many of those instances were carried
+ * by a FIB whose CRC failed. Frames are 1-based.
+ */
+struct FIGInventoryEntry {
+    uint8_t fig_type{0};
+    uint8_t extension{0};
+    quint64 count{0};
+    quint64 first_frame{0};
+    quint64 last_frame{0};
+    quint64 crc_failures{0};
+};
+
+/**
+ * @brief Aggregated FIC/FIB health counters (P1).
+ *
+ * fib_crc_failures: FIBs whose CRC-16 (CCITT-FALSE, complemented) mismatched
+ *   in the strict FIB walk. When the auto-fallback raw re-walk produced the
+ *   blocks (CRC-less dump heuristic), the strict walk failures are retained
+ *   (every FIB failed) — the raw re-walk only prevents the FIGs from being
+ *   lost, it does not clear the failure count.
+ * total_fibs: FIBs walked (3/4 per frame on structured FICs; 1 per legacy
+ *   32-byte raw field). Raw-mode decodes walk no FIBs.
+ * erroneous_figs: FIG headers skipped for length/padding anomalies.
+ * reconfiguration_count: frames whose MCI state (ensemble id / service id
+ *   set / subchannel set) changed vs the previous frame.
+ */
+struct FICHealth {
+    quint64 fib_crc_failures{0};
+    quint64 total_fibs{0};
+    quint64 erroneous_figs{0};
+    quint64 reconfiguration_count{0};
+};
 
 /**
  * @brief Per-frame detailed analysis data
@@ -56,7 +94,8 @@ struct FrameAnalysisData {
         uint8_t mid{0};          // Mode Identity
         uint8_t fp{0};           // Frame Phase
         uint16_t fl{0};          // Frame Length
-        uint32_t tist{0};        // Time Stamp
+        uint32_t tist{0};        // Time Stamp (raw 32-bit; tail TIST for ETI-NI)
+        double tist_ms{0.0};     // Time Stamp in ms (etisnoop parity: (TIST & 0xFFFFFF) / 16384)
         QString format;          // "ETI-LI" or "ETI-NI"
     } header;
 
@@ -72,6 +111,11 @@ struct FrameAnalysisData {
         QString protection_level;// "3-A", "4-B", etc.
         uint16_t size_cu{0};     // Size in CUs
         uint32_t bitrate_kbps{0};// Calculated bitrate
+
+        // Backlog item 8: protection table name ("EEP-A", "UEP-3"...) and the
+        // table CU size (EEP-A 16/8/6/4, EEP-B 27/21/18/15, UEP per Table 6.2).
+        QString protection_table;
+        uint16_t cu_size{0};
     };
     QList<STCField> stc_fields;
 
@@ -195,6 +239,37 @@ public:
      */
     void setETIStreamInfo(int total_frames, int valid_frames, int error_frames, int crc_errors);
 
+    /**
+     * @brief Set the user-selected analyzer decode options (rows 8/12/6).
+     *
+     * Drives service_id rendering (sid_display_mode), the optional
+     * service_short_label / ensemble_short_label emission (show_short_labels)
+     * and the ECC used for country lookup (ecc_override). Defaults match the
+     * pre-settings output so default runs are byte-identical.
+     *
+     * @param settings Analyzer decode options to use
+     */
+    void setAnalyzerSettings(const eti::AnalyzerSettings& settings) { m_data.settings = settings; }
+
+    /**
+     * @brief Enable the strict frame-CRC stats line in the ETI stream section.
+     * @param enabled When true a "frame_crc_failures" line is emitted
+     * @param failures Number of frames with a mismatching EOH gap CRC
+     */
+    void setFrameCrcStats(bool enabled, quint64 failures);
+
+    /**
+     * @brief Set the aggregated FIG inventory (P1, `figs:` section).
+     * @param inventory Observed FIG type/extension entries with frame ranges
+     */
+    void setFigInventory(const QList<FIGInventoryEntry>& inventory);
+
+    /**
+     * @brief Set the aggregated FIC/FIB health counters (P1, `fic_health:`).
+     * @param health FIB CRC failures / total FIBs / erroneous FIGs / reconfigs
+     */
+    void setFicHealth(const FICHealth& health);
+
     // ========================================================================
     // Verbose Mode - Frame-by-Frame Analysis
     // ========================================================================
@@ -271,9 +346,20 @@ private:
         qint64 processing_time_ms{0};
         double frames_per_second{0.0};
 
+        // Strict frame-CRC stats (row 11) — line only emitted when enabled
+        bool frame_crc_stats_enabled{false};
+        quint64 frame_crc_failures{0};
+
+        // FIG inventory + FIC health (P1, additive sections)
+        QList<FIGInventoryEntry> fig_inventory;
+        FICHealth fic_health;
+
         // Verbose mode data
         bool verbose_mode{false};
         QList<FrameAnalysisData> frame_analyses;
+
+        // User-selected analyzer decode options (rows 6/8/12)
+        eti::AnalyzerSettings settings;
     } m_data;
 
     // ========================================================================
@@ -309,6 +395,18 @@ private:
      * @return YAML formatted FIG statistics
      */
     QString formatFIGStatistics() const;
+
+    /**
+     * @brief Format the FIG inventory section (P1: `figs:`)
+     * @return YAML formatted observed-FIG list with frame ranges
+     */
+    QString formatFIGInventory() const;
+
+    /**
+     * @brief Format the FIC/FIB health section (P1: `fic_health:`)
+     * @return YAML formatted FIB/FIG error + reconfiguration counters
+     */
+    QString formatFICHealth() const;
 
     /**
      * @brief Format ETSI compliance section

@@ -241,7 +241,7 @@ cd /home/seksan/workspace/streamdab-analyzer/build/tests
 ### Application Test
 ```bash
 cd /home/seksan/workspace/streamdab-analyzer/build
-./DABAnalyzer_Enhanced_FilteringBuild
+./StreamDABAnalyzer
 # Load: eti/bkk_20062022_141637.eti
 ```
 **Expected:** All 5001 frames process without crash
@@ -325,6 +325,6 @@ When using Qt types (QByteArray, QString, etc.) in STL containers (std::vector, 
 ---
 
 **Last Updated:** October 24, 2025  
-**Build Location:** `/home/seksan/workspace/streamdab-analyzer/build/DABAnalyzer_Enhanced_FilteringBuild`  
+**Build Location:** `/home/seksan/workspace/streamdab-analyzer/build/StreamDABAnalyzer`  
 **Binary Size:** 1.7 MB  
 **Test Coverage:** 10 regression tests (100% pass rate)

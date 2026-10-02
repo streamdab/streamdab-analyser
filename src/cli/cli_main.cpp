@@ -26,6 +26,7 @@
 #include "cli_argument_parser.hpp"
 #include "yaml_output_generator.hpp"
 #include "../core/headless_eti_processor.hpp"
+#include "../core/analyzer_settings.hpp"
 #include "../utils/logger.h"
 #include <QFile>
 #include <QElapsedTimer>
@@ -152,10 +153,50 @@ int cli_main(int argc, char** argv) {
         // Create headless ETI processor
         HeadlessETIProcessor processor;
 
+        // Build the AnalyzerSettings from defaults + the provided CLI flags.
+        // NOTE: the CLI deliberately does NOT read the GUI QSettings so that a
+        // default-config run is byte-identical to the baseline (gate 2).
+        eti::AnalyzerSettings analyzerSettings = eti::AnalyzerSettings::defaults();
+        analyzerSettings.applyCliOverrides(options.analyzerOverrides());
+        QString settingsError;
+        if (!analyzerSettings.validate(&settingsError)) {
+            std::cerr << "WARNING: invalid analyzer setting: "
+                      << settingsError.toStdString() << " (using sane defaults)\n";
+        }
+        processor.setAnalyzerSettings(analyzerSettings);
+
         // *** ENABLE VERBOSE MODE IF REQUESTED ***
         if (options.verbose_frames) {
             processor.setVerboseMode(true);
             printProgress("Verbose frame-by-frame analysis: ENABLED", options.quiet);
+        }
+
+        // P1: per-frame FIG instance trace (--fig-trace; --verbose-frames
+        // includes the same lines by definition).
+        if (options.fig_trace || options.verbose_frames) {
+            processor.setFigTraceMode(true);
+            if (options.fig_trace && !options.quiet) {
+                printProgress("FIG instance trace: ENABLED (lines on stderr)", false);
+            }
+        }
+
+        // Backlog P2/P3: grouped-by-FIG view + per-FIB hex dumps (stderr).
+        if (options.figs_by_type) {
+            processor.setFigsByTypeMode(true);
+            if (!options.quiet) {
+                printProgress("FIG grouped view (--figs-by-type): ENABLED (lines on stderr)", false);
+            }
+        }
+        if (options.fib_hex) {
+            processor.setFibHexMode(true);
+            if (!options.quiet) {
+                printProgress("FIB hex dumps (--fib-hex): ENABLED (lines on stderr)", false);
+            }
+        }
+
+        // P1: limit the processed frame prefix (--max-frames).
+        if (options.max_frames > 0) {
+            processor.setMaxFrames(options.max_frames);
         }
 
         // Connect progress signals for non-quiet mode
@@ -200,6 +241,13 @@ int cli_main(int argc, char** argv) {
 
         YAMLOutputGenerator yamlGenerator;
 
+        // Thread the analyzer settings into the output layer (rows 6/8/12).
+        yamlGenerator.setAnalyzerSettings(analyzerSettings);
+
+        // Row 11 diagnostics: emitted only when strict_frame_crc is enabled.
+        yamlGenerator.setFrameCrcStats(analyzerSettings.strict_frame_crc,
+                                       result.frame_crc_failures);
+
         // Enable verbose mode if requested
         if (options.verbose_frames) {
             yamlGenerator.setVerboseMode(true);
@@ -241,6 +289,17 @@ int cli_main(int argc, char** argv) {
 
         // AGENT 45 FIX: Set FIG type statistics
         yamlGenerator.setFIGStatistics(result.fig_type_counts);
+
+        // P1: FIG inventory + FIC/FIB health (additive `figs:`/`fic_health:`).
+        {
+            QList<cli::FIGInventoryEntry> inventory;
+            inventory.reserve(static_cast<int>(result.fig_inventory.size()));
+            for (const auto& entry : result.fig_inventory) {
+                inventory.append(entry);
+            }
+            yamlGenerator.setFigInventory(inventory);
+        }
+        yamlGenerator.setFicHealth(result.fic_health);
 
         // Set ETSI compliance
         yamlGenerator.setETSICompliance(

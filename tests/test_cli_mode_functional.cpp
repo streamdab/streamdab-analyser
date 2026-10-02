@@ -107,8 +107,6 @@ void TestCLIModeFunctional::initTestCase() {
     const QStringList candidates = {
         appDir + "/../streamdab-cli",
         appDir + "/streamdab-cli",
-        appDir + "/../DABAnalyzer_Enhanced_FilteringBuild",
-        appDir + "/DABAnalyzer_Enhanced_FilteringBuild",
     };
     for (const QString& candidate : candidates) {
         if (QFile::exists(candidate)) {
@@ -120,9 +118,8 @@ void TestCLIModeFunctional::initTestCase() {
     // Skip cleanly when no binary exists (m_testDir already valid, so
     // cleanupTestCase() can safely delete it - no crash).
     if (m_executablePath.isEmpty()) {
-        QSKIP("No CLI executable found (tried streamdab-cli / "
-              "DABAnalyzer_Enhanced_FilteringBuild next to the test binary). "
-              "Build the project first.");
+        QSKIP("No CLI executable found (tried streamdab-cli next to the "
+              "test binary). Build the project first.");
     }
 
     qDebug() << "Using executable:" << m_executablePath;

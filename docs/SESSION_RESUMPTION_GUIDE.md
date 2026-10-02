@@ -43,7 +43,7 @@ cd build && make
 # Should build with zero errors
 
 # Test application launch
-./DABAnalyzer_Enhanced_FilteringBuild
+./StreamDABAnalyzer
 # Should launch Qt6 GUI without crashes
 
 # Return to project root
@@ -196,7 +196,7 @@ cd build && make
 # Should build cleanly
 
 # 3. Test current functionality
-./DABAnalyzer_Enhanced_FilteringBuild
+./StreamDABAnalyzer
 # Should launch Qt6 GUI
 
 # 4. Review current implementation phase
@@ -223,7 +223,7 @@ ls -la src/core/enhanced_eti_processor_qt.*
 
 # 3. Build and test frequently
 cd build && make
-./DABAnalyzer_Enhanced_FilteringBuild
+./StreamDABAnalyzer
 
 # 4. Commit daily progress
 git add -A
@@ -244,7 +244,7 @@ file eti/bkk_20062022_141637.eti
 # Should show: 6144-byte ETI frame data
 
 # Test integration
-./DABAnalyzer_Enhanced_FilteringBuild
+./build/StreamDABAnalyzer
 # Use File -> Open ETI File to test real parsing
 ```
 
@@ -306,7 +306,7 @@ cd build && make clean && make
 ```bash
 # If GUI doesn't launch:
 export QT_QPA_PLATFORM=xcb  # For Linux
-./DABAnalyzer_Enhanced_FilteringBuild
+./build/StreamDABAnalyzer
 
 # If file dialog crashes:
 # Check file permissions and paths

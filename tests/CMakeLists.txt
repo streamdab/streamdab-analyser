@@ -87,6 +87,51 @@ target_link_libraries(test_fig1_processor
 )
 add_test(NAME test_fig1_processor COMMAND test_fig1_processor)
 
+# GUI decode path: AdvancedFIGAnalyzer FIC/FIB-walk + charset-aware labels
+# (real frame-5 FIBs of eti/bkk_20062022_141637.eti, FIB CRC modes, TIS-620 /
+# EBU-Latin charset conversion, analyzer settings wiring).
+add_executable(test_advanced_fig_analyzer
+    test_advanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
+)
+target_link_libraries(test_advanced_fig_analyzer
+    Qt6::Test
+    Qt6::Core
+    pthread
+)
+add_test(NAME test_advanced_fig_analyzer COMMAND test_advanced_fig_analyzer)
+
+# P1 CLI FIG detail wave (docs/fixes/CLI_FIG_COVERAGE.md): per-frame FIG
+# instance trace (--fig-trace) + `figs:`/`fic_health:` YAML sections.
+# Launches the real streamdab-cli (QProcess) on eti/bkk_20062022_141637.eti,
+# frame-limited via --max-frames 200 for a < 60 s budget.
+add_executable(test_cli_fig_trace
+    test_cli_fig_trace.cpp
+)
+target_link_libraries(test_cli_fig_trace
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_cli_fig_trace COMMAND test_cli_fig_trace)
+set_tests_properties(test_cli_fig_trace PROPERTIES TIMEOUT 60)
+
+# P2/P3 CLI FIG-detail wave (docs/fixes/CLI_FIG_COVERAGE.md backlog): FIG 1/2 +
+# 1/3 Thai labels, FIG 0/21 + 0/22 readable decodes, FIG type 2, 32-bit SId
+# FIG 1/1 (GUI/CLI P/D alignment), EEP/UEP protection tables, --figs-by-type
+# + --fib-hex. Also launches the real streamdab-cli on synthetic streams and
+# the fixture (frame-limited).
+add_executable(test_cli_fig_extended
+    test_cli_fig_extended.cpp
+)
+target_link_libraries(test_cli_fig_extended
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_cli_fig_extended COMMAND test_cli_fig_extended)
+set_tests_properties(test_cli_fig_extended PROPERTIES TIMEOUT 60)
+
 # Test 4: ETI LI CRC Validation
 add_executable(test_eti_li_crc_validation
     test_eti_li_crc_validation.cpp
@@ -116,9 +161,11 @@ add_test(NAME test_eti_format_detection COMMAND test_eti_format_detection)
 add_executable(test_eti_ni_parser
     test_eti_ni_parser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_fig_analyzer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
 )
 target_link_libraries(test_eti_ni_parser
@@ -141,16 +188,16 @@ add_test(NAME test_eti_ni_parser COMMAND test_eti_ni_parser)
 #)
 #add_test(NAME test_service_discovery COMMAND test_service_discovery)
 
-# Test 6: Charset Converter (Thai UTF-8)
-#add_executable(test_charset_converter
-#    test_charset_converter.cpp
-#    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
-#)
-#target_link_libraries(test_charset_converter
-#    Qt6::Test
-#    Qt6::Core
-#)
-#add_test(NAME test_charset_converter COMMAND test_charset_converter)
+# Test 6: Charset Converter (Thai UTF-8 + EBU Latin, F4)
+add_executable(test_charset_converter
+    test_charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+)
+target_link_libraries(test_charset_converter
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_charset_converter COMMAND test_charset_converter)
 
 # ============================================================================
 # PHASE 3A TESTS - Audio & Data Services (October 24, 2025)
@@ -609,10 +656,52 @@ if(CAN_RUN_GUI_TESTS)
         TIMEOUT 30
     )
 
+    # Test 5: Qt-ADS Docking Layout (v1.3 GUI migration, October 2026)
+    # Compiles the REAL application sources so the actual DABAnalyzerWindow
+    # (src/main.cpp via GUI_TEST_MODE, main() excluded) can be validated:
+    #   4 CDockManagers, 26 docks, 3-column Tab 1, persistence round-trip.
+    set(DOCK_TEST_SOURCES
+        gui/test_gui_dock_layout.cpp
+    )
+    # Everything the app links, minus src/main.cpp (included by the test file).
+    # ${SOURCES} etc. hold paths relative to the top-level source dir.
+    foreach(src ${SOURCES} ${EDI_SOURCES} ${CLI_SOURCES})
+        if(NOT src STREQUAL "src/main.cpp")
+            list(APPEND DOCK_TEST_SOURCES ${CMAKE_SOURCE_DIR}/${src})
+        endif()
+    endforeach()
+    add_executable(test_gui_dock_layout ${DOCK_TEST_SOURCES})
+    target_link_libraries(test_gui_dock_layout
+        Qt6::Test
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
+        qtadvanceddocking-qt6
+        ${ZMQ_LIBRARIES}
+        pthread
+    )
+    target_compile_definitions(test_gui_dock_layout PRIVATE GUI_TEST_MODE)
+    # test_gui_dock_layout.cpp includes ../src/main.cpp, whose trailing
+    # `#include "main.moc"` needs the moc output that AUTOMOC generates for the
+    # app target. Ensure the app target (and its autogen dir) builds first, then
+    # expose its autogen include directory.
+    add_dependencies(test_gui_dock_layout DABAnalyzer_Enhanced_FilteringBuild)
+    target_include_directories(test_gui_dock_layout PRIVATE
+        ${CMAKE_BINARY_DIR}/DABAnalyzer_Enhanced_FilteringBuild_autogen/include)
+    add_test(NAME test_gui_dock_layout
+             COMMAND test_gui_dock_layout)
+    set_tests_properties(test_gui_dock_layout PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        # Two full-fixture loads (real-data assertions + the reload/reset
+        # test) need more than the default 30 s headroom on slow CI hosts.
+        TIMEOUT 90
+    )
+
     message(STATUS "  ✓ test_gui_stream_info_panel (10 widget tests)")
     message(STATUS "  ✓ test_gui_service_discovery_panel (13 widget tests)")
     message(STATUS "  ✓ test_gui_fig_type_display_panel (15 widget tests)")
     message(STATUS "  ✓ test_gui_main_window (16 integration tests)")
+    message(STATUS "  ✓ test_gui_dock_layout (7 dock layout tests)")
 
 else()
     message(STATUS "  Skipping GUI tests (no display environment)")
@@ -773,6 +862,7 @@ add_executable(test_cli_main_integration
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_eti_processor_qt.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyzer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/ensemble_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_service_discovery_engine.cpp
@@ -822,6 +912,7 @@ add_test(NAME test_yaml_output_generator COMMAND test_yaml_output_generator)
 add_executable(test_cli_mode_functional
     test_cli_mode_functional.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
@@ -833,3 +924,32 @@ target_link_libraries(test_cli_mode_functional
     Qt6::Core
 )
 add_test(NAME test_cli_mode_functional COMMAND test_cli_mode_functional)
+
+# ============================================================================
+# Analyzer Settings Tests (option-variant matrix rows 1-14, settings feature)
+# ============================================================================
+
+# Test: AnalyzerSettings defaults / QSettings round-trip / CLI mapping +
+#       behavior changes on synthetic data (charset override, NST-1, FIB CRC
+#       ignore, SId display, short labels, ECC override).
+add_executable(test_analyzer_settings
+    test_analyzer_settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/ensemble_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_service_discovery_engine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/cli/cli_argument_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/cli/yaml_output_generator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+)
+target_link_libraries(test_analyzer_settings
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_analyzer_settings COMMAND test_analyzer_settings)
+set_tests_properties(test_analyzer_settings PROPERTIES TIMEOUT 30)

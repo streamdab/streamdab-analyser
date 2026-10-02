@@ -16,11 +16,12 @@
 | `pdca/` | PDCA completion reports (Weeks 1–8, all finished) | 13 |
 | `fig/` | Per-FIG guides, quickstarts, delivery reports (patches consumed → archive) | 17 |
 | `agents/` | Individual agent deliverable / fix reports (Agents 1–48) | 18 |
-| `fixes/` | Bug reports + fix summaries (segfault, parser, labels, services) | 9 |
+| `fixes/` | Bug reports + fix summaries (segfault, parser, labels, services, ETI/FIG decode review) | 11 |
 | `eti-ni/` | ETI-NI parser completion + validation (Nov 2025) | 4 |
 | `releases/` | Live status: validation, test status, CLI build, verbose mode | 6 |
+| `gui/` | Qt-ADS docking architecture + usage (v1.3 GUI migration) | 1 |
 | `archive/` | Historical docs: all superseded plans, snapshots, consumed patches | 111 |
-| `docs/` root | Live specs, guides, style, session docs | 19 |
+| `docs/` root | Live specs, guides, style, session docs, v1.3 task list | 20 |
 
 ## Start here
 
@@ -29,7 +30,8 @@
   `eti-ni/ETI_NI_PARSER_COMPLETE.md`
 - **Test status:** `releases/TEST_STATUS_REPORT.md` (97.7% pass, 34.4% coverage)
 - **Instructions:** `../AGENTS.md` (build/test commands, workflow, repo rules)
-- **v1.3 spec:** GUI migration to Qt-ADS (see `PHASE_E_PLAN.md` v1.3 section)
+- **v1.3 spec:** GUI migration to Qt-ADS — task list [`TASK_LIST.md`](TASK_LIST.md), design
+  [`gui/QT_ADS_DOCKING.md`](gui/QT_ADS_DOCKING.md), plan `PHASE_E_PLAN.md` v1.3 section
 
 ## `pdca/` — PDCA completion reports (all weeks finished)
 
@@ -57,7 +59,11 @@ Agents 1, 15, 16, 20, 21 (×3), 36 (×2), 37–43, 48. Key: `AGENT48_COMPLETION_
 ## `fixes/` — Bug reports & fixes
 
 `BUG_REPORT_CLI_PARSER.md`, `CLI_PARSER_FIX_SUMMARY.md`, `CRITICAL_FIX_SERVICES_UNNAMED.md`,
+`ETI_FIC_DECODE_STANDARDS_REVIEW.md` (2026-10-02: EN 300 799/EN 300 401/TS 101 756 review of the
+ETI/FIG decode fix + F1–F9 findings + etisnoop parity tables),
 `FIG010_MJD_FIX_REPORT.md`, `FINAL_FIX_SUMMARY.md`, `FINAL_SEGFAULT_FIX.md`,
+`OPTION_VARIANT_MATRIX.md` (2026-10-02: 14 decode decision points — standard options vs etisnoop
+default vs ours; roadmap for the analyzer-settings feature),
 `SEGFAULT_FIX_COMPLETE.md`, `SEGFAULT_FIX_SUMMARY.md`, `SERVICE_LABELS_FIX_SUMMARY.md`.
 
 ## `eti-ni/` — ETI-NI parser (Nov 2025)
@@ -71,6 +77,12 @@ Agents 1, 15, 16, 20, 21 (×3), 36 (×2), 37–43, 48. Key: `AGENT48_COMPLETION_
 - Tests/builds: `TEST_STATUS_REPORT.md` (bannered), `CLI_BUILD_SUCCESS_v1.2.md` (bannered)
 - History of reorganizations: `DOCUMENTATION_REORGANIZATION_REPORT.md` (1st reorg, Oct 2025)
 
+## `gui/` — Qt-ADS GUI docking (v1.3)
+
+- `QT_ADS_DOCKING.md` — architecture + usage for the layout-preserving Qt Advanced Docking System 4.5.0
+  migration: 4 per-scope `CDockManager`s, all-26-dock registry, QSettings persistence keys, out-of-scope
+  decisions. Runnable is `./build/StreamDABAnalyzer`.
+
 ## Active specs (docs root)
 
 ETI: `ETI_PROTOCOL_SPECIFICATIONS.md`, `ETI_LI_FORMAT_NOTES.md`,
@@ -80,6 +92,7 @@ Phases: `PHASE_E_PLAN.md` (**main plan**), `PHASE_3B_{TECHNICAL_NOTES,USER_GUIDE
 `PHASE_2A_WEEK6_DELIVERABLE_REPORT.txt` ·
 Testing: `GUI_PATTERNS.md` ·
 Qt6: `Qt6_CPP20_Style_Guide.md` (cited by `AGENTS.md`), `SERVICE_TREE_VISUAL_GUIDE.txt` ·
+Tasks: `TASK_LIST.md` (living v1.3 checklist) ·
 Other: `DATA_AVAILABILITY_MATRIX.md`, `DEPLOYMENT_GUIDE.md`, `LICENSE_COMPLIANCE_REPORT.md`,
 `FUTURE_FEATURES.md` (v2.0 idea pool), `SESSION_RESUMPTION_GUIDE.md`, `PDCA_WORKFLOW.md`,
 `README.md` (this index).

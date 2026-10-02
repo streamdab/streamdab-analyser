@@ -3,7 +3,7 @@
 **Status:** ACTIVE — the single operational plan. All prior phase/week plans are history in `docs/archive/`.
 **Parent strategy:** v2.0 direction (EWS emergency warnings + EDI distribution), folded here from archived `docs/archive/ROADMAP_SUMMARY.md`.
 **Process:** `AGENTS.md` mandatory workflow (code → test → build → E2E → review → commit), run via `pm-agent` + `cpp-qt-developer` workers.
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-02
 
 ## Path overview
 
@@ -42,6 +42,7 @@ Rules: one phase active at a time; each subphase ends in a commit + a dated stat
 - 2026-09-27: ctest baseline (serial, authoritative): **41/43 (95%)** — all 9 assertion failures fixed (fig0 27/27, fig1 42/42, eti-ni 28/28, yaml 22/22, cli-integration 12/12, cli-functional 27/27); remaining: pft unbuilt (needs libgtest-dev via sudo), 2 perf-threshold disputes in week2. Details: `docs/releases/TEST_STATUS_REPORT.md`.
 - 2026-10-01: `libgtest-dev` installed → full rebuild: **43/43 targets build**. ctest: **42/43 pass (97.7%)** — sole failure is the week2 perf-threshold dispute (`test_performance_fig019_parsing_speed` ~7.8µs vs 5µs budget, parser correct). Coverage: **34.4% lines / 35.2% functions** (below 85% target — only headless test paths exercised; GUI/ETI code paths not covered by current test suite). E-0.4 gate criteria: 100% pass not met due to environmental perf dispute; coverage unmet.
 - 2026-10-01: Replan: v1.3 = GUI migration to Qt-ADS; v1.4 = test closeout (threshold fix + 100% pass). E-1/E-2 deferred to v2.x.
+- 2026-10-02: v1.3 approach revised to layout-preserving Qt-ADS 4.5.0 migration; earlier placeholder-dock experiment discarded; expected result: original layout with dockable panels, per-tab CDockManagers, shared bottom dock strip.
 
 ## doc status (single source of truth)
 

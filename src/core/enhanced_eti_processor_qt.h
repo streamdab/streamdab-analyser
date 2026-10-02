@@ -177,7 +177,7 @@ public:
     bool validateFrameCounter(uint8_t fct);
 
     // FIC extraction (96 bytes) - CRITICAL-001 FIX: Added nst parameter
-    QByteArray extractFIC(const uint8_t* data, bool ficf_flag, uint8_t nst);
+    QByteArray extractFIC(const uint8_t* data, bool ficf_flag, uint8_t nst, uint8_t mid);
 
     // MSC extraction (sub-channels)
     std::vector<SubChannelData> extractMSC(const uint8_t* data, uint8_t nst,

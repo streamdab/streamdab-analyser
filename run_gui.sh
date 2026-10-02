@@ -24,7 +24,7 @@ echo "=========================================="
 echo ""
 
 cd /home/seksan/workspace/streamdab-analyzer/build
-./DABAnalyzer_Enhanced_FilteringBuild
+./StreamDABAnalyzer
 
 echo ""
 echo "Application closed."

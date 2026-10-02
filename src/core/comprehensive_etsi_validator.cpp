@@ -382,24 +382,29 @@ bool ComprehensiveETSIValidator::validateFICStructure(const eti::EtiFrame& frame
         
         // Get FIC field from frame
         auto fic = frame.get_fic_field();
-        
-        // Check FIC data length (should be 32 bytes for DAB)
-        if (fic.fic_data.size() != 32) {
+        const size_t fic_size = fic.size();
+
+        // Check FIC data length (96 or 128 bytes for DAB: 3/4 FIBs)
+        if (fic_size != ETI_FIC_MIN_SIZE && fic_size != ETI_FIC_MAX_SIZE && fic_size != FIC_SIZE_BYTES) {
             Logger::instance().log(Logger::Warning, "ComprehensiveETSIValidator", 
-                                  QString("Invalid FIC data length: %1 (expected 32)")
-                                  .arg(fic.fic_data.size()));
+                                  QString("Invalid FIC data length: %1 (expected 32/96/128)")
+                                  .arg(fic_size));
             return false;
         }
         
         // Check for valid FIG blocks within FIC
-        // FIG header validation (basic check)
-        for (size_t i = 0; i < fic.fic_data.size(); i += 2) {
-            if (i + 1 < fic.fic_data.size()) {
-                uint8_t fig_type = (fic.fic_data[i] >> 5) & 0x07;
-                if (fig_type > 7) {
-                    Logger::instance().log(Logger::Warning, "ComprehensiveETSIValidator", 
-                                          QString("Invalid FIG type: %1").arg(fig_type));
-                    return false;
+        // FIG header validation (basic check) across every FIB FIG area
+        for (size_t fib = 0; fib < fic.fibi_count(); ++fib) {
+            const size_t base = fib * ETI_FIC_FIB_SIZE;
+            if (base + ETI_FIC_FIG_AREA_SIZE > fic_size) break;
+            for (size_t i = 0; i < ETI_FIC_FIG_AREA_SIZE; i += 2) {
+                if (i + 1 < ETI_FIC_FIG_AREA_SIZE) {
+                    uint8_t fig_type = (fic.fic_data[base + i] >> 5) & 0x07;
+                    if (fig_type > 7) {
+                        Logger::instance().log(Logger::Warning, "ComprehensiveETSIValidator", 
+                                              QString("Invalid FIG type: %1").arg(fig_type));
+                        return false;
+                    }
                 }
             }
         }

@@ -358,7 +358,7 @@ Step 4: Build and Test
 │ $ make                                                          │
 │   Expected: Zero compilation errors                             │
 │                                                                 │
-│ $ ./DABAnalyzer_Enhanced_FilteringBuild                         │
+│ $ ./StreamDABAnalyzer                                           │
 │   1. File → Open ETI File                                       │
 │   2. Navigate to "FIC-Extractor" tab                            │
 │   3. Verify "Hierarchical Service Tree" panel                   │

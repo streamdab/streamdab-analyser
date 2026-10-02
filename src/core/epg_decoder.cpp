@@ -9,6 +9,7 @@
  */
 
 #include "epg_decoder.hpp"
+#include <QTimeZone>
 #include <QDebug>
 #include <cmath>
 
@@ -429,7 +430,7 @@ QDateTime EPGDecoder::convertMJDtoQDateTime(uint16_t mjd, uint32_t utc_time) con
         return QDateTime();
     }
 
-    QDateTime dt(date, time, Qt::UTC);
+    QDateTime dt(date, time, QTimeZone::UTC);
     return dt;
 }
 

@@ -505,28 +505,23 @@ bool EtiProcessor::process_eti_frame(const QByteArray& frameData)
 bool EtiProcessor::process_fic_data(const QByteArray& fic_data)
 {
     // Phase 1.1: Basic FIC Processing
-    // FIC structure: 32 bytes containing FIGs (Fast Information Groups)
-
-    if (fic_data.size() != 32) {
-        qWarning() << "Invalid FIC size:" << fic_data.size() << "bytes (expected 32)";
-        return false;
-    }
+    // FIC FIG extraction: FIG header = type (b7-b5, 7 = padding), length (b4-b0)
 
     const uint8_t* fic = reinterpret_cast<const uint8_t*>(fic_data.constData());
     int offset = 0;
 
-    while (offset < 32) {
-        // Check for end marker (0xFF)
-        if (fic[offset] == 0xFF) {
+    while (offset + 1 < fic_data.size()) {
+        // Check for end marker / padding (0xFF or type 7)
+        if (fic[offset] == 0xFF || ((fic[offset] >> 5) & 0x07) == 0x07) {
             break;
         }
 
         // Extract FIG header
         uint8_t fig_header = fic[offset];
-        uint8_t fig_type = (fig_header >> 3) & 0x1F;
-        uint8_t fig_length = fig_header & 0x07;
+        uint8_t fig_type = (fig_header >> 5) & 0x07;
+        uint8_t fig_length = fig_header & 0x1F;
 
-        if (offset + fig_length + 1 > 32) {
+        if (fig_length == 0 || offset + fig_length + 1 > fic_data.size()) {
             qWarning() << "FIG extends beyond FIC boundary";
             break;
         }

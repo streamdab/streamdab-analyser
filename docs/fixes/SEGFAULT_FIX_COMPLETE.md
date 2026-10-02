@@ -2,7 +2,7 @@
 
 **Date:** October 24, 2025  
 **Status:** ✅ **ALL FIXES APPLIED AND TESTED**  
-**Build:** `/home/seksan/workspace/streamdab-analyzer/build/DABAnalyzer_Enhanced_FilteringBuild`
+**Build:** `/home/seksan/workspace/streamdab-analyzer/build/StreamDABAnalyzer`
 
 ---
 
@@ -299,7 +299,7 @@ ctest -R test_segfault_fixes -V
 ### 2. Test with Problematic ETI File
 ```bash
 cd /home/seksan/workspace/streamdab-analyzer/build
-./DABAnalyzer_Enhanced_FilteringBuild
+./StreamDABAnalyzer
 ```
 
 **Steps:**
@@ -337,7 +337,7 @@ If any issues occur, collect debugging data:
 ### GDB Backtrace:
 ```bash
 cd /home/seksan/workspace/streamdab-analyzer/build
-gdb ./DABAnalyzer_Enhanced_FilteringBuild
+gdb ./StreamDABAnalyzer
 run
 # When it crashes:
 bt
@@ -346,7 +346,7 @@ bt
 ### Valgrind Memory Check:
 ```bash
 valgrind --leak-check=full --show-leak-kinds=all \
-  ./DABAnalyzer_Enhanced_FilteringBuild 2>&1 | tee valgrind.log
+  ./StreamDABAnalyzer 2>&1 | tee valgrind.log
 ```
 
 ---
@@ -396,4 +396,4 @@ All criteria met:
 
 **Last Updated:** October 24, 2025  
 **Engineer:** PM Agent (AI Code Assistant)  
-**Build:** `/home/seksan/workspace/streamdab-analyzer/build/DABAnalyzer_Enhanced_FilteringBuild`
+**Build:** `/home/seksan/workspace/streamdab-analyzer/build/StreamDABAnalyzer`
