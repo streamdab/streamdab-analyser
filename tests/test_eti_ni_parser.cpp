@@ -25,6 +25,7 @@
 #include <QFile>
 #include "core/modern_eti_frame_parser.hpp"
 #include "core/eti_types.hpp"
+#include "core/crc16.hpp"
 
 using namespace eti::modern;
 using eti::ETIFormat;
@@ -831,6 +832,203 @@ private slots:
         QVERIFY(success_count >= frames.size() * 0.95);  // 95% success
 
         file.close();
+    }
+
+    // ========================================================================
+    // FIC DECODE MODE / RAW-FIC FALLBACK TESTS (option-variant matrix row 4)
+    // ========================================================================
+    //
+    // Builds a synthetic FIB-structured FIC (96 bytes = 3 FIBs) carrying a
+    // FIG 0/16 (programme type international) in FIB0 and a FIG 1/1 (service
+    // label) in FIB1, with valid per-FIB CRCs unless explicitly corrupted.
+
+    /**
+     * @brief Build a 96-byte synthetic FIB-structured FIC.
+     * @param corrupt_mode 0 = valid CRCs, 1 = FIB0 bad, 2 = FIB0+FIB1 bad,
+     *                      3 = all FIBs bad.
+     * @return The raw FIC buffer.
+     */
+    static std::array<uint8_t, 96> buildSyntheticFic(int corrupt_mode) {
+        std::array<uint8_t, 96> fic{};
+        fic.fill(0xFF);  // Padding end markers (type 7) by default
+
+        // FIB 0: FIG 0/16 — [ext 1B][SId 2B][intl code 1B][pty 1B][lang 1B]
+        {
+            const size_t base = 0;
+            fic[base + 0] = 0x06;  // FIG 0, length 6
+            fic[base + 1] = 0x10;  // ext = 16 (programme type international)
+            fic[base + 2] = 0x12;  // SId high
+            fic[base + 3] = 0x34;  // SId low
+            fic[base + 4] = 0x00;  // international code (RDS PTy)
+            fic[base + 5] = 0x04;  // programme type
+            fic[base + 6] = 0x11;  // language
+        }
+        // FIB 1: FIG 1/1 — [ext 1B][SId 2B][charfield 2B][16-char label]
+        {
+            const size_t base = 32;
+            fic[base + 0] = 0x20 | 21;  // FIG 1, length 21
+            fic[base + 1] = 0x01;       // ext = 1 (programme service label)
+            fic[base + 2] = 0x56;       // SId high
+            fic[base + 3] = 0x78;       // SId low
+            fic[base + 4] = 0x00;       // charfield high
+            fic[base + 5] = 0x01;       // charfield low (EBU Latin)
+            const char label[16] = {
+                'T', 'E', 'S', 'T', ' ', 'S', 'E', 'R',
+                'V', 'I', 'C', 'E', ' ', ' ', ' ', ' '
+            };
+            std::memcpy(fic.data() + base + 6, label, 16);
+        }
+        // FIB 2: empty (padding only)
+
+        // Append valid (complemented CCITT-FALSE) CRCs, then corrupt on request.
+        for (size_t fib = 0; fib < 3; ++fib) {
+            const size_t base = fib * 32;
+            const uint16_t crc = static_cast<uint16_t>(
+                ~eti::crc16ccitt_false(fic.data() + base, 30));
+            fic[base + 30] = static_cast<uint8_t>((crc >> 8) & 0xFF);
+            fic[base + 31] = static_cast<uint8_t>(crc & 0xFF);
+        }
+        auto corrupt = [&fic](size_t fib) {
+            const size_t base = fib * 32;
+            fic[base + 30] ^= 0xFF;
+        };
+        if (corrupt_mode >= 1) { corrupt(0); }
+        if (corrupt_mode >= 2) { corrupt(1); }
+        if (corrupt_mode >= 3) { corrupt(2); }
+        return fic;
+    }
+
+    /**
+     * @brief Auto-fallback: all FIB CRCs fail -> FIGs still extracted raw.
+     */
+    void test27_FicAutoFallback_AllFIBsBad() {
+        auto fic_raw = buildSyntheticFic(3);  // all 3 FIB CRCs corrupted
+        eti::EtiFicField fic(fic_raw.data(), fic_raw.size());
+
+        // Strict drops every FIB -> no FIGs.
+        auto strict = fic.decodeFigBlocks(eti::FicDecodeMode::Strict);
+        QVERIFY(strict.fig_blocks.empty());
+        QCOMPARE(strict.fib_crc_failures, 3u);
+        QVERIFY(!strict.raw_fallback_used);
+
+        // AutoFallback re-walks the whole FIC as a raw FIG stream -> FIG 0/16.
+        auto fallback = fic.decodeFigBlocks();  // default = AutoFallback
+        QVERIFY(fallback.raw_fallback_used);
+        QVERIFY(!fallback.fig_blocks.empty());
+        bool found_fig016 = false;
+        bool found_fig11 = false;
+        for (const auto& fig : fallback.fig_blocks) {
+            if (fig.fig_type == 0 && fig.get_extension() == 16) found_fig016 = true;
+            if (fig.fig_type == 1 && fig.get_extension() == 1) found_fig11 = true;
+        }
+        QVERIFY(found_fig016);  // first FIG in the stream is reached
+        Q_UNUSED(found_fig11);
+    }
+
+    /**
+     * @brief Strict mode still drops bad FIBs when only SOME fail.
+     */
+    void test28_FicStrict_PartialFIBFailures() {
+        auto fic_raw = buildSyntheticFic(1);  // only FIB0 corrupted
+        eti::EtiFicField fic(fic_raw.data(), fic_raw.size());
+
+        // Strict: FIB0 dropped, FIB1 (FIG 1/1) + FIB2 survive.
+        auto strict = fic.decodeFigBlocks(eti::FicDecodeMode::Strict);
+        QCOMPARE(strict.fib_crc_failures, 1u);
+        bool found_fig11 = false;
+        for (const auto& fig : strict.fig_blocks) {
+            if (fig.fig_type == 1 && fig.get_extension() == 1) found_fig11 = true;
+        }
+        QVERIFY(found_fig11);
+        QVERIFY(!strict.raw_fallback_used);
+
+        // AutoFallback must NOT trigger (only FIB0 of 3 failed, not all).
+        auto fallback = fic.decodeFigBlocks();
+        QVERIFY(!fallback.raw_fallback_used);
+        QCOMPARE(fallback.fig_blocks.size(), strict.fig_blocks.size());
+    }
+
+    /**
+     * @brief Forced raw mode decodes without any CRC validation.
+     */
+    void test29_FicRawMode() {
+        auto fic_raw = buildSyntheticFic(3);
+        eti::EtiFicField fic(fic_raw.data(), fic_raw.size());
+        auto raw = fic.decodeFigBlocks(eti::FicDecodeMode::Raw);
+        QVERIFY(raw.raw_fallback_used);
+        QVERIFY(!raw.fig_blocks.empty());
+    }
+
+    /**
+     * @brief DABX_FIC_MODE=strict env override disables the auto fallback.
+     */
+    void test30_FicEnvOverride_Strict() {
+        auto fic_raw = buildSyntheticFic(3);
+        eti::EtiFicField fic(fic_raw.data(), fic_raw.size());
+
+        const bool set_ok = qputenv("DABX_FIC_MODE", QByteArray("strict"));
+        QVERIFY(set_ok);
+        auto fallback = fic.decodeFigBlocks();  // AutoFallback + env=strict
+        QVERIFY(!fallback.raw_fallback_used);
+        QVERIFY(fallback.fig_blocks.empty());
+        qunsetenv("DABX_FIC_MODE");
+    }
+
+    // ========================================================================
+    // TAIL TIST TESTS (option-variant matrix row 10)
+    // ========================================================================
+
+    /**
+     * @brief ETI-NI parse path populates the tail TIST (bytes 6140..6143).
+     */
+    void test31_TailTIST_OnETI_NI_Path() {
+        std::array<uint8_t, 6144> frame{};
+        frame.fill(0);
+        frame[0] = 0xFF;
+        frame[1] = 0xF8;
+        frame[4] = 0x00;  // FCT
+        frame[5] = 0x00;  // FICF=0, NST=0
+
+        // Known 32-bit timestamp at the frame tail.
+        const uint32_t kTist = 0x12345678u;
+        frame[6140] = static_cast<uint8_t>((kTist >> 24) & 0xFF);
+        frame[6141] = static_cast<uint8_t>((kTist >> 16) & 0xFF);
+        frame[6142] = static_cast<uint8_t>((kTist >> 8) & 0xFF);
+        frame[6143] = static_cast<uint8_t>(kTist & 0xFF);
+
+        ProcessingConfig config;
+        config.enable_threading = false;
+        config.enable_caching = false;
+        config.enable_memory_pooling = false;
+
+        ModernETIFrameParser parser;
+        QVERIFY(parser.initialize(config));
+
+        auto result = parser.parseFrame(std::span<const uint8_t, 6144>{frame});
+        QVERIFY(result.success);
+        QVERIFY(result.frame.tist_tail_valid);
+        QCOMPARE(result.frame.tist_tail, kTist);
+        // etisnoop ms parity: (TIST & 0xFFFFFF) / 16384.0
+        const double expected_ms = static_cast<double>(0x345678u) / 16384.0;
+        QCOMPARE(result.frame.get_tail_tist_ms(), expected_ms);
+        // The legacy bytes 8-11 view must NOT match the tail for NI frames.
+        QVERIFY(result.frame.get_lidata_field().tist != kTist);
+    }
+
+    /**
+     * @brief Direct tail accessor reads the last 4 bytes (big-endian).
+     */
+    void test32_TailTIST_DirectAccessor() {
+        std::array<uint8_t, 6144> frame{};
+        frame.fill(0);
+        frame[6140] = 0xDE;
+        frame[6141] = 0xAD;
+        frame[6142] = 0xBE;
+        frame[6143] = 0xEF;
+
+        eti::EtiFrame f{frame};
+        QCOMPARE(f.get_tail_tist(), 0xDEADBEEFu);
+        QCOMPARE(f.get_tail_tist_ms(), static_cast<double>(0xADBEEFu) / 16384.0);
     }
 };
 

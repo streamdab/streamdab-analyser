@@ -28,6 +28,9 @@
 #include <type_traits>
 #include <QTime>
 #include <QByteArray>
+#include <cstdlib>
+#include <cstring>
+#include "crc16.hpp"
 
 namespace eti {
 
@@ -268,6 +271,36 @@ struct EtiLidataField {
  * A 32-byte field (fib_count == 1) is treated as a legacy raw FIG area
  * (e.g. a FIC dump with the CRC stripped) for backwards compatibility.
  */
+
+/**
+ * @brief FIC decode mode (option-variant matrix row 4).
+ *
+ * Controls how the FIB-structured FIC (96/128 bytes) is turned into
+ * FigBlock structures:
+ * - Strict: validate every per-FIB CRC and skip corrupted FIBs (default
+ *   historical behavior; bad FIBs counted in fib_crc_failures).
+ * - Raw: treat the whole FIC area as one raw FIG stream (no per-FIB CRC),
+ *   matching a plain 96-byte FIG dump or a full on-air FIC without FIB CRC
+ *   (etisnoop `--ignore-errors`-equivalent escape, over the whole FIC).
+ * - AutoFallback (default): behave like Strict; when EVERY FIB of the frame
+ *   fails its CRC, re-run as Raw so a CRC-less FIC dump does not silently
+ *   decode to zero FIGs. Only triggers when the strict walk finds nothing.
+ */
+enum class FicDecodeMode : uint8_t {
+    Strict = 0,       // Validate per-FIB CRC, skip bad FIBs
+    Raw = 1,          // Whole FIC as raw FIG stream, no per-FIB CRC
+    AutoFallback = 2  // Strict; all-FIB-CRC-fail -> Raw (default)
+};
+
+/**
+ * @brief Result of a mode-aware FIC decode.
+ */
+struct FicDecodeResult {
+    std::vector<FigBlock> fig_blocks;   // Decoded FIG blocks
+    uint32_t fib_crc_failures{0};       // FIBs skipped in the strict walk
+    bool raw_fallback_used{false};      // True when a raw walk produced the blocks
+};
+
 struct EtiFicField {
     std::array<uint8_t, ETI_FIC_MAX_SIZE> fic_data;
     uint16_t fic_size;            // Number of valid bytes (0, 32, 96 or 128)
@@ -308,6 +341,21 @@ struct EtiFicField {
         return fic_size > ETI_FIC_FIB_SIZE && fibi_count() >= 3;
     }
 
+    /**
+     * @brief Decode FIG blocks honouring the FIC decode mode.
+     *
+     * The legacy 32-byte field is always walked as a single raw FIG area.
+     * For FIB-structured FICs, @p mode selects strict FIB-CRC validation,
+     * a forced raw walk, or the auto-fallback default (raw re-walk only
+     * when every FIB CRC fails). Honors the DABX_FIC_MODE=strict|raw
+     * environment override for the AutoFallback path (testing hook; the
+     * settings feature lands later).
+     *
+     * @param mode Requested decode mode (default: AutoFallback).
+     * @return Decoded blocks plus FIB-CRC / fallback diagnostics.
+     */
+    FicDecodeResult decodeFigBlocks(FicDecodeMode mode = FicDecodeMode::AutoFallback) const;
+
     std::vector<FigBlock> decode_fig_blocks() const;
     bool validate_fic_crc() const;
     bool contains_fig_type(uint8_t fig_type) const;
@@ -333,6 +381,140 @@ struct FigBlock {
         return data.empty() ? 0 : (data[0] & 0x1F);
     }
 };
+
+// ============================================================================
+// FIC decode helpers (header-inline so fig_parser.cpp consumers link without
+// a separate eti_types.cpp translation unit — single shared implementation,
+// option-variant matrix row 4).
+// ============================================================================
+
+/**
+ * @brief Expected (complemented) FIB CRC over a 30-byte FIG area.
+ *
+ * CRC-16/CCITT-FALSE shared implementation lives in crc16.hpp (F6 dedup);
+ * the transmitted FIB CRC is the one's complement, big-endian.
+ */
+inline uint16_t fib_crc_expected(const uint8_t* fig_area)
+{
+    return static_cast<uint16_t>(~crc16ccitt_false(fig_area, ETI_FIC_FIG_AREA_SIZE));
+}
+
+/**
+ * @brief Parse FIG blocks from one FIG area (30-byte FIB area or whole FIC).
+ *
+ * FIG header: type (3 bits, b7-b5; 7 = padding), length (5 bits, b4-b0).
+ * FIGs never span FIB boundaries (ETSI EN 300 401 clause 5.2); the raw walk
+ * over a whole FIC uses the same rules and ends on type 7 or the area bound.
+ */
+inline std::vector<FigBlock> parse_fig_area(const uint8_t* area, size_t area_size)
+{
+    std::vector<FigBlock> fig_blocks;
+    size_t offset = 0;
+
+    while (offset + 1 <= area_size) {
+        const uint8_t header = area[offset];
+        const uint8_t fig_type = (header >> 5) & 0x07;
+
+        if (fig_type == 7) {
+            // Padding end marker
+            break;
+        }
+
+        const uint8_t length = header & 0x1F;
+
+        if (length == 0 || offset + 1 + length > area_size) {
+            // Invalid or truncated FIG — stop processing this area
+            break;
+        }
+
+        FigBlock fig_block;
+        fig_block.fig_type = fig_type;
+        fig_block.length = length;
+        fig_block.data.assign(area + offset + 1, area + offset + 1 + length);
+
+        // FIG 0 header extension bits: C/N (b7), O/E (b6) of the ext byte
+        if (fig_type == 0 && !fig_block.data.empty()) {
+            fig_block.continuation_flag = (fig_block.data[0] & 0x80) != 0;
+            fig_block.other_ensemble_flag = (fig_block.data[0] & 0x40) != 0;
+        }
+
+        if (fig_block.is_valid()) {
+            fig_blocks.push_back(std::move(fig_block));
+        }
+
+        offset += 1 + length;
+    }
+
+    return fig_blocks;
+}
+
+/**
+ * @brief Mode-aware FIC -> FIG decode (see FicDecodeMode for semantics).
+ */
+inline FicDecodeResult EtiFicField::decodeFigBlocks(FicDecodeMode mode) const {
+    FicDecodeResult result;
+
+    // Resolve the mode: the AutoFallback default honors the DABX_FIC_MODE
+    // environment override (strict|raw) as a pre-settings testing hook.
+    // Explicit Strict/Raw requests from callers are never overridden.
+    FicDecodeMode effective = mode;
+    if (mode == FicDecodeMode::AutoFallback) {
+        if (const char* env = std::getenv("DABX_FIC_MODE")) {
+            if (std::strcmp(env, "strict") == 0) {
+                effective = FicDecodeMode::Strict;
+            } else if (std::strcmp(env, "raw") == 0) {
+                effective = FicDecodeMode::Raw;
+            }
+        }
+    }
+
+    const bool fib_structured = is_fib_structured();
+
+    // Explicit raw mode: walk the whole FIC area as one FIG stream.
+    if (effective == FicDecodeMode::Raw) {
+        result.raw_fallback_used = true;
+        result.fig_blocks = parse_fig_area(fic_data.data(), fic_size);
+        return result;
+    }
+
+    // Strict FIB walk (byte-identical to the historical behavior for every
+    // input): a FIB-structured FIC (96/128 bytes) carries 3/4 FIBs and every
+    // FIB CRC is validated, corrupted FIBs skipped. A legacy 32-byte field is
+    // walked as a single 30-byte raw FIG area.
+    const size_t fib_count_effective = fib_structured ? fibi_count() : 1;
+    for (size_t fib = 0; fib < fib_count_effective; ++fib) {
+        const size_t fib_base = fib * ETI_FIC_FIB_SIZE;
+        if (fib_base + ETI_FIC_FIB_SIZE > fic_size) {
+            break;
+        }
+        const uint8_t* fib_data = fic_data.data() + fib_base;
+
+        if (fib_structured) {
+            const uint16_t stored_crc = static_cast<uint16_t>((fib_data[30] << 8) | fib_data[31]);
+            if (fib_crc_expected(fib_data) != stored_crc) {
+                ++result.fib_crc_failures;
+                continue;
+            }
+        }
+
+        auto fib_figs = parse_fig_area(fib_data, ETI_FIC_FIG_AREA_SIZE);
+        result.fig_blocks.insert(result.fig_blocks.end(),
+                                 std::make_move_iterator(fib_figs.begin()),
+                                 std::make_move_iterator(fib_figs.end()));
+    }
+
+    // Auto fallback: when every FIB of the frame failed its CRC the FIC is
+    // most likely a CRC-less dump (96-byte FIG stream or full on-air FIC).
+    // Re-run the same FIG-walk over the whole FIC so FIGs are not lost.
+    if (effective == FicDecodeMode::AutoFallback &&
+        fib_structured &&
+        result.fib_crc_failures == fib_count_effective) {
+        result.raw_fallback_used = true;
+        result.fig_blocks = parse_fig_area(fic_data.data(), fic_size);
+    }
+
+    return result;
+}
 
 /**
  * @brief MSC Sub-channel Information
@@ -549,6 +731,12 @@ struct EtiFrame {
     // Number of valid FIC bytes stored at the normalized offset 12
     // (96 or 128 for a full FIB-structured FIC; 0 = not set / legacy 32 B view)
     uint16_t fic_field_size{0};
+    // Tail Time Stamp (EN 300 799 clause 5.3.6): for RAW/NI frames the
+    // 32-bit TIST is carried in the last 4 bytes of the frame (6140..6143),
+    // NOT in bytes 8-11 (that is a legacy ETI-LI misconception). Populated
+    // by the ETI-NI parse path (see get_tail_tist()).
+    uint32_t tist_tail{0};
+    bool tist_tail_valid{false};
 
     EtiFrame() : frame_valid(false) {
         frame_data.fill(0);
@@ -581,12 +769,44 @@ struct EtiFrame {
         lidata.fl = ((data[2] & 0x07) << 8) | data[3]; // Frame Length
 
         // Time Stamp (TIST) - 32-bit value
+        // DEPRECATED for ETI-NI/RAW frames: bytes 8-11 only carry the TIST
+        // under the legacy ETI-LI layout assumption. Per EN 300 799 clause
+        // 5.3.6 the timestamp sits at the frame tail; the NI path must use
+        // get_tail_tist() / get_tail_tist_ms() instead.
         lidata.tist = (static_cast<uint32_t>(data[4]) << 24) |
                       (static_cast<uint32_t>(data[5]) << 16) |
                       (static_cast<uint32_t>(data[6]) << 8) |
                       static_cast<uint32_t>(data[7]);
 
         return lidata;
+    }
+
+    /**
+     * @brief Read the frame-tail TIST (EN 300 799 clause 5.3.6).
+     *
+     * RAW/NI frames place the 32-bit time stamp in the last 4 bytes of the
+     * 6144-byte frame (6140..6143), after ...MSC + EOF CRC(2) + RFU(2).
+     *
+     * @return Raw 32-bit TIST value read big-endian from the frame tail.
+     */
+    uint32_t get_tail_tist() const {
+        const uint8_t* p = frame_data.data() + (ETI_FRAME_SIZE - 4);
+        return (static_cast<uint32_t>(p[0]) << 24) |
+               (static_cast<uint32_t>(p[1]) << 16) |
+               (static_cast<uint32_t>(p[2]) << 8) |
+               static_cast<uint32_t>(p[3]);
+    }
+
+    /**
+     * @brief Tail TIST converted to milliseconds (etisnoop parity).
+     *
+     * etisnoop (etianalyse.cpp "TIST") prints the 24-bit payload as
+     * `(TIST & 0xFFFFFF) / 16384.0` ms.
+     *
+     * @return Tail timestamp in milliseconds (double).
+     */
+    double get_tail_tist_ms() const {
+        return static_cast<double>(get_tail_tist() & 0x00FFFFFF) / 16384.0;
     }
 
     EtiFicField get_fic_field() const {

@@ -56,7 +56,8 @@ struct FrameAnalysisData {
         uint8_t mid{0};          // Mode Identity
         uint8_t fp{0};           // Frame Phase
         uint16_t fl{0};          // Frame Length
-        uint32_t tist{0};        // Time Stamp
+        uint32_t tist{0};        // Time Stamp (raw 32-bit; tail TIST for ETI-NI)
+        double tist_ms{0.0};     // Time Stamp in ms (etisnoop parity: (TIST & 0xFFFFFF) / 16384)
         QString format;          // "ETI-LI" or "ETI-NI"
     } header;
 

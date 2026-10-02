@@ -832,71 +832,23 @@ std::vector<ServiceLabel> FigParser::parseFig11_ProgrammeServiceLabels(
     return labels;
 }
 
-namespace {
-
-/** @brief Expected (complemented) FIB CRC over a 30-byte FIG area (EN 300 799 5.2).
- *  Shared CRC-16/CCITT-FALSE lives in crc16.hpp (F6 dedup). */
-uint16_t fig_fib_crc_expected(const uint8_t* fig_area)
-{
-    return static_cast<uint16_t>(~eti::crc16ccitt_false(fig_area, ETI_FIC_FIG_AREA_SIZE));
-}
-
-} // anonymous namespace
-
 std::vector<FigBlock> FigParser::extractFigBlocks(const EtiFicField& fic_data) {
     std::vector<FigBlock> fig_blocks;
 
     try {
-        // A FIB-structured FIC (96/128 bytes) carries 3/4 FIBs; each FIB is
-        // 32 bytes: 30 bytes of FIG data + 2 bytes of CRC-16 (complemented
-        // CCITT-FALSE, big-endian). FIBs with a bad CRC are skipped.
-        // A legacy 32-byte field is treated as a single raw FIG area.
-        const bool fib_structured = fic_data.is_fib_structured();
-        const size_t fib_count = fib_structured ? fic_data.fibi_count() : 1;
+        // Shared mode-aware FIB decode (option-variant matrix row 4): strict
+        // per-FIB CRC validation by default; when EVERY FIB of the frame
+        // fails CRC the FIC is re-walked as a raw FIG stream so CRC-less FIC
+        // dumps still yield FIGs. The warning is logged once per parser.
+        auto decode_result = fic_data.decodeFigBlocks();
+        fib_crc_failures_count_.store(decode_result.fib_crc_failures);
+        fig_blocks = std::move(decode_result.fig_blocks);
 
-        for (size_t fib_idx = 0; fib_idx < fib_count; ++fib_idx) {
-            const size_t fib_base = fib_idx * ETI_FIC_FIB_SIZE;
-            if (fib_base + ETI_FIC_FIB_SIZE > fic_data.size()) {
-                break;
-            }
-            const uint8_t* fib = fic_data.fic_data.data() + fib_base;
-
-            if (fib_structured) {
-                const uint16_t stored_crc = static_cast<uint16_t>((fib[30] << 8) | fib[31]);
-                if (fig_fib_crc_expected(fib) != stored_crc) {
-                    fib_crc_failures_count_.fetch_add(1);
-                    continue;  // Skip corrupted FIB
-                }
-            }
-
-            // Parse FIGs within the 30-byte FIG area of this FIB
-            size_t offset = 0;
-            const size_t area_size = ETI_FIC_FIG_AREA_SIZE;
-            while (offset + 1 < area_size) {
-                const uint8_t header = fib[offset];
-                if ((header >> 5) == 0x07) {
-                    // Padding end marker
-                    break;
-                }
-
-                FigBlock fig_block;
-                // FIG header: type (b7-b5), length (b4-b0)
-                fig_block.fig_type = static_cast<uint8_t>((header >> 5) & 0x07);
-                fig_block.length = static_cast<uint8_t>(header & 0x1F);
-
-                if (fig_block.length == 0 || offset + 1 + fig_block.length > area_size) {
-                    break; // Invalid FIG block
-                }
-
-                // Extract FIG data
-                fig_block.data.resize(fig_block.length);
-                std::memcpy(fig_block.data.data(), fib + offset + 1, fig_block.length);
-
-                if (fig_block.is_valid()) {
-                    fig_blocks.push_back(std::move(fig_block));
-                }
-                offset += 1 + fig_block.length;
-            }
+        if (decode_result.raw_fallback_used && !raw_fic_fallback_warned_) {
+            raw_fic_fallback_warned_ = true;
+            Logger::instance().log(Logger::Warning, "FigParser",
+                "FIC decode fallback: all FIB CRCs failed -> re-decoded FIC as a raw "
+                "FIG stream (no per-FIB CRC). Set DABX_FIC_MODE=strict to disable.");
         }
     } catch (const std::exception& e) {
         Logger::instance().log(Logger::Error, "FigParser",
