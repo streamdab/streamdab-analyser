@@ -11,7 +11,12 @@
 #include <array>
 #include <vector>
 #include <map>
+#include <memory>
 #include "eti_types.h"
+
+namespace eti {
+struct AnalyzerSettings;  // complete type only in advanced_fig_analyzer.cpp
+}
 
 /**
  * DAB Label Structure per ETSI EN 300 401
@@ -23,13 +28,19 @@
  * The character flag uses bit-mapped selection where each bit
  * corresponds to a character position in the full label.
  * Bit 15 (MSB) = position 0, Bit 0 (LSB) = position 15.
+ *
+ * Charset handling (EN 300 401 clause 8.1.13 / TS 101 756):
+ * the FIG 1 label's first data byte carries the charset flag in the
+ * high nibble (0 = Complete EBU Latin, 3 = UTF-8, 6 = TIS-620 Thai).
+ * getFullLabel() converts according to `charset`; the character flag
+ * (mask) derivation of the short label is charset-independent.
  */
 struct DABLabel {
-    std::array<char, 16> full_label;  // Full 16-character label (raw EBU Latin bytes)
+    std::array<char, 16> full_label;  // Full 16-character label (raw wire bytes)
     uint16_t character_flag;          // Character flag field (16 bits)
-    QString utf8_converted;           // UTF-8 converted label (for Thai and special chars)
+    uint8_t charset = 0;              // Label charset flag: 0=EBU Latin, 3=UTF-8, 6=TIS-620
 
-    QString getFullLabel() const;     // Get full label as QString (UTF-8 converted)
+    QString getFullLabel() const;     // Get full label as QString (charset-aware conversion)
     QString getShortLabel() const;    // Extract short label using character flag
     bool isValid() const;
     QString toString() const;
@@ -137,6 +148,7 @@ struct DABService {
     uint32_t service_id;           // SId - Service Identifier
     QString service_label;         // From FIG 1/1 (16 characters)
     QString short_label;           // Abbreviated label
+    uint16_t character_flag;       // Short-label mask from FIG 1/1 (16 bits)
     uint8_t service_type;          // 0=Programme(audio), 1=Data service
     bool is_dab_plus;              // DAB vs DAB+ (from FIG 0/8)
     std::vector<ServiceComponent> components;  // Service components
@@ -146,6 +158,7 @@ struct DABService {
 
     DABService()
         : service_id(0)
+        , character_flag(0)
         , service_type(0)
         , is_dab_plus(false)
         , programme_type(0)
@@ -455,10 +468,55 @@ class AdvancedFIGAnalyzer : public QObject
 
 public:
     explicit AdvancedFIGAnalyzer(QObject *parent = nullptr);
+    ~AdvancedFIGAnalyzer() override;  // out-of-line: m_settings needs a complete type
 
     // Main analysis methods
     void analyzeFICData(const QByteArray& ficData);
     void reset();
+
+    // Analyzer decode settings (option-variant matrix; defaults = strict FIB
+    // CRC + follow-stream charset when not wired). Defined in the .cpp so
+    // TUs without the complete AnalyzerSettings type still compile.
+    void setAnalyzerSettings(const eti::AnalyzerSettings& settings);
+    bool hasAnalyzerSettings() const { return m_settings != nullptr; }
+    const eti::AnalyzerSettings* analyzerSettings() const { return m_settings.get(); }
+
+    // FIB CRC / FIC decode diagnostics
+    int getFibCrcFailureCount() const { return m_fib_crc_failures; }
+    bool rawFicFallbackUsed() const { return m_rawFicFallbackUsed; }
+
+    // Size in bytes of the most recently analyzed FIC (0 before the first
+    // analyzeFICData() call). Fed into the GUI FIC overview panel.
+    int getLastFicSize() const { return m_lastFicSize; }
+
+    // --- FIC-XTractor: chronological per-frame FIG instance collector ---
+    // Recorded during analyzeFICData() for every FIG block with a valid
+    // header (type 0-2), in wire order. Purely additive: decode behaviour is
+    // unchanged. The GUI wires this into Tab 3 (FIG Instance List).
+    struct FigInstance {
+        int frame = -1;        // ETI frame number (0 when unknown/raw stream)
+        uint8_t type = 0;      // FIG type (0-6; 7 = padding, never recorded)
+        uint8_t ext = 0;       // FIG extension (field width per type)
+        int length = 0;        // FIG data length in bytes (after the header)
+        int fibIdx = -1;       // FIB index inside the FIC (-1 = raw stream)
+        bool crcOk = true;     // owning FIB's CRC-16 passed
+        bool reconfig = false; // MCI reconfiguration (FIG 0/1, 0/2 C/N flag)
+        QByteArray raw;        // FIG data bytes (after header, incl. ext byte)
+    };
+
+    // Per FIG type/extension block counters (observed FIGs, all frames).
+    struct FigTypeCount {
+        uint8_t type = 0;
+        uint8_t ext = 0;
+        int count = 0;
+    };
+
+    // Sets the ETI frame number for the NEXT analyzeFICData() call so the
+    // recorded FigInstance::frame is the real on-air frame (GUI path).
+    void setFigFrameNumber(int frame) { m_figFrameNumber = frame; }
+
+    const QVector<FigInstance>& figInstances() const { return m_figInstances; }
+    QVector<FigTypeCount> getFigTypeCounts() const;
 
     // FIG processing control
     void enableFIGType(uint8_t type, uint8_t extension, bool enabled);
@@ -572,7 +630,6 @@ private:
     void processFIG2_5(const QByteArray& data); // Data service extended labels
 
     // Helper methods
-    bool validateFIGHeader(const QByteArray& data, uint8_t& type, uint8_t& length);
     QString extractDABLabel(const QByteArray& data, int offset, int length);
     uint16_t extractUInt16(const QByteArray& data, int offset);
     uint32_t extractUInt32(const QByteArray& data, int offset);
@@ -583,9 +640,14 @@ private:
     bool isBitSet(uint8_t byte, int bit_position) const;
 
     // Label parsing helpers
-    DABLabel parseLabel(const uint8_t* data, size_t offset);
+    DABLabel parseLabel(const uint8_t* data, size_t offset, uint8_t charset);
     QString extractShortLabel(const std::array<char, 16>& full_label, uint16_t char_flag);
     bool isCharacterIncluded(uint16_t char_flag, int position) const;
+
+    // FIC / FIB walking helpers
+    void walkFigArea(const uint8_t* area, size_t area_size);
+    bool validateFibCrc(const uint8_t* fib) const;
+    uint8_t effectiveLabelCharset(uint8_t streamCharset) const;
 
     // Service management
     ServiceInfo* findOrCreateService(uint32_t serviceId);
@@ -642,6 +704,24 @@ private:
     int m_totalFIGsProcessed;
     int m_validFIGsCount;
     QString m_lastError;
+
+    // FIC decode diagnostics (FIB CRC failures / raw fallback)
+    int m_fib_crc_failures = 0;
+    bool m_rawFicFallbackUsed = false;
+    bool m_rawFicFallbackWarned = false;
+    int m_lastFicSize = 0;      // bytes of the most recently analyzed FIC
+
+    // FIC-XTractor chronological FIG instance collector (see FigInstance)
+    QVector<FigInstance> m_figInstances;
+    std::map<uint16_t, int> m_figTypeCounts;  // key = (type << 8) | ext
+    int m_figFrameNumber = 0;        // frame for the next analyzeFICData call
+    int m_figFibIndex = -1;          // current FIB index while walking
+    bool m_figFibCrcOk = true;       // current FIB CRC verdict while walking
+    bool m_figRecording = true;      // false during raw-fallback re-walk
+    static constexpr int MAX_FIG_INSTANCES = 200000;  // GUI memory bound
+
+    // User-selected decode options; empty = historical strict defaults
+    std::unique_ptr<eti::AnalyzerSettings> m_settings;
 
     // Processing state
     QByteArray m_currentFICData;

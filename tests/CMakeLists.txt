@@ -677,7 +677,9 @@ if(CAN_RUN_GUI_TESTS)
              COMMAND test_gui_dock_layout)
     set_tests_properties(test_gui_dock_layout PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        TIMEOUT 30
+        # Two full-fixture loads (real-data assertions + the reload/reset
+        # test) need more than the default 30 s headroom on slow CI hosts.
+        TIMEOUT 90
     )
 
     message(STATUS "  ✓ test_gui_stream_info_panel (10 widget tests)")

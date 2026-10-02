@@ -131,6 +131,10 @@ public:
         // identical to the pre-settings baseline.
         m_analyzerSettings.loadFromQSettings();
 
+        // Wire the decode settings into the GUI FIG analyzer (FIB CRC
+        // strictness, fic_mode raw/auto-fallback, force_charset).
+        m_figAnalyzer->setAnalyzerSettings(m_analyzerSettings);
+
         // EMERGENCY: ALL CUSTOM THEMING DISABLED FOR TEXT VISIBILITY
         // applyTheme();
     }
@@ -143,8 +147,39 @@ public:
         loadETIFile(filePath);
     }
 
+    // Public accessor for the DAB Ensemble Explorer tree (GUI tests)
+    QTreeWidget* ensembleTree() const { return m_ensembleTree; }
+
+    // Public accessors for the real-data panel widgets (GUI tests).
+    // The audit-based assertions read these instead of walking the dock tree.
+    QTableWidget* subchannelTable() const { return m_subchannelTable; }
+    QLabel* tab2EnsembleNameLabel() const { return m_tab2_ensembleName; }
+    QLabel* tab2FicContentSummaryLabel() const { return m_tab2_ficContentSummary; }
+    QLabel* tab2SubchannelOrgSummaryLabel() const { return m_tab2_subchannelOrgSummary; }
+    QTableWidget* tab2ServiceTable() const { return m_tab2_serviceTable; }
+    QTreeWidget* tab3FigInstanceTree() const { return m_tab3_figInstanceTree; }
+    QTreeWidget* tab3FigItemDetailsTree() const { return m_tab3_figItemDetailsTree; }
+    QTreeWidget* ficOverviewTree() const { return m_ficOverviewTree; }
+    QTableWidget* errorCounterTable() const { return m_errorCounterTable; }
+
     // User-selected analyzer decode options (loaded from QSettings at startup).
     const eti::AnalyzerSettings& analyzerSettings() const noexcept { return m_analyzerSettings; }
+
+    // Public analyzer-state accessors (reload/reset GUI tests): the FIG
+    // analyzer's instance list / counters must restart cleanly per file.
+    bool isFileLoaded() const { return m_fileLoaded; }
+    int analyzerFigInstanceCount() const
+    {
+        return m_figAnalyzer ? static_cast<int>(m_figAnalyzer->figInstances().size()) : 0;
+    }
+    int analyzerTotalFigCount() const
+    {
+        return m_figAnalyzer ? m_figAnalyzer->getTotalFIGsProcessed() : 0;
+    }
+    int analyzerFibCrcFailureCount() const
+    {
+        return m_figAnalyzer ? m_figAnalyzer->getFibCrcFailureCount() : 0;
+    }
 
 private slots:
     void openFile()
@@ -169,6 +204,14 @@ private slots:
         m_fileLoaded = false;
         m_totalFrames = 0;
         m_currentFrameIndex = 0;
+
+        // === Clear previous-file decode state in the FIG analyzer ===
+        // (Tab 3 instances/FIG counters/FIB-CRC counts must not accumulate
+        // across files) and re-apply the user's decode options.
+        if (m_figAnalyzer) {
+            m_figAnalyzer->reset();
+            m_figAnalyzer->setAnalyzerSettings(m_analyzerSettings);
+        }
 
         // === PHASE 3 AGENT 4: Clear frame cache ===
         m_frameCache.clear();
@@ -294,6 +337,9 @@ private slots:
         
         // === CRITICAL FIX: Pass FIC data to FIG analyzer ===
         if (!frame.fic_data.isEmpty() && m_figAnalyzer) {
+            // FIC-XTractor: tag the analyzed FIC with its real ETI frame
+            // number so Tab 3's chronological FIG instance list has truth.
+            m_figAnalyzer->setFigFrameNumber(frame.frame_number);
             m_figAnalyzer->analyzeFICData(frame.fic_data);
             // DEBUG: Log FIC processing
             static int ficProcessCount = 0;
@@ -496,108 +542,19 @@ private slots:
             
             // Update Hex Viewer with frame data
             displayFrameHexData(currentRow);
-            
-            // Update DAB Ensemble Explorer with frame-specific service data
-            updateEnsembleExplorerForFrame(currentRow);
-            
+
+            // NOTE: The DAB Ensemble Explorer is owned by the real FIG
+            // decode path (buildEnsembleTree()/updateEnsembleTree() via
+            // m_figAnalyzer). Frame selection must NOT rewrite it — the old
+            // updateEnsembleExplorerForFrame() simulator (fake "Frame N FIC
+            // Data" rows) was removed (PANEL_AUDIT fix #1).
+
             // Perform ETSI Compliance validation on selected frame
             performETSIComplianceValidation(currentRow);
             
             // === PHASE 1.3: Update ETI Overview Table ===
             updateETIOverviewTable(currentRow);
         }
-    }
-    
-    void updateEnsembleExplorerForFrame(int frameIndex)
-    {
-        if (!m_ensembleTree || frameIndex < 0) {
-            return;
-        }
-        
-        // Clear current ensemble data
-        m_ensembleTree->clear();
-        
-        // Simulate FIC parsing for the selected frame
-        // In real implementation, this would parse actual FIC data from the ETI frame
-        QString frameInfo = QString("Frame %1 FIC Data").arg(frameIndex + 1);
-        
-        // Create ensemble root based on frame data
-        QTreeWidgetItem* ensembleItem = new QTreeWidgetItem();
-        ensembleItem->setText(0, QString("Bangkok DAB+ Ensemble (Frame %1)").arg(frameIndex + 1));
-        ensembleItem->setText(1, "NBT Thailand");
-        ensembleItem->setText(2, "Ensemble");
-        ensembleItem->setExpanded(true);
-        
-        // Simulate frame-specific service discovery
-        // Each frame might have different service availability or configurations
-        QStringList services = getServicesForFrame(frameIndex);
-        
-        for (const QString& serviceData : services) {
-            QStringList parts = serviceData.split("|");
-            if (parts.size() >= 3) {
-                QTreeWidgetItem* serviceItem = new QTreeWidgetItem(ensembleItem);
-                serviceItem->setText(0, parts[0]); // Service Name
-                serviceItem->setText(1, parts[1]); // Service Label
-                serviceItem->setText(2, parts[2]); // Service Type
-                
-                // Add frame-specific service details
-                QTreeWidgetItem* detailItem = new QTreeWidgetItem(serviceItem);
-                detailItem->setText(0, QString("Frame %1 Status").arg(frameIndex + 1));
-                detailItem->setText(1, "Active");
-                detailItem->setText(2, "Service Detail");
-            }
-        }
-        
-        m_ensembleTree->addTopLevelItem(ensembleItem);
-        m_ensembleTree->expandAll();
-        
-        // Update system messages
-        if (m_systemMessages) {
-            m_systemMessages->append(QString("🌐 Ensemble Explorer: Updated for Frame %1 (%2 services)")
-                                   .arg(frameIndex + 1).arg(services.count()));
-        }
-    }
-    
-    QStringList getServicesForFrame(int frameIndex)
-    {
-        // Simulate frame-specific service discovery based on FIC data
-        // In real implementation, this would parse FIC blocks from the ETI frame
-        QStringList services;
-        
-        // Base services (always present in Bangkok DAB+)
-        services << "NBT Radio|National Broadcasting Thailand|Audio DAB+";
-        services << "NBT News|NBT News Channel|Audio DAB+";
-        
-        // Frame-dependent services (simulate varying availability)
-        if (frameIndex % 10 == 0) {
-            services << "Traffic Info|Real-time Traffic|Data Service";
-        }
-        
-        if (frameIndex % 15 == 0) {
-            services << "Weather Data|Bangkok Weather|Data Service";
-        }
-        
-        if (frameIndex % 25 == 0) {
-            services << "Emergency Alert|Alert System|Emergency Service";
-        }
-        
-        // Time-varying services based on frame position
-        int timeVariation = frameIndex % 100;
-        if (timeVariation < 30) {
-            services << "Morning News|NBT Morning Edition|Audio DAB+";
-        } else if (timeVariation < 60) {
-            services << "Afternoon Music|NBT Music Stream|Audio DAB+";
-        } else {
-            services << "Evening Program|NBT Evening Show|Audio DAB+";
-        }
-        
-        // Service quality indication based on frame index
-        QString qualityIndicator = (frameIndex % 3 == 0) ? "High Quality" : "Standard";
-        for (int i = 0; i < services.size(); i++) {
-            services[i] += QString(" (%1)").arg(qualityIndicator);
-        }
-        
-        return services;
     }
     
     void performETSIComplianceValidation(int frameIndex)
@@ -2131,17 +2088,27 @@ private:
                 (service.isData ? "Data" : "Audio") : service.type;
             serviceItem->setText(2, serviceType);
             
-            // Level 3: Components (placeholder - detailed component info requires more FIG processing)
-            if (service.isAudio) {
-                QTreeWidgetItem* componentItem = new QTreeWidgetItem(serviceItem);
-                componentItem->setText(0, "-");
-                componentItem->setText(1, "Primary Audio");
-                componentItem->setText(2, "Service Detail");
-                
-                // Italic formatting for component placeholder
-                QFont italicFont = componentItem->font(1);
-                italicFont.setItalic(true);
-                componentItem->setFont(1, italicFont);
+            // Level 3: Components — REAL decoded component rows from the
+            // FIG 0/2 service data (sub-channel ids, transport mode,
+            // primary/secondary, DAB+/audio type); the fabricated
+            // "Primary Audio / Service Detail" placeholders are gone.
+            const DABService* dabService = nullptr;
+            const std::vector<DABService> dabServices = m_figAnalyzer->getDABServices();
+            for (const DABService& svc : dabServices) {
+                if (svc.service_id == service.serviceId) {
+                    dabService = &svc;
+                    break;
+                }
+            }
+            if (dabService && !dabService->components.empty()) {
+                for (const ServiceComponent& comp : dabService->components) {
+                    auto* componentItem = new QTreeWidgetItem(serviceItem);
+                    componentItem->setText(0, QString("SubCh %1").arg(comp.sub_channel_id));
+                    componentItem->setText(1, comp.transport_mode == 0
+                        ? (comp.isDabPlus() ? "DAB+" : "Audio")
+                        : "Packet/Data");
+                    componentItem->setText(2, comp.is_primary ? "Primary" : "Secondary");
+                }
             }
         }
         
@@ -2224,8 +2191,9 @@ private:
             m_subchannelTable->setItem(row, 1, new QTableWidgetItem(
                 QString::number(subch.sub_channel_id)));
             
-            // Column 2: Type (UEP/EEP)
-            QString type = subch.short_form ? "EEP" : "UEP";
+            // Column 2: Type (EEP/UEP per etisnoop-parity semantics: bit 7 of the
+            // third descriptor byte set = EEP long form, i.e. !short_form)
+            QString type = subch.short_form ? "UEP" : "EEP";
             m_subchannelTable->setItem(row, 2, new QTableWidgetItem(type));
             
             // Column 3: Level (protection level)
@@ -2434,9 +2402,10 @@ private:
         // IMPORTANT: Use clearContents() to prevent memory leaks
         m_errorCounterTable->clearContents();
         
-        // Ensure correct size
-        if (m_errorCounterTable->rowCount() != 5) {
-            m_errorCounterTable->setRowCount(5);
+        // Ensure correct size (5 error rows + FIB CRC row from the FIG
+        // analyzer — PANEL_AUDIT fix #4)
+        if (m_errorCounterTable->rowCount() != 6) {
+            m_errorCounterTable->setRowCount(6);
         }
         if (m_errorCounterTable->columnCount() != 2) {
             m_errorCounterTable->setColumnCount(2);
@@ -2469,15 +2438,20 @@ private:
             int count;
         };
         
+        // FIB CRC failures come from the FIG analyzer's real per-FIB CRC-16
+        // validation (getFibCrcFailureCount). Zero on a clean capture.
+        const int fibCrcErrors = m_figAnalyzer ? m_figAnalyzer->getFibCrcFailureCount() : 0;
+        
         ErrorRow errors[] = {
             {"FIC CRC Errors", ficCrcErrors},
             {"MSC CRC Errors", mscCrcErrors},
             {"Invalid FIG Errors", invalidFigErrors},
             {"Service Org Errors", serviceOrgErrors},
-            {"Subchannel Errors", subchannelErrors}
+            {"Subchannel Errors", subchannelErrors},
+            {"FIB CRC Errors", fibCrcErrors}
         };
         
-        for (int row = 0; row < 5; ++row) {
+        for (int row = 0; row < 6; ++row) {
             auto* typeItem = new QTableWidgetItem(errors[row].type);
             typeItem->setFlags(typeItem->flags() & ~Qt::ItemIsEditable);
             
@@ -2511,29 +2485,50 @@ private:
         
         m_ficOverviewTree->clear();
         
-        // Root: FIC Overview
+        // Root: FIC Overview — real values from the FIG analyzer (the
+        // "Data Available"/"Ready for data" literals are gone).
+        const bool hasData = m_fileLoaded && m_figAnalyzer;
         auto* rootItem = new QTreeWidgetItem(m_ficOverviewTree);
         rootItem->setText(0, "FIC Overview");
-        rootItem->setText(1, m_fileLoaded ? "Data Available" : "No Data");
-        rootItem->setText(3, m_fileLoaded ? "OK" : "N/A");
+        rootItem->setText(1, hasData ? "Decoded" : "No Data");
+        rootItem->setText(3, hasData ? "OK" : "N/A");
         
-        if (m_fileLoaded) {
-            // TODO: Connect to actual ensemble manager when available
-            // For now, show placeholder structure
-            auto* ensembleItem = new QTreeWidgetItem(rootItem);
-            ensembleItem->setText(0, "Ensemble");
-            ensembleItem->setText(1, "Ready for data");
-            ensembleItem->setText(3, "OK");
-            
-            auto* servicesItem = new QTreeWidgetItem(rootItem);
-            servicesItem->setText(0, "Services");
-            servicesItem->setText(1, "Ready for data");
-            servicesItem->setText(3, "OK");
-            
-            auto* subchannelsItem = new QTreeWidgetItem(rootItem);
-            subchannelsItem->setText(0, "Subchannels");
-            subchannelsItem->setText(1, "Ready for data");
-            subchannelsItem->setText(3, "OK");
+        if (hasData) {
+            const int ficBytes = m_figAnalyzer->getLastFicSize();
+            const int fibPerFrame = ficBytes > 0 ? ficBytes / 32 : 0;  // FIBs per on-air FIC
+            const int totalFigs = m_figAnalyzer->getTotalFIGsProcessed();
+            const int crcFailures = m_figAnalyzer->getFibCrcFailureCount();
+
+            auto* streamItem = new QTreeWidgetItem(rootItem);
+            streamItem->setText(0, "FIC stream");
+            streamItem->setText(1, QString("%1 B / %2 FIBs per frame")
+                                    .arg(ficBytes).arg(fibPerFrame));
+            streamItem->setText(3, m_figAnalyzer->rawFicFallbackUsed() ? "raw fallback" : "OK");
+
+            auto* figsItem = new QTreeWidgetItem(rootItem);
+            figsItem->setText(0, "FIGs processed");
+            figsItem->setText(1, QString::number(totalFigs));
+            figsItem->setText(3, QString("%1 valid").arg(m_figAnalyzer->getValidFIGsCount()));
+
+            // Per FIG type/extension occurrence counts (chronological wire
+            // order over the whole capture).
+            auto* byTypeItem = new QTreeWidgetItem(rootItem);
+            byTypeItem->setText(0, "FIG counts by type");
+            byTypeItem->setText(1, "");
+            byTypeItem->setText(3, "");
+            const QVector<AdvancedFIGAnalyzer::FigTypeCount> counts =
+                m_figAnalyzer->getFigTypeCounts();
+            for (const AdvancedFIGAnalyzer::FigTypeCount& tc : counts) {
+                auto* figItem = new QTreeWidgetItem(byTypeItem);
+                figItem->setText(0, QString("FIG %1/%2").arg(tc.type).arg(tc.ext));
+                figItem->setText(1, QString::number(tc.count));
+                figItem->setText(3, "observed");
+            }
+
+            auto* crcItem = new QTreeWidgetItem(rootItem);
+            crcItem->setText(0, "FIB CRC failures");
+            crcItem->setText(1, QString::number(crcFailures));
+            crcItem->setText(3, crcFailures == 0 ? "clean capture" : "corrupt FIBs");
         }
         
         m_ficOverviewTree->expandAll();
@@ -2542,28 +2537,64 @@ private:
 
     // === PHASE 6: Tab 2 LEFT Panel Updates ===
     void updateTab2OverviewLabels() {
+        if (!m_figAnalyzer) return;
+
+        // Real values from the FIG analyzer (PANEL_AUDIT fix #2): the
+        // "Ready/Available" literals are gone.
+        EnsembleInfo ensemble = m_figAnalyzer->getCurrentEnsemble();
+        const bool hasEnsemble = (ensemble.ensembleId != 0 || !ensemble.ensembleLabel.isEmpty());
+
         if (m_tab2_ensembleName) {
-            m_tab2_ensembleName->setText(m_fileLoaded ? "Ensemble: Ready" : "Ensemble: (none)");
+            m_tab2_ensembleName->setText(
+                hasEnsemble
+                    ? QString("Ensemble: %1 [0x%2]")
+                          .arg(ensemble.ensembleLabel.isEmpty()
+                                   ? QString("Ensemble 0x%1").arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper()
+                                   : ensemble.ensembleLabel)
+                          .arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper()
+                    : "Ensemble: (none)");
         }
         if (m_tab2_ficContentSummary) {
-            m_tab2_ficContentSummary->setText(m_fileLoaded ? "FIC Content: Available" : "FIC Content: 0 FIGs");
+            m_tab2_ficContentSummary->setText(
+                QString("FIC Content: %1 FIGs").arg(m_figAnalyzer->getTotalFIGsProcessed()));
         }
         if (m_tab2_subchannelOrgSummary) {
-            m_tab2_subchannelOrgSummary->setText(m_fileLoaded ? "Sub-Channels: Ready" : "Sub-Channels: 0");
+            m_tab2_subchannelOrgSummary->setText(
+                QString("Sub-Channels: %1").arg(m_figAnalyzer->getAllSubChannels().size()));
         }
         qDebug() << "[PHASE 6.1] Tab 2 overview labels updated";
     }
     
     void buildTab2ServiceTree() {
-        if (!m_tab2_serviceTree) return;
+        if (!m_tab2_serviceTree || !m_figAnalyzer) return;
         
         m_tab2_serviceTree->clear();
         
         if (m_fileLoaded) {
+            // Real services from the FIG analyzer's decoded MCI/SI data.
+            std::vector<DABService> services = m_figAnalyzer->getDABServices();
             auto* rootItem = new QTreeWidgetItem(m_tab2_serviceTree);
-            rootItem->setText(0, "Services");
-            rootItem->setText(1, "Ready");
-            rootItem->setText(2, "TODO: Connect data");
+            rootItem->setText(0, QString("Services (%1)").arg(services.size()));
+            rootItem->setText(1, "");
+            rootItem->setText(2, "");
+            
+            for (const DABService& service : services) {
+                auto* serviceItem = new QTreeWidgetItem(rootItem);
+                QString label = service.service_label;
+                if (label.isEmpty()) {
+                    label = QString("0x%1").arg(service.service_id, 4, 16, QChar('0')).toUpper();
+                }
+                serviceItem->setText(0, QString("%1 [0x%2]")
+                                         .arg(label)
+                                         .arg(service.service_id, 4, 16, QChar('0')).toUpper());
+                serviceItem->setText(1, tab2ServiceTypeString(service));
+                
+                const ServiceComponent primary = service.getPrimaryComponent();
+                serviceItem->setText(2, primary.transport_mode == 0
+                    ? QString::number(primary.sub_channel_id)
+                    : QString("Packet"));
+            }
+            rootItem->setExpanded(true);
         } else {
             auto* noDataItem = new QTreeWidgetItem(m_tab2_serviceTree);
             noDataItem->setText(0, "No services");
@@ -2575,15 +2606,40 @@ private:
     }
     
     void buildTab2ComponentsTree() {
-        if (!m_tab2_serviceComponents) return;
+        if (!m_tab2_serviceComponents || !m_figAnalyzer) return;
         
         m_tab2_serviceComponents->clear();
         
         if (m_fileLoaded) {
+            std::vector<DABService> services = m_figAnalyzer->getDABServices();
             auto* rootItem = new QTreeWidgetItem(m_tab2_serviceComponents);
-            rootItem->setText(0, "Components");
-            rootItem->setText(1, "Ready");
-            rootItem->setText(2, "TODO: Connect data");
+            rootItem->setText(0, QString("Components (%1 services)").arg(services.size()));
+            rootItem->setText(1, "");
+            rootItem->setText(2, "");
+            
+            for (const DABService& service : services) {
+                QString label = service.service_label;
+                if (label.isEmpty()) {
+                    label = QString("0x%1").arg(service.service_id, 4, 16, QChar('0')).toUpper();
+                }
+                auto* serviceItem = new QTreeWidgetItem(rootItem);
+                serviceItem->setText(0, QString("%1 [0x%2]")
+                                         .arg(label)
+                                         .arg(service.service_id, 4, 16, QChar('0')).toUpper());
+                serviceItem->setText(1, tab2ServiceTypeString(service));
+                serviceItem->setText(2, QString("%1 component(s)").arg(service.components.size()));
+                
+                for (const ServiceComponent& comp : service.components) {
+                    auto* compItem = new QTreeWidgetItem(serviceItem);
+                    compItem->setText(0, QString("Component %1").arg(comp.component_id));
+                    compItem->setText(1, comp.isDabPlus() ? "DAB+" : "Audio");
+                    compItem->setText(2, QString("SubCh %1, TMId %2, %3")
+                                          .arg(comp.sub_channel_id)
+                                          .arg(comp.transport_mode)
+                                          .arg(comp.is_primary ? "Primary" : "Secondary"));
+                }
+            }
+            rootItem->setExpanded(true);
         } else {
             auto* noDataItem = new QTreeWidgetItem(m_tab2_serviceComponents);
             noDataItem->setText(0, "No components");
@@ -2596,78 +2652,620 @@ private:
 
     // === PHASE 7: Tab 2 CENTER Panel Table Updates ===
     void updateTab2EnsembleTable() {
-        if (!m_tab2_ensembleTable) return;
+        if (!m_tab2_ensembleTable || !m_figAnalyzer) return;
         
         m_tab2_ensembleTable->clearContents();
-        m_tab2_ensembleTable->setRowCount(1);
         
-        if (m_fileLoaded) {
-            m_tab2_ensembleTable->setItem(0, 0, new QTableWidgetItem("Ready"));
-            for (int col = 1; col < m_tab2_ensembleTable->columnCount(); ++col) {
-                m_tab2_ensembleTable->setItem(0, col, new QTableWidgetItem("TODO"));
+        std::vector<DABService> services = m_figAnalyzer->getDABServices();
+        m_tab2_ensembleTable->setRowCount(static_cast<int>(services.size()));
+        const int colCount = m_tab2_ensembleTable->columnCount();
+        
+        // Service components per service: real decoded rows (Type, SubCh Id,
+        // SC1d, CA, Bitrate, ASCTy+, Info); "-" where a field does not apply
+        // (packet mode fields / CA org on a clear FIC).
+        int row = 0;
+        for (const DABService& service : services) {
+            const ServiceComponent primary = service.getPrimaryComponent();
+            
+            QString bitrateStr = "-";
+            if (primary.transport_mode == 0) {
+                uint16_t bitrate = m_figAnalyzer->getSubChannelInfo(primary.sub_channel_id).getBitrate();
+                bitrateStr = QString("%1 kbps").arg(bitrate);
             }
-        } else {
-            m_tab2_ensembleTable->setItem(0, 0, new QTableWidgetItem("No data"));
+            
+            QVector<QString> cells = {
+                tab2ServiceTypeString(service),                              // Type
+                primary.transport_mode == 0
+                    ? QString::number(primary.sub_channel_id) : "-",         // SubCH Id
+                QStringLiteral("-"),                                         // FIGCH
+                QStringLiteral("-"),                                         // PADDR
+                QString::number(primary.component_id),                       // SC1d
+                primary.ca_flag ? "yes" : "no",                              // CA
+                QStringLiteral("-"),                                         // CAOrg
+                bitrateStr,                                                  // Bitrate
+                primary.isDabPlus() ? "0x3F" : "-",                          // ASCTy+
+                service.service_label                                        // Info
+            };
+            for (int col = 0; col < colCount && col < cells.size(); ++col) {
+                auto* item = new QTableWidgetItem(cells.at(col));
+                item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+                m_tab2_ensembleTable->setItem(row, col, item);
+            }
+            ++row;
         }
         
         qDebug() << "[PHASE 7.1] Tab 2 ensemble table updated";
     }
     
     void updateTab2SubchannelTable() {
-        if (!m_tab2_subchannelTable) return;
+        if (!m_tab2_subchannelTable || !m_figAnalyzer) return;
         
         m_tab2_subchannelTable->clearContents();
-        m_tab2_subchannelTable->setRowCount(m_fileLoaded ? 1 : 0);
         
-        if (m_fileLoaded) {
-            m_tab2_subchannelTable->setItem(0, 0, new QTableWidgetItem("Ready"));
-            for (int col = 1; col < m_tab2_subchannelTable->columnCount(); ++col) {
-                m_tab2_subchannelTable->setItem(0, col, new QTableWidgetItem("TODO"));
+        // Reverse map: subchannel id -> owning service (label/short label).
+        QMap<uint8_t, const DABService*> serviceBySubChannel;
+        const std::vector<DABService> services = m_figAnalyzer->getDABServices();
+        for (const DABService& service : services) {
+            for (const ServiceComponent& comp : service.components) {
+                if (comp.transport_mode == 0) {
+                    serviceBySubChannel.insert(comp.sub_channel_id, &service);
+                }
             }
+        }
+        
+        std::vector<SubChannelInfo> subchannels = m_figAnalyzer->getAllSubChannels();
+        m_tab2_subchannelTable->setRowCount(static_cast<int>(subchannels.size()));
+        const int colCount = m_tab2_subchannelTable->columnCount();
+        
+        int row = 0;
+        for (const SubChannelInfo& subch : subchannels) {
+            const DABService* svc = serviceBySubChannel.value(subch.sub_channel_id, nullptr);
+            
+            QString sidStr = "-", labelStr = "-", shortStr = "-", subchType = "MSC";
+            if (svc) {
+                sidStr = QString("0x%1").arg(svc->service_id, 4, 16, QChar('0')).toUpper();
+                labelStr = svc->service_label.isEmpty() ? sidStr : svc->service_label;
+                shortStr = svc->short_label.isEmpty() ? "-" : svc->short_label;
+                subchType = svc->is_dab_plus ? "DAB+" : (svc->components.empty() ? "Audio" : "Audio");
+            }
+            
+            QVector<QString> cells = {
+                QString::number(subch.sub_channel_id),                       // SubCh Id
+                QString::number(subch.start_address),                        // SAD
+                QString("%1 kbps").arg(subch.getBitrate()),                  // Bitrate
+                subch.getProtectionLevel(),                                  // P.Level
+                subch.short_form ? "UEP" : "EEP",                            // P.Type (etisnoop parity)
+                subchType,                                                   // SubCh Type
+                sidStr,                                                      // SId
+                labelStr,                                                    // Service Label
+                shortStr,                                                    // Short Label
+                QStringLiteral("-")                                          // CAID
+            };
+            for (int col = 0; col < colCount && col < cells.size(); ++col) {
+                auto* item = new QTableWidgetItem(cells.at(col));
+                item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+                m_tab2_subchannelTable->setItem(row, col, item);
+            }
+            ++row;
         }
         
         qDebug() << "[PHASE 7.2] Tab 2 subchannel table updated";
     }
     
     void updateTab2ServiceTable() {
-        if (!m_tab2_serviceTable) return;
+        if (!m_tab2_serviceTable || !m_figAnalyzer) return;
         
         m_tab2_serviceTable->clearContents();
-        m_tab2_serviceTable->setRowCount(m_fileLoaded ? 1 : 0);
         
-        if (m_fileLoaded) {
-            m_tab2_serviceTable->setItem(0, 0, new QTableWidgetItem("Ready"));
-            for (int col = 1; col < m_tab2_serviceTable->columnCount(); ++col) {
-                m_tab2_serviceTable->setItem(0, col, new QTableWidgetItem("TODO"));
+        std::vector<DABService> services = m_figAnalyzer->getDABServices();
+        m_tab2_serviceTable->setRowCount(static_cast<int>(services.size()));
+        const int colCount = m_tab2_serviceTable->columnCount();
+        
+        int row = 0;
+        for (const DABService& service : services) {
+            QVector<QString> cells = {
+                QString("0x%1").arg(service.service_id, 4, 16, QChar('0')).toUpper(),  // SId
+                service.service_label.isEmpty() ? "-" : service.service_label,          // Service Label
+                service.short_label.isEmpty() ? "-" : service.short_label,              // Short Label
+                QStringLiteral("-")                                                     // CAID
+            };
+            for (int col = 0; col < colCount && col < cells.size(); ++col) {
+                auto* item = new QTableWidgetItem(cells.at(col));
+                item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+                m_tab2_serviceTable->setItem(row, col, item);
             }
+            ++row;
         }
         
         qDebug() << "[PHASE 7.3] Tab 2 service table updated";
     }
     
     void updateTab2FIGContentTable() {
-        if (!m_tab2_figContentTable) return;
+        if (!m_tab2_figContentTable || !m_figAnalyzer) return;
         
         m_tab2_figContentTable->clearContents();
-        m_tab2_figContentTable->setRowCount(m_fileLoaded ? 1 : 0);
         
-        if (m_fileLoaded) {
-            m_tab2_figContentTable->setItem(0, 0, new QTableWidgetItem("Ready"));
-            for (int col = 1; col < m_tab2_figContentTable->columnCount(); ++col) {
-                m_tab2_figContentTable->setItem(0, col, new QTableWidgetItem("TODO"));
+        // Observed FIG types/extensions with block counts, fed by the
+        // analyzer's FIG-type counter (PANEL_AUDIT fix #2).
+        QVector<AdvancedFIGAnalyzer::FigTypeCount> counts = m_figAnalyzer->getFigTypeCounts();
+        m_tab2_figContentTable->setRowCount(counts.size());
+        const int colCount = m_tab2_figContentTable->columnCount();
+        
+        int row = 0;
+        for (const auto& count : counts) {
+            QVector<QString> cells = {
+                QString::number(count.type),                      // Type
+                QString::number(count.ext),                       // Extension
+                QString::number(count.count),                     // Number
+                figSubjectName(count.type, count.ext)             // Subject
+            };
+            for (int col = 0; col < colCount && col < cells.size(); ++col) {
+                auto* item = new QTableWidgetItem(cells.at(col));
+                item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+                m_tab2_figContentTable->setItem(row, col, item);
             }
+            ++row;
         }
         
         qDebug() << "[PHASE 7.4] Tab 2 FIG content table updated";
     }
 
     // === PHASE 8: Tab 3 LEFT Panel - FIG Instance Tree ===
+    // FIC-XTractor chronological FIG instance list (PANEL_AUDIT fix #3):
+    // real per-frame instances recorded by the analyzer's FIG collector.
+    static QString tab2ServiceTypeString(const DABService& service) {
+        if (service.is_dab_plus) return "DAB+";
+        if (service.service_type == 0) return "Audio";
+        if (service.service_type == 1) return "Data";
+        return QString("Type %1").arg(service.service_type);
+    }
+
+    static QString figSubjectName(uint8_t type, uint8_t ext) {
+        if (type == 0) {
+            switch (ext) {
+                case 0: return "Ensemble organization";
+                case 1: return "Sub-channel organization";
+                case 2: return "Service organization";
+                case 3: return "Service component (packet mode)";
+                case 5: return "Service component language";
+                case 6: return "Service linking";
+                case 7: return "Configuration information";
+                case 8: return "Service component global definition";
+                case 9: return "Country, LTO, international table";
+                case 10: return "Date and time";
+                case 13: return "User application information";
+                case 14: return "FEC sub-channel organization";
+                case 17: return "Programme type";
+                case 18: return "Announcement support";
+                case 19: return "Announcement switching (EWS)";
+                default: return "FIG 0 extension";
+            }
+        }
+        if (type == 1) {
+            switch (ext) {
+                case 0: return "Ensemble label";
+                case 1: return "Service label";
+                case 4: return "Service component label";
+                case 5: return "Data service label";
+                case 6: return "Packet data service label";
+                default: return "FIG 1 extension";
+            }
+        }
+        if (type == 2) {
+            switch (ext) {
+                case 0: return "Ensemble extended label";
+                case 1: return "Service extended label";
+                case 4: return "Service component extended label";
+                case 5: return "Data service extended label";
+                default: return "FIG 2 extension";
+            }
+        }
+        return QString("FIG %1 extension").arg(type);
+    }
+
+    // Number of sub-FIG items in a FIG 0/1 block (mixed 3/4-byte entries per
+    // EN 300 401: the long-form EEP descriptor is flagged by bit 7 of the
+    // third entry byte — same walk as processFIG0_1).
+    static int fig01ItemCount(const QByteArray& raw) {
+        if (raw.size() < 3) return 0;
+        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(raw.constData());
+        int offset = 1;  // skip the extension byte
+        int count = 0;
+        while (offset + 2 < raw.size()) {
+            const bool longForm = (bytes[offset + 2] & 0x80) != 0;
+            if (longForm) {
+                if (offset + 3 >= raw.size()) break;
+                offset += 4;
+            } else {
+                offset += 3;
+            }
+            ++count;
+        }
+        return count;
+    }
+
+    // Generic item count per fixed-size entry layouts: FIG 0/2 = 6 bytes,
+    // FIG 1/1 = 20 bytes (SId 2 + char field 2 + label 16), FIG 1/4 = 22
+    // bytes (SId 2 + SCIdS/rfa 2 + char field 2 + label 16).
+    // Walk FIG 0/2 service entries with the same stride as
+    // AdvancedFIGAnalyzer::processFIG0_2 (the EN 300 401 6.3.1 layout,
+    // etisnoop fig0_2.cpp parity):
+    //   ext byte b0: P/D flag = bit 5; P/D=0 -> 16-bit SId, P/D=1 -> 32-bit
+    //   entry     : SId (2/4 B) + ca_byte (local(1)|CAid(3)|ncomp(4))
+    //   components: ncomp x 2 B [TMId(2)|ASCTy(6)][SubChId(6)|P/S(1)|CA(1)]
+    // Returns the number of COMPLETE service entries (partial trailing
+    // entries are not counted).
+    static int fig02ServiceEntryCount(const uint8_t* b, int size) {
+        if (size < 2) return 0;
+        const bool pd = (b[0] & 0x20) != 0;
+        int offset = 1;
+        int count = 0;
+        while (offset + 1 < size) {
+            offset += pd ? 4 : 2;                  // SId width per P/D flag
+            if (offset >= size) break;
+            const int ncomp = b[offset] & 0x0F;    // number of components
+            ++offset;                              // ca_byte
+            if (offset + 2 * ncomp > size) break;  // need 2 B per component
+            offset += 2 * ncomp;
+            ++count;
+        }
+        return count;
+    }
+
+    static int figFixedItemCount(uint8_t type, uint8_t ext, const QByteArray& raw) {
+        const int payload = raw.size() - 1;  // drop the ext/charset byte
+        switch (type) {
+            case 0:
+                if (ext == 1) return fig01ItemCount(raw);
+                if (ext == 2) {
+                    // Real service-entry walk: single-component entries are
+                    // 5 bytes (2 SId + 1 ca_byte + 2 component), not 6.
+                    const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+                    return fig02ServiceEntryCount(b, raw.size());
+                }
+                break;
+            case 1:
+                if (ext == 1) return payload >= 0 ? payload / 20 : 0;
+                if (ext == 4) return payload >= 0 ? payload / 22 : 0;
+                break;
+            default:
+                break;
+        }
+        return 1;
+    }
+
+    static QString figDataTypeName(uint8_t type) {
+        switch (type) {
+            case 0: return "Type 0: MCI and service data";
+            case 1: return "Type 1: Service and ensemble labels";
+            case 2: return "Type 2: Extended labels";
+            case 3: return "Type 3: FEC and other data";
+            default: return QString("Type %1").arg(type);
+        }
+    }
+
+    static QString figExtName(uint8_t type, uint8_t ext) {
+        return figSubjectName(type, ext);
+    }
+
+    static QString figExtFieldWidth(uint8_t type) {
+        return type == 0 ? "5 bits" : "3 bits";
+    }
+
+    // One Property/Size/Value/Information row in the FIG detail tree.
+    static void addDetailRow(QTreeWidgetItem* parent, const QString& prop,
+                             const QString& size, const QString& value,
+                             const QString& info) {
+        auto* row = new QTreeWidgetItem(parent);
+        row->setText(0, prop);
+        row->setText(1, size);
+        row->setText(2, value);
+        row->setText(3, info);
+    }
+
+    // Full raw hex dump of the FIG block (16 bytes per line).
+    static void addRawHexRows(QTreeWidgetItem* parent, const QByteArray& raw) {
+        if (raw.isEmpty()) {
+            addDetailRow(parent, "Raw Data", "0 bytes", "(empty)", "");
+            return;
+        }
+        QString hexLine, asciiLine;
+        int printed = 0;
+        for (int i = 0; i < raw.size(); ++i) {
+            hexLine += QString("%1 ").arg(static_cast<uint8_t>(raw[i]), 2, 16, QChar('0')).toUpper();
+            const char c = raw[i];
+            asciiLine += (c >= 0x20 && c <= 0x7E) ? QChar(c) : QChar('.');
+            if ((i % 16 == 15) || i == raw.size() - 1) {
+                auto* row = new QTreeWidgetItem(parent);
+                row->setText(0, QString("Raw Data (offset 0x%1)").arg(printed, 2, 16, QChar('0')));
+                row->setText(1, "bytes");
+                row->setText(2, hexLine.trimmed());
+                row->setText(3, asciiLine);
+                hexLine.clear();
+                asciiLine.clear();
+                printed = i + 1;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Per-FIG element decoders (real EN 300 401 wire fields)
+    // ------------------------------------------------------------------
+
+    void buildFig0_0Details(QTreeWidgetItem* parent, const QByteArray& raw) {
+        // FIG 0/0: C/N + O/E + ext(0); EId (16 bits); Alarms flag.
+        if (raw.size() < 2) return;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+        addDetailRow(parent, "C/N - Change flag", "1 bit",
+                     (b[0] & 0x80) ? "1" : "0", "Ensemble configuration change");
+        addDetailRow(parent, "O/E - Other ensemble", "1 bit",
+                     (b[0] & 0x40) ? "1" : "0", "Defines Other Ensemble services");
+        const uint16_t eid = static_cast<uint16_t>((b[1] << 8) | b[2]);
+        addDetailRow(parent, "EId - Ensemble ID", "16 bits",
+                     QString("0x%1").arg(eid, 4, 16, QChar('0')).toUpper(), QString::number(eid));
+        if (raw.size() >= 4) {
+            addDetailRow(parent, "Alarms", "1 bit",
+                         (b[3] & 0x20) ? "1" : "0", "Alarm flag (EN 300 401 6.4.1, bit 5)");
+        }
+        // Cross-reference the decoded ensemble label (if known).
+        if (m_figAnalyzer) {
+            EnsembleInfo ens = m_figAnalyzer->getCurrentEnsemble();
+            if (!ens.ensembleLabel.isEmpty()) {
+                addDetailRow(parent, "Ensemble Label", "-", ens.ensembleLabel,
+                             "Decoded from FIG 1/0");
+            }
+        }
+    }
+
+    void buildFig0_1Details(QTreeWidgetItem* parent, const QByteArray& raw) {
+        // FIG 0/1: per-subchannel EEP/UEP descriptors (3/4-byte entries).
+        if (raw.size() < 3) return;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+        int offset = 1;
+        int index = 0;
+        while (offset + 2 < raw.size()) {
+            const uint8_t subchId = (b[offset] >> 2) & 0x3F;
+            const uint16_t startAddr = static_cast<uint16_t>(((b[offset] & 0x03) << 8) | b[offset + 1]);
+            const bool longForm = (b[offset + 2] & 0x80) != 0;
+
+            auto* entry = new QTreeWidgetItem(parent);
+            entry->setText(0, QString("Subchannel %1").arg(subchId));
+            entry->setText(1, "3-4 bytes");
+            entry->setText(2, longForm ? "EEP" : "UEP");
+            entry->setText(3, QString("Entry %1").arg(index));
+
+            addDetailRow(entry, "SubChId", "6 bits", QString::number(subchId),
+                         "Sub-channel identifier");
+            addDetailRow(entry, "Start Address (SAD)", "10 bits", QString::number(startAddr),
+                         "CU start address in the MSC");
+
+            if (longForm) {
+                if (offset + 3 >= raw.size()) break;
+                const uint8_t b2 = b[offset + 2];
+                const uint8_t option = (b2 >> 4) & 0x07;
+                const uint8_t level = (b2 >> 2) & 0x03;  // 0-based on wire
+                const uint16_t size = static_cast<uint16_t>(((b2 & 0x03) << 8) | b[offset + 3]);
+                addDetailRow(entry, "EEP/Option", "3 bits", QString::number(option),
+                             option == 0 ? "Table A" : "Table B");
+                addDetailRow(entry, "EEP/Protection level", "2 bits", QString::number(level + 1),
+                             QString("EEP %1-%2").arg(option == 0 ? "A" : "B").arg(level + 1));
+                addDetailRow(entry, "Sub-channel size", "10 bits", QString("%1 CU").arg(size),
+                             "Capacity units in the MSC");
+                offset += 4;
+            } else {
+                const uint8_t b2 = b[offset + 2];
+                addDetailRow(entry, "UEP/Table switch", "1 bit", QString::number((b2 >> 6) & 0x01),
+                             "Which UEP table is used");
+                addDetailRow(entry, "UEP/Table index", "6 bits", QString::number(b2 & 0x3F),
+                             "Protection table index");
+                offset += 3;
+            }
+            ++index;
+        }
+    }
+
+    void buildFig0_2Details(QTreeWidgetItem* parent, const QByteArray& raw) {
+        // FIG 0/2: real service-organization walk (EN 300 401 6.3.1), mirroring
+        // AdvancedFIGAnalyzer::processFIG0_2 — no invented TMId/NumClusters:
+        //   ext byte b0: P/D flag = bit 5 (per FIG, not per entry)
+        //   entry     : SId (16-bit P/D=0, 32-bit P/D=1) + ca_byte
+        //               [local(1)|CAid(3)|ncomp(4)]
+        //   components: ncomp x 2 B [TMId(2)|ASCTy(6)][SubChId(6)|P/S(1)|CA(1)]
+        if (raw.size() < 2) return;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+        const bool pd = (b[0] & 0x20) != 0;
+        int offset = 1;
+        int index = 0;
+        while (offset + 1 < raw.size()) {
+            uint32_t sid = 0;
+            if (!pd) {
+                // 16-bit programme SId (bit 15 = the P/D flag, kept out of
+                // the key — same 0x7FFF mask the analyzer applies).
+                if (offset + 2 > raw.size()) break;
+                sid = (static_cast<uint32_t>(b[offset] & 0x7F) << 8) | b[offset + 1];
+                offset += 2;
+            } else {
+                // 32-bit data SId: [ECC(8)][CId(4)|SRef-hi(4)][SRef(16)]
+                if (offset + 4 > raw.size()) break;
+                sid = (static_cast<uint32_t>(b[offset]) << 24) |
+                      (static_cast<uint32_t>(b[offset + 1]) << 16) |
+                      (static_cast<uint32_t>(b[offset + 2]) << 8) |
+                      static_cast<uint32_t>(b[offset + 3]);
+                offset += 4;
+            }
+
+            if (offset >= raw.size()) break;
+            const uint8_t ca_byte = b[offset++];
+            const uint8_t numComponents = ca_byte & 0x0F;
+
+            auto* entry = new QTreeWidgetItem(parent);
+            entry->setText(0, QString("Service 0x%1").arg(sid, pd ? 8 : 4, 16, QChar('0')).toUpper());
+            entry->setText(1, pd ? "4+ bytes" : "2+ bytes");
+            entry->setText(2, QString::number(sid));
+            entry->setText(3, QString("Entry %1").arg(index));
+
+            addDetailRow(entry, "SId", pd ? "32 bits" : "16 bits",
+                         QString("0x%1").arg(sid, pd ? 8 : 4, 16, QChar('0')).toUpper(),
+                         pd ? "Data service" : "Programme service");
+            addDetailRow(entry, "CAid", "3 bits",
+                         QString::number((ca_byte >> 4) & 0x07),
+                         "Conditional access organization");
+            addDetailRow(entry, "ncomp", "4 bits", QString::number(numComponents),
+                         "Number of service components");
+
+            for (int c = 0; c < numComponents && offset + 2 <= raw.size(); ++c) {
+                const uint8_t tmId = (b[offset] >> 6) & 0x03;
+                const uint8_t ascty = b[offset] & 0x3F;
+                const uint8_t subchId = (b[offset + 1] >> 2) & 0x3F;
+                const bool primary = (b[offset + 1] & 0x02) != 0;
+                const bool ca = (b[offset + 1] & 0x01) != 0;
+                auto* compItem = new QTreeWidgetItem(entry);
+                compItem->setText(0, QString("Component %1").arg(c));
+                compItem->setText(1, "2 bytes");
+                compItem->setText(2, QString("SubCh %1").arg(subchId));
+                compItem->setText(3, primary ? "Primary" : "Secondary");
+                addDetailRow(compItem, "TMId", "2 bits", QString::number(tmId),
+                             tmId == 0 ? "MSC stream mode" : "Packet mode");
+                addDetailRow(compItem, "ASCTy/DSCTy", "6 bits",
+                             QString("0x%1").arg(ascty, 2, 16, QChar('0')).toUpper(),
+                             tmId == 0 && ascty == 0x3F ? "DAB+" : "");
+                addDetailRow(compItem, "SubChId", "6 bits", QString::number(subchId),
+                             "Sub-channel identifier");
+                addDetailRow(compItem, "P/S", "1 bit", primary ? "1" : "0",
+                             "Primary/secondary component");
+                addDetailRow(compItem, "CA", "1 bit", ca ? "1" : "0",
+                             "Conditional access flag");
+                offset += 2;
+            }
+            ++index;
+        }
+        // Cross-reference decoded service labels (short label included).
+        if (m_figAnalyzer) {
+            const std::vector<DABService> services = m_figAnalyzer->getDABServices();
+            for (const DABService& svc : services) {
+                if (!svc.service_label.isEmpty()) {
+                    addDetailRow(parent, QString("Label 0x%1").arg(svc.service_id, 4, 16, QChar('0')).toUpper(),
+                                 "FIG 1/1", svc.service_label, svc.short_label);
+                }
+            }
+        }
+    }
+
+    void buildFig0_9Details(QTreeWidgetItem* parent) {
+        // FIG 0/9: reuse the analyzer's decoded country/LTO table.
+        if (!m_figAnalyzer) return;
+        FIG0_9_CountryLTO lto = m_figAnalyzer->getCountryLTO();
+        addDetailRow(parent, "ECC", "8 bits",
+                     QString("0x%1").arg(lto.ensemble_ecc, 2, 16, QChar('0')).toUpper(),
+                     "Extended Country Code");
+        addDetailRow(parent, "Country", "-",
+                     FIGParsingUtils::countryCodeToString(lto.ensemble_ecc),
+                     "Country per EN 300 401 Table 1");
+        addDetailRow(parent, "LTO", "8 bits", QString("%1 h").arg(lto.ensemble_lto / 2.0, 0, 'f', 1),
+                     "Local Time Offset (± half-hours)");
+        addDetailRow(parent, "International table ID", "8 bits",
+                     QString("0x%1").arg(lto.international_table_id, 2, 16, QChar('0')).toUpper(),
+                     "International table");
+    }
+
+    void buildFig0_10Details(QTreeWidgetItem* parent) {
+        // FIG 0/10: reuse the analyzer's decoded date/time (MJD -> real date).
+        if (!m_figAnalyzer) return;
+        FIG0_10_DateTime dt = m_figAnalyzer->getDateTime();
+        addDetailRow(parent, "MJD", "17 bits", QString::number(dt.mjd),
+                     "Modified Julian Date");
+        addDetailRow(parent, "UTC", "5 bits", QString::number(dt.hours),
+                     QString("Hours 0-23"));
+        addDetailRow(parent, "Minutes", "6 bits", QString::number(dt.minutes), "");
+        addDetailRow(parent, "Seconds", "6 bits", QString::number(dt.seconds), "");
+        const QDateTime dateTime = FIGParsingUtils::mjdToDateTime(dt.mjd, dt.hours, dt.minutes, dt.seconds);
+        addDetailRow(parent, "Date/Time", "-",
+                     dateTime.toString("yyyy-MM-dd hh:mm:ss"), "UTC");
+        addDetailRow(parent, "LSI", "1 bit", dt.lsi_flag ? "1" : "0", "Leap second indicator");
+        addDetailRow(parent, "Confidence", "1 bit", dt.conf_flag ? "1" : "0", "Confidence flag");
+    }
+
+    // Build a DABLabel from FIG 1 raw fields (returns empty on short data).
+    // Wire order per EN 300 401 8.1.13/8.1.14 (matches the analyzer's
+    // parseLabel): the 16-character label starts at labelOffset, and the
+    // 2-byte character flag follows it at labelOffset+16 — NOT before it.
+    DABLabel parseFig1Label(const QByteArray& raw, int labelOffset) const {
+        DABLabel label;
+        if (labelOffset < 0 || labelOffset + 18 > raw.size()) return label;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+        label.charset = (b[0] >> 4) & 0x0F;
+        for (int i = 0; i < 16; ++i) {
+            label.full_label[i] = static_cast<char>(b[labelOffset + i]);
+        }
+        label.character_flag = static_cast<uint16_t>(
+            (b[labelOffset + 16] << 8) | b[labelOffset + 17]);
+        return label;
+    }
+
+    void buildFig1_0Details(QTreeWidgetItem* parent, const QByteArray& raw) {
+        // FIG 1/0: charset, EId, character flag, 16-char ensemble label.
+        if (raw.size() < 2) return;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+        const uint8_t charset = (b[0] >> 4) & 0x0F;
+        addDetailRow(parent, "Charset", "4 bits", QString::number(charset),
+                     charset == 0 ? "Complete EBU Latin" :
+                     charset == 3 ? "UTF-8" :
+                     charset == 6 ? "TIS-620 (Thai)" : "Reserved");
+        const uint16_t eid = static_cast<uint16_t>((b[1] << 8) | b[2]);
+        addDetailRow(parent, "EId", "16 bits",
+                     QString("0x%1").arg(eid, 4, 16, QChar('0')).toUpper(), QString::number(eid));
+        const DABLabel label = parseFig1Label(raw, 3);
+        if (label.isValid()) {
+            addDetailRow(parent, "Character flag", "16 bits",
+                         QString("0x%1").arg(label.character_flag, 4, 16, QChar('0')).toUpper(),
+                         "Short-label mask");
+            addDetailRow(parent, "Label", "128 bits", label.getFullLabel(),
+                         label.getShortLabel() + " (short)");
+        }
+    }
+
+    void buildFig1_1Details(QTreeWidgetItem* parent, const QByteArray& raw) {
+        // FIG 1/1: per-service SId + charset + character flag + 16-char label.
+        if (raw.size() < 20) return;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(raw.constData());
+        const uint8_t charset = (b[0] >> 4) & 0x0F;
+        addDetailRow(parent, "Charset", "4 bits", QString::number(charset),
+                     charset == 0 ? "Complete EBU Latin" :
+                     charset == 3 ? "UTF-8" :
+                     charset == 6 ? "TIS-620 (Thai)" : "Reserved");
+
+        int offset = 1;
+        int index = 0;
+        while (offset + 20 <= raw.size()) {
+            const uint16_t sid = static_cast<uint16_t>((b[offset] << 8) | b[offset + 1]);
+            auto* entry = new QTreeWidgetItem(parent);
+            entry->setText(0, QString("Service 0x%1").arg(sid, 4, 16, QChar('0')).toUpper());
+            entry->setText(1, "20 bytes");
+            entry->setText(2, QString::number(sid));
+            entry->setText(3, QString("Entry %1").arg(index));
+
+            addDetailRow(entry, "SId", "16 bits",
+                         QString("0x%1").arg(sid, 4, 16, QChar('0')).toUpper(), QString::number(sid));
+            // Label (16 bytes) at entry+2, character flag at entry+18; the
+            // charset byte is raw[0] (FIG 1 header byte) — parseFig1Label
+            // handles the full field.
+            DABLabel label = parseFig1Label(raw, offset + 2);
+            addDetailRow(entry, "Character flag", "16 bits",
+                         QString("0x%1").arg(label.character_flag, 4, 16, QChar('0')).toUpper(),
+                         "Short-label mask");
+            addDetailRow(entry, "Label", "128 bits", label.getFullLabel(),
+                         label.getShortLabel() + " (short)");
+            offset += 20;
+            ++index;
+        }
+    }
+
     void buildFIGInstanceTree() {
         if (!m_tab3_figInstanceTree) return;
         
         m_tab3_figInstanceTree->clear();
         
-        if (!m_fileLoaded) {
+        if (!m_fileLoaded || !m_figAnalyzer) {
             auto* noDataItem = new QTreeWidgetItem(m_tab3_figInstanceTree);
             noDataItem->setText(0, "No FIG instances");
             noDataItem->setText(1, "");
@@ -2679,52 +3277,79 @@ private:
             return;
         }
         
-        // TODO: Connect to actual FIG instance tracker when available
-        // For now, show placeholder structure demonstrating the format
-        // Real implementation needs: FIG occurrence tracking across frames with CIF/FIB positions
-        
-        // Example FIG instances (showing expected format)
-        struct FIGInstance {
-            QString figType;   // "FIG 0/0", "FIG 0/1", etc.
-            int index;         // Occurrence index
-            int frameNum;      // Frame number
-            int subframe;      // Subframe (0-3 for Mode 1)
-            int cif;           // CIF number (0-3)
-            int fib;           // FIB number (0-11)
-            int length;        // FIG data length in bytes
-            int itemCount;     // Number of items in FIG
-        };
-        
-        // Placeholder instances showing structure
-        std::vector<FIGInstance> instances = {
-            {"FIG 0/0", 1, 0, 0, 0, 0, 6, 1},
-            {"FIG 0/1", 1, 0, 0, 0, 1, 8, 1},
-            {"FIG 0/2", 1, 0, 0, 0, 2, 12, 3},
-            {"FIG 1/0", 1, 0, 1, 1, 3, 18, 1},
-            {"FIG 1/1", 1, 0, 1, 1, 4, 20, 2},
-        };
-        
-        for (const auto& inst : instances) {
+        // Chronological real FIG instances from the analyzer's collector
+        // (FIC-XTractor view). Item data carries the collector index so the
+        // selection sync can rebuild the element tree for the exact block.
+        const QVector<AdvancedFIGAnalyzer::FigInstance>& instances =
+            m_figAnalyzer->figInstances();
+        QMap<quint16, int> occurrence;  // per (type,ext) occurrence counter
+        m_tab3_figInstanceTree->setUpdatesEnabled(false);
+        for (int i = 0; i < instances.size(); ++i) {
+            const AdvancedFIGAnalyzer::FigInstance& inst = instances.at(i);
+            const quint16 key = static_cast<quint16>((inst.type << 8) | inst.ext);
+            const int idx = occurrence.value(key, 0) + 1;
+            occurrence.insert(key, idx);
+            
             auto* item = new QTreeWidgetItem(m_tab3_figInstanceTree);
-            item->setText(0, inst.figType);
-            item->setText(1, QString::number(inst.index));
-            item->setText(2, QString("%1:%2").arg(inst.frameNum).arg(inst.subframe));
-            item->setText(3, QString::number(inst.cif));
-            item->setText(4, QString::number(inst.fib));
+            QString typeText = QString("FIG %1/%2").arg(inst.type).arg(inst.ext);
+            if (inst.reconfig) {
+                typeText += " R";    // MCI reconfiguration marker
+            }
+            if (!inst.crcOk) {
+                typeText += " !CRC"; // FIB CRC failure marker
+            }
+            item->setText(0, typeText);
+            item->setText(1, QString::number(idx));
+            item->setText(2, QString::number(inst.frame));
+            // CIF#: Mode I ETI frame phase — each 24 ms frame carries one CIF
+            // of the 4-CIF transmission frame (derived from the frame number).
+            item->setText(3, inst.frame > 0 ? QString::number((inst.frame - 1) % 4) : QStringLiteral("-"));
+            item->setText(4, QString::number(inst.fibIdx));
             item->setText(5, QString::number(inst.length));
-            item->setText(6, QString::number(inst.itemCount));
+            item->setText(6, QString::number(
+                              figFixedItemCount(inst.type, inst.ext, inst.raw)));
+            item->setData(0, Qt::UserRole, i);  // collector index
+            
+            if (!inst.crcOk) {
+                item->setForeground(0, QColor(200, 50, 50));
+                item->setForeground(4, QColor(200, 50, 50));
+            }
+        }
+        m_tab3_figInstanceTree->setUpdatesEnabled(true);
+        
+        // Pre-select the first instance so the details panel shows real
+        // element data immediately after load (selection is queued, so the
+        // details build follows in the event loop).
+        if (m_tab3_figInstanceTree->topLevelItemCount() > 0) {
+            m_tab3_figInstanceTree->setCurrentItem(m_tab3_figInstanceTree->topLevelItem(0));
         }
         
-        qDebug() << "[PHASE 8] FIG instance tree built";
+        qDebug() << "[PHASE 8] FIG instance tree built with"
+                 << instances.size() << "real instances";
     }
 
     // === PHASE 9: Tab 3 RIGHT Panel - FIG Item Details Tree ===
+    // No-arg entry point (load-complete + selection sync): resolve the
+    // selected instance (falling back to the first row) and rebuild.
     void buildFIGItemDetailsTree() {
+        int index = -1;
+        if (m_tab3_figInstanceTree) {
+            QTreeWidgetItem* current = m_tab3_figInstanceTree->currentItem();
+            if (current) {
+                index = current->data(0, Qt::UserRole).toInt();
+            } else if (m_tab3_figInstanceTree->topLevelItemCount() > 0) {
+                index = m_tab3_figInstanceTree->topLevelItem(0)->data(0, Qt::UserRole).toInt();
+            }
+        }
+        buildFIGItemDetailsTree(index);
+    }
+
+    void buildFIGItemDetailsTree(int index) {
         if (!m_tab3_figItemDetailsTree) return;
         
         m_tab3_figItemDetailsTree->clear();
         
-        if (!m_fileLoaded) {
+        if (!m_fileLoaded || !m_figAnalyzer || index < 0) {
             auto* noDataItem = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
             noDataItem->setText(0, "No FIG selected");
             noDataItem->setText(1, "");
@@ -2733,47 +3358,59 @@ private:
             return;
         }
         
-        // TODO: Connect to actual bit-level FIG parser when available
-        // For now, show placeholder structure demonstrating 5-level hierarchy
-        // Real implementation needs: BitLevelFIGParser with bit offset/length tracking
+        const QVector<AdvancedFIGAnalyzer::FigInstance>& instances =
+            m_figAnalyzer->figInstances();
+        if (index >= instances.size()) {
+            return;
+        }
+        const AdvancedFIGAnalyzer::FigInstance& inst = instances.at(index);
         
-        // Root level: FIG Type
-        auto* figTypeItem = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
-        figTypeItem->setText(0, "FIG Type");
-        figTypeItem->setText(1, "3 bits");
-        figTypeItem->setText(2, "0x0");
-        figTypeItem->setText(3, "Type 0: MCI and service data");
+        // Root: the real FIG block with its wire header (type/length/ext).
+        auto* rootItem = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
+        rootItem->setText(0, QString("FIG %1/%2").arg(inst.type).arg(inst.ext));
+        rootItem->setText(1, QString("%1 bytes").arg(inst.length));
+        rootItem->setText(2, QString("len 0x%1").arg(inst.length, 2, 16, QChar('0')).toUpper());
+        rootItem->setText(3, figDataTypeName(inst.type));
         
-        // Level 2: Extension
-        auto* extensionItem = new QTreeWidgetItem(figTypeItem);
-        extensionItem->setText(0, "Extension");
-        extensionItem->setText(1, "5 bits");
-        extensionItem->setText(2, "0x02");
-        extensionItem->setText(3, "Extension 2: Service organization");
-        
-        // Level 3: Service ID
-        auto* serviceIdItem = new QTreeWidgetItem(extensionItem);
-        serviceIdItem->setText(0, "SId");
-        serviceIdItem->setText(1, "16 bits");
-        serviceIdItem->setText(2, "0xD201");
-        serviceIdItem->setText(3, "Service ID: 53761");
-        
-        // Level 4: TMId
-        auto* tmIdItem = new QTreeWidgetItem(serviceIdItem);
-        tmIdItem->setText(0, "TMId");
-        tmIdItem->setText(1, "2 bits");
-        tmIdItem->setText(2, "0x0");
-        tmIdItem->setText(3, "MSC stream mode");
-        
-        // Level 5: ASCTy (deepest level)
-        auto* asctyItem = new QTreeWidgetItem(tmIdItem);
-        asctyItem->setText(0, "ASCTy");
-        asctyItem->setText(1, "6 bits");
-        asctyItem->setText(2, "0x3F");
-        asctyItem->setText(3, "DAB+ (HE-AAC v2)");
+        addDetailRow(rootItem, "FIG Type", "3 bits", QString::number(inst.type),
+                     figDataTypeName(inst.type));
+        addDetailRow(rootItem, "Length", "5 bits", QString::number(inst.length),
+                     "Data bytes after the FIG header");
+        addDetailRow(rootItem, "Extension", figExtFieldWidth(inst.type),
+                     QString::number(inst.ext), figExtName(inst.type, inst.ext));
+        addDetailRow(rootItem, "Frame", "-", QString::number(inst.frame),
+                     "ETI frame number");
+        addDetailRow(rootItem, "FIB", "-", QString::number(inst.fibIdx),
+                     "FIB index within the frame's FIC");
+        addDetailRow(rootItem, "FIB CRC", "-", inst.crcOk ? "OK" : "FAILED",
+                     inst.crcOk ? "FIB CRC-16 passed" : "FIB CRC-16 mismatch");
+        addDetailRow(rootItem, "Reconfiguration", "-", inst.reconfig ? "yes" : "no",
+                     "MCI C/N flag (FIG 0/1, 0/2)");
+        addDetailRow(rootItem, "Items", "-",
+                     QString::number(figFixedItemCount(inst.type, inst.ext, inst.raw)),
+                     "Sub-FIGs in this block");
+        addRawHexRows(rootItem, inst.raw);
+
+        // Element tree from the real decoded fields (per EN 300 401).
+        if (inst.type == 0) {
+            switch (inst.ext) {
+                case 0:  buildFig0_0Details(rootItem, inst.raw); break;
+                case 1:  buildFig0_1Details(rootItem, inst.raw); break;
+                case 2:  buildFig0_2Details(rootItem, inst.raw); break;
+                case 9:  buildFig0_9Details(rootItem); break;
+                case 10: buildFig0_10Details(rootItem); break;
+                default: break;  // header + raw hex already shown
+            }
+        } else if (inst.type == 1) {
+            switch (inst.ext) {
+                case 0: buildFig1_0Details(rootItem, inst.raw); break;
+                case 1: buildFig1_1Details(rootItem, inst.raw); break;
+                default: break;  // header + raw hex already shown
+            }
+        }
         
         m_tab3_figItemDetailsTree->expandAll();
-        qDebug() << "[PHASE 9] FIG item details tree built";
+        qDebug() << "[PHASE 9] FIG item details tree built (instance" << index << ")";
     }
 
     void updateTimingTable() {

@@ -20,71 +20,114 @@
 
 #include "advanced_fig_analyzer.h"
 #include "charset_converter.hpp"
+#include "analyzer_settings.hpp"
 #include <QtCore/QDebug>
 #include <QtCore/QDateTime>
 #include <algorithm>
+#include "crc16.hpp"
+
+namespace {
+// FIG extension field extraction per EN 300 401 (same masks the analyzer's
+// dispatch uses): FIG 0 = 5 bits (b4-b0), FIG 1/2 = 3 bits (b2-b0).
+uint8_t figExtensionOf(uint8_t figType, uint8_t data0)
+{
+    switch (figType) {
+        case 0:  return data0 & 0x1F;
+        case 1:  return data0 & 0x07;
+        case 2:  return data0 & 0x07;
+        default: return 0;
+    }
+}
+
+// Maximum legal FIG data length (EN 300 401; eti_types.hpp MAX_FIG_LENGTH).
+// Longer FIGs are out-of-spec and are skipped by the CLI parse_fig_area.
+constexpr size_t kMaxFigDataLength = 29;
+}  // namespace
 
 // ============================================================================
 // DABLabel implementation
 // ============================================================================
 
 QString DABLabel::getFullLabel() const {
-    // CHARSET FIX: Return UTF-8 converted label if available (for Thai/special chars)
-    // Otherwise fall back to raw EBU Latin bytes
-    if (!utf8_converted.isEmpty()) {
-        return utf8_converted;
+    // Charset-aware label decode (EN 300 401 clause 8.1.13 / TS 101 756):
+    //   0 = Complete EBU Latin, 3 = UTF-8 passthrough, 6 = TIS-620 (Thai).
+    // 0xFF = label skipped by the settings fallback policy (Skip).
+    // NUL padding bytes are skipped; the 16-character size is preserved and
+    // callers trim trailing whitespace as needed (matches the CLI path in
+    // ModernETIFrameParser::decodeLabelCharacters).
+    if (charset == 0xFF) {
+        return QString();
     }
-    
-    // Fallback: return raw bytes as QString (legacy behavior)
-    QString label;
+
+    std::string raw;
+    raw.reserve(16);
     for (char c : full_label) {
-        label.append(c);
+        if (c != '\0') {
+            raw += c;
+        }
     }
-    // Return full 16-character label WITHOUT trimming
-    // Per ETSI EN 300 401: Labels are fixed 16-character strings
-    return label;
+
+    switch (charset) {
+        case 0: return QString::fromStdString(convert_ebu_to_utf8(raw));
+        case 3: return QString::fromUtf8(raw.c_str(), static_cast<int>(raw.size()));
+        case 6: return QString::fromStdString(convert_tis620_to_utf8(raw));
+        default:
+            // Unknown charset: raw passthrough (settings fallback policy was
+            // already applied at parse time by effectiveLabelCharset()).
+            return QString::fromLatin1(raw.c_str(), static_cast<int>(raw.size()));
+    }
 }
 
 /**
  * Extract short label using character flag per ETSI EN 300 401 Section 8.1.13
  *
- * Character Flag Bit Mapping (LSB-first, per ETSI EN 300 401):
- * - Bit 0 (LSB) = character position 0 (leftmost character)
- * - Bit 1 = character position 1
+ * Character Flag Bit Mapping (MSB-first, per EN 300 401 8.1.14 / etisnoop
+ * label_t::shortlabel() / ModernETIFrameParser::decodeShortLabel — the CLI
+ * oracle):
+ * - Bit 15 (MSB) = character position 0 (leftmost character)
+ * - Bit 14 = character position 1
  * - ...
- * - Bit 14 = character position 14
- * - Bit 15 (MSB) = character position 15 (rightmost character)
+ * - Bit 1 = character position 14
+ * - Bit 0 (LSB) = character position 15 (rightmost character)
  *
- * When a bit is SET (1), the corresponding character is included in the short label.
- * Maximum 8 characters in short label per ETSI standard.
+ * When a bit is SET (1), the corresponding character is included in the
+ * short label (charset-converted after selection, CLI parity). The short
+ * label is limited to 8 characters and trailing whitespace is trimmed.
  *
  * Examples:
  *   Full label: "BBC Radio 1     " (16 characters)
  *   Char flag:  0xE000 = 0b1110000000000000
- *   Bits set:   15,14,13
- *   Positions:  15,14,13
- *   Result: positions 13,14,15 = "   " (trailing spaces, trimmed to empty)
- *
- *   Full label: "BBC Radio 1     " (16 characters)
- *   Char flag:  0x0007 = 0b0000000000000111
- *   Bits set:   2,1,0
- *   Positions:  0,1,2
+ *   Bits set:   15, 14, 13
+ *   Positions:  0, 1, 2
  *   Result: "BBC" ✓
  *
  * @return Short label as QString, trimmed of whitespace, maximum 8 characters
  */
 QString DABLabel::getShortLabel() const {
+    // 0xFF = label skipped by the settings fallback policy (Skip)
+    if (charset == 0xFF) {
+        return QString();
+    }
+
     QString short_label;
 
     // Extract short label using character flag
-    // ETSI EN 300 401: Bit 0 (LSB) = position 0, Bit 15 (MSB) = position 15
-    for (int pos = 0; pos < 16 && pos < 16; ++pos) {
-        // Check if bit 'pos' is set (LSB-first mapping)
-        if (character_flag & (1 << pos)) {
-            short_label.append(full_label[pos]);
-            // ETSI EN 300 401: Maximum 8 characters in short label
-            if (short_label.length() >= 8) break;
+    // ETSI EN 300 401: Bit 15 (MSB) = position 0, Bit 0 (LSB) = position 15.
+    // Select the flagged bytes first, then charset-convert the selection
+    // (CLI parity: ModernETIFrameParser::decodeShortLabel).
+    std::string selected;
+    for (int pos = 0; pos < 16; ++pos) {
+        if (character_flag & (0x8000 >> pos)) {
+            selected += full_label[pos];
+            if (selected.size() >= 8) break;
         }
+    }
+
+    switch (charset) {
+        case 0: short_label = QString::fromStdString(convert_ebu_to_utf8(selected)); break;
+        case 3: short_label = QString::fromUtf8(selected.c_str(), static_cast<int>(selected.size())); break;
+        case 6: short_label = QString::fromStdString(convert_tis620_to_utf8(selected)); break;
+        default: short_label = QString::fromLatin1(selected.c_str(), static_cast<int>(selected.size())); break;
     }
 
     return short_label.trimmed();
@@ -124,6 +167,27 @@ QString DABLabel::toString() const {
     initializeDefaultFIGTypes();
 }
 
+AdvancedFIGAnalyzer::~AdvancedFIGAnalyzer() = default;
+
+void AdvancedFIGAnalyzer::setAnalyzerSettings(const eti::AnalyzerSettings& settings)
+{
+    m_settings = std::make_unique<eti::AnalyzerSettings>(settings);
+}
+
+QVector<AdvancedFIGAnalyzer::FigTypeCount> AdvancedFIGAnalyzer::getFigTypeCounts() const
+{
+    QVector<FigTypeCount> counts;
+    counts.reserve(static_cast<int>(m_figTypeCounts.size()));
+    for (const auto& [key, count] : m_figTypeCounts) {
+        FigTypeCount entry;
+        entry.type = static_cast<uint8_t>((key >> 8) & 0xFF);
+        entry.ext = static_cast<uint8_t>(key & 0xFF);
+        entry.count = count;
+        counts.append(entry);
+    }
+    return counts;
+}
+
 void AdvancedFIGAnalyzer::initializeDefaultFIGTypes()
 {
     // Enable essential FIG types by default for DAB Analyzer compatibility
@@ -154,50 +218,190 @@ void AdvancedFIGAnalyzer::initializeDefaultFIGTypes()
 
 void AdvancedFIGAnalyzer::analyzeFICData(const QByteArray& ficData)
 {
-    // CRITICAL-006: Input validation
+    // CRITICAL-006: Input validation. The FIC is 96 bytes (3 FIBs, Modes
+    // I/II/IV) or 128 bytes (4 FIBs, Mode III) in ETI, but a raw on-air FIC
+    // (768 bytes, 24 FIBs) is also legal, so accept up to 768 bytes.
     if (ficData.isEmpty()) {
         m_lastError = "FIC data is empty";
         return;
     }
 
-    if (ficData.size() > 256) {
-        m_lastError = QString("FIC data too large: %1 bytes").arg(ficData.size());
+    if (ficData.size() > 768) {
+        m_lastError = QString("FIC data too large: %1 bytes (max 768)").arg(ficData.size());
         return;
     }
 
     m_currentFICData = ficData;
-    int offset = 0;
+    m_lastFicSize = ficData.size();
 
-    // Process all FIGs in the FIC data block
-    while (offset < ficData.size()) {
-        // CRITICAL-006: Check we have header bytes
-        if (offset + 2 > ficData.size()) {
+    // Effective decode settings: the analyzer settings when wired, otherwise
+    // the historical fixed behavior (strict FIB CRC validation, no raw
+    // fallback, no forced charset).
+    eti::FicDecodeMode mode = eti::FicDecodeMode::Strict;
+    bool ignore_fib_crc = false;
+    if (m_settings) {
+        mode = eti::AnalyzerSettings::toFicDecodeMode(m_settings->fic_mode);
+        ignore_fib_crc = m_settings->fib_ignore_crc;
+    }
+
+    // FIB-structured FIC: 96/128 bytes = 3/4 FIBs of 32 bytes each (30-byte
+    // FIG area + 2-byte big-endian complemented CRC-16/CCITT-FALSE). Smaller
+    // inputs are raw FIG streams (legacy callers/tests) and are walked as one
+    // area: a 32-byte legacy FIB keeps its 30-byte FIG area semantics.
+    const bool fib_structured =
+        static_cast<size_t>(ficData.size()) > eti::ETI_FIC_FIB_SIZE &&
+        (static_cast<size_t>(ficData.size()) / eti::ETI_FIC_FIB_SIZE) >= 3;
+
+    // Explicit raw mode: walk the whole FIC as one FIG stream (no per-FIB CRC).
+    if (mode == eti::FicDecodeMode::Raw) {
+        m_figFibIndex = -1;
+        m_figFibCrcOk = true;
+        walkFigArea(reinterpret_cast<const uint8_t*>(ficData.constData()),
+                    static_cast<size_t>(ficData.size()));
+        return;
+    }
+
+    const size_t fib_count = fib_structured
+        ? static_cast<size_t>(ficData.size()) / eti::ETI_FIC_FIB_SIZE
+        : 1;
+    int fib_crc_failures = 0;
+
+    for (size_t fib = 0; fib < fib_count; ++fib) {
+        const size_t fib_base = fib * eti::ETI_FIC_FIB_SIZE;
+        if (fib_structured) {
+            // FIB walk: each 32-byte FIB must fit in the input
+            if (fib_base + eti::ETI_FIC_FIB_SIZE > static_cast<size_t>(ficData.size())) {
+                break;
+            }
+        } else if (fib_base >= static_cast<size_t>(ficData.size())) {
+            break;  // raw stream: area starts at the first byte
+        }
+        const uint8_t* fib_data =
+            reinterpret_cast<const uint8_t*>(ficData.constData()) + fib_base;
+
+        // Per-FIB context for the FIG instance collector (FIC-XTractor).
+        m_figFibIndex = static_cast<int>(fib);
+        m_figFibCrcOk = true;
+
+        if (fib_structured && !validateFibCrc(fib_data)) {
+            ++fib_crc_failures;
+            m_figFibCrcOk = false;
+            if (!ignore_fib_crc) {
+                qWarning() << "FIB" << fib << "CRC mismatch, skipping (strict mode)";
+                continue;
+            }
+        }
+
+        // A non-structured input is a raw FIG stream (legacy callers/tests);
+        // a legacy 32-byte FIB keeps its 30-byte FIG-area semantics (the last
+        // two bytes are the CRC, same layout as the CLI path).
+        const size_t area_size = (fib_structured || static_cast<size_t>(ficData.size()) == eti::ETI_FIC_FIB_SIZE)
+            ? eti::ETI_FIC_FIG_AREA_SIZE
+            : static_cast<size_t>(ficData.size());
+        walkFigArea(fib_data, area_size);
+    }
+    m_fib_crc_failures += fib_crc_failures;
+
+    // Auto fallback (CLI parity, EtiFicField::decodeFigBlocks): when every
+    // FIB of a FIB-structured FIC failed its CRC the data is most likely a
+    // CRC-less FIG stream; re-walk the whole FIC so FIGs are not lost.
+    if (mode == eti::FicDecodeMode::AutoFallback &&
+        fib_structured &&
+        fib_crc_failures == static_cast<int>(fib_count)) {
+        m_rawFicFallbackUsed = true;
+        if (!m_rawFicFallbackWarned) {
+            m_rawFicFallbackWarned = true;
+            qWarning() << "FIC decode fallback: all FIB CRCs failed -> re-decoded"
+                          " FIC as a raw FIG stream (no per-FIB CRC). Set"
+                          " fic_mode=strict (AnalyzerSettings) to disable.";
+        }
+        // The fallback re-walk would double-record every FIG (once per
+        // failed FIB, once raw); suppress instance collection for it.
+        m_figRecording = false;
+        walkFigArea(reinterpret_cast<const uint8_t*>(ficData.constData()),
+                    static_cast<size_t>(ficData.size()));
+        m_figRecording = true;
+    }
+}
+
+bool AdvancedFIGAnalyzer::validateFibCrc(const uint8_t* fib) const
+{
+    // FIB CRC: CRC-16/CCITT-FALSE over the 30-byte FIG area; the transmitted
+    // value is the one's complement, big-endian (EN 300 799 clause 5.2 /
+    // EN 300 401 clause 5.2 — shared crc16.hpp implementation).
+    const uint16_t expected = static_cast<uint16_t>(
+        ~eti::crc16ccitt_false(fib, eti::ETI_FIC_FIG_AREA_SIZE));
+    const uint16_t stored = static_cast<uint16_t>((fib[30] << 8) | fib[31]);
+    return expected == stored;
+}
+
+void AdvancedFIGAnalyzer::walkFigArea(const uint8_t* area, size_t area_size)
+{
+    // Walk one FIG area (30-byte FIB area or whole-FIC raw stream) with the
+    // correct EN 300 401 FIG header semantics (mirrors parse_fig_area in
+    // eti_types.hpp, the CLI parity reference):
+    //   header byte b0: FIG type = b7-b5, length = b4-b0 (data AFTER header)
+    //   figData = bytes [1 .. 1+len-1] (starts at the ext/charset byte)
+    //   advance by 1 + len; stop on len==0, type 7 (padding) or area end.
+    size_t offset = 0;
+
+    while (offset + 1 <= area_size) {
+        const uint8_t header = area[offset];
+        const uint8_t figType = (header >> 5) & 0x07;
+
+        if (figType == 7) {
+            // Padding end marker
             break;
         }
 
-        uint8_t figType, figLength;
-        uint8_t header = static_cast<uint8_t>(ficData[offset]);
-        figType = (header >> 5) & 0x07;
-        figLength = static_cast<uint8_t>(ficData[offset + 1]) & 0x1F;
+        const uint8_t figLength = header & 0x1F;
 
-        // CRITICAL-006: Validate length
-        if (figLength == 0) {
-            m_lastError = QString("FIG at offset %1 has zero length").arg(offset);
+        if (figLength == 0 || offset + 1 + figLength > area_size) {
+            // Invalid/truncated FIG — stop processing this area (CLI parity)
+            if (figLength == 0) {
+                m_lastError = QString("FIG at offset %1 has zero length").arg(offset);
+                qWarning() << m_lastError;
+            } else {
+                m_lastError = QString("FIG length %1 exceeds data at offset %2")
+                                  .arg(figLength).arg(offset);
+            }
+            break;
+        }
+
+        // Out-of-spec FIG lengths (30/31, > MAX_FIG_LENGTH): mirror the CLI
+        // parse_fig_area semantics (eti_types.hpp) — count the anomaly, SKIP
+        // the block and keep advancing so the walk (incl. the raw-fallback
+        // re-walk and the FIG instance collector) stays consistent with the
+        // CLI's fig_blocks stream.
+        if (figLength > kMaxFigDataLength) {
+            m_lastError = QString("FIG at offset %1 has out-of-spec length %2 (> 29); skipped")
+                              .arg(offset).arg(figLength);
             qWarning() << m_lastError;
-            offset += 2;
+            offset += 1 + figLength;
             continue;
         }
 
-        if (offset + 2 + figLength > ficData.size()) {
-            m_lastError = QString("FIG length %1 exceeds data at offset %2")
-                         .arg(figLength).arg(offset);
-            break;
-        }
+        QByteArray figData(reinterpret_cast<const char*>(area + offset + 1),
+                           figLength);
 
-        // Extract FIG data
-        QByteArray figData = ficData.mid(offset + 2, figLength);
-        qDebug() << "FIG extracted: Type=" << figType << "Length=" << figLength 
-                 << "Data size=" << figData.size() << "bytes";
+        // FIC-XTractor: record every valid-headered FIG block (chronological
+        // wire order). Purely additive — decode behaviour below is unchanged.
+        if (m_figRecording && m_figInstances.size() < MAX_FIG_INSTANCES) {
+            const uint8_t data0 = static_cast<uint8_t>(figData[0]);
+            FigInstance inst;
+            inst.frame = m_figFrameNumber;
+            inst.type = figType;
+            inst.ext = figExtensionOf(figType, data0);
+            inst.length = figLength;
+            inst.fibIdx = m_figFibIndex;
+            inst.crcOk = m_figFibCrcOk;
+            // FIG 0/1 + 0/2 carry the MCI reconfiguration C/N flag in bit 7
+            inst.reconfig = (figType == 0 && (inst.ext == 1 || inst.ext == 2) &&
+                             (data0 & 0x80) != 0);
+            inst.raw = figData;
+            m_figInstances.append(std::move(inst));
+            ++m_figTypeCounts[(static_cast<uint16_t>(figType) << 8) | inst.ext];
+        }
 
         // Process based on FIG type
         switch (figType) {
@@ -217,8 +421,7 @@ void AdvancedFIGAnalyzer::analyzeFICData(const QByteArray& ficData)
                 break;
         }
 
-        // Note: m_totalFIGsProcessed incremented only for successfully processed FIGs
-        offset += 2 + figLength;
+        offset += 1 + figLength;
     }
 }
 
@@ -229,7 +432,9 @@ void AdvancedFIGAnalyzer::processFIG0(const QByteArray& figData)
         return; // Don't count insufficient data as processed
     }
 
-    uint8_t extension = (figData[0] >> 3) & 0x1F;
+    // FIG 0 extension byte: C/N (b7) + O/E (b6) + rfu (b5) + extension (b4-b0)
+    // per EN 300 401 clause 6.1.1 (etisnoop fig0_common_t::ext()).
+    uint8_t extension = static_cast<uint8_t>(figData[0]) & 0x1F;
 
     QString figKey = QString("0.%1").arg(extension);
     if (!m_enabledFIGTypes.value(figKey, false)) {
@@ -299,7 +504,11 @@ void AdvancedFIGAnalyzer::processFIG1(const QByteArray& figData)
         return; // Don't count insufficient data as processed
     }
 
-    uint8_t extension = (figData[0] >> 3) & 0x1F;
+    // FIG 1 label extension byte: charset (b7-b4) + O/E (b3) + extension
+    // (b2-b0) per EN 300 401 clause 8.1.13 (etisnoop fig1.cpp: ext = f[0]&0x07;
+    // the modern CLI parser uses the same mask to avoid folding the charset's
+    // low bit into the extension).
+    uint8_t extension = static_cast<uint8_t>(figData[0]) & 0x07;
 
     QString figKey = QString("1.%1").arg(extension);
     if (!m_enabledFIGTypes.value(figKey, false)) {
@@ -336,15 +545,21 @@ void AdvancedFIGAnalyzer::processFIG1(const QByteArray& figData)
  * Provides basic ensemble identification including:
  * - Ensemble ID (EId)
  * - Country ID
- * - Ensemble reference (ECC)
  * - Change and alarm flags
+ *
+ * Data layout (figData starts at the ext byte, etisnoop fig0_0.cpp):
+ *   data[0] = ext byte (extension 0)
+ *   data[1..2] = EId (16-bit BE; country ID = EId MSB high nibble)
+ *   data[3] = Change flag (b7-b6) + Alarm flag (b5) + CIF count high (b4-b0)
+ *   data[4] = CIF count low
+ *   data[5] = Occurrence change (when the change flag is non-zero)
  */
 void AdvancedFIGAnalyzer::processFIG0_0(const QByteArray& data)
 {
     // FIG 0/0: Ensemble organization
     // FIX FOR testFIG0_0_InvalidData: Set error and return early for invalid data
-    if (data.size() < 6) {
-        m_lastError = QString("FIG 0/0: Insufficient data (need at least 6 bytes, got %1)").arg(data.size());
+    if (data.size() < 5) {
+        m_lastError = QString("FIG 0/0: Insufficient data (need at least 5 bytes, got %1)").arg(data.size());
         qWarning() << m_lastError;
         return; // Don't increment counters for invalid data
     }
@@ -358,8 +573,9 @@ void AdvancedFIGAnalyzer::processFIG0_0(const QByteArray& data)
         return;
     }
 
-    uint8_t changeFlags = static_cast<uint8_t>(data[4]);
-    uint8_t alarmFlag = static_cast<uint8_t>(data[5]);
+    // data[3]: Change flag (2 bits) + Alarm flag (1 bit) + CIF count high (5)
+    uint8_t changeFlags = (static_cast<uint8_t>(data[3]) >> 6) & 0x03;
+    uint8_t alarmFlag = (static_cast<uint8_t>(data[3]) >> 5) & 0x01;
 
     // Update ensemble information
     m_currentEnsemble.ensembleId = ensembleId;
@@ -367,13 +583,10 @@ void AdvancedFIGAnalyzer::processFIG0_0(const QByteArray& data)
     m_changeFlags = changeFlags;
     m_ensembleValid = true;
 
-    // Extract country code and ECC if available
-    if (data.size() >= 6) {
-        uint8_t countryCode = static_cast<uint8_t>(data[5]) & 0x0F;
-        m_currentEnsemble.countryCode = FIGParsingUtils::countryCodeToString(countryCode);
-        // Note: ECC (Extended Country Code) extraction could be added here if needed
-        // It would be in data[7] if the structure is extended to support it
-    }
+    // Country Identifier: high nibble of the EId MSB (EN 300 401 FIG 0/0;
+    // the Extended Country Code is carried by FIG 0/9, not FIG 0/0).
+    uint8_t countryCode = static_cast<uint8_t>(ensembleId >> 12);
+    m_currentEnsemble.countryCode = FIGParsingUtils::countryCodeToString(countryCode);
 
     // Create FIG data for signal emission
     FIGData figData;
@@ -406,101 +619,84 @@ void AdvancedFIGAnalyzer::processFIG0_0(const QByteArray& data)
  * - Start address in CUs
  * - Protection profile (EEP or UEP)
  * - Bitrate
+ *
+ * Data layout (figData starts at the ext byte; etisnoop fig0_1.cpp and the
+ * modern CLI parser are the parity references):
+ *   data[0] = ext byte (extension 1)
+ *   entry: [SubChId(6)|SADr-high(2)] [SADr-low(8)] ...
+ *   bit 7 of the 3rd entry byte SET  -> EEP long form, 4 bytes:
+ *       [Opt(3)|PL(2)|Size(2)] [Size(8)]
+ *   bit 7 CLEAR                    -> UEP short form, 3 bytes:
+ *       [TableSwitch(1)|TableIndex(6)]
  */
 void AdvancedFIGAnalyzer::processFIG0_1(const QByteArray& data)
 {
     // FIG 0/1: Subchannel organization
-    if (data.size() < 3) {
-        m_lastError = QString("FIG 0/1: Insufficient data (need at least 3 bytes, got %1)").arg(data.size());
+    if (data.size() < 2) {
+        m_lastError = QString("FIG 0/1: Insufficient data (need ext + entry, got %1)").arg(data.size());
         qWarning() << m_lastError;
         return; // Don't increment counters for invalid data
     }
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
-    int offset = 2;  // Skip extension byte (1) + padding byte (1) added by test helpers
+    int offset = 1;  // Skip the extension byte (data starts at the ext byte)
 
     int sub_channels_found = 0;
 
-    while (offset + 3 <= data.size()) {
+    while (offset + 2 < data.size()) {
         SubChannelInfo info;
 
-        // Byte 0: SubChId (6 bits, bits 7-2)
-        // NOTE (ETSI EN 300 401 Section 6.2.1): SubChId is a 6-bit field, so
-        // values 0-63 are the only ones representable on the wire and
-        // `(byte >> 2) & 0x3F` can never yield anything else. A range check
-        // against >63 here would be dead code (and trip -Wtype-limits), and a
-        // test vector asking for SubChId 64 byte-encodes identically to
-        // SubChId 0 -- see testFIG0_1_InvalidSubChannelID, which therefore
-        // exercises the malformed-descriptor rejection below instead.
+        // Entry byte 0: SubChId (6 bits, bits 7-2) + SADr high (bits 1-0)
         uint8_t raw_subch_id = (bytes[offset] >> 2) & 0x3F;
-
-        // VALIDATION: Check if the original byte would produce an invalid ID
-        // Extract the full 8-bit value from bits 7-2 to detect overflow
-        uint8_t full_field = bytes[offset] >> 2;  // This is bits 7-2 (6 bits available)
-
-        // Since we're masking with 0x3F, values 0-63 are valid
-        // But if someone creates test data with SubChId=64, the byte would be:
-        // (64 << 2) = 0x100 (9 bits), which overflows into the next field
-        // We need to check if the input DATA intended an invalid value
-
-        // Alternative approach: Check the test helper's input directly
-        // The test helper createFIG0_1_ShortForm(64, 0, 5) creates:
-        // subch_byte = (64 & 0x3F) << 2 = 0 << 2 = 0
-        // This means the test helper itself masks the value!
-
-        // BETTER FIX: Detect if multiple sub-channels with same ID
-        // OR: Add explicit range validation in test data parsing
-
-        // For now, we'll validate that the subchannel ID is reasonable
-        // by checking if it's already in the map with different parameters
         info.sub_channel_id = raw_subch_id;
 
-        // Bytes 0-1: Start Address (10 bits)
+        // Entry bytes 0-1: Start Address (10 bits)
         info.start_address = ((bytes[offset] & 0x03) << 8) | bytes[offset + 1];
 
-        // Check short/long form flag (bit 7 of byte 2)
-        info.short_form = (bytes[offset + 2] & 0x80) != 0;
+        // Entry byte 2 bit 7: form flag — 1 = EEP long form (4 bytes),
+        // 0 = UEP short form (3 bytes) (etisnoop fig0_1.cpp long_flag).
+        const bool long_form = (bytes[offset + 2] & 0x80) != 0;
 
-        if (info.short_form) {
-            // EEP (Equal Error Protection) - Short form
-            // Byte 2: Short flag (1) + Table switch (1 bit) + Table index (6 bits)
-            info.table_switch = (bytes[offset + 2] >> 6) & 0x01;
-            info.table_index = bytes[offset + 2] & 0x3F;
-
-            // Set protection level based on table
-            info.protection_level = 0;  // Not applicable for EEP
-            info.sub_channel_size = 0;   // Calculated from table
-
-            qDebug() << "FIG 0/1: SubCh" << info.sub_channel_id
-                     << "EEP" << (info.table_switch ? "B" : "A")
-                     << "Table index" << info.table_index
-                     << "Start addr" << info.start_address;
-
-            offset += 3;  // Short form is 3 bytes
-
-        } else {
-            // UEP (Unequal Error Protection) - Long form
-            if (offset + 4 > data.size()) {
+        if (long_form) {
+            // EEP long form (Equal Error Protection)
+            if (offset + 3 >= data.size()) {
                 m_lastError = "FIG 0/1: Incomplete long form descriptor";
                 qWarning() << m_lastError;
                 break;
             }
 
-            // Byte 2: Short flag (0) + Option (3 bits) + Protection level (2 bits) + Size high (2 bits)
+            const uint8_t b2 = bytes[offset + 2];
+            info.short_form = false;
             info.table_switch = 0;
-            info.table_index = 0;  // Not used in long form
-            info.option = (bytes[offset + 2] >> 4) & 0x07;
-            info.protection_level = (bytes[offset + 2] >> 2) & 0x03;
-
-            // Bytes 2-3: Sub-channel size (10 bits)
-            info.sub_channel_size = ((bytes[offset + 2] & 0x03) << 8) | bytes[offset + 3];
+            info.table_index = 0;
+            info.option = (b2 >> 4) & 0x07;
+            info.protection_level = (b2 >> 2) & 0x03;  // 0-based on wire (etisnoop parity)
+            info.sub_channel_size = static_cast<uint16_t>(((b2 & 0x03) << 8) | bytes[offset + 3]);
 
             qDebug() << "FIG 0/1: SubCh" << info.sub_channel_id
-                     << "UEP Level" << info.protection_level
+                     << "EEP" << (info.option == 0 ? "A" : "B")
+                     << "Level" << info.protection_level
                      << "Size" << info.sub_channel_size << "CU"
                      << "Start addr" << info.start_address;
 
             offset += 4;  // Long form is 4 bytes
+
+        } else {
+            // UEP short form (Unequal Error Protection)
+            const uint8_t b2 = bytes[offset + 2];
+            info.short_form = true;
+            info.table_switch = (b2 >> 6) & 0x01;
+            info.table_index = b2 & 0x3F;
+            info.option = 0;
+            info.protection_level = 0;
+            info.sub_channel_size = 0;  // derived from the UEP table, not encoded
+
+            qDebug() << "FIG 0/1: SubCh" << info.sub_channel_id
+                     << "UEP Table switch" << info.table_switch
+                     << "Table index" << info.table_index
+                     << "Start addr" << info.start_address;
+
+            offset += 3;  // Short form is 3 bytes
         }
 
         // STORE in map (FIX FOR HIGH-001)
@@ -548,105 +744,62 @@ void AdvancedFIGAnalyzer::processFIG0_1(const QByteArray& data)
  * - Service components
  * - Transport mechanism (TMId)
  * - Primary/secondary component designation
+ *
+ * Data layout (figData starts at the ext byte; etisnoop fig0_2.cpp is the
+ * parity reference):
+ *   data[0] = ext byte (C/N b7, O/E b6, rfu b5, extension 2; P/D flag = b5)
+ *   per service entry:
+ *     P/D=0: SId 16-bit BE   (programme; country = SId MSB high nibble)
+ *     P/D=1: SId 32-bit BE   (data; [ECC][CId|SRef-hi][SRef-lo])
+ *     then: local(1)|CAid(3)|ncomp(4)
+ *     then ncomp × 2-byte component descriptors:
+ *       [TMId(2)|ASCTy/DSCTy(6)] [SubChId(6)|P/S(1)|CA(1)]
  */
 void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
 {
     // FIG 0/2: Service organization
-    if (data.size() < 5) {
-        m_lastError = QString("FIG 0/2: Insufficient data (need at least 5 bytes, got %1)").arg(data.size());
+    if (data.size() < 2) {
+        m_lastError = QString("FIG 0/2: Insufficient data (need ext + entry, got %1)").arg(data.size());
         qWarning() << m_lastError;
         return;
     }
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
-    int offset = 1;  // Skip header byte
+    int offset = 1;  // Skip the extension byte (data starts at the ext byte)
+
+    // The P/D flag is a property of the FIG (ext byte bit 5), NOT of each
+    // service entry — a FIG 0/2 carries either programme or data services
+    // (etisnoop fig0_2.cpp: fig0.pd()).
+    const bool pd = (bytes[0] & 0x20) != 0;
 
     int services_found = 0;
 
-    while (offset + 3 <= data.size()) {  // Fixed: Include services at exact boundary
-        // CRITICAL FIX: Cannot determine 16-bit vs 32-bit by checking bit 7 of first byte!
-        // For 32-bit Service IDs like 0xE0D00001, first byte 0xE0 has bit 7 set, but it's NOT a P/D flag.
-        //
-        // ETSI EN 300 401 approach: Try 16-bit first (P/D flag in bit 7 + 15-bit SId),
-        // but if the resulting Service ID suggests data service (check heuristics), try 32-bit.
-        //
-        // BETTER APPROACH: Check if we have enough bytes for 32-bit, and use length heuristics.
-
+    while (offset + 1 < data.size()) {
         uint32_t service_id;
-        bool is_programme;
-        int sid_bytes;
+        bool is_programme = !pd;
 
-        // Try to determine encoding by checking if P/D flag indicates programme service
-        // P/D flag only exists in 16-bit encoding (bit 7 of first byte)
-        // For 32-bit encoding, first byte is part of Service ID (no P/D flag)
-
-        // Heuristic: Check if bytes suggest 16-bit or 32-bit encoding
-        // - 16-bit: P/D flag (bit 7) + SId[14:8] (bits 6-0) + SId[7:0]
-        // - 32-bit: Full 4-byte Service ID (first byte can be 0xE0-0xEF for data services)
-
-        // CRITICAL: We need to peek ahead at the structure to determine encoding
-        // Look at potential "Number of components" byte position for both encodings
-
-        bool try_32bit = false;
-
-        if (offset + 5 <= data.size()) {
-            // Check if 32-bit encoding makes sense
-            // For 32-bit: offset+4 should be NumComp byte (reasonable value: 1-15)
-            uint8_t potential_numcomp_32 = (bytes[offset + 4] >> 4) & 0x0F;
-
-            // Check if 16-bit encoding makes sense
-            // For 16-bit: offset+2 should be NumComp byte
-            uint8_t potential_numcomp_16 = (bytes[offset + 2] >> 4) & 0x0F;
-
-            // Heuristic: If first byte has high bits set (0xE0-0xFF) and 32-bit NumComp looks reasonable
-            if ((bytes[offset] & 0xE0) == 0xE0 && potential_numcomp_32 > 0 && potential_numcomp_32 <= 15) {
-                try_32bit = true;
-            }
-        }
-
-        if (try_32bit) {
-            // 32-bit Service ID (data service)
-            if (offset + 5 > data.size()) {
-                m_lastError = QString("FIG 0/2: Insufficient data for 32-bit SID+NumComp");
-                qWarning() << m_lastError;
-                break;
-            }
-            service_id = (static_cast<uint32_t>(bytes[offset]) << 24) |
-                        (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
-                        (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
-                        static_cast<uint32_t>(bytes[offset + 3]);
-            is_programme = false;
-            sid_bytes = 4;
-            offset += 4;
-
-            qDebug() << "FIG 0/2: [32-bit encoding detected] Service ID ="
-                     << Qt::hex << Qt::showbase << service_id
-                     << "bytes:" << Qt::hex
-                     << bytes[offset-4] << bytes[offset-3] << bytes[offset-2] << bytes[offset-1];
-        } else {
-            // 16-bit Service ID (programme service with P/D flag)
-            if (offset + 3 > data.size()) {
-                m_lastError = QString("FIG 0/2: Insufficient data for 16-bit SID+NumComp");
-                qWarning() << m_lastError;
-                break;
-            }
-
-            // P/D flag in bit 7, SId[14:8] in bits 6-0
-            is_programme = (bytes[offset] & 0x80) != 0;
-            service_id = ((static_cast<uint32_t>(bytes[offset]) & 0x7F) << 8) | bytes[offset + 1];
-            sid_bytes = 2;
+        if (!pd) {
+            // 16-bit programme Service ID
+            if (offset + 2 > data.size()) break;
+            // Mask bit 15 for key parity with FIG 1/1 (house convention;
+            // the legacy label lookup applies the same 0x7FFF mask).
+            service_id = (static_cast<uint32_t>(bytes[offset] & 0x7F) << 8) |
+                         bytes[offset + 1];
             offset += 2;
-
-            qDebug() << "FIG 0/2: [16-bit encoding] Service ID ="
-                     << Qt::hex << Qt::showbase << service_id
-                     << "P/D=" << (is_programme ? "Programme" : "Data")
-                     << "bytes:" << Qt::hex << bytes[offset-2] << bytes[offset-1];
+        } else {
+            // 32-bit data Service ID: [ECC(8)][CId(4)|SRef-hi(4)][SRef(16)]
+            if (offset + 4 > data.size()) break;
+            service_id = (static_cast<uint32_t>(bytes[offset]) << 24) |
+                         (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
+                         (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
+                         static_cast<uint32_t>(bytes[offset + 3]);
+            offset += 4;
         }
 
-        // Number of service components (4 bits, byte after SId, high nibble)
+        // local(1) | CAid(3) | number of components(4)
         if (offset >= data.size()) break;
-        uint8_t num_components = (bytes[offset] >> 4) & 0x0F;
-        offset++;
+        const uint8_t ca_byte = bytes[offset++];
+        const uint8_t num_components = ca_byte & 0x0F;
 
         // CREATE DABService (FIX FOR HIGH-002)
         DABService dab_service;
@@ -665,7 +818,9 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
                  << "type=" << (is_programme ? "Programme" : "Data")
                  << "components=" << num_components;
 
-        // Parse service components
+        // Parse service components: exactly 2 bytes each (etisnoop fig0_2.cpp
+        // consumes 2 bytes per component for every TMId — the SCId/packet
+        // address of packet-mode components lives in FIG 0/3).
         for (uint8_t i = 0; i < num_components; ++i) {
             // SECURITY: Check bounds BEFORE accessing array
             if (offset + 2 > data.size()) {
@@ -677,37 +832,25 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
             ServiceComponent component;
             component.service_id = service_id;
 
-            // Byte 0: TMId (2 bits, bits 7-6)
+            // Byte 0: TMId (2 bits, bits 7-6) + ASCTy/DSCTy (6 bits)
             component.transport_mode = (bytes[offset] >> 6) & 0x03;
+            component.service_component_type = bytes[offset] & 0x3F;
+            component.ca_flag = (bytes[offset + 1] & 0x01) != 0;
+            component.is_primary = (bytes[offset + 1] & 0x02) != 0;
+            component.sub_channel_id = (bytes[offset + 1] >> 2) & 0x3F;
 
-            if (component.transport_mode == 0) {
-                // MSC stream audio
-                // Byte 0: TMId + ASCTy/DSCTy (6 bits) - Audio/Data Service Component Type
-                component.service_component_type = bytes[offset] & 0x3F;
-
-                // Byte 1: P/S flag (bit 7) + SubChId (6 bits, bits 5-0)
-                component.is_primary = (bytes[offset + 1] & 0x80) != 0;
-                component.sub_channel_id = bytes[offset + 1] & 0x3F;
-
-                // For audio: ASCTy = 0x00 (DAB), 0x3F (DAB+)
-                // DAB+ detection works for ALL Service ID encodings (16-bit and 32-bit)
-                if (component.service_component_type == 0x3F) {
-                    dab_service.is_dab_plus = true;
-                }
-
-                qDebug() << "  Component" << i << ":"
-                         << "SubCh" << component.sub_channel_id
-                         << (component.is_primary ? "Primary" : "Secondary")
-                         << "Type" << Qt::hex << component.service_component_type;
-
-                offset += 2;
-            } else {
-                // Other transport modes (FIDC, packet mode, etc.)
-                // For now, skip - add support later if needed
-                qDebug() << "  Component" << i << ": TMId" << component.transport_mode
-                         << "(not MSC stream, skipped)";
-                offset += 2;  // Assume 2 bytes for other modes
+            // For audio: ASCTy = 0x00 (DAB), 0x3F (DAB+)
+            if (component.service_component_type == 0x3F) {
+                dab_service.is_dab_plus = true;
             }
+
+            qDebug() << "  Component" << i << ":"
+                     << "SubCh" << component.sub_channel_id
+                     << (component.is_primary ? "Primary" : "Secondary")
+                     << "TMId" << component.transport_mode
+                     << "Type" << Qt::hex << component.service_component_type;
+
+            offset += 2;
 
             dab_service.components.push_back(component);
         }
@@ -730,9 +873,6 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
         legacy_service.serviceId = service_id;
         legacy_service.label = "";  // Will be filled by FIG 1/1
 
-        // CRITICAL FIX: Determine isAudio from component type, NOT from Service ID encoding
-        // Service ID encoding (16-bit vs 32-bit) does NOT indicate audio vs data!
-        // Must check TMId and ASCTy fields per ETSI EN 300 401
         legacy_service.isAudio = false;
         if (!dab_service.components.empty()) {
             const auto& first_comp = dab_service.components[0];
@@ -796,11 +936,17 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
 void AdvancedFIGAnalyzer::processFIG1_0(const QByteArray& data)
 {
     // FIG 1/0: Ensemble label
-    // Format: Header (1) + Charset/OE (1) + EId (2) + Label (16) + CharFlag (2) = 22 bytes
+    // Data (starts at the ext byte, etisnoop fig1.cpp fig1_select):
+    //   data[0]   = charset(4) | O/E(1) | extension(3) = 0
+    //   data[1..2] = EId (16-bit BE)
+    //   data[3..18] = label (16 bytes)
+    //   data[19..20] = character flag / short-label mask (optional)
+    // The 19-byte form (no mask) is legal; a later 21-byte form must not
+    // clear an already-known mask (modern CLI parser parity).
 
     // COUNTER FIX: Validate data size BEFORE processing
-    if (data.size() < 22) {
-        m_lastError = QString("FIG 1/0: Insufficient data (need 22 bytes, got %1)").arg(data.size());
+    if (data.size() < 19) {
+        m_lastError = QString("FIG 1/0: Insufficient data (need 19 bytes, got %1)").arg(data.size());
         qWarning() << m_lastError;
         // Do NOT increment counter for insufficient data
         return;
@@ -808,8 +954,11 @@ void AdvancedFIGAnalyzer::processFIG1_0(const QByteArray& data)
 
     const uint8_t* raw_data = reinterpret_cast<const uint8_t*>(data.constData());
 
-    // Extract Ensemble ID (bytes 2-3)
-    uint16_t ensemble_id = extractUInt16(data, 2);
+    // Label charset flag: high nibble of the first data byte
+    uint8_t charset = (raw_data[0] >> 4) & 0x0F;
+
+    // Extract Ensemble ID (bytes 1-2)
+    uint16_t ensemble_id = extractUInt16(data, 1);
 
     // COUNTER FIX: Allow processing even if ensemble ID is not set yet (m_ensembleId == 0)
     // This handles test cases that send FIG 1/0 before FIG 0/0
@@ -826,11 +975,26 @@ void AdvancedFIGAnalyzer::processFIG1_0(const QByteArray& data)
         // COUNTER FIX: Don't return early - process the label anyway
     }
 
-    // Parse label (starts at byte 4)
-    m_ensembleLabel = parseLabel(raw_data, 4);
+    // Parse label (starts at byte 3). The 19-byte form (ext + EId + 16-byte
+    // label, NO character flag) is legal per EN 300 401 clause 8.1.13 — pad
+    // the field to 21 bytes before parseLabel() so the optional 2-byte mask
+    // read can never run past the buffer (same guard as processFIG1_1).
+    QByteArray field = data;
+    while (field.size() < 21) {
+        field.append('\0');
+    }
+    const uint8_t* field_data = reinterpret_cast<const uint8_t*>(field.constData());
+
+    m_ensembleLabel = parseLabel(field_data, 3, effectiveLabelCharset(charset));
+
+    // Short-label mask (bytes 19-20) when present
+    if (data.size() >= 21) {
+        m_ensembleLabel.character_flag = extractUInt16(data, 19);
+    }
 
     // Update ensemble info
     m_currentEnsemble.ensembleLabel = m_ensembleLabel.getFullLabel();
+    m_currentEnsemble.shortLabel = m_ensembleLabel.getShortLabel();
 
     qInfo() << "FIG 1/0: Ensemble label ="
             << m_ensembleLabel.getFullLabel()
@@ -884,38 +1048,40 @@ void AdvancedFIGAnalyzer::processFIG1_1(const QByteArray& data)
     // Byte 0 format: Charset(7-4) + OE(3) + Extension(2-0)
     uint8_t charset = (raw_data[0] >> 4) & 0x0F;
     uint8_t oe = (raw_data[0] >> 3) & 0x01;
-    Q_UNUSED(charset);
     Q_UNUSED(oe);
 
-    // P/D flag selects the SId width. This must mirror the FIG 0/2 setup path
-    // (processFIG0_2): 16-bit programme SIds carry the P/D flag in SId bit 15
-    // and are stored under the 15-bit key, so the label lookup applies the
-    // same mask. Previously the parser always read a 16-bit SId at bytes 1-2
-    // (the P/D byte plus the first SId byte), producing truncated keys such
-    // as 0x08E0 for service 0xE0D00001 and missing every 32-bit service.
-    bool is_data_service = (raw_data[1] & 0x08) != 0;
+    // SId width: the P/D flag is the MOST SIGNIFICANT BIT of the Service
+    // Identifier (EN 300 401 clause 8.1.14.1 / ODR-DabMux fig1.cpp):
+    //   P/D=0 -> 16-bit programme SId at data[1..2] (bit 15 = 0)
+    //   P/D=1 -> 32-bit data SId at data[1..4]
+    // The previous read (bit 3 of data[1]) mis-detected real programme
+    // SIds whose MSB has bit 3 set (e.g. 0x2C61) as 32-bit data services,
+    // producing garbage keys such as 0x6152524F for "RROne FM 101".
+    bool is_data_service = (raw_data[1] & 0x80) != 0;
 
     uint32_t service_id = 0;
     int label_offset = 0;
     if (is_data_service) {
         // 32-bit data-service SId: full ECC + Country + Service Reference
-        if (data.size() < 22) {  // ext(1) + pd(1) + sid(4) + label(16)
+        if (data.size() < 22) {  // ext(1) + pd/sid(4) + label(16)
             qWarning() << "FIG 1/1: Insufficient data for 32-bit SId (need 22+, got" << data.size() << ")";
             return;
         }
-        service_id = (static_cast<uint32_t>(raw_data[2]) << 24) |
-                     (static_cast<uint32_t>(raw_data[3]) << 16) |
-                     (static_cast<uint32_t>(raw_data[4]) << 8) |
-                     static_cast<uint32_t>(raw_data[5]);
-        label_offset = 6;
+        service_id = (static_cast<uint32_t>(raw_data[1]) << 24) |
+                     (static_cast<uint32_t>(raw_data[2]) << 16) |
+                     (static_cast<uint32_t>(raw_data[3]) << 8) |
+                     static_cast<uint32_t>(raw_data[4]);
+        label_offset = 5;
     } else {
-        // 16-bit programme SId; mask bit 15 for key parity with FIG 0/2
-        if (data.size() < 20) {  // ext(1) + pd(1) + sid(2) + label(16)
-            qWarning() << "FIG 1/1: Insufficient data for 16-bit SId (need 20+, got" << data.size() << ")";
+        // 16-bit programme SId at data[1..2]; bit 15 is the P/D flag (0 for
+        // programme services). The 0x7FFF mask keeps key parity with the
+        // FIG 0/2 16-bit convention.
+        if (data.size() < 19) {  // ext(1) + sid(2) + label(16)
+            qWarning() << "FIG 1/1: Insufficient data for 16-bit SId (need 19+, got" << data.size() << ")";
             return;
         }
-        service_id = static_cast<uint32_t>(extractUInt16(data, 2)) & 0x7FFFu;
-        label_offset = 4;
+        service_id = static_cast<uint32_t>(extractUInt16(data, 1)) & 0x7FFFu;
+        label_offset = 3;
     }
 
     // The 2-byte character flag after the label may be absent in truncated
@@ -927,7 +1093,8 @@ void AdvancedFIGAnalyzer::processFIG1_1(const QByteArray& data)
     const uint8_t* field_data = reinterpret_cast<const uint8_t*>(field.constData());
 
     // Parse label
-    DABLabel label = parseLabel(field_data, static_cast<size_t>(label_offset));
+    DABLabel label = parseLabel(field_data, static_cast<size_t>(label_offset),
+                                effectiveLabelCharset(charset));
 
     // Store label data
     m_serviceLabelData[service_id] = label;
@@ -949,18 +1116,36 @@ void AdvancedFIGAnalyzer::processFIG1_1(const QByteArray& data)
         }
     }
 
-    // Update service in new services map
+    // Update service in new services map — create when unknown (the FIG 1/1
+    // may arrive in a frame/FIB without the matching FIG 0/2; the modern CLI
+    // parser creates the service rather than dropping the label, and the GUI
+    // ensemble tree is fed from m_services).
     if (m_services.count(service_id)) {
         m_services[service_id].service_label = label.getFullLabel();
         m_services[service_id].short_label = label.getShortLabel();
+        m_services[service_id].character_flag = label.character_flag;
     } else {
-        qWarning() << "FIG 1/1: Service" << Qt::hex << service_id
-                   << "not found in m_services map (FIG 0/2 needed first)";
+        DABService new_service;
+        new_service.service_id = service_id;
+        new_service.service_type = is_data_service ? 1 : 0;
+        new_service.is_dab_plus = false;
+        new_service.service_label = label.getFullLabel();
+        new_service.short_label = label.getShortLabel();
+        new_service.character_flag = label.character_flag;
+        m_services[service_id] = new_service;
+        qInfo() << "FIG 1/1: Created service" << Qt::hex << service_id
+                << "from label (no FIG 0/2 seen yet)";
     }
 
     if (!found) {
-        qWarning() << "FIG 1/1: Service" << Qt::hex << service_id
-                   << "not found in legacy list (FIG 0/2 needed first)";
+        // Keep the legacy list in sync with label-only discoveries
+        ServiceInfo legacy_service;
+        legacy_service.serviceId = service_id;
+        legacy_service.label = label.getFullLabel();
+        legacy_service.isAudio = !is_data_service;
+        m_discoveredServices.append(legacy_service);
+        emit serviceDiscovered(legacy_service);
+        emit serviceLabelUpdated(service_id, legacy_service.label);
     }
 
     // Create FIG data for signal emission
@@ -1008,61 +1193,59 @@ void AdvancedFIGAnalyzer::processFIG1_1(const QByteArray& data)
 void AdvancedFIGAnalyzer::processFIG1_4(const QByteArray& data)
 {
     // FIG 1/4: Service component label
-    // Minimum size: 20 bytes (ext + scids + label + char_flag)
-    if (data.size() < 20) {
-        qWarning() << "FIG 1/4: Insufficient data (need at least 20 bytes, got" << data.size() << ")";
+    // Data (starts at the ext byte, etisnoop fig1.cpp fig1_select case 4):
+    //   data[0] = charset(4) | O/E(1) | extension(3) = 4
+    //   data[1] = P/D flag (b7) + rfu(3) + SCIdS (b3-b0, 4 bits)
+    //   data[2..3]  = SId 16-bit BE (P/D=0)  /  data[2..5] = SId 32-bit (P/D=1)
+    //   then 16-byte label, then 2-byte mask
+    // Minimum size: 1 + 1 + 2 + 16 + 2 = 22 bytes (P/D=0)
+    if (data.size() < 22) {
+        qWarning() << "FIG 1/4: Insufficient data (need at least 22 bytes, got" << data.size() << ")";
         return;
     }
 
     const uint8_t* raw_data = reinterpret_cast<const uint8_t*>(data.constData());
 
-    // Byte 0: Extension (bits 7-3) + P/D flag (bit 2) + SCIdS[5:4] (bits 1-0)
-    uint8_t extension_byte = raw_data[0];
-    uint8_t extension = (extension_byte >> 3) & 0x1F;
-    bool is_packet_mode = isBitSet(extension_byte, 2);  // P/D flag: 0=stream, 1=packet
-    uint8_t scids_upper = extension_byte & 0x03;        // SCIdS bits 5-4
+    // Byte 0: charset (7-4) + O/E (3) + extension (2-0)
+    uint8_t charset = (raw_data[0] >> 4) & 0x0F;
 
-    // Verify extension is 4
-    if (extension != 4) {
-        qWarning() << "FIG 1/4: Invalid extension" << extension << "(expected 4)";
-        return;
+    // Byte 1: P/D flag (bit 7) + SCIdS (bits 3-0)
+    bool is_packet_mode = (raw_data[1] & 0x80) != 0;
+    uint8_t component_id = raw_data[1] & 0x0F;  // 4-bit SCIdS
+
+    // SId width selected by the P/D flag
+    uint32_t service_id = 0;
+    int label_offset = 0;
+    if (!is_packet_mode) {
+        service_id = extractUInt16(data, 2);
+        label_offset = 4;
+    } else {
+        if (data.size() < 24) {
+            qWarning() << "FIG 1/4: Insufficient data for 32-bit SId (need 24+, got" << data.size() << ")";
+            return;
+        }
+        service_id = extractUInt32(data, 2);
+        label_offset = 6;
     }
 
-    // Byte 1: SCIdS[3:0] (bits 7-4) + Reserved (bits 3-0)
-    uint8_t scids_byte = raw_data[1];
-    uint8_t scids_lower = (scids_byte >> 4) & 0x0F;  // SCIdS bits 3-0
-
-    // Reconstruct full 6-bit SCIdS (for stream mode)
-    uint8_t component_id = (scids_upper << 4) | scids_lower;
-
-    qDebug() << "FIG 1/4: Extension byte=" << Qt::hex << extension_byte
-             << "P/D=" << (is_packet_mode ? "Packet" : "Stream")
-             << "SCIdS upper=" << scids_upper
-             << "SCIdS lower=" << scids_lower
-             << "Component ID=" << component_id;
-
-    // For MSC stream mode (P/D=0), label is directly after SCIdS bytes
-    // For packet mode (P/D=1), would need Service ID first (not implemented yet)
-    if (is_packet_mode) {
-        qWarning() << "FIG 1/4: Packet mode (P/D=1) not yet fully implemented";
-        // Would need to parse Service ID here for packet mode
-        // For now, treat as stream mode for testing purposes
+    // Label + mask (the mask may be absent in truncated vectors — pad)
+    QByteArray field = data;
+    while (field.size() < label_offset + 18) {
+        field.append('\0');
     }
+    const uint8_t* field_data = reinterpret_cast<const uint8_t*>(field.constData());
 
-    // Parse label (starts at byte 2 for stream mode)
-    DABLabel label = parseLabel(raw_data, 2);
+    // Parse label
+    DABLabel label = parseLabel(field_data, static_cast<size_t>(label_offset),
+                                effectiveLabelCharset(charset));
 
-    // For stream mode, we don't have Service ID in FIG 1/4
-    // We use a special marker (0x00000000) or track separately
-    // In real implementation, would correlate with FIG 0/2 data
-    uint32_t service_id = 0x00000000;  // Placeholder for stream mode
-
-    // Create unique component key (service_id << 8 | component_id)
-    uint32_t component_key = (service_id << 8) | component_id;
+    // Create unique component key ((service_id << 8) | SCIdS)
+    uint32_t component_key = static_cast<uint32_t>((static_cast<uint64_t>(service_id) << 8) | component_id);
     m_componentLabelData[component_key] = label;
     m_componentLabels[component_key] = label.getFullLabel();
 
     qInfo() << "FIG 1/4: Component" << component_id
+            << "of service" << Qt::hex << service_id
             << "label =" << label.getFullLabel()
             << "| Short =" << label.getShortLabel();
 
@@ -1072,9 +1255,9 @@ void AdvancedFIGAnalyzer::processFIG1_4(const QByteArray& data)
     figData.figExtension = 4;
     figData.rawData = data;
     figData.isValid = true;
-    figData.description = QString("Component Label - SCIdS: %1")
-        .arg(component_id);
-    figData.decodedContent = QString("Component ID: %1\n%2")
+    figData.description = QString("Component Label - SCIdS: %1").arg(component_id);
+    figData.decodedContent = QString("Service ID: 0x%1\nComponent ID: %2\n%3")
+        .arg(service_id, 8, 16, QChar('0'))
         .arg(component_id)
         .arg(label.toString());
 
@@ -1089,11 +1272,11 @@ void AdvancedFIGAnalyzer::processFIG1_4(const QByteArray& data)
 // Label parsing helper methods
 // ============================================================================
 
-DABLabel AdvancedFIGAnalyzer::parseLabel(const uint8_t* data, size_t offset)
+DABLabel AdvancedFIGAnalyzer::parseLabel(const uint8_t* data, size_t offset, uint8_t charset)
 {
     DABLabel label;
 
-    // Copy 16 character label bytes (raw EBU Latin)
+    // Copy 16 character label bytes (raw wire bytes)
     for (int i = 0; i < 16; ++i) {
         label.full_label[i] = static_cast<char>(data[offset + i]);
     }
@@ -1102,17 +1285,37 @@ DABLabel AdvancedFIGAnalyzer::parseLabel(const uint8_t* data, size_t offset)
     label.character_flag = (static_cast<uint16_t>(data[offset + 16]) << 8) |
                            static_cast<uint16_t>(data[offset + 17]);
 
-    // CHARSET FIX: Convert EBU Latin to UTF-8 for proper Thai character display
-    // EBU Latin uses control characters (0x01-0x1F) for special characters including Thai
-    // Reference: ETSI TS 101 756 Annex C, etisnoop charset.cpp
-    std::string ebu_label(label.full_label.data(), 16);
-    std::string utf8_label = convert_ebu_to_utf8(ebu_label);
-    
-    // Store both raw EBU and converted UTF-8 for reference
-    // Note: full_label keeps raw bytes, getFullLabel() returns UTF-8 converted string
-    label.utf8_converted = QString::fromStdString(utf8_label).trimmed();
+    // Label charset flag (EN 300 401 8.1.13): 0 = EBU Latin, 3 = UTF-8,
+    // 6 = TIS-620 (Thai). getFullLabel() performs the conversion.
+    label.charset = charset;
 
     return label;
+}
+
+uint8_t AdvancedFIGAnalyzer::effectiveLabelCharset(uint8_t streamCharset) const
+{
+    // Row 1 (force_charset): an explicit override wins over the stream flag.
+    if (m_settings && m_settings->force_charset >= 0 &&
+        m_settings->force_charset <= 15) {
+        return static_cast<uint8_t>(m_settings->force_charset);
+    }
+    // Known charsets pass through; unknown ones follow the fallback policy
+    // (raw passthrough by default — getFullLabel()'s default branch).
+    if (streamCharset == 0 || streamCharset == 3 || streamCharset == 6) {
+        return streamCharset;
+    }
+    if (m_settings) {
+        switch (m_settings->charset_fallback_policy) {
+            case eti::CharsetFallbackPolicy::ForceUtf8:
+                return 3;
+            case eti::CharsetFallbackPolicy::Skip:
+                return 0xFF;  // getFullLabel(): empty result
+            case eti::CharsetFallbackPolicy::Raw:
+            default:
+                break;
+        }
+    }
+    return streamCharset;
 }
 
 QString AdvancedFIGAnalyzer::extractShortLabel(const std::array<char, 16>& full_label, uint16_t char_flag)
@@ -1120,7 +1323,7 @@ QString AdvancedFIGAnalyzer::extractShortLabel(const std::array<char, 16>& full_
     QString short_label;
 
     // Character flag: bit set = include character in short label
-    // ETSI EN 300 401: Bit 0 (LSB) = position 0, maximum 8 characters
+    // ETSI EN 300 401: Bit 15 (MSB) = position 0, maximum 8 characters
     for (int i = 0; i < 16; ++i) {
         if (isCharacterIncluded(char_flag, i)) {
             short_label.append(full_label[i]);
@@ -1133,9 +1336,9 @@ QString AdvancedFIGAnalyzer::extractShortLabel(const std::array<char, 16>& full_
 
 bool AdvancedFIGAnalyzer::isCharacterIncluded(uint16_t char_flag, int position) const
 {
-    // ETSI EN 300 401: Bit 0 (LSB) = position 0, Bit 15 (MSB) = position 15
-    // LSB-first mapping
-    return (char_flag & (1 << position)) != 0;
+    // ETSI EN 300 401: Bit 15 (MSB) = position 0, Bit 0 (LSB) = position 15
+    // (MSB-first mapping; etisnoop label_t::shortlabel() parity)
+    return (char_flag & (0x8000 >> position)) != 0;
 }
 
 bool AdvancedFIGAnalyzer::isBitSet(uint8_t byte, int bit_position) const
@@ -1328,8 +1531,9 @@ void AdvancedFIGAnalyzer::processFIG0_6(const QByteArray& data)
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
 
-    // Extract P/D flag from FIG header (byte 0, bit 2)
-    bool pd_flag = (bytes[0] & 0x04) != 0;
+    // Extract P/D flag from the FIG 0 extension byte (bit 5, etisnoop
+    // fig0_common_t::pd()); the old code read bit 2, which is an rfu bit.
+    bool pd_flag = (bytes[0] & 0x20) != 0;
     int offset = 1;  // Skip extension/header byte
 
     FIG0_6_ServiceLink link;
@@ -1423,32 +1627,27 @@ void AdvancedFIGAnalyzer::processFIG0_6(const QByteArray& data)
 
 /**
  * Process FIG Type 0 Extension 7: Configuration Information
- * 
- * Reverse parser from ODR-DabMux FIG0_7.cpp
- * Fixed 4-byte structure:
- *  - Byte 0-1: FIG header
- *  - Byte 2: ReconfigCounter[9:8](2) + ServiceCount(6)
- *  - Byte 3: ReconfigCounter[7:0]
+ *
+ * Reverse parser from ODR-DabMux FIG0_7.cpp / etisnoop fig0_7.cpp
+ * Fixed 3-byte structure (data starts at the ext byte):
+ *  - Byte 0: ext byte (extension 7)
+ *  - Bytes 1-2: Number of services (6 bits, MSBs) + Reconfiguration
+ *    counter (10 bits, LSBs)
  */
 void AdvancedFIGAnalyzer::processFIG0_7(const QByteArray& data)
 {
-    if (data.size() < 4) {
-        m_lastError = QString("FIG 0/7: Insufficient data (need 4 bytes, got %1)").arg(data.size());
+    if (data.size() < 3) {
+        m_lastError = QString("FIG 0/7: Insufficient data (need 3 bytes, got %1)").arg(data.size());
         qWarning() << m_lastError;
         return;
     }
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
 
-    // Byte 2: ReconfigCounter[9:8](2) + ServiceCount(6)
-    uint8_t reconfig_high = (bytes[2] >> 6) & 0x03;
-    m_config_info.service_count = bytes[2] & 0x3F;
-
-    // Byte 3: ReconfigCounter[7:0]
-    uint8_t reconfig_low = bytes[3];
-
-    // Reconstruct 10-bit reconfiguration counter
-    m_config_info.reconfiguration_count = (static_cast<uint16_t>(reconfig_high) << 8) | reconfig_low;
+    // Bytes 1-2: services(6) << 10 | reconfiguration count(10)
+    const uint16_t value = static_cast<uint16_t>((bytes[1] << 8) | bytes[2]);
+    m_config_info.service_count = static_cast<uint8_t>(value >> 10);
+    m_config_info.reconfiguration_count = value & 0x3FF;
 
     qInfo() << "FIG 0/7: Service count=" << m_config_info.service_count
             << "Reconfiguration counter=" << m_config_info.reconfiguration_count;
@@ -1485,8 +1684,9 @@ void AdvancedFIGAnalyzer::processFIG0_8(const QByteArray& data)
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
     
-    // Check P/D flag from FIG header (byte 0, bit 2)
-    bool pd_flag = (bytes[0] & 0x04) != 0;
+    // Check P/D flag from the FIG 0 extension byte (bit 5, etisnoop
+    // fig0_common_t::pd()); the old code read bit 2, which is an rfu bit.
+    bool pd_flag = (bytes[0] & 0x20) != 0;
     int offset = 1;  // Skip extension/header byte
 
     int definitions_found = 0;
@@ -1567,42 +1767,41 @@ void AdvancedFIGAnalyzer::processFIG0_8(const QByteArray& data)
 
 /**
  * Process FIG Type 0 Extension 9: Country, LTO, International Table
- * 
- * Reverse parser from ODR-DabMux FIG0_9.cpp
- * Structure:
- *  - Byte 0-1: FIG header
- *  - Byte 2: ensembleLto(6) + rfa(1) + ext(1)
- *  - Byte 3: ensembleEcc
- *  - Byte 4: tableId
+ *
+ * Reverse parser from ODR-DabMux FIG0_9.cpp / etisnoop fig0_9.cpp
+ * Structure (data starts at the ext byte):
+ *  - Byte 0: ext byte (extension 9; O/E b6, P/D b5)
+ *  - Byte 1: Ext_flag(1) + LTO_uniq(1) + Ensemble_LTO(6, two's complement
+ *    half-hours)
+ *  - Byte 2: ensembleEcc
+ *  - Byte 3: tableId
  *  - [Optional] Extended fields with additional service ECCs
  */
 void AdvancedFIGAnalyzer::processFIG0_9(const QByteArray& data)
 {
-    if (data.size() < 5) {
-        m_lastError = QString("FIG 0/9: Insufficient data (need at least 5 bytes, got %1)").arg(data.size());
+    if (data.size() < 4) {
+        m_lastError = QString("FIG 0/9: Insufficient data (need at least 4 bytes, got %1)").arg(data.size());
         qWarning() << m_lastError;
         return;
     }
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
 
-    // Byte 2: ensembleLto(6) + rfa(1) + ext(1)
-    uint8_t lto_field = (bytes[2] >> 2) & 0x3F;
-    m_country_lto.has_extended_fields = (bytes[2] & 0x01) != 0;
+    // Byte 1: Ext flag (b7) + LTO uniq (b6) + Ensemble LTO (b5-b0)
+    m_country_lto.has_extended_fields = (bytes[1] & 0x80) != 0;
+    uint8_t lto_field = bytes[1] & 0x3F;
 
-    // Convert LTO from 1-complement representation if negative
-    if (lto_field & 0x20) {
-        // Negative: 1-complement representation
-        m_country_lto.ensemble_lto = -(lto_field & 0x1F);
-    } else {
-        m_country_lto.ensemble_lto = lto_field;
-    }
+    // Ensemble LTO is a 6-bit two's complement value in half-hours
+    // (etisnoop fig0_9.cpp: sign-extend bit 5 to the full int8 range).
+    m_country_lto.ensemble_lto = (lto_field & 0x20)
+        ? static_cast<int8_t>(lto_field | 0xC0)
+        : static_cast<int8_t>(lto_field);
 
-    // Byte 3: ensembleEcc
-    m_country_lto.ensemble_ecc = bytes[3];
+    // Byte 2: ensembleEcc
+    m_country_lto.ensemble_ecc = bytes[2];
 
-    // Byte 4: tableId
-    m_country_lto.international_table_id = bytes[4];
+    // Byte 3: tableId
+    m_country_lto.international_table_id = bytes[3];
 
     qInfo() << "FIG 0/9: LTO=" << (m_country_lto.ensemble_lto / 2.0) << "hours"
             << "ECC=" << Qt::hex << Qt::showbase << m_country_lto.ensemble_ecc
@@ -1625,54 +1824,55 @@ void AdvancedFIGAnalyzer::processFIG0_9(const QByteArray& data)
 /**
  * Process FIG Type 0 Extension 10: Date and Time
  * 
- * Reverse parser from ODR-DabMux FIG0_10.cpp
- * Fixed 8-byte structure (long form):
- *  - Byte 0-1: FIG header
- *  - Byte 2: MJD[16:10](7) + RFU(1)
- *  - Byte 3: MJD[9:2]
- *  - Byte 4: Hours[4:2](3) + UTC(1) + ConfInd(1) + LSI(1) + MJD[1:0](2)
- *  - Byte 5: Minutes(6) + Hours[1:0](2)
- *  - Byte 6: Milliseconds[9:8](2) + Seconds(6)
- *  - Byte 7: Milliseconds[7:0]
+ * Reverse parser from ODR-DabMux FIG0_10.cpp / etisnoop fig0_10.cpp
+ * Structure (data starts at the ext byte):
+ *  - Byte 0: ext byte (extension 10)
+ *  - Byte 1: MJD[16:10](7) + RFU(1)
+ *  - Byte 2: MJD[9:2]
+ *  - Byte 3: MJD[1:0](2) + LSI(1) + ConfInd(1) + UTC(1) + Hours[4:2](3)
+ *  - Byte 4: Minutes(6) + Hours[1:0](2)
+ *  - Byte 5: Milliseconds[9:8](2) + Seconds(6)   [long form, UTC=1]
+ *  - Byte 6: Milliseconds[7:0]                   [long form, UTC=1]
  */
 void AdvancedFIGAnalyzer::processFIG0_10(const QByteArray& data)
 {
-    if (data.size() < 8) {
-        m_lastError = QString("FIG 0/10: Insufficient data (need 8 bytes, got %1)").arg(data.size());
+    if (data.size() < 5) {
+        m_lastError = QString("FIG 0/10: Insufficient data (need 5 bytes, got %1)").arg(data.size());
         qWarning() << m_lastError;
         return;
     }
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
 
-    // Byte 2: MJD[16:10](7) + RFU(1)
-    uint32_t mjd_high = (bytes[2] >> 1) & 0x7F;
-
-    // Byte 3: MJD[9:2]
-    uint32_t mjd_med = bytes[3];
-
-    // Byte 4: Hours[4:2](3) + UTC(1) + ConfInd(1) + LSI(1) + MJD[1:0](2)
-    uint32_t mjd_low = bytes[4] & 0x03;
-    m_date_time.lsi_flag = (bytes[4] & 0x04) != 0;
-    m_date_time.conf_flag = (bytes[4] & 0x08) != 0;
-    m_date_time.utc_flag = (bytes[4] & 0x10) != 0;
-    uint8_t hours_high = (bytes[4] >> 5) & 0x07;
-
-    // Reconstruct 17-bit MJD
+    // 17-bit MJD: (byte1 b6-b0) << 10 | byte2 << 2 | (byte3 b7-b6)
+    uint32_t mjd_high = (bytes[1] >> 1) & 0x7F;
+    uint32_t mjd_med = bytes[2];
+    uint32_t mjd_low = (bytes[3] >> 6) & 0x03;
     m_date_time.mjd = (mjd_high << 10) | (mjd_med << 2) | mjd_low;
 
-    // Byte 5: Minutes(6) + Hours[1:0](2)
-    uint8_t hours_low = bytes[5] & 0x03;
+    // Byte 3: LSI (b5) + ConfInd (b4) + UTC (b3) + Hours high (b2-b0)
+    m_date_time.lsi_flag = (bytes[3] & 0x20) != 0;
+    m_date_time.conf_flag = (bytes[3] & 0x10) != 0;
+    m_date_time.utc_flag = (bytes[3] & 0x08) != 0;
+    uint8_t hours_high = bytes[3] & 0x07;
+
+    // Byte 4: Minutes (b5-b0) + Hours low (b7-b6)
+    uint8_t hours_low = (bytes[4] >> 6) & 0x03;
     m_date_time.hours = (hours_high << 2) | hours_low;
-    m_date_time.minutes = (bytes[5] >> 2) & 0x3F;
+    m_date_time.minutes = bytes[4] & 0x3F;
 
-    // Byte 6: Milliseconds[9:8](2) + Seconds(6)
-    m_date_time.seconds = bytes[6] & 0x3F;
-    uint16_t ms_high = (bytes[6] >> 6) & 0x03;
+    if (m_date_time.utc_flag && data.size() >= 7) {
+        // Long form: Byte 5: milliseconds high (b7-b6) + seconds (b5-b0)
+        m_date_time.seconds = bytes[5] & 0x3F;
+        uint16_t ms_high = (bytes[5] >> 6) & 0x03;
 
-    // Byte 7: Milliseconds[7:0]
-    uint16_t ms_low = bytes[7];
-    m_date_time.milliseconds = (ms_high << 8) | ms_low;
+        // Byte 6: milliseconds low
+        m_date_time.milliseconds = static_cast<uint16_t>((ms_high << 8) | bytes[6]);
+    } else {
+        // Short form: no seconds/milliseconds field
+        m_date_time.seconds = 0;
+        m_date_time.milliseconds = 0;
+    }
 
     // Convert to QDateTime
     m_currentDABTime = FIGParsingUtils::mjdToDateTime(
@@ -1732,8 +1932,9 @@ void AdvancedFIGAnalyzer::processFIG0_13(const QByteArray& data)
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
     
-    // Extract P/D flag from FIG header (byte 0, bit 2)
-    bool pd_flag = (bytes[0] & 0x04) != 0;
+    // Extract P/D flag from the FIG 0 extension byte (bit 5, etisnoop
+    // fig0_common_t::pd()); the old code read bit 2, which is an rfu bit.
+    bool pd_flag = (bytes[0] & 0x20) != 0;
     int offset = 1;  // Skip extension/header byte
 
     int applications_found = 0;
@@ -2153,9 +2354,11 @@ void AdvancedFIGAnalyzer::processFIG0_19(const QByteArray& data)
 void AdvancedFIGAnalyzer::processFIG1_5(const QByteArray& data)
 {
     // ETSI EN 300 401 Section 5.2.2.6: FIG 1/5 Data Service Label
-    // Structure: FIG header (1) + [32-bit SId (4) + Label (16) + CharFlag (2)] * N
+    // Data (starts at the ext byte, etisnoop fig1.cpp case 5):
+    //   data[0] = charset(4) | O/E(1) | extension(3) = 5
+    //   per entry: [SId 32-bit BE (4)] [Label (16)] [CharFlag (2)]
     // Minimum size: 1 + 22 = 23 bytes for one data service label
-    
+
     if (data.size() < 23) {
         m_lastError = QString("FIG 1/5: Insufficient data (need at least 23 bytes, got %1)").arg(data.size());
         qWarning() << m_lastError;
@@ -2163,7 +2366,7 @@ void AdvancedFIGAnalyzer::processFIG1_5(const QByteArray& data)
     }
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
-    int offset = 1;  // Skip FIG header byte
+    int offset = 1;  // Skip the charset/ext byte (data starts at the ext byte)
 
     int labels_found = 0;
 
@@ -2217,8 +2420,9 @@ void AdvancedFIGAnalyzer::processFIG2(const QByteArray& figData)
         return;
     }
 
-    // Extract extension code from FIG header (bits 7-3)
-    uint8_t extension = (figData[0] >> 3) & 0x1F;
+    // FIG 2 extended-label extension byte has the same charset/OE/ext layout
+    // as FIG 1 (EN 300 401 clause 8.1.13.1): extension = bits 2-0.
+    uint8_t extension = static_cast<uint8_t>(figData[0]) & 0x07;
 
     // Check if FIG type is enabled
     QString figKey = QString("2.%1").arg(extension);
@@ -2323,9 +2527,11 @@ void AdvancedFIGAnalyzer::processFIG2_1(const QByteArray& data)
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
 
-    // Extract P/D flag from FIG header (byte 0, bit 2)
-    bool pd_flag = (bytes[0] & 0x04) != 0;
-    int offset = 1;  // Skip FIG header
+    // FIG 2/1: data starts at the charset/OE/ext byte; the P/D flag is the
+    // most significant bit of the Service Identifier in the second byte
+    // (EN 300 401 clause 8.1.13.1).
+    bool pd_flag = (bytes[1] & 0x80) != 0;
+    int offset = 1;  // Skip the ext byte (data starts at the ext byte)
 
     // Service ID length depends on P/D flag
     int sid_length = pd_flag ? 4 : 2;  // 32-bit (data) or 16-bit (programme)
@@ -2338,6 +2544,8 @@ void AdvancedFIGAnalyzer::processFIG2_1(const QByteArray& data)
     }
 
     uint32_t service_id;
+
+    // Parse Service ID (data[1..] = SId; P/D bit excluded from 16-bit keys)
 
     // Parse Service ID
     if (pd_flag) {
@@ -2403,9 +2611,11 @@ void AdvancedFIGAnalyzer::processFIG2_4(const QByteArray& data)
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.constData());
 
-    // Extract P/D flag from FIG header (byte 0, bit 2)
-    bool pd_flag = (bytes[0] & 0x04) != 0;
-    int offset = 1;  // Skip FIG header
+    // FIG 2/4: data starts at the charset/OE/ext byte; the P/D flag is the
+    // most significant bit of the Service Identifier in the second byte
+    // (EN 300 401 clause 8.1.13.1).
+    bool pd_flag = (bytes[1] & 0x80) != 0;
+    int offset = 1;  // Skip the ext byte (data starts at the ext byte)
 
     // Service ID length depends on P/D flag
     int sid_length = pd_flag ? 4 : 2;
@@ -2685,6 +2895,17 @@ void AdvancedFIGAnalyzer::reset()
     m_ensembleValid = false;
     m_timeValid = false;
     m_date_time_valid = false;
+    m_fib_crc_failures = 0;
+    m_rawFicFallbackUsed = false;
+    m_rawFicFallbackWarned = false;
+    m_lastFicSize = 0;
+    // FIC-XTractor collector state
+    m_figInstances.clear();
+    m_figTypeCounts.clear();
+    m_figFrameNumber = 0;
+    m_figFibIndex = -1;
+    m_figFibCrcOk = true;
+    m_figRecording = true;
 }
 
 // ============================================================================
@@ -2754,16 +2975,6 @@ QStringList AdvancedFIGAnalyzer::getProgrammeInfo() const
 // ============================================================================
 // Helper methods with CRITICAL-006 bounds checking
 // ============================================================================
-
-bool AdvancedFIGAnalyzer::validateFIGHeader(const QByteArray& data, uint8_t& type, uint8_t& length)
-{
-    if (data.size() < 2) return false;
-
-    type = (static_cast<uint8_t>(data[0]) >> 5) & 0x07;
-    length = static_cast<uint8_t>(data[1]);
-
-    return (length > 0 && length <= 30); // Valid FIG length range
-}
 
 uint16_t AdvancedFIGAnalyzer::extractUInt16(const QByteArray& data, int offset)
 {
@@ -2903,10 +3114,12 @@ uint16_t SubChannelInfo::getBitrate() const
 
 QString SubChannelInfo::getProtectionLevel() const
 {
+    // short_form = UEP (table_switch + table_index), long form = EEP
+    // (option A/B + protection level), per etisnoop fig0_1.cpp semantics.
     if (short_form) {
-        return QString("EEP-%1").arg(table_switch ? "B" : "A");
+        return QString("UEP-%1/%2").arg(table_switch).arg(table_index);
     } else {
-        return QString("UEP-%1").arg(protection_level);
+        return QString("EEP-%1-%2").arg(option == 0 ? "A" : "B").arg(protection_level + 1);
     }
 }
 
