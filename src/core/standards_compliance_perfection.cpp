@@ -393,18 +393,23 @@ bool EtsiStandardsValidator::validate_fic_compliance_perfect(
 ) const {
     try {
         auto fic_field = frame.get_fic_field();
-        
-        // Validate FIC size (32 bytes for DAB Mode I)
-        if (fic_field.fic_data.size() != 32) {
+        const size_t fic_size = fic_field.size();
+
+        // Validate FIC size (96 or 128 bytes for DAB Mode I/III; legacy 32 B raw)
+        if (fic_size != ETI_FIC_MIN_SIZE && fic_size != ETI_FIC_MAX_SIZE && fic_size != FIC_SIZE_BYTES) {
             return false;
         }
-        
-        // Validate FIG structure within FIC
-        for (size_t i = 0; i < fic_field.fic_data.size(); i += 2) {
-            if (i + 1 < fic_field.fic_data.size()) {
-                uint8_t fig_type = (fic_field.fic_data[i] >> 5) & 0x07;
-                if (fig_type > 7) {
-                    return false;
+
+        // Validate FIG structure within FIC (per FIB FIG area)
+        for (size_t fib = 0; fib < fic_field.fibi_count(); ++fib) {
+            const size_t base = fib * ETI_FIC_FIB_SIZE;
+            if (base + ETI_FIC_FIG_AREA_SIZE > fic_size) break;
+            for (size_t i = 0; i < ETI_FIC_FIG_AREA_SIZE; i += 2) {
+                if (i + 1 < ETI_FIC_FIG_AREA_SIZE) {
+                    uint8_t fig_type = (fic_field.fic_data[base + i] >> 5) & 0x07;
+                    if (fig_type > 7) {
+                        return false;
+                    }
                 }
             }
         }

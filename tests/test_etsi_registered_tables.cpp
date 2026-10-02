@@ -26,18 +26,19 @@ private slots:
     // ========================================================================
 
     void test_ecc_thailand_lookup() {
-        // CRITICAL: Thailand (ECC=0xE0, Country ID=0x0E)
-        const auto* thailand = lookupCountry(0xE0, 0x0E);
+        // CRITICAL: Thailand (ECC=0xF3, Country ID=0x02)
+        // Verified against the Bangkok DAB+ ensemble (FIG 0/9 "Ensemble ECC: 0xF3")
+        const auto* thailand = lookupCountry(0xF3, 0x02);
 
         QVERIFY(thailand != nullptr);
-        QCOMPARE(thailand->ecc, static_cast<uint8_t>(0xE0));
-        QCOMPARE(thailand->country_id, static_cast<uint8_t>(0x0E));
+        QCOMPARE(thailand->ecc, static_cast<uint8_t>(0xF3));
+        QCOMPARE(thailand->country_id, static_cast<uint8_t>(0x02));
         QCOMPARE(QString(thailand->country_name), QString("Thailand"));
         QCOMPARE(QString(thailand->iso_3166_1_alpha2), QString("TH"));
 
         // Test unique ID generation (12-bit)
         uint16_t unique_id = thailand->getUniqueID();
-        QCOMPARE(unique_id, static_cast<uint16_t>(0xE0E));  // 0xE0 << 4 | 0x0E
+        QCOMPARE(unique_id, static_cast<uint16_t>(0xF32));  // 0xF3 << 4 | 0x02
     }
 
     void test_ecc_germany_lookup() {
@@ -98,22 +99,22 @@ private slots:
 
     void test_ecc_helper_functions() {
         // Test getCountryName()
-        QCOMPARE(QString(getCountryName(0xE0, 0x0E)), QString("Thailand"));
+        QCOMPARE(QString(getCountryName(0xF3, 0x02)), QString("Thailand"));
         QCOMPARE(QString(getCountryName(0xE1, 0x01)), QString("Germany"));
 
         // Test getISOCode()
-        QCOMPARE(QString(getISOCode(0xE0, 0x0E)), QString("TH"));
+        QCOMPARE(QString(getISOCode(0xF3, 0x02)), QString("TH"));
         QCOMPARE(QString(getISOCode(0xE2, 0x0F)), QString("FR"));
 
         // Test validation
-        QVERIFY(isValidCountryCode(0xE0, 0x0E));  // Thailand
+        QVERIFY(isValidCountryCode(0xF3, 0x02));  // Thailand
         QVERIFY(isValidCountryCode(0xE1, 0x01));  // Germany
         QVERIFY(!isValidCountryCode(0x00, 0x00)); // Reserved
     }
 
     void test_ecc_description_formatting() {
         // Test getCountryDescription() formatting
-        std::string thailand_desc = getCountryDescription(0xE0, 0x0E);
+        std::string thailand_desc = getCountryDescription(0xF3, 0x02);
         QVERIFY(thailand_desc.find("Thailand") != std::string::npos);
         QVERIFY(thailand_desc.find("TH") != std::string::npos);
 
@@ -337,7 +338,7 @@ private slots:
 
         auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < iterations; ++i) {
-            lookupCountry(0xE0, 0x0E);  // Thailand
+            lookupCountry(0xF3, 0x02);  // Thailand
         }
         auto end = std::chrono::high_resolution_clock::now();
 
@@ -390,7 +391,7 @@ private slots:
         // Simulate Thai DAB ensemble metadata lookup
 
         // Country: Thailand
-        const auto* country = lookupCountry(0xE0, 0x0E);
+        const auto* country = lookupCountry(0xF3, 0x02);
         QVERIFY(country != nullptr);
         QCOMPARE(QString(country->country_name), QString("Thailand"));
 
@@ -403,7 +404,7 @@ private slots:
         QCOMPARE(QString(pty->international_name), QString("News"));
 
         // Generate complete description
-        std::string country_desc = getCountryDescription(0xE0, 0x0E);
+        std::string country_desc = getCountryDescription(0xF3, 0x02);
         std::string lang_desc = getLanguageDescription(0x2B);
         std::string pty_desc = getProgrammeTypeDescription(1);
 

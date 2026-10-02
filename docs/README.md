@@ -16,7 +16,7 @@
 | `pdca/` | PDCA completion reports (Weeks 1–8, all finished) | 13 |
 | `fig/` | Per-FIG guides, quickstarts, delivery reports (patches consumed → archive) | 17 |
 | `agents/` | Individual agent deliverable / fix reports (Agents 1–48) | 18 |
-| `fixes/` | Bug reports + fix summaries (segfault, parser, labels, services) | 9 |
+| `fixes/` | Bug reports + fix summaries (segfault, parser, labels, services, ETI/FIG decode review) | 11 |
 | `eti-ni/` | ETI-NI parser completion + validation (Nov 2025) | 4 |
 | `releases/` | Live status: validation, test status, CLI build, verbose mode | 6 |
 | `gui/` | Qt-ADS docking architecture + usage (v1.3 GUI migration) | 1 |
@@ -59,7 +59,11 @@ Agents 1, 15, 16, 20, 21 (×3), 36 (×2), 37–43, 48. Key: `AGENT48_COMPLETION_
 ## `fixes/` — Bug reports & fixes
 
 `BUG_REPORT_CLI_PARSER.md`, `CLI_PARSER_FIX_SUMMARY.md`, `CRITICAL_FIX_SERVICES_UNNAMED.md`,
+`ETI_FIC_DECODE_STANDARDS_REVIEW.md` (2026-10-02: EN 300 799/EN 300 401/TS 101 756 review of the
+ETI/FIG decode fix + F1–F9 findings + etisnoop parity tables),
 `FIG010_MJD_FIX_REPORT.md`, `FINAL_FIX_SUMMARY.md`, `FINAL_SEGFAULT_FIX.md`,
+`OPTION_VARIANT_MATRIX.md` (2026-10-02: 14 decode decision points — standard options vs etisnoop
+default vs ours; roadmap for the analyzer-settings feature),
 `SEGFAULT_FIX_COMPLETE.md`, `SEGFAULT_FIX_SUMMARY.md`, `SERVICE_LABELS_FIX_SUMMARY.md`.
 
 ## `eti-ni/` — ETI-NI parser (Nov 2025)

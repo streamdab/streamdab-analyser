@@ -205,7 +205,9 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                                 // Protection info (simplified)
                                 stc.protection_form = subchannel.uep_flag ? "UEP" : "EEP";
                                 stc.protection_level = QString("%1").arg(subchannel.protection_level);
-                                // Calculate approximate bitrate (size * 8kbps per CU)
+                                // Bitrate: STL in CUs × 8 kbps per CU (size 24 -> 192 kbps).
+                                // Consistent with the YAML subchannel output; NOT etisnoop's
+                                // stl*8/3 print, which uses a different unit (F9 resolution).
                                 stc.bitrate_kbps = subchannel.size * 8;
                                 frameAnalysis.stc_fields.append(stc);
                             }
@@ -241,38 +243,75 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                                 discovered_ensembles[eid] = figResult.ensemble_info;
                                 qCInfo(etiMain) << "Discovered ensemble:" << QString("0x%1").arg(eid, 4, 16, QChar('0'))
                                                << "Label:" << QString::fromStdString(figResult.ensemble_info.label);
-                            } else if (!figResult.ensemble_info.label.empty()) {
+                            } else {
+                                auto& stored = discovered_ensembles[eid];
                                 // Update label if not set yet
-                                if (discovered_ensembles[eid].label.empty()) {
-                                    discovered_ensembles[eid].label = figResult.ensemble_info.label;
+                                if (stored.label.empty() && !figResult.ensemble_info.label.empty()) {
+                                    stored.label = figResult.ensemble_info.label;
+                                }
+                                // Propagate the Extended Country Code once known (FIG 0/9)
+                                if (stored.extended_country_code == 0 && figResult.ensemble_info.extended_country_code != 0) {
+                                    stored.extended_country_code = figResult.ensemble_info.extended_country_code;
+                                }
+                                // Alarm flag is transient: once set, keep it set
+                                if (figResult.ensemble_info.alarm_flag) {
+                                    stored.alarm_flag = true;
                                 }
                             }
                         }
 
                         // Step 4: Collect service information
+                        // F3: programme services encode CId only (16-bit PD);
+                        // their ECC must be inherited from the ensemble ECC
+                        // (FIG 0/9) when the service carries no ECC itself.
+                        uint8_t service_fallback_ecc = figResult.ensemble_info.extended_country_code;
+                        if (service_fallback_ecc == 0) {
+                            for (const auto& ens : discovered_ensembles) {
+                                if (ens.extended_country_code != 0) {
+                                    service_fallback_ecc = ens.extended_country_code;
+                                    break;
+                                }
+                            }
+                        }
+
                         for (const auto& service : figResult.discovered_services) {
                             if (service.validate_service_id()) {
                                 uint32_t sid = service.service_id;
                                 if (!discovered_services.contains(sid)) {
-                                    discovered_services[sid] = service;
+                                    eti::DabService stored_service = service;
+                                    if (stored_service.extended_country_code == 0 && service_fallback_ecc != 0) {
+                                        stored_service.extended_country_code = service_fallback_ecc;
+                                    }
+                                    discovered_services[sid] = stored_service;
                                     qCInfo(etiMain) << "Discovered service:" << QString("0x%1").arg(sid, 4, 16, QChar('0'))
                                                    << "Label:" << QString::fromStdString(service.label);
-                                } else if (!service.label.empty()) {
-                                    // Update label if not set yet
-                                    if (discovered_services[sid].label.empty()) {
-                                        discovered_services[sid].label = service.label;
+                                } else {
+                                    // Merge label, country info and components
+                                    auto& stored = discovered_services[sid];
+                                    if (stored.label.empty() && !service.label.empty()) {
+                                        stored.label = service.label;
                                     }
-                                    // Merge components
+                                    if (stored.extended_country_code == 0 && service.extended_country_code != 0) {
+                                        stored.extended_country_code = service.extended_country_code;
+                                    }
+                                    // F3: fall back to the ensemble ECC while merging
+                                    if (stored.extended_country_code == 0 && service_fallback_ecc != 0) {
+                                        stored.extended_country_code = service_fallback_ecc;
+                                    }
+                                    // F8: keep the full 32-bit SId of data services
+                                    if (stored.sid32 == 0 && service.sid32 != 0) {
+                                        stored.sid32 = service.sid32;
+                                    }
                                     for (const auto& comp : service.components) {
                                         bool found = false;
-                                        for (const auto& existing_comp : discovered_services[sid].components) {
+                                        for (const auto& existing_comp : stored.components) {
                                             if (existing_comp.sub_channel_id == comp.sub_channel_id) {
                                                 found = true;
                                                 break;
                                             }
                                         }
                                         if (!found) {
-                                            discovered_services[sid].components.push_back(comp);
+                                            stored.components.push_back(comp);
                                         }
                                     }
                                 }
@@ -416,7 +455,9 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
         fig01_sc.subchannel_id = subchannel.sub_channel_id;
         fig01_sc.start_address = subchannel.start_address;
 
-        // Determine form based on UEP flag
+        // Determine form based on UEP flag.
+        // Convention: short form (3-byte entry) == UEP, long form (4-byte
+        // entry) == EEP (EN 300 401 8.1.2.1).
         fig01_sc.short_form = subchannel.uep_flag;
 
         if (fig01_sc.short_form) {
@@ -427,7 +468,7 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
             // Long form (EEP)
             fig01_sc.subchannel_size = subchannel.size;
             fig01_sc.protection_level = subchannel.protection_level;
-            fig01_sc.option = 0;  // Default option
+            fig01_sc.option = subchannel.protection_option;  // 0 = EEP-x-A, 1 = EEP-x-B
         }
         fig01_sc.is_valid = true;
         result.subchannels.push_back(fig01_sc);

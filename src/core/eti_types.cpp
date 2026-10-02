@@ -11,6 +11,7 @@
  */
 
 #include "eti_types.hpp"
+#include "crc16.hpp"
 #include <algorithm>
 #include <cstring>
 #include <numeric>
@@ -81,73 +82,125 @@ const char* formatToString(ETIFormat format) {
 // EtiFicField Implementation
 //==============================================================================
 
+namespace {
+
+/**
+ * @brief Expected (complemented) FIB CRC over a 30-byte FIG area.
+ *
+ * CRC-16/CCITT-FALSE shared implementation lives in crc16.hpp (F6 dedup);
+ * the transmitted FIB CRC is the one's complement, big-endian.
+ */
+uint16_t fib_crc_expected(const uint8_t* fig_area)
+{
+    return static_cast<uint16_t>(~crc16ccitt_false(fig_area, ETI_FIC_FIG_AREA_SIZE));
+}
+
+/**
+ * @brief Parse FIG blocks from one 30-byte FIG area.
+ *
+ * FIG header: type (3 bits, b7-b5; 7 = padding), length (5 bits, b4-b0).
+ * FIGs never span FIB boundaries (ETSI EN 300 401 clause 5.2).
+ */
+std::vector<FigBlock> parse_fig_area(const uint8_t* area, size_t area_size)
+{
+    std::vector<FigBlock> fig_blocks;
+    size_t offset = 0;
+
+    while (offset + 1 <= area_size) {
+        const uint8_t header = area[offset];
+        const uint8_t fig_type = (header >> 5) & 0x07;
+
+        if (fig_type == 7) {
+            // Padding end marker
+            break;
+        }
+
+        const uint8_t length = header & 0x1F;
+
+        if (length == 0 || offset + 1 + length > area_size) {
+            // Invalid or truncated FIG — stop processing this area
+            break;
+        }
+
+        FigBlock fig_block;
+        fig_block.fig_type = fig_type;
+        fig_block.length = length;
+        fig_block.data.assign(area + offset + 1, area + offset + 1 + length);
+
+        // FIG 0 header extension bits: C/N (b7), O/E (b6) of the ext byte
+        if (fig_type == 0 && !fig_block.data.empty()) {
+            fig_block.continuation_flag = (fig_block.data[0] & 0x80) != 0;
+            fig_block.other_ensemble_flag = (fig_block.data[0] & 0x40) != 0;
+        }
+
+        if (fig_block.is_valid()) {
+            fig_blocks.push_back(std::move(fig_block));
+        }
+
+        offset += 1 + length;
+    }
+
+    return fig_blocks;
+}
+
+} // anonymous namespace
+
 std::vector<FigBlock> EtiFicField::decode_fig_blocks() const {
     std::vector<FigBlock> fig_blocks;
 
-    size_t offset = 0;
-    while (offset < FIC_SIZE_BYTES) {
-        // Check if we have enough data for FIG header
-        if (offset + 1 >= FIC_SIZE_BYTES) {
+    const bool fib_structured = is_fib_structured();
+    const size_t fib_count_effective = fib_structured ? fibi_count() : 1;
+
+    for (size_t fib = 0; fib < fib_count_effective; ++fib) {
+        const size_t fib_base = fib * ETI_FIC_FIB_SIZE;
+        if (fib_base + ETI_FIC_FIB_SIZE > fic_size) {
             break;
         }
+        const uint8_t* fib_data = fic_data.data() + fib_base;
 
-        FigBlock fig;
-        uint8_t header = fic_data[offset];
-
-        // Decode FIG header
-        fig.fig_type = (header >> 3) & 0x1F;
-        fig.length = header & 0x07;
-
-        offset++; // Move past header
-
-        // Check if FIG type 0
-        if (fig.fig_type == 0 && offset < FIC_SIZE_BYTES) {
-            uint8_t type0_header = fic_data[offset];
-            fig.continuation_flag = (type0_header & 0x80) != 0;
-            fig.other_ensemble_flag = (type0_header & 0x40) != 0;
-            // Length is in the lower 5 bits for FIG 0
-            fig.length = type0_header & 0x1F;
+        if (fib_structured) {
+            // Validate the FIB CRC (30 FIG bytes vs 2 stored CRC bytes);
+            // skip corrupted FIBs (ETSI EN 300 401 clause 5.2)
+            const uint16_t stored_crc = static_cast<uint16_t>((fib_data[30] << 8) | fib_data[31]);
+            if (fib_crc_expected(fib_data) != stored_crc) {
+                continue;
+            }
         }
 
-        // Extract FIG data
-        if (offset + fig.length <= FIC_SIZE_BYTES && fig.length > 0) {
-            fig.data.assign(fic_data.data() + offset, fic_data.data() + offset + fig.length);
-            offset += fig.length;
-        } else {
-            // Invalid FIG block, stop processing
-            break;
-        }
-
-        // Add to collection if valid
-        if (fig.is_valid()) {
-            fig_blocks.push_back(fig);
-        }
-
-        // Safety check to prevent infinite loop
-        if (fig.length == 0) {
-            break;
-        }
+        auto fib_figs = parse_fig_area(fib_data, ETI_FIC_FIG_AREA_SIZE);
+        fig_blocks.insert(fig_blocks.end(),
+                          std::make_move_iterator(fib_figs.begin()),
+                          std::make_move_iterator(fib_figs.end()));
     }
 
     return fig_blocks;
 }
 
 bool EtiFicField::validate_fic_crc() const {
-    // Simplified FIC CRC validation
-    // In a full implementation, this would calculate and verify the CRC-16
-    // For now, we'll do basic structure validation
+    const bool fib_structured = is_fib_structured();
 
-    // Check if FIC data is not all zeros (indicating no data)
-    bool has_data = std::any_of(fic_data.begin(), fic_data.end(),
-                               [](uint8_t byte) { return byte != 0; });
-
-    if (!has_data) {
-        return false; // No FIC data present
+    if (!fib_structured) {
+        // Legacy raw 32-byte FIG area: no FIB CRC to validate — check for data
+        return std::any_of(fic_data.begin(), fic_data.begin() + fic_size,
+                           [](uint8_t byte) { return byte != 0; });
     }
 
-    // Basic structure check - last 2 bytes should be CRC
-    // This is a simplified check
-    return true;
+    // FIB-structured FIC: every FIB must pass its CRC
+    const size_t fib_count_effective = fibi_count();
+    size_t valid_fibs = 0;
+    for (size_t fib = 0; fib < fib_count_effective; ++fib) {
+        const size_t fib_base = fib * ETI_FIC_FIB_SIZE;
+        if (fib_base + ETI_FIC_FIB_SIZE > fic_size) {
+            break;
+        }
+        const uint8_t* fib_data = fic_data.data() + fib_base;
+        const uint16_t stored_crc = static_cast<uint16_t>((fib_data[30] << 8) | fib_data[31]);
+        if (fib_crc_expected(fib_data) == stored_crc) {
+            ++valid_fibs;
+        }
+    }
+
+    return valid_fibs == fib_count_effective && valid_fibs > 0;
 }
 
 bool EtiFicField::contains_fig_type(uint8_t fig_type) const {

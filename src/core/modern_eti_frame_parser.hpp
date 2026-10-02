@@ -327,8 +327,15 @@ private:
     void processFIG01_SubchannelOrg(const eti::FigBlock& fig, FIGAnalysisResult& result);
     void processFIG02_ServiceOrg(const eti::FigBlock& fig, FIGAnalysisResult& result);
     void processFIG03_ServiceComponent(const eti::FigBlock& fig, FIGAnalysisResult& result);
+    void processFIG09_CountryLTO(const eti::FigBlock& fig, FIGAnalysisResult& result);
     void processFIG10_EnsembleLabel(const eti::FigBlock& fig, FIGAnalysisResult& result);
     void processFIG11_ServiceLabel(const eti::FigBlock& fig, FIGAnalysisResult& result);
+
+    // FIG 1 label charset decoding (EN 300 401 8.1.13): EBU Latin / UTF-8 /
+    // TIS-620; unknown charsets warn once per value and pass through raw.
+    [[nodiscard]] std::string decodeLabelCharacters(uint8_t charset,
+                                                    const uint8_t* bytes,
+                                                    size_t count);
 
     // Optimization implementations
     [[nodiscard]] bool validateFrameHeaderSIMD(std::span<const uint8_t, ETI_FRAME_SIZE> data) const noexcept;
@@ -374,6 +381,10 @@ private:
     std::optional<::eti::Ensemble> current_ensemble_;
     std::vector<::eti::DabService> discovered_services_;
     std::vector<::eti::SubChannelInfo> current_subchannels_;
+
+    // Charset values for which the "raw passthrough" warning was already logged
+    // (FIG 1 labels, F4). Indexed by the 4-bit charset flag.
+    std::array<bool, 16> label_charset_warned_{};
 
     // Compliance tracking
     struct {
