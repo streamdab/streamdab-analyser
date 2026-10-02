@@ -57,7 +57,13 @@ Legend: ✅ real data wired & verified · ⚠️ real data wired, needs live ver
 
 Status notes: panels fed by the now-fixed AdvancedFIGAnalyzer (ensemble tree real path, subchannels, CU, FIC overview) should already show correct values; the above ❌ items are the concrete gaps found by this audit.
 
+**UPDATE 2026-10-02 (fixed, commit `bd47999`):** all ❌ items implemented and verified on the real fixture:
+- simulator removed (frame selection no longer rewrites the ensemble tree);
+- Tab 2 shows real ensemble/label/FIG-count/subchannels + real tables + FIG-content counts;
+- Tab 3 real chronological FIG tracer (23k instances: frame/CIF/FIB/len/items/CRC/reconfig flags) + per-FIG element details tree (0/0, 0/1, 0/2, 0/9, 0/10 MJD→UTC, 1/0, 1/1 label+flag), no placeholder text;
+- error counter gained FIB-CRC row; short labels match the CLI `--show-short-labels` oracle; analyzer reset on file reload.
+
 ## Commit plan
-1. docs-only: this audit (this file) + `CLI_FIG_COVERAGE.md` (parallel evaluation).
-2. GUI fix wave: simulator removal, tab2/tab3 real wiring, error counter, extended offscreen GUI assertions — one commit w/ doc updates.
-3. CLI detail wave (see CLI_FIG_COVERAGE.md) — separate commit.
+1. ✅ docs-only: this audit (this file) + `CLI_FIG_COVERAGE.md` (parallel evaluation) — `71980bb`.
+2. ✅ GUI fix wave: simulator removal, tab2/tab3 real wiring, error counter, extended offscreen GUI assertions — `bd47999`.
+3. ✅ CLI detail wave (see CLI_FIG_COVERAGE.md) — `94126b4`.

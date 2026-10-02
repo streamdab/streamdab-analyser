@@ -90,3 +90,10 @@ separate wave (see `PANEL_AUDIT.md`).
 The Bangkok fixture only carries FIG 0/0, 0/1, 0/2, 0/9, 1/0, 1/1 — so any P2/P3 decoder must be validated synthetically
 or postponed. P1 items are fully verifiable on the real capture and provide the FIC-Analyzer/FIC-Extractor value the
 manual describes. Recommendation: implement P1 now (CLI), P2 when the GUI tab2/tab3 wave lands (shared trace), P3 on demand.
+
+**UPDATE 2026-10-02 (P1 implemented, commit `94126b4`):** `--fig-trace` (per-frame FIG instances with readable
+values: ensemble/labels/ECC/subch/components; reconfig flags), `figs:` inventory section (type/ext/count/frames/
+crc_failures), `fic_health:` block (fib_crc_failures/total_fibs/erroneous_figs/reconfiguration_count),
+`--max-frames` now enforced. Default output byte-identical + new sections only. GUI Tab-3 tracer + details sharing
+the same decoded data landed in `bd47999` (see `docs/gui/PANEL_AUDIT.md`). P2/P3 remain open (0/21 frequency,
+0/22 coordinates, 1/2+1/3 labels, FIG type 2, `--fib-hex`, `--figs-by-type`).
