@@ -1,0 +1,6 @@
+# Docker build context hygiene (docker/Dockerfile uses COPY . /workspace/)
+build/
+build-*/
+.git/
+*.backup*
+.DS_Store
