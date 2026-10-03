@@ -220,6 +220,9 @@ cd build && ctest --output-on-failure
 # Run application
 ./StreamDABAnalyzer
 
+> **Full instructions** (native Linux / Docker / Windows / macOS / packaging roadmap):
+> see **[INSTALL.md](INSTALL.md)**. The GUI binary is `build/StreamDABAnalyzer`;
+
 # ✅ Expected result: Professional Qt6 GUI with real ETI processing
 ```
 

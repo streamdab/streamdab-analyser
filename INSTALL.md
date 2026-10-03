@@ -1,0 +1,144 @@
+# INSTALL — StreamDAB-Analyzer
+
+Build & install instructions for **DAB-XPlorer** (Qt 6 / C++20 / CMake GUI + CLI).
+Reference runtime: **Qt 6.11 / g++ 13 / Ubuntu** — see the version matrix at the end.
+
+Test suite: **49/49 (100 %)** with `QT_QPA_PLATFORM=offscreen`. Real ETI fixtures live in
+`eti/` and are **gitignored** — several tests (GUI dock layout, CLI E2E) require them;
+without fixtures those tests are skipped/fail, so obtain captures (e.g.
+`bkk_20062022_141637.eti`) before running the full suite.
+
+---
+
+## 1. Native Linux build (canonical)
+
+```bash
+# Debian/Ubuntu prerequisites
+sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
+    libgtest-dev build-essential ninja-build
+
+# Configure — MUST export offscreen BEFORE configure so GUI tests register
+export QT_QPA_PLATFORM=offscreen
+cmake -B build -S .          # or: -G Ninja
+cmake --build build -j$(nproc)
+
+# Test (all 49 targets)
+cd build && ctest --output-on-failure
+
+# Run
+./build/StreamDABAnalyzer                          # GUI (needs display)
+./build/streamdab-cli --input eti/x.eti --output out.yaml   # CLI (headless ok)
+./build/StreamDABAnalyzer --cli --input eti/x.eti  # CLI mode via the GUI binary
+```
+
+Binary names: **`StreamDABAnalyzer`** (GUI) and **`streamdab-cli`** (headless).
+Build requirements: **zero errors / zero warnings**.
+
+## 2. Docker build (canonical container — `docker/Dockerfile`)
+
+The **new** `docker/Dockerfile` matches the current tree (the historical
+`Dockerfile.build` predates the Qt-ADS migration and is known-broken: missing
+`libzmq3-dev`, no CMake `install()` rules, legacy binary name, no Qt-for-Windows
+toolchain — see §4). Two stages:
+
+```bash
+# Build only (binaries + optional ctest in the image)
+docker build -t streamdab:build --target build -f docker/Dockerfile .
+
+# Minimal runtime image
+docker build -t streamdab:latest -f docker/Dockerfile .
+
+# CLI on a capture (fixtures are gitignored → mount them):
+docker run --rm -v $PWD/eti:/data streamdab:latest \
+    streamdab-cli --input /data/bkk_20062022_141637.eti --output /data/out.yaml
+
+# Full test suite inside the container (needs fixtures mounted at /src/eti):
+docker run --rm -v $PWD:/src -w /src -e QT_QPA_PLATFORM=offscreen streamdab:build \
+    sh -c "cmake -B /tmp/bld -S /src && cmake --build /tmp/bld -j\$(nproc) \
+           && (cd /tmp/bld && ctest --output-on-failure)"
+```
+
+Notes:
+- Base **ubuntu:24.04 → Qt 6.4.2** (newer than the historical 22.04/6.2); the
+  reference build is Qt 6.11 — see matrix.
+- The build stage skips `ctest` by default (`ARG RUN_CTEST=OFF`) because the
+  build context has no `eti/` fixtures; set `--build-arg RUN_CTEST=ON` when the
+  context includes them (CI).
+- GUI in Docker needs a display; `QT_QPA_PLATFORM=offscreen` is set in the image
+  for headless smoke.
+
+## 3. Windows
+
+Two routes — both target the configs already in `cmake/WindowsConfig.cmake`
+(winmm/ws2_32, fdk-aac & faad2 detection).
+
+**Route A (recommended): MSVC + Qt with aqtinstall + vcpkg**
+```powershell
+# 1. Qt 6.8 desktop for MSVC (at least 6.4+; 6.11 recommended)
+pip install aqtinstall
+aqt install-qt windows desktop 6.11.0 win64_msvc2022_64 -O C:\Qt
+#    add archive: aqt install-qt ... --archives qtbase qtdeclarative? (only
+#    what the app needs: qtbase covers Widgets/Network/Core/Test)
+
+# 2. Native deps (faad, fftw, zmq, gtest) via vcpkg:
+git clone https://github.com/microsoft/vcpkg; .\vcpkg\bootstrap-vcpkg.bat
+vcpkg install faad2 fftw3 zeromq gtest:x64-windows
+
+# 3. Configure with the toolchain + Qt prefix:
+cmake -B build -S . -DCMAKE_PREFIX_PATH=C:\Qt\6.11.0\msvc2022_64
+    -DCMAKE_TOOLCHAIN_FILE=...\vcpkg\scripts\buildsystems\vcpkg.cmake
+    -DVCPKG_TARGET_TRIPLET=x64-windows
+cmake --build build --config Release
+# tests need QT_QPA_PLATFORM=offscreen (set beforehand)
+# run: .\build\Release\StreamDABAnalyzer.exe ; git-bash style: scripts/build.sh
+```
+
+**Route B: MinGW cross (experimental)** — the old `Dockerfile.build`'s
+`windows-builder` stage is **unsupported**: it sets `CC=x86_64-w64-mingw32-gcc`
+but never installs Qt-for-Windows, so `find_package(Qt6)` fails. To make it work
+you must add an aqt Qt 6.11 `win64_mingw` install + matching mingw prefix into
+that stage first.
+
+## 4. macOS
+
+```bash
+brew install qt@6 faad2 fftw libzmq googletest cmake ninja
+export QT_QPA_PLATFORM=offscreen     # for headless tests
+cmake -B build -S . -DCMAKE_PREFIX_PATH="$(brew --prefix qt@6)"
+cmake --build build -j$(nproc) && (cd build && ctest --output-on-failure)
+# config hooks already exist: cmake/MacOSConfig.cmake
+```
+
+## 5. Alternatives / other build routes
+
+| Route | How | Status |
+|---|---|---|
+| **Reproducible container** | §2 above | ✅ canonical |
+| **Script wrapper** | `scripts/build.sh` (Linux/macOS/Git-Bash) | ✅ exists, thin wrapper |
+| **GitHub Actions CI** | `.github/workflows/tdd-ci.yml` (qt 6.5 aqt matrix ubuntu/windows/macos) | ⚠️ **stale** — predates the Qt-ADS migration / C++20 changes; update to current CMake + Qt 6.8/6.11 + `QT_QPA_PLATFORM=offscreen` before relying on it |
+| **AppImage (Linux)** | linuxdeploy + plugin-qt (see old `Dockerfile.build` `appimage` stage) | ⚠️ needs the install/CPack rules (see §6) |
+| **DEB/RPM/TGZ packages** | CPack — `cmake/packaging.cmake` defines metadata | ⚠️ needs `install()` rules added to `CMakeLists.txt` first |
+| **CMake presets** | not yet provided (`CMakePresets.json`) | todo |
+
+## 6. Known gaps for production packaging (roadmap)
+
+1. No `install()` rules in `CMakeLists.txt` → CPack/AppImage/`--target install`
+   currently do nothing. Add `install(TARGETS StreamDABAnalyzer streamdab-cli ...)`
+   + `install(DIRECTORY ...)` for docs, then CPack becomes usable.
+2. GitHub Actions workflows must be rebased on the current build (Qt 6.8+,
+   `QT_QPA_PLATFORM=offscreen`, fixture provision step for E2E).
+3. `CMakePresets.json` for one-command configure/build/test.
+4. Windows Route A needs a vcpkg manifest (`vcpkg.json`) to be fully
+   reproducible — add when the MSVC path is exercised in CI.
+
+## 7. Qt/compiler version matrix
+
+| Platform | Qt | Compiler | Status |
+|---|---|---|---|
+| Ubuntu (host reference) | **6.11** | g++ 13 | ✅ full suite 49/49 |
+| Docker (ubuntu:24.04) | 6.4.2 | gcc 13 | ✅ container build validated |
+| Windows (MSVC / vcpkg) | 6.8+ (6.11 rec.) | MSVC 2022 | 🚧 plan in §3A |
+| Windows (MinGW cross/Wine) | 6.11 win64_mingw | x86_64-w64-mingw32-g++ | 🚧 needs Qt toolchain added |
+| macOS | 6.x (brew) | AppleClang | 🚧 plan in §4 |
+
+Minimum supported: Qt 6.4 (for `QTimeZone`, C++20). Reference: Qt 6.11.
