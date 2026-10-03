@@ -629,7 +629,7 @@ QDateTime JournalineDecoder::convertMJDtoQDateTime(uint16_t mjd, uint32_t utc_ti
         return QDateTime();
     }
 
-    QDateTime dt(date, time, QTimeZone::UTC);
+    QDateTime dt(date, time, QTimeZone::utc());
     return dt;
 }
 

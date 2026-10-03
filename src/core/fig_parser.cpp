@@ -20,6 +20,7 @@
 #include "charset_converter.hpp"
 #include "crc16.hpp"
 #include "../utils/logger.h"
+#include <QTimeZone>
 #include <algorithm>
 #include <bitset>
 #include <cstring>
@@ -1641,7 +1642,7 @@ QDateTime DateAndTime::mjdToDateTime(uint32_t mjd, uint8_t hour, uint8_t minute,
     }
 
     // Combine into QDateTime with UTC timezone
-    return QDateTime(date, time, QTimeZone::UTC);
+    return QDateTime(date, time, QTimeZone::utc());
 }
 
 uint32_t DateAndTime::dateTimeToMjd(const QDateTime& datetime) {

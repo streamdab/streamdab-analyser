@@ -430,7 +430,7 @@ QDateTime EPGDecoder::convertMJDtoQDateTime(uint16_t mjd, uint32_t utc_time) con
         return QDateTime();
     }
 
-    QDateTime dt(date, time, QTimeZone::UTC);
+    QDateTime dt(date, time, QTimeZone::utc());
     return dt;
 }
 

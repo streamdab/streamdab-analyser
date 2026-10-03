@@ -3486,7 +3486,7 @@ QDateTime FIGParsingUtils::mjdToDateTime(uint32_t mjd, uint8_t hours, uint8_t mi
     QDate date(year, month, day);
     QTime time(hours, minutes, seconds);
     
-    return QDateTime(date, time, QTimeZone::UTC);
+    return QDateTime(date, time, QTimeZone::utc());
 }
 
 
