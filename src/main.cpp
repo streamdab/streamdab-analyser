@@ -28,6 +28,9 @@
 #include <QSpinBox>
 #include <QPushButton>
 #include <QToolButton>          // T23: ⚙ UDP-streaming-settings button in the network row
+// T29: playback controls (seek slider + transport buttons).
+#include <QSlider>
+#include <QSignalBlocker>
 #include <QFrame>
 #include <QDateTime>
 #include <QRadioButton>
@@ -722,6 +725,59 @@ struct DabPlusSubchannelParser {
     }
 };
 
+// T27: fixed 4:3 letterbox frame for the MOT slideshow image. The child image
+// label is laid out in the largest centred 4:3 rectangle that fits the frame,
+// so the picture area stays 4:3 regardless of the splitter size; the image
+// itself is letterboxed inside it (QLabel::setPixmap with KeepAspectRatio).
+class FourThreeLetterboxFrame : public QWidget
+{
+public:
+    explicit FourThreeLetterboxFrame(QWidget* parent = nullptr)
+        : QWidget(parent)
+    {
+        setObjectName(QStringLiteral("slideshowFrame"));
+        setMinimumSize(160, 120);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        setStyleSheet(QStringLiteral("background-color: #101010; border: 1px solid #333;"));
+
+        m_image = new QLabel(this);
+        m_image->setObjectName(QStringLiteral("slideshowImage"));
+        m_image->setAlignment(Qt::AlignCenter);
+        m_image->setStyleSheet(QStringLiteral("background-color: #000000; color: #888;"));
+        m_image->setScaledContents(false);
+    }
+
+    QLabel* imageLabel() const { return m_image; }
+
+    // L2: invoked after the 4:3 geometry is updated so the owner can rescale a
+    // retained slide when the splitter / floating dock is resized.
+    std::function<void()> onResized;
+
+    QSize sizeHint() const override { return QSize(320, 240); }
+    QSize minimumSizeHint() const override { return QSize(160, 120); }
+
+protected:
+    void resizeEvent(QResizeEvent* event) override
+    {
+        QWidget::resizeEvent(event);
+        const int w = width();
+        const int h = height();
+        int fw = w;
+        int fh = fw * 3 / 4;             // 4:3
+        if (fh > h) {
+            fh = h;
+            fw = fh * 4 / 3;
+        }
+        m_image->setGeometry((w - fw) / 2, (h - fh) / 2, fw, fh);
+        if (onResized) {
+            onResized();
+        }
+    }
+
+private:
+    QLabel* m_image = nullptr;
+};
+
 class DABAnalyzerWindow : public QMainWindow
 {
     Q_OBJECT
@@ -781,6 +837,9 @@ public:
         setupWorkerThread();  // Phase A: Worker thread signal connections
         setupStatusBar();
 
+        // T29: playback controller over the retained frame cache.
+        initPlayback();
+
         // Load the analyzer decode settings from QSettings (org
         // "StreamDAB-Analyzer", app "DABAnalyzer", group "analyzer/").
         // A fresh QSettings yields the defaults, keeping decode behavior
@@ -815,6 +874,13 @@ public:
     QTableWidget* tab2ServiceTable() const { return m_tab2_serviceTable; }
     QTreeWidget* tab3FigInstanceTree() const { return m_tab3_figInstanceTree; }
     QTreeWidget* tab3FigItemDetailsTree() const { return m_tab3_figItemDetailsTree; }
+    // T28: Tab-3 left dock inner tabs + Frame List.
+    QTabWidget* tab3LeftTabsForTest() const { return m_tab3LeftTabs; }
+    QListWidget* tab3FrameListForTest() const { return m_tab3_frameList; }
+    void selectTab3FrameForTest(int row)
+    {
+        if (m_tab3_frameList) m_tab3_frameList->setCurrentRow(row);
+    }
     QTreeWidget* ficOverviewTree() const { return m_ficOverviewTree; }
     QTableWidget* errorCounterTable() const { return m_errorCounterTable; }
 
@@ -1029,7 +1095,8 @@ public:
         return m_motAdapter.statistics();
     }
     QLabel* slideshowImageLabelForTest() const { return m_slideshowImage; }
-    QTabWidget* nowPlayingTabsForTest() const { return m_nowPlayingTabs; }
+    // T27: the Now Playing dock's left/right splitter (DLS+ text | slideshow).
+    QSplitter* nowPlayingSplitterForTest() const { return m_nowPlayingSplitter; }
 
     // --- T22 network-stream connect hooks -----------------------------------
     // Drive the full connect entry point without a modal dialog (offscreen
@@ -1134,6 +1201,8 @@ private slots:
         m_pendingServiceId = 0;
         m_pendingServiceLabel.clear();
         resetNowPlayingPanel();
+        // T29: stop the playhead + disable the transport while parsing.
+        stopPlaybackForLoad();
         // MOT SlideShow: clear the decoder + adapter and the slideshow tab.
         m_motProtocol.clearAll();
         m_motAdapter.reset();
@@ -1174,6 +1243,10 @@ private slots:
 
         // === Reset UI ===
         m_frameList->clear();
+        // T28: reset the Frame List with the new capture.
+        if (m_tab3_frameList) {
+            m_tab3_frameList->clear();
+        }
         m_ensembleTree->clear();
         m_hexViewer->clear();
         m_systemMessages->clear();
@@ -1312,7 +1385,11 @@ private slots:
                 .arg(frame.frame_number)
                 .arg(frameType)
                 .arg(crcStr);
-            m_frameList->addItem(itemText);
+            // T29: store the real frame number so the playback playhead can
+            // highlight the nearest navigator entry cheaply.
+            auto* item = new QListWidgetItem(itemText);
+            item->setData(Qt::UserRole, static_cast<int>(frame.frame_number));
+            m_frameList->addItem(item);
             m_frameList->scrollToBottom();
         }
         
@@ -1652,8 +1729,12 @@ private slots:
                 m_playerFrameLabel->setText(progressText);
             }
             if (m_playerProgressBar) {
+                // M1: guard the load-progress update so it is never mistaken
+                // for a user seek by the valueChanged handler.
+                m_seekSliderProgrammatic = true;
                 m_playerProgressBar->setRange(0, totalFrames);
                 m_playerProgressBar->setValue(currentFrame);
+                m_seekSliderProgrammatic = false;
             }
             
             // Update Decoder panel timing (mirrors player)
@@ -1742,6 +1823,10 @@ private slots:
         
         // === PHASE 8: Update Tab 3 LEFT panel ===
         buildFIGInstanceTree();
+        // T28: populate the Frame List (1..N) once the capture is fully loaded.
+        buildFrameList();
+        // T29: playback starts at frame 0, paused, controls enabled.
+        resetPlaybackForNewFile();
         
         // === PHASE 9: Update Tab 3 RIGHT panel ===
         buildFIGItemDetailsTree();
@@ -1883,6 +1968,20 @@ private slots:
         }
     }
     
+    // L1: bounded append for the System Messages pane. A manual block-count
+    // check is used instead of QTextDocument::setMaximumBlockCount(): the latter
+    // forces a document re-layout on every append and measurably slowed the
+    // fixture load (~5x for the 1114 DLS labels). This keeps appends cheap
+    // while still hard-capping the pane.
+    void appendSystemMessageBounded(const QString& message)
+    {
+        if (!m_systemMessages) return;
+        if (m_systemMessages->document()->blockCount() >= SYSTEM_MESSAGES_MAX_BLOCKS) {
+            return;  // silently drop once the cap is reached
+        }
+        m_systemMessages->append(message);
+    }
+
     // Phase 3B: DLS+ "Now Playing" update slot
     void updateNowPlaying(const QString& track, const QString& artist, const QString& album)
     {
@@ -1934,9 +2033,7 @@ private slots:
                              .arg(serviceInfo)
                              .arg(artist.isEmpty() ? "Unknown Artist" : artist)
                              .arg(track.isEmpty() ? "Unknown Track" : track);
-            if (m_systemMessages) {
-                m_systemMessages->append(message);
-            }
+            appendSystemMessageBounded(message);
         }
     }
 
@@ -2156,6 +2253,376 @@ private slots:
         }
     }
 
+    // ========================================================================
+    // T29: PLAYBACK CONTROLLER (UI playhead over the retained frame cache)
+    // ========================================================================
+private:
+    // The capture is fully parsed up front, so playback is a UI playhead: a
+    // QTimer advances m_playbackFrame and drives the existing frame-selection
+    // path (handleFrameSelection -> hex/compliance/overview + Tab-3 details).
+    // Expensive panels are throttled; the clock/slider/frame counter/list
+    // highlight update every tick.
+    void initPlayback()
+    {
+        m_playbackTimer = new QTimer(this);
+        m_playbackTimer->setTimerType(Qt::PreciseTimer);
+        connect(m_playbackTimer, &QTimer::timeout, this, &DABAnalyzerWindow::onPlaybackTick);
+        updatePlaybackTimerInterval();
+
+        if (m_playButton)
+            connect(m_playButton, &QPushButton::clicked, this, &DABAnalyzerWindow::playbackPlay);
+        if (m_pauseButton)
+            connect(m_pauseButton, &QPushButton::clicked, this, &DABAnalyzerWindow::playbackPause);
+        if (m_stopButton)
+            connect(m_stopButton, &QPushButton::clicked, this, &DABAnalyzerWindow::playbackStop);
+        if (m_resetButton)
+            connect(m_resetButton, &QPushButton::clicked, this, &DABAnalyzerWindow::playbackReset);
+        if (m_skipBackButton)
+            connect(m_skipBackButton, &QPushButton::clicked, this,
+                    [this]() { playbackSkip(-PLAYBACK_SKIP_FRAMES); });
+        if (m_skipForwardButton)
+            connect(m_skipForwardButton, &QPushButton::clicked, this,
+                    [this]() { playbackSkip(PLAYBACK_SKIP_FRAMES); });
+        if (m_playbackSpeedCombo)
+            connect(m_playbackSpeedCombo, &QComboBox::currentIndexChanged,
+                    this, &DABAnalyzerWindow::onPlaybackSpeedChanged);
+        if (m_playerProgressBar) {
+            // M1: valueChanged covers drag, wheel, keyboard and trough-click;
+            // the programmatic-update guard suppresses the echo from
+            // updatePlaybackClockUi()/load progress. Live drags use the
+            // throttled playhead path; sliderReleased does the forced rebuild.
+            connect(m_playerProgressBar, &QSlider::valueChanged,
+                    this, &DABAnalyzerWindow::onPlaybackSliderValueChanged);
+            connect(m_playerProgressBar, &QSlider::sliderReleased,
+                    this, &DABAnalyzerWindow::onPlaybackSliderReleased);
+        }
+
+        resetPlaybackControls();
+    }
+
+    void resetPlaybackControls()
+    {
+        m_playbackPlaying = false;
+        m_playbackFrame = 0;
+        if (m_playbackTimer) {
+            m_playbackTimer->stop();
+        }
+        setPlaybackControlsEnabled(false);
+        updatePlaybackStatus(QStringLiteral("Stopped"));
+    }
+
+    void setPlaybackControlsEnabled(bool enabled)
+    {
+        for (QPushButton* b : {m_playButton, m_pauseButton, m_stopButton, m_resetButton,
+                               m_skipBackButton, m_skipForwardButton}) {
+            if (b) b->setEnabled(enabled);
+        }
+        if (m_playbackSpeedCombo) m_playbackSpeedCombo->setEnabled(enabled);
+        if (m_playerLoopCheckbox) m_playerLoopCheckbox->setEnabled(enabled);
+        if (m_playerProgressBar) m_playerProgressBar->setEnabled(enabled);
+    }
+
+    void updatePlaybackStatus(const QString& status)
+    {
+        if (!m_playerStatusLabel) return;
+        m_playerStatusLabel->setText(status);
+        if (status == QLatin1String("Playing")) {
+            m_playerStatusLabel->setStyleSheet(QStringLiteral("color: green; font-weight: bold;"));
+        } else if (status == QLatin1String("Paused")) {
+            m_playerStatusLabel->setStyleSheet(QStringLiteral("color: #0078D4; font-weight: bold;"));
+        } else {
+            m_playerStatusLabel->setStyleSheet(QStringLiteral("color: #666;"));
+        }
+    }
+
+    bool isLoopEnabled() const
+    {
+        return m_playerLoopCheckbox && m_playerLoopCheckbox->isChecked();
+    }
+
+    void updatePlaybackTimerInterval()
+    {
+        if (!m_playbackTimer) return;
+        const double speed = m_playbackSpeed > 0.0 ? m_playbackSpeed : 1.0;
+        const int interval = qMax(1, static_cast<int>(PLAYBACK_BASE_INTERVAL_MS / speed));
+        m_playbackTimer->setInterval(interval);
+    }
+
+    void onPlaybackSpeedChanged(int index)
+    {
+        static const double kSpeeds[5] = {0.25, 0.5, 1.0, 2.0, 4.0};
+        if (index >= 0 && index < 5) {
+            m_playbackSpeed = kSpeeds[index];
+        }
+        updatePlaybackTimerInterval();
+    }
+
+    // Stop the playhead and disable the controls while a new file parses.
+    void stopPlaybackForLoad()
+    {
+        m_playbackPlaying = false;
+        m_playbackFrame = 0;
+        if (m_playbackTimer) {
+            m_playbackTimer->stop();
+        }
+        m_detailThrottleTimer.invalidate();
+        m_lastHighlightedNavigatorRow = -1;  // L3: frame list is about to change
+        setPlaybackControlsEnabled(false);
+    }
+
+    // After a successful load: position at frame 0, paused, controls enabled.
+    void resetPlaybackForNewFile()
+    {
+        m_playbackPlaying = false;
+        m_playbackFrame = 0;
+        if (m_playbackTimer) {
+            m_playbackTimer->stop();
+        }
+        m_detailThrottleTimer.invalidate();
+        m_lastHighlightedNavigatorRow = -1;  // L3: frame list was repopulated
+        setPlaybackControlsEnabled(true);
+        // Post-load state: a file is loaded but playback has not started.
+        updatePlaybackStatus(QStringLiteral("Paused"));
+        updatePlaybackClockUi();
+        highlightFrameInNavigator(m_playbackFrame);
+    }
+
+    void playbackPlay()
+    {
+        if (!m_fileLoaded) return;
+        const int total = availableFrameCount();
+        if (total <= 0) return;
+        // Starting from the end without loop restarts from the beginning.
+        if (m_playbackFrame >= total - 1 && !isLoopEnabled()) {
+            m_playbackFrame = 0;
+        }
+        m_playbackPlaying = true;
+        m_detailThrottleTimer.invalidate();
+        updatePlaybackTimerInterval();
+        if (m_playbackTimer) m_playbackTimer->start();
+        updatePlaybackStatus(QStringLiteral("Playing"));
+        updatePlaybackClockUi();
+    }
+
+    void playbackPause()
+    {
+        if (!m_playbackPlaying) return;
+        m_playbackPlaying = false;
+        if (m_playbackTimer) m_playbackTimer->stop();
+        // M2: force a final detail refresh so hex/compliance/overview/FIG panes
+        // are not left up to DETAIL_THROTTLE_MS stale after pausing.
+        applyPlayheadFrame(m_playbackFrame, true);
+        updatePlaybackStatus(QStringLiteral("Paused"));
+    }
+
+    void playbackStop()
+    {
+        m_playbackPlaying = false;
+        if (m_playbackTimer) m_playbackTimer->stop();
+        m_playbackFrame = 0;
+        applyPlayheadFrame(m_playbackFrame, true);
+        updatePlaybackStatus(QStringLiteral("Stopped"));
+    }
+
+    void playbackReset()
+    {
+        // Return to frame 0 but keep the current play/pause state.
+        m_playbackFrame = 0;
+        applyPlayheadFrame(m_playbackFrame, true);
+    }
+
+    void playbackSkip(int deltaFrames)
+    {
+        playbackSeek(m_playbackFrame + deltaFrames);
+    }
+
+    void playbackSeek(int frameIndex)
+    {
+        const int total = availableFrameCount();
+        if (total <= 0) return;
+        m_playbackFrame = qBound(0, frameIndex, total - 1);
+        applyPlayheadFrame(m_playbackFrame, true);
+    }
+
+    // M1: slider value changed by drag / wheel / keyboard / trough-click.
+    // A live drag (slider held down) uses the THROTTLED path: a drag across
+    // 5001 frames must not run the full hex/ETSI/FIG rebuild per pixel
+    // (main-thread freeze); the forced rebuild happens once on sliderReleased().
+    // Wheel / keyboard / trough changes are discrete and force an exact
+    // refresh immediately.
+    void onPlaybackSliderValueChanged(int value)
+    {
+        if (m_seekSliderProgrammatic) return;  // echo from our own setValue()
+        const int total = availableFrameCount();
+        if (total <= 0) return;
+        m_playbackFrame = qBound(0, value, total - 1);
+        const bool dragging = m_playerProgressBar && m_playerProgressBar->isSliderDown();
+        applyPlayheadFrame(m_playbackFrame, !dragging);
+    }
+
+    // M1: end of a drag -> one forced rebuild so the detail panes are exact.
+    void onPlaybackSliderReleased()
+    {
+        if (m_seekSliderProgrammatic) return;
+        applyPlayheadFrame(m_playbackFrame, true);
+    }
+
+    // Cheap per-tick UI + throttled expensive panels.
+    void applyPlayheadFrame(int frameIndex, bool forceDetails)
+    {
+        const int total = availableFrameCount();
+        if (total <= 0) return;
+
+        // Cheap updates (every call/tick).
+        updatePlaybackClockUi();
+        highlightFrameInNavigator(frameIndex);
+
+        // Expensive detail panels (hex / compliance / overview / Tab-3 FIG
+        // details) throttled to <= ~6.7 Hz; a forced call (seek/stop/reset/
+        // slider-release) bypasses the throttle.
+        const bool detailsDue = forceDetails || !m_detailThrottleTimer.isValid()
+                                || m_detailThrottleTimer.elapsed() >= DETAIL_THROTTLE_MS;
+        if (detailsDue) {
+            m_detailThrottleTimer.restart();
+            handleFrameSelection(frameIndex);
+            // L4: rebuildFrameFIGDetails() and the FIG-instance selection share
+            // m_tab3_figItemDetailsTree (they overwrite each other). Only the
+            // playback-driven rebuild is skipped while the Frame List tab is
+            // not active, so a playing capture cannot clobber the FIG-instance
+            // detail pane ~6.7 Hz.
+            if (isFrameListTabActive()) {
+                rebuildFrameFIGDetails(frameIndex);
+            }
+        }
+    }
+
+    // L4: is the Tab-3 Frame List tab the visible tab of the left dock?
+    bool isFrameListTabActive() const
+    {
+        if (!m_tab3LeftTabs || !m_tab3_frameList) return false;
+        QWidget* page = m_tab3_frameList->parentWidget();
+        return page && m_tab3LeftTabs->currentWidget() == page;
+    }
+
+    void onPlaybackTick()
+    {
+        if (!m_playbackPlaying) return;
+        const int total = availableFrameCount();
+        if (total <= 0) {
+            playbackStop();
+            return;
+        }
+        int next = m_playbackFrame + 1;
+        if (next >= total) {
+            if (isLoopEnabled()) {
+                next = 0;                       // wrap and continue
+            } else {
+                m_playbackFrame = total - 1;    // stop, leave at the end
+                applyPlayheadFrame(m_playbackFrame, true);
+                m_playbackPlaying = false;
+                if (m_playbackTimer) m_playbackTimer->stop();
+                updatePlaybackStatus(QStringLiteral("Stopped"));
+                return;
+            }
+        }
+        m_playbackFrame = next;
+        applyPlayheadFrame(m_playbackFrame, false);
+    }
+
+    void updatePlaybackClockUi()
+    {
+        const int total = availableFrameCount();
+        if (m_playerTimeLabel) {
+            m_playerTimeLabel->setText(frameToTimeString(m_playbackFrame, total));
+        }
+        if (m_playerFrameLabel) {
+            m_playerFrameLabel->setText(QString("%1 / %2")
+                                            .arg(total > 0 ? m_playbackFrame + 1 : 0)
+                                            .arg(total));
+        }
+        if (m_playerProgressBar) {
+            // Guard the whole programmatic update: setRange may also clamp the
+            // value and emit valueChanged.
+            m_seekSliderProgrammatic = true;
+            m_playerProgressBar->setRange(0, total > 0 ? total - 1 : 0);
+            m_playerProgressBar->setValue(m_playbackFrame);
+            m_seekSliderProgrammatic = false;
+        }
+    }
+
+    // Highlight the playhead frame in the ETI Frame Navigator without
+    // triggering the (expensive) currentRowChanged handler. The frame list is
+    // throttled (~every 10 frames), so select the nearest entry >= the frame.
+    void highlightFrameInNavigator(int frameIndex)
+    {
+        if (!m_frameList || m_frameList->count() == 0) return;
+        const int frameNumber = frameIndex + 1;
+        int row = -1;
+        for (int i = 0; i < m_frameList->count(); ++i) {
+            QListWidgetItem* it = m_frameList->item(i);
+            if (!it) continue;
+            const QVariant data = it->data(Qt::UserRole);
+            if (data.isValid() && data.toInt() >= frameNumber) {
+                row = i;
+                break;
+            }
+        }
+        if (row < 0) return;
+        // L3: the frame list is throttled (~every 10 frames), so many playhead
+        // ticks map to the same row. Only touch/scroll the widget when the row
+        // actually changed; the frame-details label still updates every tick.
+        if (row != m_lastHighlightedNavigatorRow) {
+            m_lastHighlightedNavigatorRow = row;
+            const QSignalBlocker blocker(m_frameList);
+            m_frameList->setCurrentRow(row);
+            m_frameList->scrollToItem(m_frameList->item(row));
+        }
+        if (m_frameDetails) {
+            m_frameDetails->setText(QString("Selected Frame: %1\nETI Frame Size: 6144 bytes\nFrame Offset: %2")
+                                        .arg(frameNumber)
+                                        .arg(frameIndex * 6144));
+        }
+    }
+
+    // --- T29 test hooks (headless playback logic) --------------------------
+    // L5: the MUTATING hooks compile only in GUI_TEST_MODE; harmless
+    // accessors stay available to the normal build.
+public:
+#ifdef GUI_TEST_MODE
+    void playbackPlayForTest() { playbackPlay(); }
+    void playbackPauseForTest() { playbackPause(); }
+    void playbackStopForTest() { playbackStop(); }
+    void playbackResetForTest() { playbackReset(); }
+    void playbackSeekForTest(int frame) { playbackSeek(frame); }
+    void playbackTickForTest() { onPlaybackTick(); }
+    void playbackSkipForTest(int delta) { playbackSkip(delta); }
+    void setLoopForTest(bool on)
+    {
+        if (m_playerLoopCheckbox) m_playerLoopCheckbox->setChecked(on);
+    }
+    // 0=0.25x, 1=0.5x, 2=1x, 3=2x, 4=4x
+    void setPlaybackSpeedIndexForTest(int index)
+    {
+        if (m_playbackSpeedCombo) m_playbackSpeedCombo->setCurrentIndex(index);
+    }
+    void setTotalFramesForTest(int n) { m_totalFrames = static_cast<size_t>(qMax(0, n)); }
+    void setFileLoadedFlagForTest(bool loaded) { m_fileLoaded = loaded; }
+#endif
+    bool isPlayingForTest() const { return m_playbackPlaying; }
+    int playbackFrameForTest() const { return m_playbackFrame; }
+    bool isLoopForTest() const { return isLoopEnabled(); }
+    QComboBox* playbackSpeedComboForTest() const { return m_playbackSpeedCombo; }
+    int playbackIntervalForTest() const
+    {
+        return m_playbackTimer ? m_playbackTimer->interval() : -1;
+    }
+    bool isPlaybackTimerActiveForTest() const
+    {
+        return m_playbackTimer && m_playbackTimer->isActive();
+    }
+    QSlider* playerTimeBarForTest() const { return m_playerProgressBar; }
+
+private:
     // One-shot popup + status-bar hint shown when a frame is clicked while the
     // capture is still being parsed. The message box is deliberately
     // non-modal so it never blocks the synchronous parse loop.
@@ -2183,11 +2650,15 @@ private slots:
     // Number of frames the ETI processor actually holds (0 when none loaded).
     int availableFrameCount() const
     {
-        if (!m_etiProcessor) {
-            return 0;
+        if (m_etiProcessor) {
+            const int total = m_etiProcessor->getTotalFrames();
+            if (total > 0) {
+                return total;
+            }
         }
-        const int total = m_etiProcessor->getTotalFrames();
-        return total > 0 ? total : 0;
+        // T29: fall back to the recorded frame count so the playback playhead
+        // (and headless playback tests) can work without a live processor.
+        return m_totalFrames > 0 ? static_cast<int>(m_totalFrames) : 0;
     }
     
     void performETSIComplianceValidation(int frameIndex)
@@ -2236,8 +2707,13 @@ private slots:
                     break;
             }
             
-            m_systemMessages->append(QString("%1 ETSI Compliance Frame %2: %3")
-                                   .arg(statusIcon).arg(frameIndex + 1).arg(complianceStatus));
+            // Update system messages
+            // L1: skip per-tick appends during playback (the QTextEdit would
+            // otherwise grow unboundedly); bounded append otherwise.
+            if (!m_playbackPlaying) {
+                appendSystemMessageBounded(QString("%1 ETSI Compliance Frame %2: %3")
+                                       .arg(statusIcon).arg(frameIndex + 1).arg(complianceStatus));
+            }
         }
     }
     
@@ -3472,8 +3948,10 @@ private slots:
         m_hexViewer->setHtml(hexDisplay);
         
         // Update system messages
-        if (m_systemMessages) {
-            m_systemMessages->append(QString("🔍 Hex Viewer: Displaying Frame %1 (%2 bytes)")
+        // L1: skip the per-tick append during playback (unbounded QTextEdit);
+        // bounded append otherwise.
+        if (!m_playbackPlaying) {
+            appendSystemMessageBounded(QString("🔍 Hex Viewer: Displaying Frame %1 (%2 bytes)")
                                    .arg(frameIndex + 1).arg(frameData.size()));
         }
     }
@@ -3628,6 +4106,12 @@ protected:
     {
         // v1.3: persist docking/window state BEFORE any component teardown
         saveDockingState();
+
+        // T29: stop the playback playhead before teardown.
+        m_playbackPlaying = false;
+        if (m_playbackTimer) {
+            m_playbackTimer->stop();
+        }
 
         // AGGRESSIVE cleanup: Destroy Phase 2B components completely before closing
         qDebug() << "Window closing - performing aggressive component cleanup...";
@@ -5111,14 +5595,9 @@ private:
             group.node->setChildIndicatorPolicy(QTreeWidgetItem::DontShowIndicatorWhenChildless);
         }
         m_tab3_figInstanceTree->setUpdatesEnabled(true);
-        m_tab3_figInstanceTree->expandAll();
-
-        // Pre-select the first instance (first child of the first group) so the
-        // details panel shows real element data immediately after load
-        // (selection is queued, so the details build follows in the event loop).
-        if (!groups.isEmpty() && groups.first().node->childCount() > 0) {
-            m_tab3_figInstanceTree->setCurrentItem(groups.first().node->child(0));
-        }
+        // T28: default COLLAPSED — no expandAll(), and no forced selection of a
+        // hidden child. The details pane shows the first group summary until the
+        // user picks an instance.
 
         qDebug() << "[PHASE 8] FIG instance tree built with"
                  << instances.size() << "real instances in" << groups.size() << "groups";
@@ -5140,9 +5619,11 @@ private:
                     groupNode = current;  // group node marker
                 }
             } else if (m_tab3_figInstanceTree->topLevelItemCount() > 0) {
+                // T28: no forced child selection. Show the first group's
+                // summary until the user picks an instance.
                 QTreeWidgetItem* first = m_tab3_figInstanceTree->topLevelItem(0);
                 if (first->childCount() > 0) {
-                    index = first->child(0)->data(0, Qt::UserRole).toInt();
+                    groupNode = first;
                 } else {
                     index = first->data(0, Qt::UserRole).toInt();
                 }
@@ -5186,14 +5667,35 @@ private:
             return;
         }
         const AdvancedFIGAnalyzer::FigInstance& inst = instances.at(index);
-        
-        // Root: the real FIG block with its wire header (type/length/ext).
+
         auto* rootItem = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
+        fillFIGInstanceDetails(rootItem, inst);
+
+        m_tab3_figItemDetailsTree->expandAll();
+        qDebug() << "[PHASE 9] FIG item details tree built (instance" << index << ")";
+    }
+
+    // T28: shared per-FIG detail builder. Fills `rootItem` with the FIG header
+    // rows (type/ext/len/FIB/CRC markers) and nests the existing per-FIG element
+    // builders (buildFig0_*/buildFig1_*) under it. Reused by the FIG-instance
+    // details pane and by the Frame List's per-frame FIG tree — no new decoding.
+    void fillFIGInstanceDetails(QTreeWidgetItem* rootItem,
+                                const AdvancedFIGAnalyzer::FigInstance& inst)
+    {
+        if (!rootItem) return;
+        // Root: the real FIG block with its wire header (type/length/ext) plus
+        // the FIB / CRC markers carried by the frame.
         rootItem->setText(0, QString("FIG %1/%2").arg(inst.type).arg(inst.ext));
         rootItem->setText(1, QString("%1 bytes").arg(inst.length));
         rootItem->setText(2, QString("len 0x%1").arg(inst.length, 2, 16, QChar('0')).toUpper());
-        rootItem->setText(3, figDataTypeName(inst.type));
-        
+        rootItem->setText(3, QString("%1 · FIB %2 · %3")
+                              .arg(figDataTypeName(inst.type))
+                              .arg(inst.fibIdx)
+                              .arg(inst.crcOk ? "CRC OK" : "CRC FAIL"));
+        if (!inst.crcOk) {
+            rootItem->setForeground(3, QColor(200, 50, 50));
+        }
+
         addDetailRow(rootItem, "FIG Type", "3 bits", QString::number(inst.type),
                      figDataTypeName(inst.type));
         addDetailRow(rootItem, "Length", "5 bits", QString::number(inst.length),
@@ -5230,9 +5732,74 @@ private:
                 default: break;  // header + raw hex already shown
             }
         }
-        
-        m_tab3_figItemDetailsTree->expandAll();
-        qDebug() << "[PHASE 9] FIG item details tree built (instance" << index << ")";
+    }
+
+    // T28: fill the Frame List (1..N of the loaded capture). Called once after
+    // a successful load; empty before a file is loaded.
+    void buildFrameList()
+    {
+        if (!m_tab3_frameList) return;
+        const int total = availableFrameCount();
+        m_tab3_frameList->clear();
+        if (!m_fileLoaded || total <= 0) {
+            return;
+        }
+        m_tab3_frameList->setUpdatesEnabled(false);
+        for (int i = 0; i < total; ++i) {
+            m_tab3_frameList->addItem(QString("Frame %1").arg(i + 1));
+        }
+        m_tab3_frameList->setUpdatesEnabled(true);
+    }
+
+    // T28: selecting a frame in the Frame List decodes that frame's FIGs and
+    // shows them in the right dock (FIG Item Details). Each root is a FIG
+    // present in the frame (type/ext/len/FIB/CRC markers) with the existing
+    // per-FIG element builders nested underneath. Reuses the analyzer's
+    // per-frame instance collector — no new decoding logic.
+    //
+    // L4 limitation: this REUSES the single m_tab3_figItemDetailsTree that the
+    // FIG-instance selection (buildFIGItemDetailsTree()) also owns, so the two
+    // views overwrite each other. The playback-driven rebuild is therefore
+    // skipped while the Frame List tab is not active (applyPlayheadFrame()), and
+    // user-driven Frame List selection always wins.
+    void rebuildFrameFIGDetails(int frameIndex)
+    {
+        if (!m_tab3_figItemDetailsTree) return;
+        m_tab3_figItemDetailsTree->clear();
+
+        if (!m_fileLoaded || !m_figAnalyzer || frameIndex < 0) {
+            auto* noData = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
+            noData->setText(0, "No FIG selected");
+            noData->setText(3, "Load a capture and select a frame");
+            return;
+        }
+
+        const int frameNumber = frameIndex + 1;  // FigInstance::frame is 1-based
+        int roots = 0;
+        const QVector<AdvancedFIGAnalyzer::FigInstance>& instances =
+            m_figAnalyzer->figInstances();
+        for (const AdvancedFIGAnalyzer::FigInstance& inst : instances) {
+            if (inst.frame != frameNumber) {
+                continue;
+            }
+            auto* root = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
+            fillFIGInstanceDetails(root, inst);
+            ++roots;
+        }
+        if (roots == 0) {
+            auto* none = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
+            none->setText(0, QString("Frame %1: no FIGs").arg(frameNumber));
+            none->setText(3, "This frame carries no FIG");
+        } else {
+            m_tab3_figItemDetailsTree->expandAll();
+        }
+    }
+
+    // Frame List current-row slot.
+    void onTab3FrameSelected(int row)
+    {
+        if (row < 0) return;
+        rebuildFrameFIGDetails(row);
     }
 
     void updateTimingTable() {
@@ -6025,7 +6592,7 @@ private:
             sections.append({QStringLiteral("tab1_CUUsage"), QStringLiteral("CU Usage"), cuUsagePanel});
         }
 
-        // 6. Now Playing / Slideshow (Item #9) - inner tabs (option A)
+        // 6. Now Playing / Slideshow (Item #9) - left/right splitter (T27)
         QGroupBox* nowPlayingPanel = createNowPlayingPanel();
         if (nowPlayingPanel) {
             sections.append({QStringLiteral("tab1_NowPlaying"), QStringLiteral("Now Playing / Slideshow"), nowPlayingPanel});
@@ -6355,6 +6922,12 @@ private:
         layout->setContentsMargins(2, 2, 2, 2);
         layout->setSpacing(4);
 
+        // T28: inner tabs in the SAME left dock: FIG Instance List (existing
+        // tree, as-is) and Frame List (new). Selecting a frame in the Frame List
+        // decodes that frame and fills the right dock's detail tree.
+        m_tab3LeftTabs = new QTabWidget();
+        m_tab3LeftTabs->setObjectName(QStringLiteral("tab3LeftTabs"));
+
         // FIG Instance Tree (7 columns) - 100%
         QGroupBox* figInstanceGroup = new QGroupBox("FIG Instance List");
         QVBoxLayout* figInstanceLayout = new QVBoxLayout(figInstanceGroup);
@@ -6377,8 +6950,22 @@ private:
             m_tab3_figInstanceTree->setColumnWidth(6, 50);   // Items
         }
         figInstanceLayout->addWidget(m_tab3_figInstanceTree);
-        
-        layout->addWidget(figInstanceGroup);
+
+        m_tab3LeftTabs->addTab(figInstanceGroup, tr("FIG Instance List"));
+
+        // --- Frame List tab: frames 1..N of the loaded capture ---------------
+        QWidget* frameListTab = new QWidget();
+        QVBoxLayout* frameListTabLayout = new QVBoxLayout(frameListTab);
+        frameListTabLayout->setContentsMargins(2, 2, 2, 2);
+        if (!m_tab3_frameList) {
+            m_tab3_frameList = new QListWidget();
+            m_tab3_frameList->setObjectName(QStringLiteral("tab3FrameList"));
+            m_tab3_frameList->setAlternatingRowColors(true);
+        }
+        frameListTabLayout->addWidget(m_tab3_frameList);
+        m_tab3LeftTabs->addTab(frameListTab, tr("Frame List"));
+
+        layout->addWidget(m_tab3LeftTabs);
 
         return panel;
     }
@@ -6719,13 +7306,16 @@ private:
         QVBoxLayout* outerLayout = new QVBoxLayout(groupBox);
         outerLayout->setContentsMargins(4, 4, 4, 4);
 
-        // Option A: inner tabs so media (DLS+ text + slide image) stay together
-        // in the one dock. The DLS+ Text tab keeps the existing widgets; the
-        // Slideshow tab adds the image + status/info lines.
-        m_nowPlayingTabs = new QTabWidget();
-        m_nowPlayingTabs->setObjectName(QStringLiteral("nowPlayingTabs"));
-        QWidget* dlsTab = new QWidget();
-        QVBoxLayout* layout = new QVBoxLayout(dlsTab);
+        // T27: media stays together in one dock, split LEFT (DLS+ text block)
+        // / RIGHT (MOT slideshow) by a draggable horizontal QSplitter instead
+        // of inner tabs. The DLS+ side keeps the existing widgets unchanged.
+        m_nowPlayingSplitter = new QSplitter(Qt::Horizontal);
+        m_nowPlayingSplitter->setObjectName(QStringLiteral("nowPlayingSplitter"));
+        m_nowPlayingSplitter->setChildrenCollapsible(false);
+
+        QWidget* dlsPanel = new QWidget();
+        dlsPanel->setObjectName(QStringLiteral("dlsPanel"));
+        QVBoxLayout* layout = new QVBoxLayout(dlsPanel);
         
         // Professional styling (respects system theme)
         QString nowPlayingStyle = R"(
@@ -6794,22 +7384,23 @@ private:
         m_lastUpdatedLabel->setAlignment(Qt::AlignRight);
         layout->addWidget(m_lastUpdatedLabel);
 
-        m_nowPlayingTabs->addTab(dlsTab, tr("DLS+ Text"));
+        m_nowPlayingSplitter->addWidget(dlsPanel);
 
-        // --- Slideshow tab: image + status + info -------------------------
-        QWidget* slideTab = new QWidget();
-        QVBoxLayout* slideLayout = new QVBoxLayout(slideTab);
+        // --- Slideshow panel: 4:3 image frame + status + info --------------
+        QWidget* slidePanel = new QWidget();
+        slidePanel->setObjectName(QStringLiteral("slideshowPanel"));
+        QVBoxLayout* slideLayout = new QVBoxLayout(slidePanel);
         slideLayout->setContentsMargins(2, 2, 2, 2);
         slideLayout->setSpacing(4);
 
-        m_slideshowImage = new QLabel(tr("Waiting for slideshow…"));
-        m_slideshowImage->setObjectName(QStringLiteral("slideshowImage"));
-        m_slideshowImage->setAlignment(Qt::AlignCenter);
-        m_slideshowImage->setMinimumSize(160, 120);
-        m_slideshowImage->setStyleSheet(
-            QStringLiteral("background-color: #101010; color: #888; border: 1px solid #333;"));
-        m_slideshowImage->setScaledContents(false);
-        slideLayout->addWidget(m_slideshowImage, 1);
+        // Fixed 4:3 letterbox frame; the image label is its child.
+        m_slideshowFrame = new FourThreeLetterboxFrame();
+        m_slideshowImage = m_slideshowFrame->imageLabel();
+        m_slideshowImage->setText(tr("Waiting for slideshow…"));
+        // L2: rescale the retained slide when the splitter / floating dock
+        // changes the frame size (not only on main-window resize).
+        m_slideshowFrame->onResized = [this]() { refreshSlideshowPixmap(); };
+        slideLayout->addWidget(m_slideshowFrame, 1);
 
         m_slideshowStatus = new QLabel(tr("Waiting for slideshow…"));
         m_slideshowStatus->setObjectName(QStringLiteral("slideshowStatus"));
@@ -6824,8 +7415,12 @@ private:
         m_slideshowInfo->setWordWrap(true);
         slideLayout->addWidget(m_slideshowInfo);
 
-        m_nowPlayingTabs->addTab(slideTab, tr("Slideshow"));
-        outerLayout->addWidget(m_nowPlayingTabs);
+        m_nowPlayingSplitter->addWidget(slidePanel);
+        // Initial 45 / 55 split; the user may drag it (unequal allowed).
+        m_nowPlayingSplitter->setStretchFactor(0, 45);
+        m_nowPlayingSplitter->setStretchFactor(1, 55);
+        m_nowPlayingSplitter->setSizes({450, 550});
+        outerLayout->addWidget(m_nowPlayingSplitter);
 
         return groupBox;
     }
@@ -6927,18 +7522,68 @@ private:
         layout->addWidget(frameLabel, 3, 0);
         layout->addWidget(m_playerFrameLabel, 3, 1);
         
-        // Row 4: Loop checkbox
+        // Row 4: Transport controls (Play / Pause / Stop / Reset), Skip -/+
+        QHBoxLayout* transportRow = new QHBoxLayout();
+        m_playButton = new QPushButton(QStringLiteral("▶"));
+        m_playButton->setObjectName(QStringLiteral("playButton"));
+        m_playButton->setToolTip(tr("Play"));
+        m_pauseButton = new QPushButton(QStringLiteral("⏸"));
+        m_pauseButton->setObjectName(QStringLiteral("pauseButton"));
+        m_pauseButton->setToolTip(tr("Pause"));
+        m_stopButton = new QPushButton(QStringLiteral("■"));
+        m_stopButton->setObjectName(QStringLiteral("stopButton"));
+        m_stopButton->setToolTip(tr("Stop (stop + return to frame 0)"));
+        m_resetButton = new QPushButton(QStringLiteral("⏮"));
+        m_resetButton->setObjectName(QStringLiteral("resetButton"));
+        m_resetButton->setToolTip(tr("Reset to frame 0 (keeps play/pause state)"));
+        m_skipBackButton = new QPushButton(QStringLiteral("⏪"));
+        m_skipBackButton->setObjectName(QStringLiteral("skipBackButton"));
+        m_skipBackButton->setToolTip(tr("Skip back 10 s"));
+        m_skipForwardButton = new QPushButton(QStringLiteral("⏩"));
+        m_skipForwardButton->setObjectName(QStringLiteral("skipForwardButton"));
+        m_skipForwardButton->setToolTip(tr("Skip forward 10 s"));
+        for (QPushButton* b : {m_resetButton, m_skipBackButton, m_playButton, m_pauseButton,
+                               m_stopButton, m_skipForwardButton}) {
+            b->setMaximumWidth(40);
+            transportRow->addWidget(b);
+        }
+        layout->addLayout(transportRow, 4, 0, 1, 2);
+
+        // Row 5: Speed
+        QHBoxLayout* speedRow = new QHBoxLayout();
+        QLabel* speedLabel = new QLabel(tr("Speed:"));
+        speedLabel->setStyleSheet("font-weight: bold;");
+        m_playbackSpeedCombo = new QComboBox();
+        m_playbackSpeedCombo->setObjectName(QStringLiteral("playbackSpeedCombo"));
+        m_playbackSpeedCombo->addItem(QStringLiteral("0.25×"));
+        m_playbackSpeedCombo->addItem(QStringLiteral("0.5×"));
+        m_playbackSpeedCombo->addItem(QStringLiteral("1×"));
+        m_playbackSpeedCombo->addItem(QStringLiteral("2×"));
+        m_playbackSpeedCombo->addItem(QStringLiteral("4×"));
+        m_playbackSpeedCombo->setCurrentIndex(2);  // 1× default
+        speedRow->addWidget(speedLabel);
+        speedRow->addWidget(m_playbackSpeedCombo, 1);
+        layout->addLayout(speedRow, 5, 0, 1, 2);
+
+        // Row 6: Loop checkbox
         m_playerLoopCheckbox = new QCheckBox("Loop playback");
-        layout->addWidget(m_playerLoopCheckbox, 4, 0, 1, 2);
-        
-        // Row 5: Progress bar
+        layout->addWidget(m_playerLoopCheckbox, 6, 0, 1, 2);
+
+        // Row 7: Time bar (seek slider). During parsing it mirrors the load
+        // progress; after load it becomes the playback seek control.
+        m_playerProgressBar = new QSlider(Qt::Horizontal);
+        m_playerProgressBar->setObjectName(QStringLiteral("playerTimeBar"));
+        m_playerProgressBar->setRange(0, 0);
+        layout->addWidget(m_playerProgressBar, 7, 0, 1, 2);
+
+        // Row 8: Load progress bar (unchanged load-time behaviour).
         if (!m_progressBar) {
             m_progressBar = new QProgressBar();
         }
         m_progressBar->setValue(0);
         m_progressBar->setTextVisible(true);
-        layout->addWidget(m_progressBar, 5, 0, 1, 2);
-        
+        layout->addWidget(m_progressBar, 8, 0, 1, 2);
+
         return group;
     }
 
@@ -7646,6 +8291,14 @@ private:
                         }
                     }, Qt::QueuedConnection);
             qDebug() << "[PHASE 10] Tab 3 FIG selection sync connection established";
+        }
+
+        // T28: Frame List selection -> decode the frame's FIGs into the right
+        // dock (FIG Item Details).
+        if (m_tab3_frameList) {
+            connect(m_tab3_frameList, &QListWidget::currentRowChanged,
+                    this, &DABAnalyzerWindow::onTab3FrameSelected);
+            qDebug() << "[PHASE 10b] Tab 3 Frame List connection established";
         }
 
     }
@@ -8419,7 +9072,30 @@ private:
     QLabel* m_playerTimeLabel = nullptr;
     QLabel* m_playerFrameLabel = nullptr;
     QCheckBox* m_playerLoopCheckbox = nullptr;
-    QProgressBar* m_playerProgressBar = nullptr;
+    // T29: playback time bar (seek slider). During parsing it mirrors the load
+    // progress; after load it is the playback seek control.
+    QSlider* m_playerProgressBar = nullptr;
+    // T29: playback transport controls.
+    QPushButton* m_playButton = nullptr;
+    QPushButton* m_pauseButton = nullptr;
+    QPushButton* m_stopButton = nullptr;
+    QPushButton* m_resetButton = nullptr;
+    QPushButton* m_skipBackButton = nullptr;
+    QPushButton* m_skipForwardButton = nullptr;
+    QComboBox* m_playbackSpeedCombo = nullptr;
+    QTimer* m_playbackTimer = nullptr;
+    int m_playbackFrame = 0;              // 0-based UI playhead
+    bool m_playbackPlaying = false;
+    double m_playbackSpeed = 1.0;         // 0.25 .. 4x
+    QElapsedTimer m_detailThrottleTimer;  // expensive-panel throttle
+    // M1: true while the seek slider is updated programmatically (suppresses
+    // the valueChanged echo). L3: last navigator row we scrolled to.
+    bool m_seekSliderProgrammatic = false;
+    int m_lastHighlightedNavigatorRow = -1;
+    static constexpr int PLAYBACK_BASE_INTERVAL_MS = 24;  // DAB Mode I frame (24 ms)
+    static constexpr int DETAIL_THROTTLE_MS = 150;        // <= ~6.7 Hz detail refresh
+    static constexpr int PLAYBACK_SKIP_FRAMES = 417;      // ~10 s at 1x
+    static constexpr int SYSTEM_MESSAGES_MAX_BLOCKS = 5000;  // L1: bounded log
     
     // Decoder Panel (Item #2)
     QLabel* m_decoderStatusLabel = nullptr;
@@ -8464,6 +9140,10 @@ private:
     // Tab 3: FIC-Extractor widgets (2-panel layout per DATA_AVAILABILITY_MATRIX.md)
     // LEFT Panel widgets
     QTreeWidget* m_tab3_figInstanceTree = nullptr;  // 7 columns: FIG Type, Index, Frame#, CIF#, FIB#, Length, Items
+    // T28: Tab-3 left dock inner tabs; Frame List selects a frame whose FIGs
+    // are shown in the right dock.
+    QTabWidget* m_tab3LeftTabs = nullptr;
+    QListWidget* m_tab3_frameList = nullptr;
     
     // RIGHT Panel widgets
     QTreeWidget* m_tab3_figItemDetailsTree = nullptr;  // 4 columns: Property, Size, Value, Information
@@ -8502,8 +9182,11 @@ private:
     eti::mot::MOTProtocol m_motProtocol;
     eti::mot::MotPadAdapter m_motAdapter{&m_motProtocol};
 
-    // Slideshow tab widgets + bounded image history (last N decoded images).
-    QTabWidget* m_nowPlayingTabs = nullptr;
+    // Slideshow panel widgets + bounded image history (last N decoded images).
+    // T27: the dock uses a left/right splitter (DLS+ text | slideshow) instead
+    // of inner tabs; m_slideshowFrame is the fixed 4:3 letterbox container.
+    QSplitter* m_nowPlayingSplitter = nullptr;
+    FourThreeLetterboxFrame* m_slideshowFrame = nullptr;
     QLabel* m_slideshowImage = nullptr;
     QLabel* m_slideshowStatus = nullptr;
     QLabel* m_slideshowInfo = nullptr;
@@ -8668,9 +9351,14 @@ private:
     // deterministic. Bumped 3 -> 4 (MOT SlideShow, option A): the Now Playing
     // dock grew from 82 px to ≈200 px and gained inner tabs; a saved v3 state
     // would restore the old 82 px geometry and hide the Slideshow tab, so v4
-    // discards v3 state once to re-apply the new default geometry. Any saved
-    // version != 4 is discarded once on restore.
-    static constexpr int DOCKING_LAYOUT_VERSION = 4;
+    // discards v3 state once to re-apply the new default geometry. Bumped
+    // 4 -> 5 (T27/T28/T29): Now Playing inner tabs -> left/right splitter, the
+    // Tab-3 left dock gained the Frame List inner tabs, and the Player panel
+    // gained the transport controls. A stale v4 state could also restore the
+    // Transport group on the *Decoder* tab (T29 finding), so v5 discards v4
+    // state once and re-applies the default active tab (Player). Any saved
+    // version != 5 is discarded once on restore.
+    static constexpr int DOCKING_LAYOUT_VERSION = 5;
     
     // Phase 1: Processing counters
     int m_processedFrames{0};
@@ -8690,6 +9378,11 @@ DABAnalyzerWindow::~DABAnalyzerWindow()
     // T25 (F5): direct `delete` may skip closeEvent(); mark teardown so stale
     // queued slots degrade gracefully / suppress dialogs.
     m_closing = true;
+    // T29: make sure the playback timer is not running during destruction.
+    m_playbackPlaying = false;
+    if (m_playbackTimer) {
+        m_playbackTimer->stop();
+    }
 
     // T25 (F3/F9/F10): disconnect every sender from this receiver BEFORE member
     // destruction. disconnect stops FUTURE emissions only; already-posted queued
