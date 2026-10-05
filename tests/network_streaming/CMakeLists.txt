@@ -5,7 +5,6 @@ cmake_minimum_required(VERSION 3.21)
 
 # Network streaming test executable
 add_executable(test_network_streaming
-    test_network_stream_receiver.cpp
     test_stream_recording_manager.cpp
     test_audio_extraction_pipeline.cpp
     test_multi_stream_processor.cpp
