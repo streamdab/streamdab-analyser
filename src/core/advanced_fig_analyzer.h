@@ -563,6 +563,14 @@ public:
     int getSubChannelCount() const;
     QString getLastError() const { return m_lastError; }
 
+    // Monotonic revision of the service/component/label state. Bumped on every
+    // mutation of m_services / m_sub_channels / the label maps. Consumers that
+    // cache derived views (e.g. the GUI sub-channel -> service map) must
+    // invalidate when this changes: service *counts* alone miss late FIG 1/1
+    // labels and equal-count mid-stream reconfigurations. Strictly monotonic
+    // (reset() bumps it too, never zeroes it).
+    uint32_t getServiceRevision() const { return m_serviceRevision; }
+
 signals:
     // Service discovery signals
     void serviceDiscovered(const ServiceInfo& service);
@@ -704,6 +712,12 @@ private:
     int m_totalFIGsProcessed;
     int m_validFIGsCount;
     QString m_lastError;
+
+    // Monotonic service/component/label revision (see getServiceRevision()).
+    // Bumped by mutating FIG processors and reset(); wrapped through the small
+    // helper below so every site is consistent.
+    uint32_t m_serviceRevision = 0;
+    void bumpServiceRevision() { ++m_serviceRevision; }
 
     // FIC decode diagnostics (FIB CRC failures / raw fallback)
     int m_fib_crc_failures = 0;

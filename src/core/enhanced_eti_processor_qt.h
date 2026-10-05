@@ -27,6 +27,14 @@ struct ProcessedFrame {
     uint32_t lidata = 0;
     QByteArray fic_data;
     QByteArray msc_data;
+    // Per-subchannel MSC slices already extracted by the frame parser, so
+    // downstream consumers (e.g. DLS+ PAD parsing) can reuse them instead of
+    // re-running parseHeader()/extractMSC() on the raw frame.
+    struct SubChannelSlice {
+        uint8_t sub_channel_id = 0;
+        QByteArray data;
+    };
+    std::vector<SubChannelSlice> sub_channels;
     uint32_t crc = 0;
     QDateTime timestamp;
     bool is_valid = false;
@@ -42,6 +50,7 @@ struct ProcessedFrame {
         , lidata(other.lidata)
         , fic_data(other.fic_data)
         , msc_data(other.msc_data)
+        , sub_channels(other.sub_channels)
         , crc(other.crc)
         , timestamp(other.timestamp)
         , is_valid(other.is_valid)
@@ -49,6 +58,9 @@ struct ProcessedFrame {
         // Force deep copy to avoid Qt implicit sharing issues with queued signals
         fic_data.detach();
         msc_data.detach();
+        for (auto& sc : sub_channels) {
+            sc.data.detach();
+        }
     }
     
     // Copy assignment operator
@@ -60,11 +72,15 @@ struct ProcessedFrame {
             lidata = other.lidata;
             fic_data = other.fic_data;
             msc_data = other.msc_data;
+            sub_channels = other.sub_channels;
             crc = other.crc;
             timestamp = other.timestamp;
             is_valid = other.is_valid;
             fic_data.detach();
             msc_data.detach();
+            for (auto& sc : sub_channels) {
+                sc.data.detach();
+            }
         }
         return *this;
     }
@@ -77,6 +93,7 @@ struct ProcessedFrame {
         , lidata(other.lidata)
         , fic_data(std::move(other.fic_data))
         , msc_data(std::move(other.msc_data))
+        , sub_channels(std::move(other.sub_channels))
         , crc(other.crc)
         , timestamp(std::move(other.timestamp))
         , is_valid(other.is_valid)
@@ -95,6 +112,7 @@ struct ProcessedFrame {
             lidata = other.lidata;
             fic_data = std::move(other.fic_data);
             msc_data = std::move(other.msc_data);
+            sub_channels = std::move(other.sub_channels);
             crc = other.crc;
             timestamp = std::move(other.timestamp);
             is_valid = other.is_valid;

@@ -46,6 +46,8 @@ Living checklist for active work. Check off items when done (add commit ref).
 
 - [ ] **T22: Network stream robustness** — root cause: `localhost` (from quick example `zmq+tcp://localhost:9201`) rejected by the multicast-only receiver (`network_stream_receiver.cpp:112-115` **throws**), plus `auto_reconnect=true`/10 attempts + UI re-enabling Connect on each `error_occurred` (`main.cpp:1907-1909`, `1945-1956`) → **error loop**, no popup. Fix: pre-validate URL (multicast IPv4 only) with a clear `QMessageBox`; disable auto-reconnect on the initial attempt; make the receiver return errors instead of throwing out of the worker; fix/validate the quick examples; tests (validator + no-retry-on-bad-config + GUI guard). Plan: `docs/gui/NETWORK_STREAM_EVALUATION.md`.
 - [ ] **T23: Input menu decision** — menu holds File Input / UDP Input radios (duplicate of the toolbar) + UDP Streaming Settings…. Options A (remove menu, move settings to a ⚙ in the toolbar row — recommended) / B (slim to settings only) / C (keep) / D (share one QActionGroup). Awaiting user's choice.
+- [ ] **T24: ProcessedFrame hand-off follow-up** — `ProcessedFrame::sub_channels` duplicates the MSC bytes already in `msc_data` (~17 MB retained per 5001-frame session; reviewer-noted, non-blocking). Migrate to a `std::shared_ptr<const …>` hand-off (or drop `msc_data`) when the GPU/UI hand-off is next touched.
+- [ ] **T25: teardown crash follow-up** — discovered by the T20 cache test: a queued `servicesUpdated()` can fire against a torn-down `AdvancedFIGAnalyzer` during window close (latent crash). Fix by disconnecting/guarding the queued FIG signals in `~DABAnalyzerWindow` (or by making the analyzer's signal emits safe post-teardown).
 
 ## Later (see `docs/PHASE_E_PLAN.md`)
 

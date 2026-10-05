@@ -458,7 +458,9 @@ ETIParseResult ModernETIFrameParser::parseETI_NI_Frame(std::span<const uint8_t, 
     // Mark frame as valid
     frame.frame_valid = true;
 
-    Logger::instance().log(Logger::Info, "ModernETIFrameParser",
+    // Observation (c): per-frame success logging is Debug so a normal CLI run
+    // (Info) stays concise; --verbose restores the frame-by-frame detail.
+    Logger::instance().log(Logger::Debug, "ModernETIFrameParser",
                           QString("ETI-NI frame parsed successfully: %1 subchannels, FICF=%2")
                           .arg(nst).arg(ficf));
 

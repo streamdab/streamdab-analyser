@@ -16,8 +16,8 @@
  *   d) the Input Source toolbar sits at the TOP of the Tab-1 page with an
  *      expandable network row (visible only in Network Stream mode)
  *   e) QSettings persistence round-trip (closed dock stays closed; restored
- *      group structure matches the default layout) incl. layout_version=2
- *   f) stale v1 layout state (layout_version != 2) is discarded once so the
+ *      group structure matches the default layout) incl. layout_version=3
+ *   f) stale v1/v2 layout state (layout_version != 3) is discarded once so the
  *      first run after the upgrade shows the new default layout
  *   g) auto-hide (pin) config sanity
  *   h) floating round-trip safety (float a dock, re-dock it, no crash)
@@ -49,6 +49,8 @@
 #include <QLineEdit>
 #include <QVBoxLayout>
 #include <functional>
+#include <algorithm>
+#include <cstring>
 
 #include "DockManager.h"
 #include "DockWidget.h"
@@ -77,6 +79,20 @@ private slots:
     void testAutoHideConfig();
     void testReloadResetsAnalyzerState();
     void testEnsembleTreeRealFixture();
+    // Manual-test findings 1-4 regression coverage
+    void testTabTitlesAndStylesheet();
+    void testTabPagesDescriptiveTitles();
+    void testFrameNavigatorCrashGuard();
+    void testNowPlayingDlsPlusSynthetic();
+    void testDabPlusPadParserRejectsGarbage();
+    // Review-window additions
+    void testDlsResetHistory();
+    void testLongUtf8LabelRoundTrip();
+    void testDlPlusFromPadPath();
+    void testXpadContinuationReuse();
+    // T20 review findings 1 + 2
+    void testXpadOversizePadRejected();
+    void testDabPlusServiceCacheRevision();
 
 private:
     // Removes every DABAnalyzerWindow QSettings key used by the app so each
@@ -373,6 +389,24 @@ void TestGuiDockLayout::testDefaultActiveTabs()
     verifyGroupActive(QStringLiteral("tab1_Player"), QStringLiteral("tab1_Player"));
     // Signal Analysis group
     verifyGroupActive(QStringLiteral("tab1_EnsembleExplorer"), QStringLiteral("tab1_EnsembleExplorer"));
+    // Observation (a): the Signal Analysis group must also have the tab ORDER
+    // Ensemble Explorer -> Subchannel Organization -> CU Usage, and open on
+    // Ensemble Explorer (not CU Usage), on a fresh layout.
+    {
+        ads::CDockWidget* ens = m1->findDockWidget(QStringLiteral("tab1_EnsembleExplorer"));
+        QVERIFY(ens);
+        ads::CDockAreaWidget* area = ens->dockAreaWidget();
+        QVERIFY(area);
+        const QList<ads::CDockWidget*> tabs = area->dockWidgets();
+        QCOMPARE(tabs.size(), 3);
+        QCOMPARE(tabs.at(0)->objectName(), QStringLiteral("tab1_EnsembleExplorer"));
+        QCOMPARE(tabs.at(1)->objectName(), QStringLiteral("tab1_SubchannelOrg"));
+        QCOMPARE(tabs.at(2)->objectName(), QStringLiteral("tab1_CUUsage"));
+        QVERIFY(area->currentDockWidget());
+        QCOMPARE(area->currentDockWidget()->objectName(),
+                 QStringLiteral("tab1_EnsembleExplorer"));
+        QCOMPARE(area->currentIndex(), 0);
+    }
     // Frame Analysis group
     verifyGroupActive(QStringLiteral("tab1_FrameNavigator"), QStringLiteral("tab1_FrameNavigator"));
     // Signal Info group
@@ -530,7 +564,7 @@ void TestGuiDockLayout::testPersistenceRoundTrip()
     }
 
     const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 2);
+    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 3);
     QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab2")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab3")).isNull());
@@ -618,7 +652,8 @@ void TestGuiDockLayout::testLayoutVersionReset()
     const QString hiddenDockName = QStringLiteral("tab1_NowPlaying");
     const QString versionKey = QStringLiteral("docking/layout_version");
 
-    // 1) First launch: hide Now Playing, close -> saves version-2 state.
+    // 1) First launch: hide Now Playing, select CU Usage in the Signal
+    // Analysis group (the user-observed stale active tab), close -> saves state.
     {
         DABAnalyzerWindow w;
         w.show();
@@ -629,14 +664,20 @@ void TestGuiDockLayout::testLayoutVersionReset()
         ads::CDockWidget* np = m1->findDockWidget(hiddenDockName);
         QVERIFY(np);
         np->toggleView(false);
+        ads::CDockWidget* ens = m1->findDockWidget(QStringLiteral("tab1_EnsembleExplorer"));
+        ads::CDockWidget* cu = m1->findDockWidget(QStringLiteral("tab1_CUUsage"));
+        QVERIFY(ens && cu);
+        ens->dockAreaWidget()->setCurrentDockWidget(cu);
         QCoreApplication::processEvents();
+        QCOMPARE(ens->dockAreaWidget()->currentDockWidget()->objectName(),
+                 QStringLiteral("tab1_CUUsage"));
 
         w.close(); // triggers closeEvent -> saveDockingState()
         QCoreApplication::processEvents();
     }
     {
         const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(check.value(versionKey).toInt(), 2);
+        QCOMPARE(check.value(versionKey).toInt(), 3);
         QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     }
 
@@ -673,6 +714,16 @@ void TestGuiDockLayout::testLayoutVersionReset()
                            QStringLiteral("tab1_SubchannelOrg"),
                            QStringLiteral("tab1_CUUsage")},
                           3, 1);
+        // Observation (a): the stale CU Usage active tab must be discarded; the
+        // Signal Analysis group opens on DAB Ensemble Explorer.
+        {
+            ads::CDockWidget* ens = m1->findDockWidget(QStringLiteral("tab1_EnsembleExplorer"));
+            QVERIFY(ens);
+            QVERIFY(ens->dockAreaWidget());
+            QVERIFY(ens->dockAreaWidget()->currentDockWidget());
+            QCOMPARE(ens->dockAreaWidget()->currentDockWidget()->objectName(),
+                     QStringLiteral("tab1_EnsembleExplorer"));
+        }
         verifyTabbedGroup(m1, root,
                           {QStringLiteral("tab1_ETIOverview"),
                            QStringLiteral("tab1_Status"),
@@ -683,14 +734,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(mBottom);
         QVERIFY(mBottom->findDockWidget(QStringLiteral("bottom_Messages")));
 
-        w2.close(); // writes layout version 2 again
+        w2.close(); // writes layout version 3 again
         QCoreApplication::processEvents();
     }
 
-    // 4) Version is 2 again; a third launch restores normally (v2 round-trip).
+    // 4) Version is 3 again; a third launch restores normally (v3 round-trip).
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 2);
+        QCOMPARE(s.value(versionKey).toInt(), 3);
     }
     {
         DABAnalyzerWindow w3;
@@ -701,10 +752,53 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(m1);
         ads::CDockWidget* np = m1->findDockWidget(hiddenDockName);
         QVERIFY(np);
-        QVERIFY(!np->isClosed());  // v2 state restored (Now Playing visible)
+        QVERIFY(!np->isClosed());  // v3 state restored (Now Playing visible)
 
         w3.close();
         QCoreApplication::processEvents();
+    }
+
+    // 5) Real upgrade path: a stale v2 store (layout_version == 2) must also be
+    // discarded once, not only v1. Produce a v2-tagged store whose saved layout
+    // differs (Now Playing hidden), then confirm the next launch shows the
+    // default redesign layout and re-saves v3.
+    {
+        DABAnalyzerWindow w;
+        w.show();
+        QCoreApplication::processEvents();
+        auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
+        QVERIFY(m1);
+        ads::CDockWidget* np = m1->findDockWidget(hiddenDockName);
+        QVERIFY(np);
+        np->toggleView(false);
+        QCoreApplication::processEvents();
+        w.close();  // writes layout_version 3 with Now Playing hidden
+        QCoreApplication::processEvents();
+    }
+    {
+        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        QCOMPARE(s.value(versionKey).toInt(), 3);
+        QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
+        s.setValue(versionKey, 2);  // simulate the v2 -> v3 migration
+        s.sync();
+    }
+    {
+        DABAnalyzerWindow w4;
+        w4.show();
+        QCoreApplication::processEvents();
+        auto* m1 = w4.findChild<ads::CDockManager*>("tab1DockManager");
+        QVERIFY(m1);
+        ads::CDockWidget* np = m1->findDockWidget(hiddenDockName);
+        QVERIFY(np);
+        QVERIFY2(!np->isClosed() && np->isVisible(),
+                 "stale v2 layout must be discarded: Now Playing visible in "
+                 "the default redesign layout");
+        w4.close();  // re-saves layout_version 3
+        QCoreApplication::processEvents();
+    }
+    {
+        const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        QCOMPARE(s.value(versionKey).toInt(), 3);
     }
 
     clearSettingsStore();
@@ -788,8 +882,14 @@ void TestGuiDockLayout::testReloadResetsAnalyzerState()
                                 "%1 -> %2").arg(total1).arg(total2)));
     // FIB-CRC failures stay at 0 on the clean capture across reloads.
     QCOMPARE(w.analyzerFibCrcFailureCount(), 0);
-    // The Tab-3 instance tree reflects only the second load.
-    QCOMPARE(w.tab3FigInstanceTree()->topLevelItemCount(), inst2);
+    // The Tab-3 instance tree reflects only the second load. Observation (d):
+    // it is grouped by (type, ext), so count the CHILD instances, not the
+    // top-level group nodes.
+    int childInstances = 0;
+    for (int i = 0; i < w.tab3FigInstanceTree()->topLevelItemCount(); ++i) {
+        childInstances += w.tab3FigInstanceTree()->topLevelItem(i)->childCount();
+    }
+    QCOMPARE(childInstances, inst2);
 
     w.close();
     QCoreApplication::processEvents();
@@ -937,23 +1037,41 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
     }
     QVERIFY2(foundSvcLabel, "service table must show real service labels");
 
-    // --- Tab 3 FIG instance tracer: real chronological instances ---
+    // --- Tab 3 FIG instance tracer: Observation (d) grouping ---
+    // Top-level nodes are one (type, ext) GROUP each, labelled with the
+    // instance count; instances are children carrying the collector index.
     QTreeWidget* figTree = w.tab3FigInstanceTree();
     QVERIFY(figTree);
     QVERIFY2(figTree->topLevelItemCount() >= 1,
-             qPrintable(QString("FIG instance rows: %1").arg(figTree->topLevelItemCount())));
+             qPrintable(QString("FIG groups: %1").arg(figTree->topLevelItemCount())));
     bool foundFig00 = false, foundFig10 = false;
+    bool allGroupsLabelled = true, anyChildren = false;
     for (int i = 0; i < figTree->topLevelItemCount(); ++i) {
-        const QString t = figTree->topLevelItem(i)->text(0);
+        QTreeWidgetItem* group = figTree->topLevelItem(i);
+        const QString t = group->text(0);
         if (t.startsWith(QLatin1String("FIG 0/0"))) foundFig00 = true;
         if (t.startsWith(QLatin1String("FIG 1/0"))) foundFig10 = true;
+        // Group label carries a count in parentheses, e.g. "FIG 0/0  (1250)".
+        if (!t.contains(QLatin1Char('(')) || !t.contains(QLatin1Char(')'))) {
+            allGroupsLabelled = false;
+        }
+        // Every group node must be a group marker (UserRole < 0) and have
+        // child instances with a non-negative collector index.
+        QVERIFY2(group->data(0, Qt::UserRole).toInt() < 0,
+                 qPrintable(QString("group node must be a group marker: %1").arg(t)));
+        if (group->childCount() > 0) {
+            anyChildren = true;
+            QVERIFY(group->child(0)->data(0, Qt::UserRole).toInt() >= 0);
+        }
     }
-    QVERIFY2(foundFig00, "FIG 0/0 instances missing from the tracer");
-    QVERIFY2(foundFig10, "FIG 1/0 instances missing from the tracer");
+    QVERIFY2(foundFig00, "FIG 0/0 group missing from the tracer");
+    QVERIFY2(foundFig10, "FIG 1/0 group missing from the tracer");
+    QVERIFY2(allGroupsLabelled, "every FIG group must show its instance count in ()");
+    QVERIFY2(anyChildren, "FIG groups must contain instance children");
 
     // The details tree must show the real element tree of the pre-selected
-    // instance (buildFIGInstanceTree selects row 0; the queued selection
-    // sync rebuilds the details panel).
+    // instance (buildFIGInstanceTree pre-selects the first CHILD; the queued
+    // selection sync rebuilds the details panel).
     QTreeWidget* figDetails = w.tab3FigItemDetailsTree();
     QVERIFY(figDetails);
     QTRY_VERIFY_WITH_TIMEOUT(figDetails->topLevelItemCount() > 0, 10000);
@@ -961,35 +1079,50 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
     QVERIFY2(detailRoot.startsWith(QLatin1String("FIG ")),
              qPrintable(QString("detail root must be a FIG, got: %1").arg(detailRoot)));
 
+    // Selecting a GROUP node must not crash; the details panel shows a group
+    // summary (or otherwise leaves a safe state).
+    {
+        QTreeWidgetItem* group0 = figTree->topLevelItem(0);
+        QVERIFY(group0);
+        figTree->setCurrentItem(group0);
+        QCoreApplication::processEvents();
+        QTRY_VERIFY_WITH_TIMEOUT(figDetails->topLevelItemCount() > 0, 10000);
+        QVERIFY2(figDetails->topLevelItem(0)->text(0).startsWith(QLatin1String("FIG ")),
+                 "group selection must produce a safe FIG summary/details");
+    }
+
     // --- Finding 3: a real FIG 1/1 details row must decode the wire order
-    // label@off(16 B) + flag@off+16. Scan the tracer's FIG 1/1 instances
-    // until the RROne one (SId 0x2C61) is found: its details must show
-    // "RROne FM 101" with character flag 0xF870.
+    // label@off(16 B) + flag@off+16. Find the FIG 1/1 group and scan its
+    // instance CHILDREN until the RROne one (SId 0x2C61) is found: its details
+    // must show "RROne FM 101" with character flag 0xF870.
     bool foundRROneLabel = false, foundF870 = false;
-    for (int i = 0; i < figTree->topLevelItemCount() && !foundRROneLabel; ++i) {
-        QTreeWidgetItem* row = figTree->topLevelItem(i);
-        if (!row->text(0).startsWith(QLatin1String("FIG 1/1"))) {
+    for (int g = 0; g < figTree->topLevelItemCount() && !foundRROneLabel; ++g) {
+        QTreeWidgetItem* group = figTree->topLevelItem(g);
+        if (!group->text(0).startsWith(QLatin1String("FIG 1/1"))) {
             continue;
         }
-        figTree->setCurrentItem(row);
-        QCoreApplication::processEvents();
-        QTRY_VERIFY_WITH_TIMEOUT(
-            figDetails->topLevelItemCount() > 0 &&
-                figDetails->topLevelItem(0)->text(0).startsWith(QLatin1String("FIG 1/1")),
-            10000);
-        std::function<void(const QTreeWidgetItem*)> walkDetails =
-            [&](const QTreeWidgetItem* item) {
-                for (int c = 0; c < item->childCount(); ++c) {
-                    const QTreeWidgetItem* child = item->child(c);
-                    const QString value = child->text(2).trimmed();
-                    if (value == QLatin1String("RROne FM 101")) foundRROneLabel = true;
-                    if (value.compare(QLatin1String("0xF870"), Qt::CaseInsensitive) == 0) {
-                        foundF870 = true;
+        for (int c = 0; c < group->childCount() && !foundRROneLabel; ++c) {
+            QTreeWidgetItem* row = group->child(c);
+            figTree->setCurrentItem(row);
+            QCoreApplication::processEvents();
+            QTRY_VERIFY_WITH_TIMEOUT(
+                figDetails->topLevelItemCount() > 0 &&
+                    figDetails->topLevelItem(0)->text(0).startsWith(QLatin1String("FIG 1/1")),
+                10000);
+            std::function<void(const QTreeWidgetItem*)> walkDetails =
+                [&](const QTreeWidgetItem* item) {
+                    for (int c2 = 0; c2 < item->childCount(); ++c2) {
+                        const QTreeWidgetItem* child = item->child(c2);
+                        const QString value = child->text(2).trimmed();
+                        if (value == QLatin1String("RROne FM 101")) foundRROneLabel = true;
+                        if (value.compare(QLatin1String("0xF870"), Qt::CaseInsensitive) == 0) {
+                            foundF870 = true;
+                        }
+                        walkDetails(child);
                     }
-                    walkDetails(child);
-                }
-            };
-        walkDetails(figDetails->topLevelItem(0));
+                };
+            walkDetails(figDetails->topLevelItem(0));
+        }
     }
     if (!foundRROneLabel || !foundF870) {
         // Diagnostic: dump the details rows of the last selected FIG 1/1.
@@ -1053,6 +1186,852 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
     QTableWidgetItem* fibCrcCount = errT->item(fibCrcRow, 1);
     QVERIFY(fibCrcCount);
     QCOMPARE(fibCrcCount->text(), QStringLiteral("0"));  // clean capture
+
+    // =====================================================================
+    // Manual-test finding 2: the frame navigator is only live AFTER the
+    // synchronous parse loop finished, and selecting real frames decodes.
+    // =====================================================================
+    QVERIFY2(w.isFileLoaded(), "fixture must be marked loaded");
+    QVERIFY2(!w.isProcessingForTest(), "parse loop must have finished");
+    QCOMPARE(w.availableFrameCountForTest(), 5001);
+
+    // (b) row 0 and the last row both decode hex/overview without a crash.
+    w.selectFrameForTest(0);
+    QCoreApplication::processEvents();
+    QVERIFY2(!w.hexViewerTextForTest().isEmpty(),
+             "hex viewer must show frame 0 after load");
+
+    // Finding 5: m_frameDetails must be instantiated in the ETI Frame
+    // Navigator and show the selected frame (it was a dead null widget before).
+    QVERIFY2(!w.frameDetailsTextForTest().isEmpty(),
+             "frame details label must be instantiated and populated");
+    QVERIFY2(w.frameDetailsTextForTest().contains(QStringLiteral("Selected Frame: 1")),
+             qPrintable(QString("frame details must show frame 1, got: %1")
+                            .arg(w.frameDetailsTextForTest())));
+
+    auto* frameList = w.frameListForTest();
+    QVERIFY(frameList);
+    QVERIFY2(frameList->count() > 0, "frame list must be populated after load");
+    const int lastRow = frameList->count() - 1;
+    w.selectFrameForTest(lastRow);
+    QCoreApplication::processEvents();
+    QVERIFY2(!w.hexViewerTextForTest().isEmpty(),
+             "hex viewer must show the last frame after load");
+
+    // (c) a row beyond the available frames is ignored safely (no crash, no
+    // widget mutation).
+    const QString beforeOutOfRange = w.hexViewerTextForTest();
+    w.selectFrameForTest(w.availableFrameCountForTest() + 100);
+    QCoreApplication::processEvents();
+    QCOMPARE(w.hexViewerTextForTest(), beforeOutOfRange);
+
+    // =====================================================================
+    // Manual-test finding 3: Now Playing (DLS+) shows a documented valid
+    // state after a real capture load (real metadata OR the empty state).
+    // =====================================================================
+    const int dlsCount = w.dlsPlusMessageCountForTest();
+    qInfo() << "[GUI-TEST] DLS+ messages decoded over the full Bangkok capture:"
+            << dlsCount;
+    QVERIFY2(dlsCount > 0, "the DLS+ pipeline must decode labels from the fixture");
+
+    // Known real label check + UTF-8/Thai integrity (no replacement chars).
+    const QStringList labelsSeen = w.dlsLabelsSeenForTest();
+    QVERIFY2(!labelsSeen.isEmpty(), "decoded DLS labels must be recorded");
+    bool foundKnownAsciiLabel = false, foundThaiLabel = false, anyReplacementChar = false;
+    const QString thaiMarker = QStringLiteral("\u0E2A\u0E16\u0E32\u0E19\u0E35\u0E27\u0E34\u0E17\u0E22\u0E38");  // "สถานีวิทยุ"
+    for (const QString& label : labelsSeen) {
+        if (label.contains(QStringLiteral("EFM94"), Qt::CaseInsensitive)) {
+            foundKnownAsciiLabel = true;
+        }
+        if (label.contains(thaiMarker)) {
+            foundThaiLabel = true;
+        }
+        if (label.contains(QChar(0xFFFD))) {
+            anyReplacementChar = true;
+        }
+    }
+    QVERIFY2(foundKnownAsciiLabel,
+             qPrintable(QString("known fixture DLS label 'EFM94' not found; %1 labels: %2")
+                            .arg(labelsSeen.size())
+                            .arg(labelsSeen.mid(0, qMin(8, labelsSeen.size())).join(QStringLiteral(" | ")))));
+    QVERIFY2(foundThaiLabel,
+             "the Thai DLS label (สถานีวิทยุ…) must decode exactly (UTF-8)");
+    QVERIFY2(!anyReplacementChar,
+             "no decoded DLS label may contain U+FFFD (UTF-8 / Thai integrity)");
+
+    const QString nowPlayingStatus = w.nowPlayingStatusForTest();
+    if (dlsCount > 0) {
+        QVERIFY2(nowPlayingStatus.startsWith(QStringLiteral("Updated:")),
+                 qPrintable(QString("Now Playing must show real metadata, got: %1")
+                                .arg(nowPlayingStatus)));
+    } else {
+        QVERIFY2(nowPlayingStatus == QStringLiteral("No metadata received"),
+                 qPrintable(QString("Now Playing must show the documented empty state, got: %1")
+                                .arg(nowPlayingStatus)));
+    }
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// Manual-test finding 4: dock titles + finding 1: tab-bar stylesheet
+// ============================================================================
+void TestGuiDockLayout::testTabTitlesAndStylesheet()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // Finding 4: descriptive dock titles. objectNames are unchanged (asserted
+    // by test25DocksWithExpectedNames), only the displayed titles changed.
+    auto* m2 = w.findChild<ads::CDockManager*>("tab2DockManager");
+    QVERIFY(m2);
+    ads::CDockWidget* d = nullptr;
+    d = m2->findDockWidget(QStringLiteral("tab2_Left"));
+    QVERIFY(d);
+    QCOMPARE(d->windowTitle(), QStringLiteral("Service Tree"));
+    d = m2->findDockWidget(QStringLiteral("tab2_Center"));
+    QVERIFY(d);
+    QCOMPARE(d->windowTitle(), QStringLiteral("Ensemble & Sub-Channel Tables"));
+    d = m2->findDockWidget(QStringLiteral("tab2_Right"));
+    QVERIFY(d);
+    QCOMPARE(d->windowTitle(), QStringLiteral("FIG Content"));
+
+    auto* m3 = w.findChild<ads::CDockManager*>("tab3DockManager");
+    QVERIFY(m3);
+    d = m3->findDockWidget(QStringLiteral("tab3_Left"));
+    QVERIFY(d);
+    QCOMPARE(d->windowTitle(), QStringLiteral("FIG Instance List"));
+    d = m3->findDockWidget(QStringLiteral("tab3_Right"));
+    QVERIFY(d);
+    QCOMPARE(d->windowTitle(), QStringLiteral("FIG Item Details"));
+
+    // Finding 1: the main tab bar carries the accent-highlight stylesheet.
+    auto* mainTabs = w.findChild<QTabWidget*>(QStringLiteral("mainTabs"));
+    QVERIFY(mainTabs);
+    const QString qss = mainTabs->styleSheet();
+    QVERIFY2(qss.contains(QStringLiteral("#4a8fd4")),
+             qPrintable(QString("main tab stylesheet missing accent: %1").arg(qss)));
+    QVERIFY2(qss.contains(QStringLiteral("QTabBar::tab:selected")),
+             qPrintable(QString("main tab stylesheet missing selected tab rule: %1").arg(qss)));
+    QVERIFY2(qss.contains(QStringLiteral("palette(windowText)")),
+             qPrintable(QString("main tab stylesheet must derive text from palette: %1").arg(qss)));
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// Manual-test finding 2: frame-navigator click crash guard
+// ============================================================================
+void TestGuiDockLayout::testFrameNavigatorCrashGuard()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    auto* frameList = w.frameListForTest();
+    QVERIFY(frameList);
+    QVERIFY(frameList->isEnabled());
+    QVERIFY2(w.hexViewerTextForTest().isEmpty(),
+             "hex viewer must start empty before any frame is selected");
+
+    // (a) Isolated crash guard: m_fileLoaded=true WITH m_processing=true. The
+    // file-loaded state must not let a click slip through while parsing, and
+    // the frame list must be disabled during processing.
+    w.setFileLoadedForTest(true);
+    w.beginProcessingForTest();
+    QVERIFY(w.isFileLoaded());
+    QVERIFY(w.isProcessingForTest());
+    QVERIFY2(!frameList->isEnabled(),
+             "frame list must be disabled while parsing");
+    w.selectFrameForTest(0);
+    w.selectFrameForTest(999999);
+    QCoreApplication::processEvents();
+    QVERIFY2(w.hexViewerTextForTest().isEmpty(),
+             "no frame data may be rendered while parsing");
+
+    // (b) The worker-thread error path must ALWAYS re-arm the guard: processing
+    // cleared and the frame list re-enabled (Finding 8).
+    w.simulateWorkerErrorForTest(QStringLiteral("simulated worker failure"));
+    QCoreApplication::processEvents();
+    QVERIFY2(!w.isProcessingForTest(),
+             "processing flag must be cleared after a worker error");
+    QVERIFY2(frameList->isEnabled(),
+             "frame list must be re-enabled after a worker error");
+
+    // (c) Guard re-armed but no frames loaded -> an out-of-range selection is
+    // ignored safely, no render, no crash.
+    w.selectFrameForTest(0);
+    QCoreApplication::processEvents();
+    QVERIFY2(w.hexViewerTextForTest().isEmpty(),
+             "no frame data may be rendered when no frames are available");
+
+    // (d) Even with the processing flag cleared, an unloaded window still
+    // refuses to decode (m_fileLoaded is false) -> "no file loaded" branch.
+    w.setFileLoadedForTest(false);
+    w.selectFrameForTest(0);
+    QCoreApplication::processEvents();
+    QVERIFY2(w.hexViewerTextForTest().isEmpty(),
+             "no frame data may be rendered without a loaded file");
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// Refinement A: standard DAB+ superframe/AU/PAD -> DLS -> Now Playing wiring
+// ============================================================================
+namespace {
+
+// Build a minimal but structurally valid DAB+ superframe (ETSI TS 102 563)
+// carrying one DSE/PAD with a variable-size X-PAD whose Data Group is a
+// single First+Last DLS segment "Hey Jude" (charset 15). This drives the REAL
+// testGui DAB+ parser (dabFirecodeCrc + AU CRC + F-PAD/X-PAD + DLS assembly),
+// not a hand-built decoder input.
+QByteArray buildSyntheticDabPlusDlsSuperframe()
+{
+    constexpr int sfLen = 120;           // subchIndex = 1 (sfLen % 120 == 0)
+    constexpr int auStart[5] = {8, 30, 50, 70, 110};
+    QByteArray sf(sfLen, '\0');
+    auto* b = reinterpret_cast<uint8_t*>(sf.data());
+
+    // --- DLS Data Group: prefix(1: First|Last|len-1) + prefix(1: charset) +
+    //     text + CRC16 (~CCITT-FALSE over prefix+text) ---
+    const QByteArray text = "Hey Jude";
+    const int fieldLen = text.size();  // <= 16 (single segment)
+    QByteArray dg;
+    dg.append(static_cast<char>(0x40 | 0x20 | ((fieldLen - 1) & 0x0F)));
+    dg.append(static_cast<char>(0xF0));  // charset 15 (UTF-8), segment 0
+    dg.append(text);
+    const uint16_t dgCrc = static_cast<uint16_t>(~eti::crc16ccitt_false(
+        reinterpret_cast<const uint8_t*>(dg.constData()), dg.size()));
+    dg.append(static_cast<char>((dgCrc >> 8) & 0xFF));
+    dg.append(static_cast<char>(dgCrc & 0xFF));
+
+    // --- Variable-size X-PAD (logical): CI(type 2 = DL start, 12 bytes) +
+    //     end marker + data subfield; transmitted reversed ---
+    QByteArray logicalXpad;
+    logicalXpad.append(static_cast<char>((3 << 5) | 2));  // len_index 3 -> 12
+    logicalXpad.append(static_cast<char>(0x00));          // CI end marker
+    logicalXpad.append(dg);
+    QByteArray onWireXpad = logicalXpad;
+    std::reverse(onWireXpad.begin(), onWireXpad.end());
+
+    // --- F-PAD: type 0, variable X-PAD, CI flag set ---
+    QByteArray padRegion = onWireXpad;
+    padRegion.append(static_cast<char>(0x20));
+    padRegion.append(static_cast<char>(0x02));
+
+    // --- First AU payload: DSE (id 4) + pad length + PAD region ---
+    QByteArray au0;
+    au0.append(static_cast<char>(0x80));                     // DSE element id 4
+    au0.append(static_cast<char>(padRegion.size()));         // pad_len
+    au0.append(padRegion);
+
+    // --- Superframe header: format byte 0 -> 4 AUs, first AU at 8 ---
+    b[2] = 0x00;
+    b[3] = 0x01;  // au 1 = 0x01E = 30
+    b[4] = 0xE0;  // au 2 = 0x032 = 50
+    b[5] = 0x32;
+    b[6] = 0x04;  // au 3 = 0x046 = 70
+    b[7] = 0x60;
+
+    // --- Write AUs (payload + trailing CRC16), then the FireCode (which
+    //     covers b[2..10], overlapping the first 3 bytes of AU0) ---
+    for (int au = 0; au < 4; ++au) {
+        const int payloadLen = auStart[au + 1] - auStart[au] - 2;
+        QByteArray payload(payloadLen, '\0');
+        if (au == 0) {
+            payload = au0;
+            payload.resize(payloadLen, '\0');
+        }
+        const uint16_t auCrc = static_cast<uint16_t>(~eti::crc16ccitt_false(
+            reinterpret_cast<const uint8_t*>(payload.constData()), payload.size()));
+        std::memcpy(b + auStart[au], payload.constData(),
+                    static_cast<size_t>(payloadLen));
+        b[auStart[au + 1] - 2] = static_cast<uint8_t>(auCrc >> 8);
+        b[auStart[au + 1] - 1] = static_cast<uint8_t>(auCrc & 0xFF);
+    }
+
+    const uint16_t fc = dabFirecodeCrc(b + 2, 9);
+    b[0] = static_cast<uint8_t>(fc >> 8);
+    b[1] = static_cast<uint8_t>(fc & 0xFF);
+    return sf;
+}
+
+}  // namespace
+
+void TestGuiDockLayout::testNowPlayingDlsPlusSynthetic()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // Documented initial state before any data.
+    QCOMPARE(w.nowPlayingTrackForTest(), QStringLiteral("--"));
+    QCOMPARE(w.nowPlayingStatusForTest(), QStringLiteral("Waiting for DLS+…"));
+
+    // Drive the REAL DAB+ superframe/AU/PAD parser with a synthetic AU whose
+    // DSE carries an X-PAD DLS data group.
+    const QByteArray sf = buildSyntheticDabPlusDlsSuperframe();
+    QVERIFY2(w.runDabPlusDlsParserForTest(sf),
+             "the standard DAB+ parser must assemble a DLS label from the "
+             "synthetic superframe");
+    QCOMPARE(w.dlsPlusLabelsAssembledForTest(), 1);
+    QCOMPARE(w.dlsPlusMessageCountForTest(), 1);
+
+    // nowPlayingUpdated() -> updateNowPlaying() must update the panel.
+    QCOMPARE(w.nowPlayingTrackForTest(), QStringLiteral("Hey Jude"));
+    QVERIFY2(w.nowPlayingStatusForTest().startsWith(QStringLiteral("Updated:")),
+             qPrintable(QString("Now Playing status must show the update: %1")
+                            .arg(w.nowPlayingStatusForTest())));
+
+    // Second: the DL+ tag path (ITEM.ARTIST / ITEM.TITLE / ITEM.ALBUM), using
+    // the same vector semantics as tests/test_dls_plus_decoder.cpp. The
+    // fixture carries plain DLS (0 DL+ segments), so this covers the DL+ tag
+    // mapping -> decoder -> panel chain.
+    QVector<QPair<int, QPair<int, int>>> tags;
+    tags.append({4, {0, 10}});   // ITEM.ARTIST "The Beatles"
+    tags.append({1, {14, 7}});   // ITEM.TITLE  "Hey Jude"
+    tags.append({2, {24, 9}});   // ITEM.ALBUM  "Abbey Road"
+    int mapped = 0;
+    const QByteArray dlPlusPad = DABAnalyzerWindow::buildDecoderPadForTest(
+        QByteArrayLiteral("The Beatles - Hey Jude [Abbey Road]"), 15, tags, mapped);
+    QCOMPARE(mapped, 3);
+    QVERIFY(w.feedPadDataForTest(dlPlusPad));
+    QCOMPARE(w.nowPlayingArtistForTest(), QStringLiteral("The Beatles"));
+    QCOMPARE(w.nowPlayingTrackForTest(), QStringLiteral("Hey Jude"));
+    QCOMPARE(w.nowPlayingAlbumForTest(), QStringLiteral("Abbey Road"));
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+void TestGuiDockLayout::testDabPlusPadParserRejectsGarbage()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // A superframe with a valid FireCode but no PAD DSE must not produce a
+    // label (and must not crash).
+    QByteArray sf(120, '\0');
+    auto* b = reinterpret_cast<uint8_t*>(sf.data());
+    b[2] = 0x00;
+    b[3] = 0x01;
+    b[4] = 0xE0;
+    b[5] = 0x32;
+    b[6] = 0x04;
+    b[7] = 0x60;
+    const uint16_t fc = dabFirecodeCrc(b + 2, 9);
+    b[0] = static_cast<uint8_t>(fc >> 8);
+    b[1] = static_cast<uint8_t>(fc & 0xFF);
+
+    QVERIFY(!w.runDabPlusDlsParserForTest(sf));
+    QCOMPARE(w.dlsPlusLabelsAssembledForTest(), 0);
+    QCOMPARE(w.nowPlayingTrackForTest(), QStringLiteral("--"));
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// Finding 6: DLSPlusDecoder::resetHistory() clears the change-detection
+// baseline so a second load cannot suppress its first (identical) label.
+// ============================================================================
+void TestGuiDockLayout::testDlsResetHistory()
+{
+    eti::dls_plus::DLSPlusDecoder decoder;
+    QSignalSpy spy(&decoder, &eti::dls_plus::DLSPlusDecoder::nowPlayingUpdated);
+    QVERIFY2(spy.isValid(), "nowPlayingUpdated spy must be valid");
+
+    int mapped = 0;
+    const QByteArray pad = DABAnalyzerWindow::buildDecoderPadForTest(
+        QByteArrayLiteral("Same Artist - Same Song"), 15, {}, mapped);
+    QCOMPARE(mapped, 0);  // plain DLS -> fallback descriptor
+
+    QVERIFY(decoder.processPADData(pad));
+    QCOMPARE(spy.count(), 1);
+    // Identical message -> change detection suppresses the signal.
+    QVERIFY(decoder.processPADData(pad));
+    QCOMPARE(spy.count(), 1);
+    // resetHistory() clears the baseline -> the next identical label emits.
+    decoder.resetHistory();
+    QVERIFY(decoder.processPADData(pad));
+    QCOMPARE(spy.count(), 2);
+}
+
+// ============================================================================
+// Finding 1: a >=64-byte UTF-8/Thai label must round-trip exactly through the
+// plain-DLS adapter (the fallback descriptor must keep length bit 6).
+// ============================================================================
+void TestGuiDockLayout::testLongUtf8LabelRoundTrip()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // 20 Thai 'ก' (3 bytes each = 60) + "Hello!" (6) = 66 bytes: >64 so the
+    // 7-bit length field's bit 6 must be preserved, and <=127 so none of the
+    // label is intentionally truncated.
+    const QString thai = QString(20, QChar(0x0E01)) + QStringLiteral("Hello!");
+    const QByteArray labelBytes = thai.toUtf8();
+    QVERIFY2(labelBytes.size() > 64 && labelBytes.size() <= 127,
+             qPrintable(QString("test label must be 65..127 bytes, got %1")
+                            .arg(labelBytes.size())));
+
+    int mapped = 0;
+    const QByteArray pad = DABAnalyzerWindow::buildDecoderPadForTest(labelBytes, 15, {}, mapped);
+    QCOMPARE(mapped, 0);
+    QVERIFY(!pad.isEmpty());
+
+    QVERIFY(w.feedPadDataForTest(pad));
+    const QString track = w.nowPlayingTrackForTest();
+    QCOMPARE(track, thai);
+    QVERIFY2(!track.contains(QChar(0xFFFD)),
+             "long UTF-8/Thai label must not contain U+FFFD");
+    QCOMPARE(track.toUtf8().size(), labelBytes.size());  // no truncation
+
+    // Boundary table for the 7-bit length field (bit 6 of `length - 1`/length
+    // lives in descriptor byte 2 bit 0): 63 = 0b0111111, 64 = bit 6 set with
+    // low 6 bits 0 (the case the fix targeted), 65, and 127. ASCII keeps byte
+    // count == character count so the round-trip is exact.
+    for (const int n : {63, 64, 65, 127}) {
+        const QByteArray bytes(n, 'A');
+        int m = 0;
+        const QByteArray p = DABAnalyzerWindow::buildDecoderPadForTest(bytes, 15, {}, m);
+        QCOMPARE(m, 0);
+        QVERIFY(!p.isEmpty());
+        QVERIFY(w.feedPadDataForTest(p));
+        const QString got = w.nowPlayingTrackForTest();
+        QCOMPARE(got.toUtf8().size(), n);
+        QCOMPARE(got, QString::fromUtf8(bytes));
+    }
+    // >127 is intentionally truncated to the 7-bit field maximum (127).
+    {
+        const QByteArray bytes(130, 'B');
+        int m = 0;
+        const QByteArray p = DABAnalyzerWindow::buildDecoderPadForTest(bytes, 15, {}, m);
+        QVERIFY(!p.isEmpty());
+        QVERIFY(w.feedPadDataForTest(p));
+        const QString got = w.nowPlayingTrackForTest();
+        QCOMPARE(got.toUtf8().size(), 127);
+        QCOMPARE(got, QString::fromUtf8(bytes.left(127)));
+    }
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// Review: exercise the real PAD path (F-PAD/X-PAD -> Data Group command 0x02)
+// rather than only the decoder-boundary builder.
+// ============================================================================
+void TestGuiDockLayout::testDlPlusFromPadPath()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // DLS text "Hi" as a First+Last DLS Data Group (prefix + charset + text + CRC).
+    const QByteArray dlsText = QByteArrayLiteral("Hi");
+    QByteArray dlsGroup;
+    dlsGroup.append(static_cast<char>(0x40 | 0x20 | (dlsText.size() - 1)));  // First|Last|len-1
+    dlsGroup.append(static_cast<char>(0xF0));  // charset 15, segment 0
+    dlsGroup.append(dlsText);
+    uint16_t crc = static_cast<uint16_t>(~eti::crc16ccitt_false(
+        reinterpret_cast<const uint8_t*>(dlsGroup.constData()), dlsGroup.size()));
+    dlsGroup.append(static_cast<char>((crc >> 8) & 0xFF));
+    dlsGroup.append(static_cast<char>(crc & 0xFF));  // 6 bytes total
+
+    // DL+ command Data Group (command id 0x02) with one ITEM.TITLE tag [1,0,1]
+    // tagging DLS bytes 0..1 ("Hi").
+    QByteArray dlPlusGroup;
+    dlPlusGroup.append(static_cast<char>(0x40 | 0x20 | 0x10 | 0x02));  // seg 0|last|command|id 2
+    dlPlusGroup.append(static_cast<char>(0xF3));  // charset 15, field length = 4
+    dlPlusGroup.append(static_cast<char>(0x00));  // number of tags - 1 = 0
+    dlPlusGroup.append(static_cast<char>(1));     // ITEM.TITLE content type
+    dlPlusGroup.append(static_cast<char>(0));     // start marker
+    dlPlusGroup.append(static_cast<char>(1));     // length marker - 1 = 1
+    crc = static_cast<uint16_t>(~eti::crc16ccitt_false(
+        reinterpret_cast<const uint8_t*>(dlPlusGroup.constData()), dlPlusGroup.size()));
+    dlPlusGroup.append(static_cast<char>((crc >> 8) & 0xFF));
+    dlPlusGroup.append(static_cast<char>(crc & 0xFF));  // 8 bytes total
+
+    // Variable-size X-PAD CI list: DL+ group (len index 2 -> 8) then DLS group
+    // (len index 1 -> 6), terminated by the end marker.
+    QByteArray logicalXpad;
+    logicalXpad.append(static_cast<char>((2 << 5) | 2));  // CI: type 2, 8 bytes
+    logicalXpad.append(static_cast<char>((1 << 5) | 2));  // CI: type 2, 6 bytes
+    logicalXpad.append(static_cast<char>(0x00));          // end marker
+    logicalXpad.append(dlPlusGroup);
+    logicalXpad.append(dlsGroup);
+
+    QByteArray onWireXpad = logicalXpad;
+    std::reverse(onWireXpad.begin(), onWireXpad.end());
+
+    QVERIFY2(w.runRawXpadDlsParserForTest(onWireXpad),
+             "PAD DL+ command 0x02 must assemble a label with its tag");
+    QCOMPARE(w.dlsPlusLabelsAssembledForTest(), 1);
+    QCOMPARE(w.nowPlayingTrackForTest(), QStringLiteral("Hi"));
+    QVERIFY2(w.nowPlayingStatusForTest().startsWith(QStringLiteral("Updated:")),
+             qPrintable(QString("Now Playing status must show the update: %1")
+                            .arg(w.nowPlayingStatusForTest())));
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// Finding 2/3: a ci_flag==0 AU must reuse the previous CI list and APPEND to
+// the data-group assembly (never reset it) so a group split across AUs
+// reassembles.
+// ============================================================================
+void TestGuiDockLayout::testXpadContinuationReuse()
+{
+    const QByteArray text = QByteArrayLiteral("ABCDEFGH");
+    // DLS Data Group: prefix(First|Last|len-1) + charset + text + CRC = 12 bytes.
+    QByteArray group;
+    group.append(static_cast<char>(0x40 | 0x20 | (text.size() - 1)));
+    group.append(static_cast<char>(0xF0));  // charset 15, segment 0
+    group.append(text);
+    const uint16_t crc = static_cast<uint16_t>(~eti::crc16ccitt_false(
+        reinterpret_cast<const uint8_t*>(group.constData()), group.size()));
+    group.append(static_cast<char>((crc >> 8) & 0xFF));
+    group.append(static_cast<char>(crc & 0xFF));
+    QCOMPARE(group.size(), 12);
+
+    const QByteArray firstHalf = group.left(6);
+    const QByteArray secondHalf = group.mid(6);
+
+    DabPlusSubchannelParser parser;
+
+    // AU 1: ci_flag=1, variable X-PAD announcing a 6-byte subfield (CI type 2).
+    QByteArray logical1;
+    logical1.append(static_cast<char>((1 << 5) | 2));  // CI: type 2, len index 1 -> 6
+    logical1.append(static_cast<char>(0x00));          // end marker
+    logical1.append(firstHalf);
+    QByteArray wire1 = logical1;
+    std::reverse(wire1.begin(), wire1.end());
+    const uint8_t fpadCi[2] = {0x20, 0x02};  // type 0, variable, CI set
+    DlsAssembly assembly1;
+    QVERIFY2(!parser.processPad(reinterpret_cast<const uint8_t*>(wire1.constData()),
+                                static_cast<size_t>(wire1.size()), fpadCi, assembly1),
+             "the first half of a split data group must not complete yet");
+
+    // AU 2: ci_flag=0, NO CI bytes, carrying the remaining 6 bytes. The parser
+    // must reuse the previous CI list and append (not reset) the assembly.
+    QByteArray wire2 = secondHalf;
+    std::reverse(wire2.begin(), wire2.end());
+    const uint8_t fpadNoCi[2] = {0x20, 0x00};  // type 0, variable, CI clear
+    DlsAssembly assembly2;
+    QVERIFY2(parser.processPad(reinterpret_cast<const uint8_t*>(wire2.constData()),
+                               static_cast<size_t>(wire2.size()), fpadNoCi, assembly2),
+             "ci_flag==0 continuation must reuse the previous CI list");
+    QVERIFY2(assembly2.hasLabel, "the reassembled continuation must yield a DLS label");
+    QCOMPARE(assembly2.dlText, text);
+
+    // --- ci_flag==1, type 3 APPEND: a group carried by a type-2 start followed
+    // by type-3 continuations must reassemble (type 3 never resets the buffer).
+    {
+        DabPlusSubchannelParser p3;
+        const uint8_t fpadCi[2] = {0x20, 0x02};  // type 0, variable X-PAD, CI set
+        const auto type3Pad = [](const QByteArray& chunk) {
+            QByteArray logical;
+            logical.append(static_cast<char>((0 << 5) | 3));  // CI: type 3, len index 0 -> 4
+            logical.append(static_cast<char>(0x00));          // end marker
+            logical.append(chunk);
+            std::reverse(logical.begin(), logical.end());
+            return logical;
+        };
+
+        // AU 1: type 2 starts the group (first 4 of 12 bytes).
+        QByteArray logical1;
+        logical1.append(static_cast<char>((0 << 5) | 2));  // CI: type 2, 4 bytes
+        logical1.append(static_cast<char>(0x00));
+        logical1.append(group.left(4));
+        std::reverse(logical1.begin(), logical1.end());
+        DlsAssembly a1;
+        QVERIFY2(!p3.processPad(reinterpret_cast<const uint8_t*>(logical1.constData()),
+                                static_cast<size_t>(logical1.size()), fpadCi, a1),
+                 "a partial data group must not complete");
+
+        // AU 2: type 3 continues (middle 4 bytes).
+        const QByteArray wire2 = type3Pad(group.mid(4, 4));
+        DlsAssembly a2;
+        QVERIFY2(!p3.processPad(reinterpret_cast<const uint8_t*>(wire2.constData()),
+                                static_cast<size_t>(wire2.size()), fpadCi, a2),
+                 "middle of a split data group must not complete yet");
+
+        // AU 3: type 3 continues (last 4 bytes) -> completes.
+        const QByteArray wire3 = type3Pad(group.mid(8, 4));
+        DlsAssembly a3;
+        QVERIFY2(p3.processPad(reinterpret_cast<const uint8_t*>(wire3.constData()),
+                               static_cast<size_t>(wire3.size()), fpadCi, a3),
+                 "type-3 continuation must append and complete the group");
+        QVERIFY(a3.hasLabel);
+        QCOMPARE(a3.dlText, text);
+    }
+
+    // --- A new type-2 (data-group start) must DISCARD an in-progress buffer:
+    // feed a partial group, then a complete different group; the result must be
+    // the complete group, proving the partial bytes were dropped, not merged.
+    {
+        DabPlusSubchannelParser p4;
+        const uint8_t fpadCi[2] = {0x20, 0x02};
+        const auto type2Pad = [](const QByteArray& chunk, int lenIndex) {
+            QByteArray logical;
+            logical.append(static_cast<char>((lenIndex << 5) | 2));
+            logical.append(static_cast<char>(0x00));  // end marker
+            logical.append(chunk);
+            std::reverse(logical.begin(), logical.end());
+            return logical;
+        };
+        const auto makeGroup = [](const QByteArray& eight) {
+            QByteArray g;
+            g.append(static_cast<char>(0x40 | 0x20 | (eight.size() - 1)));  // First|Last|len-1
+            g.append(static_cast<char>(0xF0));                              // charset 15, seg 0
+            g.append(eight);
+            const uint16_t c = static_cast<uint16_t>(~eti::crc16ccitt_false(
+                reinterpret_cast<const uint8_t*>(g.constData()), g.size()));
+            g.append(static_cast<char>((c >> 8) & 0xFF));
+            g.append(static_cast<char>(c & 0xFF));
+            return g;
+        };
+        const QByteArray groupA = makeGroup(QByteArrayLiteral("ABCDEFGH"));
+        QCOMPARE(groupA.size(), 12);
+        const QByteArray wirePartial = type2Pad(groupA.left(8), 2);  // len index 2 -> 8
+        DlsAssembly ignored;
+        QVERIFY2(!p4.processPad(reinterpret_cast<const uint8_t*>(wirePartial.constData()),
+                                static_cast<size_t>(wirePartial.size()), fpadCi, ignored),
+                 "partial group must not complete");
+
+        const QByteArray groupB = makeGroup(QByteArrayLiteral("BBBBBBBB"));
+        const QByteArray wireFull = type2Pad(groupB, 3);  // len index 3 -> 12
+        DlsAssembly done;
+        QVERIFY2(p4.processPad(reinterpret_cast<const uint8_t*>(wireFull.constData()),
+                               static_cast<size_t>(wireFull.size()), fpadCi, done),
+                 "a new type-2 must start a fresh group and complete it");
+        QVERIFY(done.hasLabel);
+        QCOMPARE(done.dlText, QByteArrayLiteral("BBBBBBBB"));
+    }
+}
+
+// ============================================================================
+// T20 finding 1: an AU whose DSE announces a long PAD but carries a short CI
+// list (announced ~14, xpadLen ~253) used to index xpad[] past its 196-byte
+// buffer in the trailing-padding scan. The parser must reject it (no OOB, no
+// crash) and must stay usable afterwards.
+// ============================================================================
+void TestGuiDockLayout::testXpadOversizePadRejected()
+{
+    DabPlusSubchannelParser parser;
+
+    // Build a complete, otherwise-decodable DLS group (12 bytes, "ABCDEFGH").
+    const QByteArray text = QByteArrayLiteral("ABCDEFGH");
+    QByteArray group;
+    group.append(static_cast<char>(0x40 | 0x20 | (text.size() - 1)));  // First|Last|len-1
+    group.append(static_cast<char>(0xF0));                            // charset 15, seg 0
+    group.append(text);
+    const uint16_t dgCrc = static_cast<uint16_t>(~eti::crc16ccitt_false(
+        reinterpret_cast<const uint8_t*>(group.constData()), group.size()));
+    group.append(static_cast<char>((dgCrc >> 8) & 0xFF));
+    group.append(static_cast<char>(dgCrc & 0xFF));
+    QCOMPARE(group.size(), 12);
+
+    // Oversized X-PAD (253 > the fixed 196-byte buffer) whose announced CI+data
+    // (end marker + 12-byte sub-field = 14) is far below the actual length; the
+    // padding tail is zero, so WITHOUT the size guard this would scan past the
+    // buffer and then decode the group (return true). WITH the guard it must be
+    // rejected up front.
+    const size_t xpadLen = 253;
+    QByteArray logical(static_cast<int>(xpadLen), '\0');
+    logical[0] = static_cast<char>((3 << 5) | 2);  // CI: type 2, len index 3 -> 12
+    logical[1] = static_cast<char>(0x00);          // CI end marker
+    std::memcpy(logical.data() + 2, group.constData(), static_cast<size_t>(group.size()));
+    // On-wire X-PAD is the reverse of the logical order.
+    QByteArray onWire = logical;
+    std::reverse(onWire.begin(), onWire.end());
+
+    const uint8_t fpadCi[2] = {0x20, 0x02};  // type 0, variable, CI set
+    DlsAssembly assembly;
+    QVERIFY2(!parser.processPad(reinterpret_cast<const uint8_t*>(onWire.constData()),
+                                static_cast<size_t>(onWire.size()), fpadCi, assembly),
+             "an X-PAD longer than the fixed 196-byte buffer must be rejected "
+             "even when its announced CI/data length is short");
+    QVERIFY(!assembly.hasLabel);
+
+    // The parser must remain usable: a normal, well-formed pad still decodes.
+    const QByteArray okText = QByteArrayLiteral("Hi");
+    QByteArray okGroup;
+    okGroup.append(static_cast<char>(0x40 | 0x20 | (okText.size() - 1)));  // First|Last|len-1
+    okGroup.append(static_cast<char>(0xF0));                             // charset 15, seg 0
+    okGroup.append(okText);
+    const uint16_t okCrc = static_cast<uint16_t>(~eti::crc16ccitt_false(
+        reinterpret_cast<const uint8_t*>(okGroup.constData()), okGroup.size()));
+    okGroup.append(static_cast<char>((okCrc >> 8) & 0xFF));
+    okGroup.append(static_cast<char>(okCrc & 0xFF));  // 6 bytes total
+    QByteArray logicalOk;
+    logicalOk.append(static_cast<char>((1 << 5) | 2));  // CI: type 2, len index 1 -> 6
+    logicalOk.append(static_cast<char>(0x00));          // end marker
+    logicalOk.append(okGroup);
+    QByteArray wireOk = logicalOk;
+    std::reverse(wireOk.begin(), wireOk.end());
+    DlsAssembly ok;
+    QVERIFY2(parser.processPad(reinterpret_cast<const uint8_t*>(wireOk.constData()),
+                               static_cast<size_t>(wireOk.size()), fpadCi, ok),
+             "parser must still decode a valid pad after rejecting an oversized one");
+    QVERIFY(ok.hasLabel);
+    QCOMPARE(ok.dlText, okText);
+}
+
+namespace {
+// Minimal FIG 0/2 programme service entry with one DAB+ component (ASCTy 0x3F).
+QByteArray fig02ServiceOnSubChannel(uint16_t serviceId, uint8_t subChannelId)
+{
+    QByteArray data;
+    data.append(static_cast<char>(0x02));  // ext 2, P/D = 0 (programme)
+    data.append(static_cast<char>((serviceId >> 8) & 0x7F));
+    data.append(static_cast<char>(serviceId & 0xFF));
+    data.append(static_cast<char>(0x01));  // 1 component
+    data.append(static_cast<char>(0x3F));  // TMId 0 + ASCTy 0x3F (DAB+)
+    data.append(static_cast<char>((subChannelId << 2) | 0x02));  // SubChId + primary
+    QByteArray block;
+    block.append(static_cast<char>(0x00 | (data.size() & 0x1F)));  // FIG type 0 + length
+    block.append(data);
+    return block;
+}
+
+// Minimal FIG 1/1 programme service label (charset 0) + 16-bit char flag.
+QByteArray fig11ServiceLabel(uint16_t serviceId, const QByteArray& labelIn)
+{
+    QByteArray data;
+    data.append(static_cast<char>(0x01));  // charset 0, ext 1
+    data.append(static_cast<char>((serviceId >> 8) & 0x7F));
+    data.append(static_cast<char>(serviceId & 0xFF));
+    QByteArray label = labelIn;
+    while (label.size() < 16) label.append(' ');
+    label.truncate(16);
+    data.append(label);
+    data.append(static_cast<char>(0x00));  // character flag hi
+    data.append(static_cast<char>(0x00));  // character flag lo
+    QByteArray block;
+    block.append(static_cast<char>(0x20 | (data.size() & 0x1F)));  // FIG type 1 + length
+    block.append(data);
+    return block;
+}
+}  // namespace
+
+// ============================================================================
+// T20 finding 2: the DAB+ sub-channel -> service cache must invalidate on the
+// analyzer's monotonic service revision, not only on count changes. A FIG 1/1
+// label arriving after the cache was built (with an empty label) must be
+// reflected in the resolved service label and the Now Playing panel line.
+// ============================================================================
+void TestGuiDockLayout::testDabPlusServiceCacheRevision()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    constexpr uint16_t kServiceId = 0x1234;
+    constexpr int kSubChannel = 3;
+
+    // 1) FIG 0/2 only: the DAB+ component exists but its label is unknown yet.
+    const uint32_t rev0 = w.figServiceRevisionForTest();
+    w.feedFicForTest(fig02ServiceOnSubChannel(kServiceId, kSubChannel));
+    QVERIFY2(w.figServiceRevisionForTest() != rev0,
+             "FIG 0/2 must advance the service revision");
+    // Drain the queued servicesUpdated() before any close: the window's
+    // queued-slot connections must not fire against a torn-down analyzer.
+    QCoreApplication::processEvents();
+
+    // Build the cache now -> under the old count-only invalidation it pinned
+    // the (empty) label for the whole session.
+    QVERIFY(w.dabPlusSubChannelKnownForTest(kSubChannel));
+    QVERIFY2(w.dabPlusServiceLabelForTest(kSubChannel).isEmpty(),
+             "label is not known before FIG 1/1 arrives");
+
+    // 2) FIG 1/1 supplies the real label without changing any count.
+    const uint32_t rev1 = w.figServiceRevisionForTest();
+    w.feedFicForTest(fig11ServiceLabel(kServiceId, QByteArrayLiteral("RROne FM 101")));
+    QVERIFY2(w.figServiceRevisionForTest() != rev1,
+             "FIG 1/1 must advance the service revision");
+    QCoreApplication::processEvents();
+
+    // 3) The cache must refresh: real label, no stale blank.
+    QCOMPARE(w.dabPlusServiceLabelForTest(kSubChannel).trimmed(),
+             QStringLiteral("RROne FM 101"));
+
+    // 4) The Now Playing panel line must show the resolved service label.
+    QVERIFY(w.feedServiceLabeledDlsForTest(kSubChannel, QByteArrayLiteral("Test Song")));
+    QVERIFY2(w.nowPlayingStatusForTest().contains(QStringLiteral("RROne FM 101")),
+             qPrintable(QString("panel line must show the real service label, got: %1")
+                            .arg(w.nowPlayingStatusForTest())));
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// Refinement C: Tab 2 / Tab 3 section titles are meaningful (no Left/Center/
+// Right or placeholder text).
+// ============================================================================
+void TestGuiDockLayout::testTabPagesDescriptiveTitles()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    auto* mainTabs = w.findChild<QTabWidget*>(QStringLiteral("mainTabs"));
+    QVERIFY(mainTabs);
+    QCOMPARE(mainTabs->count(), 3);
+
+    const QStringList generic = {QStringLiteral("Left"), QStringLiteral("Center"),
+                                 QStringLiteral("Right"), QStringLiteral("—"),
+                                 QStringLiteral("-"), QStringLiteral("N/A"),
+                                 QStringLiteral("TODO")};
+
+    QStringList seenTitles;
+    for (int tab = 1; tab <= 2; ++tab) {  // Tab 2 = FIC-Analyzer, Tab 3 = FIC-Extractor
+        QWidget* page = mainTabs->widget(tab);
+        QVERIFY2(page, qPrintable(QString("tab page %1 missing").arg(tab)));
+        const QList<QGroupBox*> groups = page->findChildren<QGroupBox*>();
+        QVERIFY2(!groups.isEmpty(),
+                 qPrintable(QString("tab %1 must have titled sections").arg(tab)));
+        for (QGroupBox* g : groups) {
+            const QString title = g->title().trimmed();
+            QVERIFY2(!title.isEmpty(), "section title must not be empty");
+            QVERIFY2(!generic.contains(title, Qt::CaseInsensitive),
+                     qPrintable(QString("generic section title '(%1)' in tab %2")
+                                    .arg(title).arg(tab)));
+            seenTitles << title;
+        }
+    }
+
+    // The meaningful names requested by the user must be present.
+    const QStringList expected = {
+        QStringLiteral("Overview"), QStringLiteral("Service Tree"),
+        QStringLiteral("Digital Org Info"), QStringLiteral("Service Components"),
+        QStringLiteral("Ensemble Table"), QStringLiteral("Sub-Channel Table"),
+        QStringLiteral("Service Table"), QStringLiteral("FIG Content"),
+        QStringLiteral("FIG Instance List"), QStringLiteral("FIG Item Details"),
+    };
+    for (const QString& name : expected) {
+        QVERIFY2(seenTitles.contains(name),
+                 qPrintable(QString("expected section title missing: %1 (have: %2)")
+                                .arg(name, seenTitles.join(", "))));
+    }
 
     w.close();
     QCoreApplication::processEvents();

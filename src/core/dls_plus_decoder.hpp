@@ -177,6 +177,11 @@ public:
     uint64_t getInvalidMessagesCount() const;
     Statistics getStatistics() const;
     void resetStatistics();
+
+    // Clear the change-detection history (previous artist/title/album/…).
+    // Call on file load so a second capture cannot suppress its first label
+    // just because it happens to repeat the previous capture's last values.
+    void resetHistory();
     
 signals:
     // Emitted when new DLS+ message received (service_id, message)

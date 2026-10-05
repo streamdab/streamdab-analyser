@@ -126,16 +126,16 @@ title is the original column name (`Left`/`Center`/`Right`) exactly as passed to
 
 | Dock objectName | Visible title | Column / area |
 |-----------------|---------------|---------------|
-| `tab2_Left` | Left | Left |
-| `tab2_Center` | Center | Center |
-| `tab2_Right` | Right | Right |
+| `tab2_Left` | Service Tree | Left |
+| `tab2_Center` | Ensemble & Sub-Channel Tables | Center |
+| `tab2_Right` | FIG Content | Right |
 
 ### Tab 3 — 📊 FIC-Extractor (2)
 
 | Dock objectName | Visible title | Column / area |
 |-----------------|---------------|---------------|
-| `tab3_Left` | Left | Left |
-| `tab3_Right` | Right | Right |
+| `tab3_Left` | FIG Instance List | Left |
+| `tab3_Right` | FIG Item Details | Right |
 
 ### Bottom strip — shared across tabs (6)
 
