@@ -583,6 +583,7 @@ void AdvancedFIGAnalyzer::processFIG0_0(const QByteArray& data)
     m_ensembleId = ensembleId;
     m_changeFlags = changeFlags;
     m_ensembleValid = true;
+    bumpServiceRevision();  // ensemble/service state changed
 
     // Country Identifier: high nibble of the EId MSB (EN 300 401 FIG 0/0;
     // the Extended Country Code is carried by FIG 0/9, not FIG 0/0).
@@ -722,6 +723,7 @@ void AdvancedFIGAnalyzer::processFIG0_1(const QByteArray& data)
 
     if (sub_channels_found > 0) {
         qInfo() << "FIG 0/1: Stored" << sub_channels_found << "sub-channels";
+        bumpServiceRevision();  // sub-channel organization changed
         emit subChannelsUpdated();
     }
 
@@ -916,6 +918,7 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
 
     if (services_found > 0) {
         qInfo() << "FIG 0/2: Stored" << services_found << "services in map";
+        bumpServiceRevision();  // service/components changed
         emit servicesUpdated();
     }
 
@@ -996,6 +999,7 @@ void AdvancedFIGAnalyzer::processFIG1_0(const QByteArray& data)
     // Update ensemble info
     m_currentEnsemble.ensembleLabel = m_ensembleLabel.getFullLabel();
     m_currentEnsemble.shortLabel = m_ensembleLabel.getShortLabel();
+    bumpServiceRevision();  // ensemble label changed
 
     qInfo() << "FIG 1/0: Ensemble label ="
             << m_ensembleLabel.getFullLabel()
@@ -1137,6 +1141,9 @@ void AdvancedFIGAnalyzer::processFIG1_1(const QByteArray& data)
         qInfo() << "FIG 1/1: Created service" << Qt::hex << service_id
                 << "from label (no FIG 0/2 seen yet)";
     }
+    // Service label changed (or service created from a label-only FIG) ->
+    // count-based caches must not pin the previous empty/old label.
+    bumpServiceRevision();
 
     if (!found) {
         // Keep the legacy list in sync with label-only discoveries
@@ -1244,6 +1251,7 @@ void AdvancedFIGAnalyzer::processFIG1_4(const QByteArray& data)
     uint32_t component_key = static_cast<uint32_t>((static_cast<uint64_t>(service_id) << 8) | component_id);
     m_componentLabelData[component_key] = label;
     m_componentLabels[component_key] = label.getFullLabel();
+    bumpServiceRevision();  // component label changed
 
     qInfo() << "FIG 1/4: Component" << component_id
             << "of service" << Qt::hex << service_id
@@ -1756,6 +1764,7 @@ void AdvancedFIGAnalyzer::processFIG0_8(const QByteArray& data)
 
     if (definitions_found > 0) {
         qInfo() << "FIG 0/8: Parsed" << definitions_found << "global definitions";
+        bumpServiceRevision();  // component/global-definition mapping changed
         m_validFIGsCount++;
         m_totalFIGsProcessed++;
     }
@@ -2148,6 +2157,7 @@ void AdvancedFIGAnalyzer::processFIG0_17(const QByteArray& data)
 
     if (programme_types_found > 0) {
         qInfo() << "FIG 0/17: Parsed" << programme_types_found << "programme type definitions";
+        bumpServiceRevision();  // service PTy changed
         m_validFIGsCount++;
         m_totalFIGsProcessed++;
     }
@@ -2402,6 +2412,7 @@ void AdvancedFIGAnalyzer::processFIG1_5(const QByteArray& data)
     }
 
     if (labels_found > 0) {
+        bumpServiceRevision();  // data-service label changed
         m_validFIGsCount++;
         m_totalFIGsProcessed++;
         qDebug() << "FIG 1/5: Processed" << labels_found << "data service label(s)";
@@ -2505,6 +2516,7 @@ void AdvancedFIGAnalyzer::processFIG2_0(const QByteArray& data)
             << "toggle" << toggle_flag
             << "length" << text_length << "bytes";
 
+    bumpServiceRevision();  // extended ensemble label changed
     m_validFIGsCount++;
     m_totalFIGsProcessed++;
 }
@@ -2589,6 +2601,7 @@ void AdvancedFIGAnalyzer::processFIG2_1(const QByteArray& data)
             << "toggle" << toggle_flag
             << "length" << text_length << "bytes";
 
+    bumpServiceRevision();  // extended service label changed
     m_validFIGsCount++;
     m_totalFIGsProcessed++;
 }
@@ -2676,6 +2689,7 @@ void AdvancedFIGAnalyzer::processFIG2_4(const QByteArray& data)
             << "toggle" << toggle_flag
             << "length" << text_length << "bytes";
 
+    bumpServiceRevision();  // extended component label changed
     m_validFIGsCount++;
     m_totalFIGsProcessed++;
 }
@@ -2734,6 +2748,7 @@ void AdvancedFIGAnalyzer::processFIG2_5(const QByteArray& data)
             << "toggle" << toggle_flag
             << "length" << text_length << "bytes";
 
+    bumpServiceRevision();  // extended data-service label changed
     m_validFIGsCount++;
     m_totalFIGsProcessed++;
 }
@@ -2907,6 +2922,9 @@ void AdvancedFIGAnalyzer::reset()
     m_figFibIndex = -1;
     m_figFibCrcOk = true;
     m_figRecording = true;
+    // Invalidate every derived cache: the state was cleared, so the revision
+    // must advance (never reset to 0) to remain monotonic.
+    bumpServiceRevision();
 }
 
 // ============================================================================

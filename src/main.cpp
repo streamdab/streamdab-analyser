@@ -41,6 +41,7 @@
 #include "DockWidget.h"
 #include "DockAreaWidget.h"
 #include "DockSplitter.h"
+#include <QScopeGuard>          // RAII navigation-guard re-arm (Finding 8)
 #include <QSettings>
 #include <QStandardPaths>
 #include <QHash>
@@ -51,8 +52,11 @@
 #include <list>
 #include <optional>
 #include <atomic>               // Phase 1.1: Thread-safe counter
+#include <algorithm>            // std::min (DLS+ F-PAD candidate extraction)
+#include <exception>            // std::exception (frame-decode try/catch guards)
 
 #include "core/enhanced_eti_processor_qt.h"
+#include "core/crc16.hpp"  // shared CRC-16/CCITT-FALSE (AU + DL Data Group CRC)
 #include "core/advanced_fig_analyzer.h"
 #include "core/hex_viewer_formatter.h"
 #include "core/analyzer_settings.hpp"
@@ -78,6 +82,557 @@ namespace {
     const int _etiFormatTypeId = qRegisterMetaType<ETIFormat>("ETIFormat");
 }
 
+// ============================================================================
+// Standard DAB+ superframe / PAD parser (Refinement A)
+// ============================================================================
+// Replaces the previous "last min(128,|msc|) bytes" heuristic with the
+// documented source chain (docs/PHASE_3B_TECHNICAL_NOTES.md §Architecture):
+//   DAB+ audio subchannel MSC (ETI)
+//     -> superframe header/AU split (ETSI TS 102 563 §4/§5)
+//     -> PAD inside the Data Stream Element (DSE) at the AU start
+//     -> F-PAD + X-PAD CI/data subfields (ETSI EN 300 401 §7.4)
+//     -> DLS/DLS+ Data Groups -> reassembled DLS text + DL+ tags
+//     -> DLSPlusDecoder::processPADData() -> nowPlayingUpdated()
+//
+// The repo's core/dabplus_stream_validator.cpp does NOT contain a usable
+// F-PAD/X-PAD parser: its `extractPADData()` is explicitly a stub ("real
+// implementation would parse F-PAD length indicator") and its AU handling has
+// no FireCode / DSE / AU-CRC step. The parsing logic here was therefore
+// re-implemented from the standards and cross-checked against the reference
+// decoders (logic only, no code copied):
+//   - ODR-Dab DABlin: src/dabplus_decoder.cpp (SuperframeFilter::CheckSync /
+//     CheckForPAD), src/pad_decoder.cpp (PADDecoder::Process,
+//     DynamicLabelDecoder)
+//   - ODR-Dab etisnoop: src/dabplussnoop.cpp (seek_valid_firecode / decode /
+//     extract_au), src/firecode.c
+// The only value reused from the repo's validator is FPAD_LEN = 2.
+// ============================================================================
+
+// FireCode CRC-16 (poly 0x782F, init 0x0000), bit order per etisnoop.
+inline uint16_t dabFirecodeCrc(const uint8_t* buf, size_t size)
+{
+    uint16_t crc = 0x0000;
+    constexpr uint16_t genPoly = 0x782F;
+    for (size_t len = 0; len < size; ++len) {
+        for (int i = 0x80; i != 0; i >>= 1) {
+            if (crc & 0x8000) {
+                crc = static_cast<uint16_t>((crc << 1) ^ genPoly);
+            } else {
+                crc = static_cast<uint16_t>(crc << 1);
+            }
+            if (buf[len] & i) {
+                crc ^= genPoly;
+            }
+        }
+    }
+    return crc;
+}
+
+// X-PAD X-PAD CI sub-field lengths, ETSI EN 300 401 Table 6.
+constexpr int kXpadSubfieldLens[8] = {4, 6, 8, 12, 16, 24, 32, 48};
+constexpr int kFpadLen = 2;  // FPAD_LEN reused from dabplus_stream_validator.cpp
+
+// DLS+ content descriptor (standard 3-byte form, ETSI TS 102 980 §4).
+struct StdDlsPlusTag {
+    int contentType = 0;    // 7-bit content type (1..61)
+    int startMarker = 0;    // byte offset into the DLS text
+    int lengthMarker = 0;   // byte length - 1
+};
+
+struct DlsAssembly {
+    bool hasLabel = false;
+    QByteArray dlText;                 // raw DLS bytes in `charset`
+    uint8_t charset = 15;              // TS 101 756 character field
+    std::vector<StdDlsPlusTag> tags;   // DL+ tags (empty for plain DLS)
+    bool hasDlPlus = false;
+};
+
+// Per-DAB+-subchannel parser: accumulates 5 x 24 ms CIFs into a 120 ms
+// superframe, locates each AU + its DSE/PAD, and reassembles DLS/DLS+.
+struct DabPlusSubchannelParser {
+    // Evidence counters (aggregated for the load report).
+    uint64_t superframes = 0;
+    uint64_t firecodeOk = 0;
+    uint64_t ausProcessed = 0;
+    uint64_t ausCrcOk = 0;
+    uint64_t padFound = 0;
+    uint64_t fpadCiSet = 0;
+    uint64_t xpadGroups = 0;
+    uint64_t dlSegments = 0;
+    uint64_t dlPlusSegments = 0;
+    uint64_t labels = 0;
+    uint64_t groupTypeCounts[32] = {0};
+
+    // DLS segment reassembler (DABlin DL_SEG_REASSEMBLER semantics).
+    struct Segment {
+        int segNum = 0;
+        bool toggle = false;
+        bool last = false;
+        uint8_t charset = 15;
+        QByteArray chars;
+    };
+    struct Reassembler {
+        std::map<int, Segment> segs;
+        void reset() { segs.clear(); }
+        void add(const Segment& s) {
+            if (!segs.empty() && segs.begin()->second.toggle != s.toggle) {
+                segs.clear();  // toggle changed -> drop stale segments
+            }
+            if (segs.count(s.segNum)) {
+                return;
+            }
+            segs[s.segNum] = s;
+        }
+        bool complete(QByteArray& out, uint8_t& charset) const {
+            int count = 0;
+            for (int i = 0; i < 8; ++i) {
+                auto it = segs.find(i);
+                if (it == segs.end()) {
+                    return false;
+                }
+                ++count;
+                if (it->second.last) {
+                    break;
+                }
+                if (i == 7) {
+                    return false;
+                }
+            }
+            out.clear();
+            for (int i = 0; i < count; ++i) {
+                out.append(segs.at(i).chars);
+            }
+            charset = segs.at(0).charset;
+            return true;
+        }
+    };
+    Reassembler dlReassembler;
+    Reassembler dlPlusReassembler;
+
+    // 5-CIF superframe accumulation.
+    QByteArray superframeBuffer;
+    int chunkLen = 0;
+
+    // DL Data Group accumulation (one group may span sub-fields).
+    QByteArray dataGroupBuffer;
+    bool dataGroupActive = false;
+
+    // Previous X-PAD CI list (DABlin `prev_xpad_ci`): reused when the F-PAD CI
+    // flag is 0, i.e. this AU continues the data group announced earlier.
+    // Entries are {CI type, sub-field length}.
+    std::vector<std::pair<int, int>> lastXpadCi;
+
+    void reset()
+    {
+        superframeBuffer.clear();
+        chunkLen = 0;
+        dlReassembler.reset();
+        dlPlusReassembler.reset();
+        dataGroupBuffer.clear();
+        dataGroupActive = false;
+        lastXpadCi.clear();
+    }
+
+    // Feed one ETI-frame CIF chunk for this subchannel. Uses a sliding sync:
+    // a DAB+ superframe starts every 5 CIFs, so if the candidate window does
+    // not pass the FireCode we drop ONE chunk and retry (instead of discarding
+    // all 5), which locks onto the real superframe boundary quickly.
+    bool feedChunk(const QByteArray& chunk, DlsAssembly& out)
+    {
+        if (chunk.isEmpty()) {
+            return false;
+        }
+        if (chunkLen == 0) {
+            chunkLen = chunk.size();
+        }
+        if (chunk.size() != chunkLen) {
+            superframeBuffer.clear();
+            chunkLen = chunk.size();
+        }
+        superframeBuffer.append(chunk);
+        const int sfLen = 5 * chunkLen;
+        if (superframeBuffer.size() < sfLen) {
+            return false;
+        }
+        const QByteArray sf = superframeBuffer.left(sfLen);
+        bool synced = false;
+        const bool produced = processSuperframe(sf, out, &synced);
+        superframeBuffer.remove(0, synced ? sfLen : chunkLen);
+        return produced;
+    }
+
+    bool processSuperframe(const QByteArray& sf, DlsAssembly& out,
+                           bool* syncedOut = nullptr)
+    {
+        if (syncedOut) {
+            *syncedOut = false;
+        }
+        if (sf.size() < 120 || (sf.size() % 120) != 0) {
+            return false;
+        }
+        const int subchIndex = sf.size() / 120;
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(sf.constData());
+        ++superframes;
+
+        // ---- Superframe header / FireCode (ETSI TS 102 563 §4) ----
+        const uint16_t fireStored = static_cast<uint16_t>((b[0] << 8) | b[1]);
+        if (fireStored != dabFirecodeCrc(b + 2, 9)) {
+            return false;  // not synced
+        }
+        // Simple plausibility check (etisnoop): the three bytes after the
+        // FireCode must not all be zero (avoids sync in zero padding).
+        if (b[3] == 0x00 && (b[4] & 0xF0) == 0x00) {
+            return false;
+        }
+        ++firecodeOk;
+        if (syncedOut) {
+            *syncedOut = true;
+        }
+
+        const uint8_t audioParams = b[2];
+        const bool dacRate = (audioParams & 0x40) != 0;
+        const bool sbrFlag = (audioParams & 0x20) != 0;
+        int numAus = 0;
+        int firstAuStart = 0;
+        if (!dacRate && sbrFlag) {
+            numAus = 2;
+            firstAuStart = 5;
+        } else if (dacRate && sbrFlag) {
+            numAus = 3;
+            firstAuStart = 6;
+        } else if (!dacRate && !sbrFlag) {
+            numAus = 4;
+            firstAuStart = 8;
+        } else {
+            numAus = 6;
+            firstAuStart = 11;
+        }
+
+        // AU start offsets: n-1 values of 3 nibbles each (etisnoop).
+        std::vector<int> auStart(static_cast<size_t>(numAus) + 1, 0);
+        auStart[0] = firstAuStart;
+        auStart[numAus] = subchIndex * 110;  // end of AU data (before RS parity)
+
+        std::vector<uint8_t> nibbles;
+        nibbles.reserve(static_cast<size_t>((numAus - 1) * 3));
+        for (int i = 0; i < (numAus - 1) * 3; ++i) {
+            const int byteIndex = 3 + i / 2;
+            if (byteIndex >= sf.size()) {
+                return false;
+            }
+            nibbles.push_back((i % 2 == 0) ? static_cast<uint8_t>(b[byteIndex] >> 4)
+                                           : static_cast<uint8_t>(b[byteIndex] & 0x0F));
+        }
+        int nib = 0;
+        for (int au = 1; au < numAus; ++au) {
+            auStart[au] = (nibbles[nib] << 8) | (nibbles[nib + 1] << 4) | nibbles[nib + 2];
+            nib += 3;
+        }
+        for (int au = 0; au < numAus; ++au) {
+            if (auStart[au] >= auStart[au + 1]) {
+                return false;
+            }
+        }
+
+        // ---- Per-AU: AU CRC + DSE/PAD (ETSI TS 102 563 §5/§7) ----
+        bool produced = false;
+        for (int au = 0; au < numAus; ++au) {
+            const int auLen = auStart[au + 1] - auStart[au];
+            if (auLen < 2) {
+                continue;
+            }
+            const uint8_t* auData = b + auStart[au];
+            const int payloadLen = auLen - 2;
+            const uint16_t auCrcStored =
+                static_cast<uint16_t>((auData[payloadLen] << 8) | auData[payloadLen + 1]);
+            const uint16_t auCrcCalc =
+                static_cast<uint16_t>(~eti::crc16ccitt_false(auData, payloadLen));
+            ++ausProcessed;
+            if (auCrcStored != auCrcCalc) {
+                continue;  // corrupted AU -> skip (no RS correction attempted)
+            }
+            ++ausCrcOk;
+            if (processAuPad(auData, payloadLen, out)) {
+                produced = true;
+            }
+        }
+        return produced;
+    }
+
+    // Locate the PAD inside the AU's Data Stream Element and decode it.
+    bool processAuPad(const uint8_t* data, int len, DlsAssembly& out)
+    {
+        if (len < 3 || (data[0] >> 5) != 4) {
+            return false;  // no DSE (PAD) present
+        }
+        int padStart = 2;
+        int padLen = data[1];
+        if (padLen == 255) {
+            if (len < 3) {
+                return false;
+            }
+            padLen += data[2];
+            padStart++;
+        }
+        if (padLen < kFpadLen || len < padStart + padLen) {
+            return false;
+        }
+        ++padFound;
+        const uint8_t* xpad = data + padStart;
+        const size_t xpadLen = static_cast<size_t>(padLen - kFpadLen);
+        const uint8_t* fpad = data + padStart + padLen - kFpadLen;
+        return processPad(xpad, xpadLen, fpad, out);
+    }
+
+    // F-PAD + X-PAD CI/data subfield decode (ETSI EN 300 401 §7.4).
+    bool processPad(const uint8_t* xpadData, size_t xpadLen, const uint8_t* fpad,
+                    DlsAssembly& out)
+    {
+        // The X-PAD is transmitted in reverse byte order into the fixed-size
+        // buffer. Reject over-long X-PADs up front: the strict-length padding
+        // check below indexes xpad[announced .. xpadLen-1], so an xpadLen
+        // larger than the buffer (padLen can reach ~508: 255 + data[2]) would
+        // read/write out of bounds. The `used` clamp alone only protects the
+        // reverse copy, not the trailing-padding scan.
+        constexpr size_t kXpadMax = 196;
+        if (xpadLen > kXpadMax) {
+            return false;  // malformed/oversized X-PAD -> reject, do not decode
+        }
+        uint8_t xpad[kXpadMax];
+        const size_t used = std::min<size_t>(xpadLen, sizeof(xpad));
+        for (size_t i = 0; i < used; ++i) {
+            xpad[i] = xpadData[xpadLen - 1 - i];
+        }
+
+        const int fpadType = fpad[0] >> 6;
+        const int xpadInd = (fpad[0] & 0x30) >> 4;
+        const bool ciFlag = (fpad[1] & 0x02) != 0;
+        if (ciFlag) {
+            ++fpadCiSet;
+        }
+        if (fpadType != 0x00) {
+            return false;  // only F-PAD type 0 carries DLS / X-PAD here
+        }
+
+        struct XpadCi {
+            int type;
+            int len;
+        };
+        std::vector<XpadCi> cis;
+        size_t ciLen = 0;
+        if (ciFlag) {
+            if (xpadInd == 0x01) {  // short X-PAD
+                if (xpadLen < 1) {
+                    return false;
+                }
+                const int type = xpad[0] & 0x1F;
+                ciLen = 1;
+                if (type != 0x00) {
+                    cis.push_back({type, 3});
+                }
+            } else if (xpadInd == 0x02) {  // variable size X-PAD
+                ciLen = 0;
+                for (size_t i = 0; i < 4; ++i) {
+                    if (xpadLen < i + 1) {
+                        return false;
+                    }
+                    const uint8_t raw = xpad[i];
+                    ++ciLen;
+                    const int type = raw & 0x1F;
+                    if (type == 0x00) {
+                        break;  // end marker
+                    }
+                    cis.push_back({type, kXpadSubfieldLens[(raw >> 5) & 0x07]});
+                }
+            } else {
+                return false;
+            }
+            // Remember this CI list so a following ci_flag==0 AU can continue
+            // the same data group (DABlin prev_xpad_ci).
+            lastXpadCi.clear();
+            lastXpadCi.reserve(cis.size());
+            for (const XpadCi& ci : cis) {
+                lastXpadCi.emplace_back(ci.type, ci.len);
+            }
+        } else {
+            // ci_flag == 0: this AU has no CI bytes; it continues the previous
+            // CI list. Reuse the last announced list (DABlin prev_xpad_ci).
+            if ((xpadInd != 0x01 && xpadInd != 0x02) || lastXpadCi.empty()) {
+                return false;
+            }
+            for (const auto& ci : lastXpadCi) {
+                cis.push_back({ci.first, ci.second});
+            }
+            ciLen = 0;  // continuation payload starts at byte 0 of the X-PAD
+        }
+
+        size_t announced = ciLen;
+        for (const XpadCi& ci : cis) {
+            announced += static_cast<size_t>(ci.len);
+        }
+        // Strict X-PAD length (DABlin exact_xpad_len): the announced CI + data
+        // length must equal the received X-PAD exactly. Rejecting short
+        // announcements stops trailing/uninitialised bytes from being appended
+        // to the data-group assembler.
+        if (announced > xpadLen) {
+            return false;  // announced X-PAD exceeds the received data
+        }
+        if (announced < xpadLen) {
+            // Strict X-PAD length (DABlin exact_xpad_len): bytes after the
+            // announced CI/data must be padding. Real captures (e.g. the
+            // Bangkok fixture) pad with zeroes; any non-zero trailing byte is
+            // unexpected and rejected so it is never processed.
+            for (size_t i = announced; i < xpadLen; ++i) {
+                if (xpad[i] != 0x00) {
+                    return false;
+                }
+            }
+        }
+
+        bool produced = false;
+        size_t offset = ciLen;
+        for (const XpadCi& ci : cis) {
+            ++xpadGroups;
+            if (ci.type >= 0 && ci.type < 32) {
+                ++groupTypeCounts[ci.type];
+            }
+            if (ci.type == 2 || ci.type == 3) {
+                // CI type 2 = data group starts here (reset the assembly);
+                // CI type 3 = data group continues (append). A ci_flag==0 AU
+                // reuses the previous CI list but its payload is ALWAYS a
+                // continuation, so it must not reset the assembly buffer.
+                const bool dataGroupStarts = ciFlag && (ci.type == 2);
+                if (processDataGroup(xpad + offset, static_cast<size_t>(ci.len), out,
+                                     dataGroupStarts)) {
+                    produced = true;
+                }
+            }
+            offset += static_cast<size_t>(ci.len);
+        }
+        return produced;
+    }
+
+    // Reassemble a Dynamic Label Data Group (prefix + text + CRC16 into DLS,
+    // or the DL+ command byte(s) into the DL+ reassembler). `start` is true for
+    // a CI type 2 (data group starts) and false for a continuation (type 3).
+    bool processDataGroup(const uint8_t* data, size_t len, DlsAssembly& out, bool start)
+    {
+        if (start) {
+            dataGroupBuffer.clear();  // DABlin Reset() on a new data group
+            dataGroupActive = true;
+        } else if (!dataGroupActive) {
+            // Continuation with no known start: cannot assemble safely.
+            dataGroupBuffer.clear();
+            return false;
+        }
+        dataGroupBuffer.append(reinterpret_cast<const char*>(data), static_cast<int>(len));
+        if (dataGroupBuffer.size() < 2) {
+            return false;
+        }
+        const uint8_t* d = reinterpret_cast<const uint8_t*>(dataGroupBuffer.constData());
+        const uint8_t prefix0 = d[0];
+        const bool command = (prefix0 & 0x10) != 0;
+        bool dlPlus = false;
+        size_t fieldLen = 0;
+        if (command) {
+            const int commandId = prefix0 & 0x0F;
+            if (commandId == 0x01) {  // remove label
+                dlReassembler.reset();
+                dlPlusReassembler.reset();
+                dataGroupActive = false;
+                dataGroupBuffer.clear();
+                return false;
+            }
+            if (commandId == 0x02) {  // DL Plus
+                dlPlus = true;
+                fieldLen = (static_cast<uint8_t>(d[1]) & 0x0F) + 1;
+            } else {
+                dataGroupActive = false;
+                dataGroupBuffer.clear();
+                return false;
+            }
+        } else {
+            fieldLen = (prefix0 & 0x0F) + 1;
+        }
+
+        const size_t needed = 2 + fieldLen + 2;  // prefix + field + CRC16
+        if (dataGroupBuffer.size() < static_cast<int>(needed)) {
+            return false;  // wait for continuation sub-fields
+        }
+        const uint16_t crcStored =
+            static_cast<uint16_t>((d[2 + fieldLen] << 8) | d[2 + fieldLen + 1]);
+        const uint16_t crcCalc =
+            static_cast<uint16_t>(~eti::crc16ccitt_false(d, 2 + fieldLen));
+        if (crcStored != crcCalc) {
+            dataGroupActive = false;
+            dataGroupBuffer.clear();
+            return false;
+        }
+
+        Segment seg;
+        seg.charset = static_cast<uint8_t>(d[1]) >> 4;
+        seg.toggle = (prefix0 & 0x80) != 0;
+        seg.last = (prefix0 & 0x20) != 0;
+        seg.segNum = (prefix0 & 0x40) ? 0 : ((d[1] & 0x70) >> 4);
+        seg.chars = QByteArray(reinterpret_cast<const char*>(d + 2),
+                               static_cast<int>(fieldLen));
+
+        dataGroupActive = false;
+        dataGroupBuffer.clear();
+
+        if (dlPlus) {
+            ++dlPlusSegments;
+            dlPlusReassembler.add(seg);
+            return false;  // produced only together with a complete DL text
+        }
+
+        ++dlSegments;
+        dlReassembler.add(seg);
+        QByteArray text;
+        uint8_t charset = 15;
+        if (!dlReassembler.complete(text, charset)) {
+            return false;
+        }
+        out.hasLabel = true;
+        out.dlText = text;
+        out.charset = charset;
+        out.tags.clear();
+        out.hasDlPlus = false;
+        QByteArray plusRaw;
+        uint8_t plusCharset = 15;
+        if (dlPlusReassembler.complete(plusRaw, plusCharset)) {
+            out.hasDlPlus = true;
+            parseDlPlusTags(plusRaw, out.tags);
+        }
+        ++labels;
+        return true;
+    }
+
+    static void parseDlPlusTags(const QByteArray& raw, std::vector<StdDlsPlusTag>& tags)
+    {
+        tags.clear();
+        if (raw.size() < 1) {
+            return;
+        }
+        const uint8_t* d = reinterpret_cast<const uint8_t*>(raw.constData());
+        if ((d[0] >> 4) != 0x00) {
+            return;  // not a DL+ command
+        }
+        const int numTags = (d[0] & 0x03) + 1;
+        for (int i = 0; i < numTags; ++i) {
+            const int base = 1 + i * 3;
+            if (base + 2 >= raw.size()) {
+                break;
+            }
+            StdDlsPlusTag t;
+            t.contentType = d[base] & 0x7F;
+            t.startMarker = d[base + 1] & 0x7F;
+            t.lengthMarker = d[base + 2] & 0x7F;
+            tags.push_back(t);
+        }
+    }
+};
+
 class DABAnalyzerWindow : public QMainWindow
 {
     Q_OBJECT
@@ -85,7 +640,7 @@ class DABAnalyzerWindow : public QMainWindow
 public:
     DABAnalyzerWindow(QWidget *parent = nullptr) : QMainWindow(parent)
     {
-        setWindowTitle("DAB-XPlorer - Bangkok ETI Analysis");
+        setWindowTitle("StreamDAB-Analyzer");
         setMinimumSize(1200, 800);
         resize(1400, 1000);
 
@@ -181,6 +736,148 @@ public:
         return m_figAnalyzer ? m_figAnalyzer->getFibCrcFailureCount() : 0;
     }
 
+    // ========================================================================
+    // Public test hooks (GUI dock-layout / crash-guard tests)
+    // ========================================================================
+    // Manual-test finding 2: force the "frames are still being parsed" state
+    // so the crash-guard logic can be exercised without driving a real load.
+    void setProcessingForTest(bool processing) { m_processing = processing; }
+    bool isProcessingForTest() const { return m_processing; }
+    // Finding 8 isolation: allow a test to simulate the mid-load state
+    // (file loaded + parsing) and to drive the worker error path without a
+    // modal dialog.
+    void setFileLoadedForTest(bool loaded) { m_fileLoaded = loaded; }
+    void beginProcessingForTest()
+    {
+        m_processing = true;
+        if (m_frameList) {
+            m_frameList->setEnabled(false);
+        }
+    }
+    void simulateWorkerErrorForTest(const QString& error) { handleWorkerError(error); }
+    int availableFrameCountForTest() const { return availableFrameCount(); }
+    QListWidget* frameListForTest() const { return m_frameList; }
+    QString frameDetailsTextForTest() const
+    {
+        return m_frameDetails ? m_frameDetails->text() : QString();
+    }
+    QString hexViewerTextForTest() const
+    {
+        return m_hexViewer ? m_hexViewer->toPlainText() : QString();
+    }
+    QTableWidget* etiOverviewTableForTest() const { return m_etiOverviewTable; }
+    // Drives the frame-selection handler exactly like a user click in the
+    // navigator, without touching the (possibly disabled) list widget.
+    void selectFrameForTest(int row) { handleFrameSelection(row); }
+
+    // Manual-test finding 3: feed a synthetic PAD payload through the same
+    // decoder path the ETI frame pipeline uses, then observe the Now Playing
+    // panel state.
+    bool feedPadDataForTest(const QByteArray& pad) { return feedDlsPlusPad(pad); }
+    int dlsPlusMessageCountForTest() const { return m_dlsPlusMessages; }
+    int dlsPlusPadCallCountForTest() const { return m_dlsPlusPadCalls; }
+    int dlsPlusLabelsAssembledForTest() const { return m_dlsPlusLabelsAssembled; }
+    QStringList dlsLabelsSeenForTest() const { return m_dlsLabelsSeen; }
+    // Refinement A test hook: drive the REAL DAB+ superframe/AU/PAD parser on
+    // a synthetic superframe and feed the assembled DLS to the decoder.
+    bool runDabPlusDlsParserForTest(const QByteArray& superframe)
+    {
+        DabPlusSubchannelParser parser;
+        DlsAssembly assembly;
+        if (!parser.processSuperframe(superframe, assembly) || !assembly.hasLabel) {
+            return false;
+        }
+        ++m_dlsPlusLabelsAssembled;
+        feedDlsAssembly(assembly, 0, QString());
+        return true;
+    }
+    // Review test hook: drive the X-PAD/F-PAD -> Data Group (DL+ command 0x02)
+    // path with a raw, caller-built X-PAD (already in on-wire byte order).
+    bool runRawXpadDlsParserForTest(const QByteArray& onWireXpad)
+    {
+        DabPlusSubchannelParser parser;
+        const uint8_t fpad[2] = {0x20, 0x02};  // type 0, variable X-PAD, CI set
+        DlsAssembly assembly;
+        if (!parser.processPad(reinterpret_cast<const uint8_t*>(onWireXpad.constData()),
+                               static_cast<size_t>(onWireXpad.size()), fpad, assembly)
+            || !assembly.hasLabel) {
+            return false;
+        }
+        ++m_dlsPlusLabelsAssembled;
+        feedDlsAssembly(assembly, 0, QString());
+        return true;
+    }
+    // --- Review finding 2 hooks: feed a raw FIG stream to the analyzer and
+    // inspect the sub-channel -> service cache the DLS+ pipeline uses ---
+    void feedFicForTest(const QByteArray& fic)
+    {
+        if (m_figAnalyzer) {
+            m_figAnalyzer->analyzeFICData(fic);
+        }
+    }
+    uint32_t figServiceRevisionForTest() const
+    {
+        return m_figAnalyzer ? m_figAnalyzer->getServiceRevision() : 0u;
+    }
+    bool dabPlusSubChannelKnownForTest(int subChannelId)
+    {
+        rebuildDabPlusServiceMapIfNeeded();
+        return m_dabPlusSubChannels.contains(subChannelId);
+    }
+    QString dabPlusServiceLabelForTest(int subChannelId)
+    {
+        rebuildDabPlusServiceMapIfNeeded();
+        return m_serviceBySubChannel.value(subChannelId, qMakePair(0u, QString())).second;
+    }
+    // Feed a decoded DLS label as if it arrived on `subChannelId`, using the
+    // cached service identity, so the test can observe the Now Playing panel
+    // line built from the cached service label (regression for the stale
+    // empty-label cache).
+    bool feedServiceLabeledDlsForTest(int subChannelId, const QByteArray& dlText)
+    {
+        rebuildDabPlusServiceMapIfNeeded();
+        const QPair<quint32, QString> svc =
+            m_serviceBySubChannel.value(subChannelId, qMakePair(0u, QString()));
+        int mapped = 0;
+        const QByteArray pad = buildDecoderPadForTest(dlText, 15, {}, mapped);
+        return feedDlsPlusPad(pad, svc.first, svc.second);
+    }
+    // Raw decoder-path hook (kept for the boundary smoke test).
+    static QByteArray buildDecoderPadForTest(const QByteArray& dlText, uint8_t charset,
+                                             const QVector<QPair<int, QPair<int, int>>>& tags,
+                                             int& mappedCountOut)
+    {
+        DlsAssembly a;
+        a.dlText = dlText;
+        a.charset = charset;
+        for (const auto& t : tags) {
+            StdDlsPlusTag tag;
+            tag.contentType = t.first;
+            tag.startMarker = t.second.first;
+            tag.lengthMarker = t.second.second;
+            a.tags.push_back(tag);
+        }
+        const QByteArray pad = buildDecoderPad(a);
+        mappedCountOut = int(a.tags.size());
+        return pad;
+    }
+    QString nowPlayingTrackForTest() const
+    {
+        return m_trackLabel ? m_trackLabel->text() : QString();
+    }
+    QString nowPlayingArtistForTest() const
+    {
+        return m_artistLabel ? m_artistLabel->text() : QString();
+    }
+    QString nowPlayingAlbumForTest() const
+    {
+        return m_albumLabel ? m_albumLabel->text() : QString();
+    }
+    QString nowPlayingStatusForTest() const
+    {
+        return m_lastUpdatedLabel ? m_lastUpdatedLabel->text() : QString();
+    }
+
 private slots:
     void openFile()
     {
@@ -204,6 +901,46 @@ private slots:
         m_fileLoaded = false;
         m_totalFrames = 0;
         m_currentFrameIndex = 0;
+
+        // Manual-test finding 2: the ETI file is parsed synchronously inside
+        // processETIFile() while nested processEvents() calls keep the UI
+        // alive. Mark the parse loop as running and disable the frame list so
+        // a click in the ETI Frame Navigator cannot reach not-yet-valid frame
+        // data (the navigator-click segfault).
+        m_processing = true;
+        m_frameNotReadyNotified = false;
+        if (m_frameList) {
+            m_frameList->setEnabled(false);
+        }
+        // Finding 8: always re-arm the navigation guard when this function
+        // returns, whatever path it takes (success, early failure, exception).
+        // onProcessingComplete() also re-arms on the queued signal path.
+        [[maybe_unused]] auto navigationGuard =
+            qScopeGuard([this]() { rearmNavigation(); });
+
+        // Refinement A: reset the Now Playing (DLS+) state + per-subchannel
+        // DAB+ PAD parsers per load.
+        m_dlsPlusMessages = 0;
+        m_dlsLabelsSeen.clear();
+        m_dlsPlusPadCalls = 0;
+        m_dlsPlusLabelsAssembled = 0;
+        m_dlsParsers.clear();
+        m_dabPlusSubChannels.clear();
+        m_serviceBySubChannel.clear();
+        m_dabPlusServiceMapDirty = true;
+        m_cachedDabServiceCount = -1;
+        m_cachedSubChannelCount = -1;
+        m_cachedServiceRevision = 0;
+        m_dlsPipelineNs = 0;
+        m_pendingServiceId = 0;
+        m_pendingServiceLabel.clear();
+        resetNowPlayingPanel();
+        // Finding 6: clear the decoder's change-detection history so a second
+        // load cannot suppress its first label (identical to the previous
+        // capture's last values).
+        if (m_dlsPlusDecoder) {
+            m_dlsPlusDecoder->resetHistory();
+        }
 
         // === Clear previous-file decode state in the FIG analyzer ===
         // (Tab 3 instances/FIG counters/FIB-CRC counts must not accumulate
@@ -256,6 +993,10 @@ private slots:
 
             m_systemMessages->append(QString("❌ Error: %1").arg(error));
             statusBar()->showMessage("Error loading file");
+            // Manual-test finding 2: leave the crash guard armed off and let
+            // the user retry; onProcessingError() also clears this on the
+            // queued path. The scope guard above would handle it too.
+            rearmNavigation();
             return;
         }
 
@@ -285,6 +1026,30 @@ private slots:
     }
 
 
+    // Re-arm the frame-navigation guard after parsing finishes or aborts.
+    // Idempotent: safe to call from the sync path, the queued slots and the
+    // worker-thread error handler (Finding 8).
+    void rearmNavigation()
+    {
+        m_processing = false;
+        if (m_frameList) {
+            m_frameList->setEnabled(true);
+        }
+    }
+
+    // Worker-thread processing error: always re-arm the navigation guard and
+    // surface the error (Finding 8).
+    void handleWorkerError(const QString& error)
+    {
+        qWarning() << "Phase B: Worker thread error:" << error;
+        rearmNavigation();
+#ifndef GUI_TEST_MODE
+        QMessageBox::critical(this, "Processing Error", error);
+#else
+        Q_UNUSED(error);
+#endif
+    }
+
     void onFrameProcessed(ProcessedFrame frame)  // Pass by value for Qt::QueuedConnection safety
     {
         // NOTE: This is only called every 100 frames (see enhanced_eti_processor_qt.cpp)
@@ -296,10 +1061,15 @@ private slots:
         // === PHASE 1.1: Frame Data Caching ===
         m_processedFrames++;
         
-        // Get raw frame data from processor
+        // Get raw frame data from processor once, and reuse it for the DLS+
+        // pipeline below (avoids a second 6144-byte fetch per frame).
+        // getRawFrameData() is 0-based; ProcessedFrame::frame_number is 1-based,
+        // so the cache is keyed by the real 0-based frame index (matching the
+        // hex-viewer lookup in displayFrameHexData()).
         QByteArray frameData;
-        if (m_etiProcessor) {
-            frameData = m_etiProcessor->getRawFrameData(frame.frame_number);
+        const int rawIndex = static_cast<int>(frame.frame_number) - 1;
+        if (m_etiProcessor && rawIndex >= 0) {
+            frameData = m_etiProcessor->getRawFrameData(rawIndex);
         }
         
         // Cache frame data (limit 10K frames to prevent memory bloat)
@@ -311,7 +1081,7 @@ private slots:
                 auto it = m_frameDataCache.begin();
                 m_frameDataCache.erase(it);
             }
-            m_frameDataCache[frame.frame_number] = frameData;
+            m_frameDataCache[rawIndex] = frameData;
         }
         
         // === PHASE 1.1: Throttled Frame List Updates (~10 fps) ===
@@ -352,17 +1122,281 @@ private slots:
             }
         }
         
+        // === Manual-test finding 3: feed the GUI DLS+ decoder ===
+        // (was constructed but never fed, so Now Playing stayed empty)
+        {
+            QElapsedTimer dlsTimer;
+            dlsTimer.start();
+            processDlsPlusFromFrame(frame);
+            m_dlsPipelineNs += dlsTimer.nsecsElapsed();
+        }
+
         // === PHASE 4: Throttled error counter updates (5 fps) ===
         if (++m_errorCounterUpdateCounter % ERROR_COUNTER_UPDATE_THROTTLE == 0) {
             updateErrorCounterTable();
         }
     }
 
+    // Rebuild the DAB+ sub-channel -> (service id, label) view from the FIG
+    // analyzer when needed. Invalidated by the analyzer's monotonic
+    // service/component/label revision (Finding 2) in addition to the
+    // count/dirty guards. Kept as its own method so the cache can be exercised
+    // directly by tests without fabricating a full ProcessedFrame.
+    void rebuildDabPlusServiceMapIfNeeded()
+    {
+        const int svcCount = m_figAnalyzer ? m_figAnalyzer->getServiceCount() : 0;
+        const int scCount = m_figAnalyzer ? m_figAnalyzer->getSubChannelCount() : 0;
+        const uint32_t revision = m_figAnalyzer ? m_figAnalyzer->getServiceRevision() : 0;
+        if (!m_dabPlusServiceMapDirty && svcCount == m_cachedDabServiceCount
+            && scCount == m_cachedSubChannelCount
+            && revision == m_cachedServiceRevision) {
+            return;  // cache still valid
+        }
+        m_dabPlusSubChannels.clear();
+        m_serviceBySubChannel.clear();
+        if (m_figAnalyzer) {
+            for (const DABService& svc : m_figAnalyzer->getDABServices()) {
+                for (const ServiceComponent& comp : svc.components) {
+                    if (!comp.isDabPlus()) {
+                        continue;
+                    }
+                    m_dabPlusSubChannels.insert(comp.sub_channel_id);
+                    if (!m_serviceBySubChannel.contains(comp.sub_channel_id)) {
+                        m_serviceBySubChannel.insert(
+                            comp.sub_channel_id,
+                            qMakePair(svc.service_id, svc.service_label));
+                    }
+                }
+            }
+        }
+        m_cachedDabServiceCount = svcCount;
+        m_cachedSubChannelCount = scCount;
+        m_cachedServiceRevision = revision;
+        m_dabPlusServiceMapDirty = false;
+    }
+
+    // ========================================================================
+    // Refinement A: DLS+ (Now Playing) pipeline wiring — standard source chain
+    // ========================================================================
+    // docs/PHASE_3B_TECHNICAL_NOTES.md §Architecture:
+    //   DAB+ audio subchannel (ETI) -> PAD from DAB+ audio AUs (ETSI TS 102 563
+    //   §4/§5, embedded Data Stream Element) -> F-PAD + X-PAD data groups
+    //   (ETSI EN 300 401 §7.4) -> DLS/DLS+ Data Groups ->
+    //   DLSPlusDecoder::processPADData() -> nowPlayingUpdated() ->
+    //   updateNowPlaying() -> panel.
+    //
+    // The superframe/AU/PAD parsing lives in DabPlusSubchannelParser above
+    // (spec-correct, cross-checked against DABlin/etisnoop). This method just
+    // routes the FIG analyzer's DAB+ audio subchannels into it, one CIF per
+    // ETI frame; a parser emits an assembled DLS label per 120 ms superframe.
+    //
+    // One ETI frame carries exactly one CIF chunk per sub-channel, so
+    // processDlsPlusFromFrame() must run once per frame regardless of the FIC
+    // (FICF) flag: a FICF=0 frame still carries MSC, and skipping it would
+    // break the 5-CIF superframe cadence. EnhancedETIProcessorQt therefore
+    // emits frameProcessed() for every valid frame (not only FIC-bearing ones).
+    void processDlsPlusFromFrame(const ProcessedFrame& frame)
+    {
+        if (!m_dlsPlusDecoder || !m_etiProcessor || frame.frame_number == 0) {
+            return;
+        }
+        if (frame.sub_channels.empty()) {
+            return;  // ETI processor produced no MSC slices for this frame
+        }
+
+        // DAB+ audio subchannels (FIG 0/8 ASCTy = 0x3F) + their service.
+        // getDABServices() returns a full copy by value, so the derived view is
+        // cached; it is rebuilt whenever the analyzer's service/component/label
+        // revision advances. Service *counts* alone are insufficient: FIG 1/1
+        // fills `service_label` later with no count change (and mid-stream
+        // reconfigurations can remap components at equal counts).
+        rebuildDabPlusServiceMapIfNeeded();
+        if (m_dabPlusSubChannels.isEmpty()) {
+            return;  // no DAB+ audio component decoded yet
+        }
+
+        // Reuse the per-subchannel MSC slices already extracted by the ETI
+        // processor (ProcessedFrame::sub_channels) instead of re-running
+        // parseHeader()/extractMSC() on the raw frame.
+        for (const ProcessedFrame::SubChannelSlice& sc : frame.sub_channels) {
+            if (!m_dabPlusSubChannels.contains(sc.sub_channel_id)) {
+                continue;
+            }
+            DlsAssembly assembly;
+            if (!m_dlsParsers[sc.sub_channel_id].feedChunk(sc.data, assembly)
+                || !assembly.hasLabel) {
+                continue;
+            }
+            const QPair<quint32, QString> svc =
+                m_serviceBySubChannel.value(sc.sub_channel_id, qMakePair(0u, QString()));
+            feedDlsAssembly(assembly, svc.first, svc.second);
+        }
+    }
+
+    // Adapt a spec-parsed DLS/DL+ assembly to the byte layout that
+    // DLSPlusDecoder::processPADData() consumes (charset + text + NUL +
+    // command + decoder-format descriptors), then feed it. This adaptation is
+    // only at the decoder boundary; PAD byte selection above is spec-based.
+    void feedDlsAssembly(const DlsAssembly& assembly, quint32 serviceId,
+                         const QString& serviceLabel)
+    {
+        if (!dlsTextLooksSane(assembly.dlText, assembly.charset)) {
+            return;  // structural parse already CRC-validated; text sanity only
+        }
+        const QByteArray pad = buildDecoderPad(assembly);
+        if (pad.isEmpty()) {
+            return;
+        }
+        ++m_dlsPlusPadCalls;
+        feedDlsPlusPad(pad, serviceId, serviceLabel);
+    }
+
+    static bool dlsTextLooksSane(const QByteArray& bytes, uint8_t charset)
+    {
+        if (bytes.isEmpty()) {
+            return false;
+        }
+        QString text;
+        if (charset == 15) {
+            text = QString::fromUtf8(bytes);
+            if (text.contains(QChar(0xFFFD))) {
+                return false;  // invalid UTF-8
+            }
+        } else {
+            // Other DLS charsets (0 = EBU Latin, 6 = UCS-2) are decoded as
+            // Latin-1 by the legacy decoder; accept for the structural path.
+            text = QString::fromLatin1(bytes);
+        }
+        for (const QChar c : text) {
+            if (c.unicode() < 0x20 || (c.unicode() >= 0x7F && c.unicode() < 0xA0)) {
+                return false;  // DLS label is a single readable line
+            }
+        }
+        return true;
+    }
+
+    // Build the legacy DLSPlusDecoder PAD layout from a standard assembly.
+    static QByteArray buildDecoderPad(const DlsAssembly& assembly)
+    {
+        if (assembly.dlText.isEmpty()) {
+            return QByteArray();
+        }
+        QByteArray descriptors;
+        int numTags = 0;
+        for (const StdDlsPlusTag& tag : assembly.tags) {
+            int contentType = 0;
+            int subType = 0;
+            if (!mapDlPlusContentType(tag.contentType, contentType, subType)) {
+                continue;
+            }
+            if (numTags >= 4) {
+                break;
+            }
+            const int start = qBound(0, tag.startMarker, 127);
+            if (start >= assembly.dlText.size()) {
+                continue;
+            }
+            const int length = qMin(qBound(0, tag.lengthMarker + 1, 127),
+                                    assembly.dlText.size() - start);
+            if (length <= 0) {
+                continue;
+            }
+            QByteArray d(4, 0);
+            d[0] = static_cast<char>((contentType << 4) | (subType & 0x0F));
+            d[1] = 0;
+            d[2] = static_cast<char>(((start & 0x7F) << 1) | ((length >> 6) & 0x01));
+            d[3] = static_cast<char>((length & 0x3F) << 2);
+            descriptors.append(d);
+            ++numTags;
+        }
+        if (numTags == 0) {
+            // Plain DLS (no DL+ tags): expose the whole label as ITEM.TITLE so
+            // "Now Playing" still shows the DLS text.
+            const int length = qMin(assembly.dlText.size(), 127);
+            if (length <= 0) {
+                return QByteArray();
+            }
+            QByteArray d(4, 0);
+            d[0] = static_cast<char>(0x10);  // ITEM (1) / TITLE (0)
+            // Length is a 7-bit field: bit 6 lives in d[2] bit 0, low 6 bits in
+            // d[3]. Dropping bit 6 truncated 64–127 byte labels (incl. Thai).
+            d[2] = static_cast<char>((length >> 6) & 0x01);
+            d[3] = static_cast<char>((length & 0x3F) << 2);
+            descriptors.append(d);
+            numTags = 1;
+        }
+        QByteArray pad;
+        pad.append(static_cast<char>(assembly.charset & 0x0F));
+        pad.append(assembly.dlText);
+        pad.append('\0');
+        pad.append(static_cast<char>(numTags & 0x0F));
+        pad.append(descriptors);
+        return pad;
+    }
+
+    static bool mapDlPlusContentType(int tagCode, int& contentType, int& subType)
+    {
+        if (tagCode >= 1 && tagCode <= 31)  { contentType = 1; subType = tagCode - 1;  return true; }
+        if (tagCode >= 32 && tagCode <= 47) { contentType = 2; subType = tagCode - 32; return true; }
+        if (tagCode >= 48 && tagCode <= 55) { contentType = 3; subType = tagCode - 48; return true; }
+        if (tagCode >= 56 && tagCode <= 59) { contentType = 4; subType = tagCode - 56; return true; }
+        if (tagCode >= 60 && tagCode <= 61) { contentType = 8; subType = tagCode - 60; return true; }
+        return false;
+    }
+
+    // Single entry point for feeding an adapted PAD buffer to the GUI DLS+
+    // decoder, remembering the originating service for the panel/log.
+    bool feedDlsPlusPad(const QByteArray& padData, quint32 serviceId = 0,
+                        const QString& serviceLabel = QString())
+    {
+        if (!m_dlsPlusDecoder || padData.isEmpty()) {
+            return false;
+        }
+        m_pendingServiceId = serviceId;
+        m_pendingServiceLabel = serviceLabel;
+        try {
+            if (m_dlsPlusDecoder->processPADData(padData)) {
+                ++m_dlsPlusMessages;
+                // Collect decoded labels for GUI tests (Finding 1 round-trip /
+                // Thai-label assertions on the real fixture).
+                const QString label = m_dlsPlusDecoder->getCurrentMessage().dls_text;
+                if (!label.isEmpty() && !m_dlsLabelsSeen.contains(label)) {
+                    m_dlsLabelsSeen.append(label);
+                }
+                return true;
+            }
+        } catch (const std::exception& e) {
+            qWarning() << "[DLS+] PAD decode exception:" << e.what();
+        } catch (...) {
+            qWarning() << "[DLS+] Unknown PAD decode exception";
+        }
+        return false;
+    }
+
     void onProcessingProgress(int percentage, int currentFrame, int totalFrames)
     {
-        // CRITICAL FIX: Only update progress bar - disable all other widget updates
-        m_progressBar->setValue(percentage);
-        
+        // Refinement B: drive the progress widgets from the synchronous
+        // processing loop. processAllFramesImmediate() emits this every 100
+        // frames via Qt::DirectConnection and calls processEvents() every 10
+        // frames, so the bar stays alive and visible during the load.
+        //
+        // Processing-strategy evaluation:
+        //   * Confirmed: hex viewer / ETSI compliance / ETI overview are
+        //     deferred to frame SELECTION (handleFrameSelection) and the frame
+        //     list is disabled while parsing, so the first pass builds no
+        //     detail-only widgets.
+        //   * Kept in the first pass (needed for navigator + metadata): the
+        //     throttled frame-list entries and the FIC -> FIG analyzer
+        //     accumulation. DAB+ PAD->DLS parsing is also first-pass because
+        //     it feeds Now Playing as data arrives.
+        //   * Deferred: no detail-only work remains in the load loop.
+        if (m_progressBar) {
+            if (m_progressBar->maximum() != totalFrames) {
+                m_progressBar->setRange(0, totalFrames);  // range 0..total
+            }
+            m_progressBar->setValue(currentFrame);
+        }
+
         // === PHASE 1.2: Player/Decoder Timing Updates (Throttled to 5 fps) ===
         if (!m_timingUpdateTimer.isValid()) {
             m_timingUpdateTimer.start();  // Initialize timer on first call
@@ -371,16 +1405,20 @@ private slots:
         // Throttle timing updates to 5 fps (200ms interval)
         if (m_timingUpdateTimer.elapsed() >= TIMING_UPDATE_INTERVAL_MS) {
             m_timingUpdateTimer.restart();
-            
+            const QString progressText =
+                QString("Processing frame %1 / %2 (%3%)")
+                    .arg(currentFrame).arg(totalFrames).arg(percentage);
+
             // Update Player panel timing
             if (m_playerTimeLabel) {
                 m_playerTimeLabel->setText(frameToTimeString(currentFrame, totalFrames));
             }
             if (m_playerFrameLabel) {
-                m_playerFrameLabel->setText(QString("Frame %1 / %2").arg(currentFrame).arg(totalFrames));
+                m_playerFrameLabel->setText(progressText);
             }
             if (m_playerProgressBar) {
-                m_playerProgressBar->setValue(percentage);
+                m_playerProgressBar->setRange(0, totalFrames);
+                m_playerProgressBar->setValue(currentFrame);
             }
             
             // Update Decoder panel timing (mirrors player)
@@ -388,7 +1426,10 @@ private slots:
                 m_decoderTimeLabel->setText(frameToTimeString(currentFrame, totalFrames));
             }
             if (m_decoderStatusLabel) {
-                m_decoderStatusLabel->setText("Processing");
+                m_decoderStatusLabel->setText(progressText);
+            }
+            if (statusBar()) {
+                statusBar()->showMessage(progressText);
             }
         }
         
@@ -400,12 +1441,20 @@ private slots:
 
     void onProcessingComplete(int totalFrames, int processingTimeMs)
     {
+        // Manual-test finding 2: parsing finished -> re-arm navigation.
+        rearmNavigation();
+
         // === PHASE 3: Update state tracking ===
         m_fileLoaded = true;
         m_totalFrames = static_cast<size_t>(totalFrames);
         qDebug() << "[PHASE 3] File loaded:" << m_totalFrames << "frames";
 
-        m_progressBar->setValue(100);
+        // Refinement B: complete the progress bar at 100 % (value == max).
+        if (m_progressBar) {
+            const int total = totalFrames > 0 ? totalFrames : 1;
+            m_progressBar->setRange(0, total);
+            m_progressBar->setValue(total);
+        }
         
         // Show final statistics
         m_systemMessages->append(QString("\n🎉 BANGKOK ETI PROCESSING COMPLETE!"));
@@ -462,13 +1511,70 @@ private slots:
         } else {
             m_systemMessages->append(QString("\n⚠️  Frame count mismatch: Expected 5001, got %1").arg(totalFrames));
         }
+
+        // === Refinement A: honest DLS+/PAD evidence for this capture ===
+        // Aggregate the spec parser's per-subchannel counters so the report
+        // can distinguish "no PAD at all" from "PAD but no DLS/DL+".
+        uint64_t sf = 0, firecode = 0, aus = 0, ausCrc = 0, pad = 0, fpadCi = 0;
+        uint64_t xpadGroups = 0, dlsSegs = 0, dlPlusSegs = 0, labels = 0;
+        uint64_t groupTypes[32] = {0};
+        for (const auto& entry : m_dlsParsers) {
+            const DabPlusSubchannelParser& p = entry.second;
+            sf += p.superframes;
+            firecode += p.firecodeOk;
+            aus += p.ausProcessed;
+            ausCrc += p.ausCrcOk;
+            pad += p.padFound;
+            fpadCi += p.fpadCiSet;
+            xpadGroups += p.xpadGroups;
+            dlsSegs += p.dlSegments;
+            dlPlusSegs += p.dlPlusSegments;
+            labels += p.labels;
+            for (int i = 0; i < 32; ++i) {
+                groupTypes[i] += p.groupTypeCounts[i];
+            }
+        }
+        qInfo() << "[DLS+] superframes:" << sf << "firecodeOk:" << firecode
+                << "AUs:" << aus << "AUCrcOk:" << ausCrc
+                << "PAD found:" << pad << "F-PAD CI set:" << fpadCi
+                << "XPAD groups:" << xpadGroups
+                << "DLS segs:" << dlsSegs << "DL+ segs:" << dlPlusSegs
+                << "labels assembled:" << labels
+                << "DLS+ messages decoded:" << m_dlsPlusMessages;
+        QStringList groupSummary;
+        for (int i = 0; i < 32; ++i) {
+            if (groupTypes[i] != 0) {
+                groupSummary << QString("type%1=%2").arg(i).arg(groupTypes[i]);
+            }
+        }
+        if (!groupSummary.isEmpty()) {
+            qInfo() << "[DLS+] XPAD data-group types:" << groupSummary.join(", ");
+        }
+        qInfo() << "[DLS+] subchannels with a DAB+ PAD parser:"
+                << static_cast<int>(m_dlsParsers.size());
+        qInfo() << "[DLS+] pipeline time (ms):" << (m_dlsPipelineNs / 1000000.0);
+        if (m_dlsPlusMessages == 0) {
+            // Capture genuinely carries no DLS/DLS+ (the parser was wired and
+            // ran; it just found no DLS label). Distinguish this final empty
+            // state from the "Waiting for DLS+…" in-progress one.
+            setNowPlayingEmptyState();
+        }
     }
 
     void onProcessingError(const QString& error)
     {
+        // Manual-test finding 2: parsing aborted -> re-arm navigation.
+        rearmNavigation();
+
+        // Refinement B: reset the progress indication on error.
+        if (m_progressBar) {
+            m_progressBar->setValue(0);
+        }
+        statusBar()->showMessage(tr("Processing aborted — %1").arg(error));
+
         m_systemMessages->append(QString("❌ Error: %1").arg(error));
         QMessageBox::critical(this, "Processing Error", error);
-        
+
         // Forward error to Error Detection system using performance error detection
         if (m_errorDetector) {
             // Use performance error detection for general processing errors
@@ -513,15 +1619,37 @@ private slots:
             m_albumLabel->setText(album.isEmpty() ? "--" : album);
         }
         
-        // Update timestamp
+        // Update timestamp + originating service (Refinement A.5). The DLS+
+        // signal itself carries only track/artist/album, so the service is
+        // taken from the sub-channel -> service map resolved just before the
+        // (synchronous) decode call. Multi-service note: a single panel cannot
+        // show per-service metadata; the most recently decoded service wins
+        // and is printed here and in System Messages.
         if (m_lastUpdatedLabel) {
-            QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
-            m_lastUpdatedLabel->setText(QString("Updated: %1").arg(timestamp));
+            QString line = QString("Updated: %1")
+                               .arg(QDateTime::currentDateTime().toString("HH:mm:ss"));
+            if (m_pendingServiceId != 0) {
+                line += QString(" — 0x%1")
+                            .arg(m_pendingServiceId & 0xFFFF, 4, 16, QChar('0')).toUpper();
+            }
+            if (!m_pendingServiceLabel.isEmpty()) {
+                line += QString(" (%1)").arg(m_pendingServiceLabel);
+            }
+            m_lastUpdatedLabel->setText(line);
         }
         
         // Log to system messages
         if (!track.isEmpty() || !artist.isEmpty()) {
-            QString message = QString("🎵 Now Playing: %1 - %2")
+            QString serviceInfo;
+            if (m_pendingServiceId != 0) {
+                serviceInfo = QString(" [0x%1%2]")
+                                  .arg(m_pendingServiceId & 0xFFFF, 4, 16, QChar('0')).toUpper()
+                                  .arg(m_pendingServiceLabel.isEmpty()
+                                           ? QString()
+                                           : QString(" %1").arg(m_pendingServiceLabel));
+            }
+            QString message = QString("🎵 Now Playing%1: %2 - %3")
+                             .arg(serviceInfo)
                              .arg(artist.isEmpty() ? "Unknown Artist" : artist)
                              .arg(track.isEmpty() ? "Unknown Track" : track);
             if (m_systemMessages) {
@@ -532,34 +1660,124 @@ private slots:
 
     void onFrameSelectionChanged()
     {
-        int currentRow = m_frameList->currentRow();
-        if (currentRow >= 0) {
-            // Show frame details
+        if (!m_frameList) {
+            return;
+        }
+        handleFrameSelection(m_frameList->currentRow());
+    }
+
+    // Shared body for real navigator clicks (onFrameSelectionChanged) and the
+    // GUI test hook selectFrameForTest(). Manual-test finding 2: the frame
+    // list is populated incrementally inside processETIFile()'s nested
+    // processEvents() loop; touching frame data before the file is fully
+    // decoded is what caused the navigator-click segfault. Refuse until
+    // parsing completes, and bounds-check against the real frame count.
+    void handleFrameSelection(int currentRow)
+    {
+        if (currentRow < 0) {
+            return;
+        }
+
+        if (!m_fileLoaded || m_processing) {
+            notifyFrameNotReady();
+            return;
+        }
+
+        const int available = availableFrameCount();
+        if (available <= 0 || currentRow >= available) {
+            if (statusBar()) {
+                statusBar()->showMessage(
+                    tr("Frame %1 is outside the %2 frames available in this capture.")
+                        .arg(currentRow + 1).arg(available), 4000);
+            }
+            return;
+        }
+
+        // Show frame details
+        if (m_frameDetails) {
             QString info = QString("Selected Frame: %1\nETI Frame Size: 6144 bytes\nFrame Offset: %2")
                           .arg(currentRow + 1)
                           .arg(currentRow * 6144);
             m_frameDetails->setText(info);
-            
-            // Update Hex Viewer with frame data
-            displayFrameHexData(currentRow);
-
-            // NOTE: The DAB Ensemble Explorer is owned by the real FIG
-            // decode path (buildEnsembleTree()/updateEnsembleTree() via
-            // m_figAnalyzer). Frame selection must NOT rewrite it — the old
-            // updateEnsembleExplorerForFrame() simulator (fake "Frame N FIC
-            // Data" rows) was removed (PANEL_AUDIT fix #1).
-
-            // Perform ETSI Compliance validation on selected frame
-            performETSIComplianceValidation(currentRow);
-            
-            // === PHASE 1.3: Update ETI Overview Table ===
-            updateETIOverviewTable(currentRow);
         }
+
+        // NOTE: The DAB Ensemble Explorer is owned by the real FIG
+        // decode path (buildEnsembleTree()/updateEnsembleTree() via
+        // m_figAnalyzer). Frame selection must NOT rewrite it — the old
+        // updateEnsembleExplorerForFrame() simulator (fake "Frame N FIC
+        // Data" rows) was removed (PANEL_AUDIT fix #1).
+
+        // Each panel update is independently guarded: one failing decode must
+        // not skip the others and must never propagate out of a GUI slot.
+        try {
+            displayFrameHexData(currentRow);
+        } catch (const std::exception& e) {
+            qWarning() << "[NAV] Hex display failed for frame" << currentRow << ":" << e.what();
+        } catch (...) {
+            qWarning() << "[NAV] Unknown exception in hex display for frame" << currentRow;
+        }
+
+        try {
+            performETSIComplianceValidation(currentRow);
+        } catch (const std::exception& e) {
+            qWarning() << "[NAV] ETSI validation failed for frame" << currentRow << ":" << e.what();
+        } catch (...) {
+            qWarning() << "[NAV] Unknown exception in ETSI validation for frame" << currentRow;
+        }
+
+        try {
+            updateETIOverviewTable(currentRow);
+        } catch (const std::exception& e) {
+            qWarning() << "[NAV] ETI overview failed for frame" << currentRow << ":" << e.what();
+        } catch (...) {
+            qWarning() << "[NAV] Unknown exception in ETI overview for frame" << currentRow;
+        }
+    }
+
+    // One-shot popup + status-bar hint shown when a frame is clicked while the
+    // capture is still being parsed. The message box is deliberately
+    // non-modal so it never blocks the synchronous parse loop.
+    void notifyFrameNotReady()
+    {
+        // Finding 7: distinguish "still parsing" from "nothing loaded" so the
+        // message matches the actual state.
+        const QString msg = m_processing
+            ? tr("Frames are still being parsed — please wait until loading completes.")
+            : tr("No ETI file is loaded — open a capture first.");
+        if (!m_frameNotReadyNotified) {
+            m_frameNotReadyNotified = true;
+            auto* box = new QMessageBox(QMessageBox::Information,
+                                        tr("Frame not ready"), msg,
+                                        QMessageBox::Ok, this);
+            box->setWindowModality(Qt::NonModal);
+            box->setAttribute(Qt::WA_DeleteOnClose);
+            box->show();
+        }
+        if (statusBar()) {
+            statusBar()->showMessage(msg, 4000);
+        }
+    }
+
+    // Number of frames the ETI processor actually holds (0 when none loaded).
+    int availableFrameCount() const
+    {
+        if (!m_etiProcessor) {
+            return 0;
+        }
+        const int total = m_etiProcessor->getTotalFrames();
+        return total > 0 ? total : 0;
     }
     
     void performETSIComplianceValidation(int frameIndex)
     {
         if (!m_complianceViewer || !m_etsiComplianceEngine || frameIndex < 0) {
+            return;
+        }
+
+        // Manual-test finding 2: only validate frames that actually exist in
+        // the loaded capture.
+        const int available = availableFrameCount();
+        if (available <= 0 || frameIndex >= available) {
             return;
         }
         
@@ -1744,6 +2962,14 @@ private slots:
         if (!m_hexViewer || !m_etiProcessor || frameIndex < 0) {
             return;
         }
+
+        // Manual-test finding 2: bounds-check against the frames actually
+        // available instead of indexing blindly.
+        const int available = availableFrameCount();
+        if (available <= 0 || frameIndex >= available) {
+            m_hexViewer->setText("No frame data available. Please load an ETI file first.");
+            return;
+        }
         
         // Get raw ETI frame data (6144 bytes per frame)
         QByteArray frameData = getETIFrameData(frameIndex);
@@ -1999,6 +3225,13 @@ private:
     void updateETIOverviewTable(int frameIndex) {
         if (!m_etiOverviewTable || m_etiOverviewTable->rowCount() < 4) {
             return;  // Table not initialized or insufficient rows
+        }
+
+        // Manual-test finding 2: null/bounds guard against the frames actually
+        // available; skip while a capture is still being parsed.
+        const int available = availableFrameCount();
+        if (!m_fileLoaded || frameIndex < 0 || available <= 0 || frameIndex >= available) {
+            return;
         }
         
         // Get frame data from cache or processor
@@ -3278,19 +4511,40 @@ private:
         }
         
         // Chronological real FIG instances from the analyzer's collector
-        // (FIC-XTractor view). Item data carries the collector index so the
-        // selection sync can rebuild the element tree for the exact block.
+        // (FIC-XTractor view). Observation (d): the tree is now hierarchical —
+        // one top-level group per (type, ext) with its instance count, and the
+        // instances as children. Child items carry the collector index in
+        // Qt::UserRole so the selection sync can rebuild the element tree.
         const QVector<AdvancedFIGAnalyzer::FigInstance>& instances =
             m_figAnalyzer->figInstances();
-        QMap<quint16, int> occurrence;  // per (type,ext) occurrence counter
+
+        struct FigGroup {
+            int type = 0;
+            int ext = 0;
+            int count = 0;
+            QTreeWidgetItem* node = nullptr;
+        };
+        QHash<quint16, int> groupIndex;  // (type,ext) -> index into groups
+        QVector<FigGroup> groups;
+
         m_tab3_figInstanceTree->setUpdatesEnabled(false);
         for (int i = 0; i < instances.size(); ++i) {
             const AdvancedFIGAnalyzer::FigInstance& inst = instances.at(i);
             const quint16 key = static_cast<quint16>((inst.type << 8) | inst.ext);
-            const int idx = occurrence.value(key, 0) + 1;
-            occurrence.insert(key, idx);
-            
-            auto* item = new QTreeWidgetItem(m_tab3_figInstanceTree);
+            int gi = groupIndex.value(key, -1);
+            if (gi < 0) {
+                auto* groupNode = new QTreeWidgetItem(m_tab3_figInstanceTree);
+                groupNode->setText(0, QString("FIG %1/%2").arg(inst.type).arg(inst.ext));
+                groupNode->setData(0, Qt::UserRole, -1);  // group marker (no instance)
+                gi = groups.size();
+                groups.append({inst.type, inst.ext, 0, groupNode});
+                groupIndex.insert(key, gi);
+            }
+            FigGroup& group = groups[gi];
+            ++group.count;
+            const int idx = group.count;  // occurrence within this group
+
+            auto* item = new QTreeWidgetItem(group.node);
             QString typeText = QString("FIG %1/%2").arg(inst.type).arg(inst.ext);
             if (inst.reconfig) {
                 typeText += " R";    // MCI reconfiguration marker
@@ -3308,40 +4562,73 @@ private:
             item->setText(5, QString::number(inst.length));
             item->setText(6, QString::number(
                               figFixedItemCount(inst.type, inst.ext, inst.raw)));
-            item->setData(0, Qt::UserRole, i);  // collector index
-            
+            item->setData(0, Qt::UserRole, i);  // collector index (child items only)
+
             if (!inst.crcOk) {
                 item->setForeground(0, QColor(200, 50, 50));
                 item->setForeground(4, QColor(200, 50, 50));
             }
         }
-        m_tab3_figInstanceTree->setUpdatesEnabled(true);
-        
-        // Pre-select the first instance so the details panel shows real
-        // element data immediately after load (selection is queued, so the
-        // details build follows in the event loop).
-        if (m_tab3_figInstanceTree->topLevelItemCount() > 0) {
-            m_tab3_figInstanceTree->setCurrentItem(m_tab3_figInstanceTree->topLevelItem(0));
+        // Group label carries the instance count, e.g. "FIG 0/0  (1250)".
+        for (const FigGroup& group : groups) {
+            group.node->setText(0, QString("FIG %1/%2  (%3)")
+                                       .arg(group.type).arg(group.ext).arg(group.count));
+            group.node->setChildIndicatorPolicy(QTreeWidgetItem::DontShowIndicatorWhenChildless);
         }
-        
+        m_tab3_figInstanceTree->setUpdatesEnabled(true);
+        m_tab3_figInstanceTree->expandAll();
+
+        // Pre-select the first instance (first child of the first group) so the
+        // details panel shows real element data immediately after load
+        // (selection is queued, so the details build follows in the event loop).
+        if (!groups.isEmpty() && groups.first().node->childCount() > 0) {
+            m_tab3_figInstanceTree->setCurrentItem(groups.first().node->child(0));
+        }
+
         qDebug() << "[PHASE 8] FIG instance tree built with"
-                 << instances.size() << "real instances";
+                 << instances.size() << "real instances in" << groups.size() << "groups";
     }
 
     // === PHASE 9: Tab 3 RIGHT Panel - FIG Item Details Tree ===
     // No-arg entry point (load-complete + selection sync): resolve the
-    // selected instance (falling back to the first row) and rebuild.
+    // selected instance (falling back to the first instance) and rebuild.
+    // Observation (d): selecting a (type,ext) GROUP node shows a group summary
+    // instead of an instance element tree, and never crashes.
     void buildFIGItemDetailsTree() {
         int index = -1;
+        QTreeWidgetItem* groupNode = nullptr;
         if (m_tab3_figInstanceTree) {
             QTreeWidgetItem* current = m_tab3_figInstanceTree->currentItem();
             if (current) {
                 index = current->data(0, Qt::UserRole).toInt();
+                if (index < 0) {
+                    groupNode = current;  // group node marker
+                }
             } else if (m_tab3_figInstanceTree->topLevelItemCount() > 0) {
-                index = m_tab3_figInstanceTree->topLevelItem(0)->data(0, Qt::UserRole).toInt();
+                QTreeWidgetItem* first = m_tab3_figInstanceTree->topLevelItem(0);
+                if (first->childCount() > 0) {
+                    index = first->child(0)->data(0, Qt::UserRole).toInt();
+                } else {
+                    index = first->data(0, Qt::UserRole).toInt();
+                }
             }
         }
+        if (groupNode) {
+            buildFIGGroupSummary(groupNode);
+            return;
+        }
         buildFIGItemDetailsTree(index);
+    }
+
+    // Safe details view for a selected FIG group node (Observation d).
+    void buildFIGGroupSummary(QTreeWidgetItem* groupNode) {
+        if (!m_tab3_figItemDetailsTree || !groupNode) return;
+        m_tab3_figItemDetailsTree->clear();
+        auto* summary = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
+        summary->setText(0, groupNode->text(0));
+        summary->setText(1, QString("%1 instances").arg(groupNode->childCount()));
+        summary->setText(2, "Group");
+        summary->setText(3, "Select an instance to see its decoded element tree");
     }
 
     void buildFIGItemDetailsTree(int index) {
@@ -3476,6 +4763,10 @@ private:
 
         // Create main tab widget for 3 tabs (per user specification)
         QTabWidget* mainTabs = new QTabWidget();
+        mainTabs->setObjectName(QStringLiteral("mainTabs"));
+        // Manual-test finding 1: readable inactive tabs + accent-highlighted
+        // active tab (see applyMainTabsStyle()).
+        applyMainTabsStyle(mainTabs);
         mainVerticalSplitter->addWidget(mainTabs);
 
         // Tab 1: DAB Ensemble & ETI Analysis (PRIMARY - most used)
@@ -3507,6 +4798,13 @@ private:
 
         // Set vertical split: 70% tabs, 30% bottom dock area (700px : 300px)
         mainVerticalSplitter->setSizes({700, 300});
+
+        // Manual-test finding 1: matching tab touch for the Qt-ADS dock tab
+        // bars (appends to the ADS default stylesheet; see helper).
+        applyDockManagerTabStyle(m_tab1DockManager);
+        applyDockManagerTabStyle(m_tab2DockManager);
+        applyDockManagerTabStyle(m_tab3DockManager);
+        applyDockManagerTabStyle(m_bottomDockManager);
 
         // Restore persisted docking/window state AFTER every dock exists.
         restoreDockingState();
@@ -3548,6 +4846,71 @@ private:
         dock->setObjectName(objectName);
         dock->setWidget(widget ? widget : new QWidget());
         return dock;
+    }
+
+    // ========================================================================
+    // MANUAL-TEST FINDING 1: tab-colour readability
+    // ========================================================================
+    // The system default QTabBar draws inactive tab text with very low
+    // contrast on the default (light) theme, so inactive tabs are hard to
+    // read. This stylesheet makes:
+    //   inactive : palette(windowText) text on palette(window) background
+    //   selected : accent #4a8fd4 background with palette(highlightedText)
+    //              text, bold
+    //   pane     : 1px palette(mid) border
+    // The UI-redesign mockup (docs/gui/StreamDAB-Analyzer UI Redesign.html)
+    // uses accent #4a8fd4, border #363636 and text #c6c6c6. Only the brand
+    // accent is used verbatim; the remaining colours are derived from
+    // palette() so the app stays readable on the default light theme too.
+    void applyMainTabsStyle(QTabWidget* tabs)
+    {
+        if (!tabs) {
+            return;
+        }
+        tabs->setStyleSheet(QStringLiteral(R"(
+            QTabWidget::pane { border: 1px solid palette(mid); }
+            QTabBar::tab {
+                color: palette(windowText);
+                background: palette(window);
+                border: 1px solid palette(mid);
+                padding: 6px 12px;
+                margin-right: 1px;
+            }
+            QTabBar::tab:hover:!selected { background: palette(alternate-base); }
+            QTabBar::tab:selected {
+                color: palette(highlightedText);
+                background: #4a8fd4;
+                border: 1px solid #4a8fd4;
+                font-weight: bold;
+            }
+        )"));
+    }
+
+    // Qt-ADS 4.5.0 has NO dedicated `setStylesheet()` API on CDockManager
+    // (verified in build/_deps/qtadvanceddockingsystem-src/src/DockManager.h);
+    // CDockManager installs its own default stylesheet in its constructor via
+    // the inherited QWidget::setStyleSheet(). Replacing it outright would lose
+    // the dock icons, so APPEND the matching tab rules to the existing sheet.
+    void applyDockManagerTabStyle(ads::CDockManager* manager)
+    {
+        if (!manager) {
+            return;
+        }
+        const QString extra = QStringLiteral(R"(
+            ads--CDockWidgetTab {
+                background: palette(window);
+                border-color: palette(mid);
+            }
+            ads--CDockWidgetTab QLabel { color: palette(windowText); }
+            ads--CDockWidgetTab[activeTab="true"] {
+                background: #4a8fd4;
+            }
+            ads--CDockWidgetTab[activeTab="true"] QLabel {
+                color: palette(highlightedText);
+                font-weight: bold;
+            }
+        )");
+        manager->setStyleSheet(manager->styleSheet() + extra);
     }
 
     void registerTab1Docks()
@@ -3752,6 +5115,14 @@ private:
         }
         if (centerV->count() == 3) {
             centerV->setSizes({190, 150, 82});  // Signal Analysis ≈ 190, Frame Analysis flex, Now Playing 82
+        }
+
+        // Observation (a): reparenting the areas during the splitter surgery
+        // must not change which tab the Signal Analysis group opens on. Re-assert
+        // the default active tab (DAB Ensemble Explorer, not CU Usage) after the
+        // surgery so a fresh layout is deterministic.
+        if (ads::CDockAreaWidget* saArea = D("tab1_EnsembleExplorer")->dockAreaWidget()) {
+            saArea->setCurrentDockWidget(D("tab1_EnsembleExplorer"));
         }
     }
 
@@ -4025,7 +5396,21 @@ private:
         }
         m_frameList->setAlternatingRowColors(true);
         navigatorLayout->addWidget(m_frameList);
-        
+
+        // Selected-frame details (was declared but never instantiated). Shown
+        // below the list; small/dim so it reads as secondary information.
+        if (!m_frameDetails) {
+            m_frameDetails = new QLabel(QStringLiteral("Selected Frame: —"));
+            m_frameDetails->setObjectName(QStringLiteral("frameDetailsLabel"));
+            m_frameDetails->setWordWrap(true);
+            m_frameDetails->setTextInteractionFlags(Qt::TextSelectableByMouse);
+            QFont detailsFont = m_frameDetails->font();
+            detailsFont.setPointSizeF(qMax(7.5, detailsFont.pointSizeF() - 1.5));
+            m_frameDetails->setFont(detailsFont);
+            m_frameDetails->setStyleSheet(QStringLiteral("color: palette(mid);"));
+        }
+        navigatorLayout->addWidget(m_frameDetails);
+
         sections.append({QStringLiteral("tab1_FrameNavigator"), QStringLiteral("ETI Frame Navigator"), navigatorGroup});
 
         // 3. Hex Viewer / ETSI Compliance (Item #7) - 30%
@@ -4186,14 +5571,15 @@ private:
         QGroupBox* overviewGroup = new QGroupBox("Overview");
         QVBoxLayout* overviewLayout = new QVBoxLayout(overviewGroup);
         
+        // Refinement C: descriptive empty-state text (no "(none)"/"0").
         if (!m_tab2_ensembleName) {
-            m_tab2_ensembleName = new QLabel("Ensemble: (none)");
+            m_tab2_ensembleName = new QLabel("Ensemble: awaiting decode");
         }
         if (!m_tab2_ficContentSummary) {
-            m_tab2_ficContentSummary = new QLabel("FIC Content: 0 FIGs");
+            m_tab2_ficContentSummary = new QLabel("FIC Content: awaiting decode");
         }
         if (!m_tab2_subchannelOrgSummary) {
-            m_tab2_subchannelOrgSummary = new QLabel("Sub-Channels: 0");
+            m_tab2_subchannelOrgSummary = new QLabel("Sub-Channels: awaiting decode");
         }
         
         m_tab2_ensembleName->setWordWrap(true);
@@ -4227,7 +5613,9 @@ private:
         if (!m_tab2_digitalOrgInfo) {
             m_tab2_digitalOrgInfo = new QTextEdit();
             m_tab2_digitalOrgInfo->setReadOnly(true);
-            m_tab2_digitalOrgInfo->setPlaceholderText("Service IDs + Names:\n(e.g., 0x202E: Digital Org.)");
+            m_tab2_digitalOrgInfo->setPlaceholderText(
+                "Digital service IDs / names decoded from the FIC "
+                "(FIG 1/1 labels + FIG 0/2 organisation) appear here.");
         }
         digitalOrgLayout->addWidget(m_tab2_digitalOrgInfo);
         
@@ -4360,14 +5748,16 @@ private:
         }
 
         // One dock per original column widget (25% | 50% | 25%).
+        // Manual-test finding 4: proper descriptive titles (objectNames stay
+        // unchanged for layout persistence).
         ads::CDockWidget* leftDock = makeDock(m_tab2DockManager,
-            QStringLiteral("tab2_Left"), QStringLiteral("Left"),
+            QStringLiteral("tab2_Left"), QStringLiteral("Service Tree"),
             createTab2_LeftPanel());
         ads::CDockWidget* centerDock = makeDock(m_tab2DockManager,
-            QStringLiteral("tab2_Center"), QStringLiteral("Center"),
+            QStringLiteral("tab2_Center"), QStringLiteral("Ensemble & Sub-Channel Tables"),
             createTab2_CenterPanel());
         ads::CDockWidget* rightDock = makeDock(m_tab2DockManager,
-            QStringLiteral("tab2_Right"), QStringLiteral("Right"),
+            QStringLiteral("tab2_Right"), QStringLiteral("FIG Content"),
             createTab2_RightPanel());
 
         // Center FIRST (establishes the root splitter), then left/right append
@@ -4483,11 +5873,13 @@ private:
         }
 
         // One dock per original column widget (40% | 60%).
+        // Manual-test finding 4: proper descriptive titles (objectNames stay
+        // unchanged for layout persistence).
         ads::CDockWidget* leftDock = makeDock(m_tab3DockManager,
-            QStringLiteral("tab3_Left"), QStringLiteral("Left"),
+            QStringLiteral("tab3_Left"), QStringLiteral("FIG Instance List"),
             createTab3_LeftPanel());
         ads::CDockWidget* rightDock = makeDock(m_tab3DockManager,
-            QStringLiteral("tab3_Right"), QStringLiteral("Right"),
+            QStringLiteral("tab3_Right"), QStringLiteral("FIG Item Details"),
             createTab3_RightPanel());
 
         // Left FIRST (sets root horizontal), right appends -> Left | Right.
@@ -4661,10 +6053,10 @@ private:
 
         // UI redesign (Step E): dock states saved by the v1.3 layout (26 docks,
         // no grouped areas) are incompatible with the redesign. The stored
-        // layout version guards a ONE-TIME reset: any version != 2 discards the
+        // layout version guards a ONE-TIME reset: any version != 3 discards the
         // saved dock states (docking/tab1|tab2|tab3|bottom) so the first run
         // after the upgrade shows the new default layout; window geometry is
-        // kept. Version 2 is written again on the next saveDockingState().
+        // kept. Version 3 is written again on the next saveDockingState().
         const int layoutVersion = s.value(QStringLiteral("docking/layout_version"), 1).toInt();
         if (layoutVersion != DOCKING_LAYOUT_VERSION) {
             qInfo() << "Docking layout version" << layoutVersion
@@ -4820,13 +6212,39 @@ private:
         line->setStyleSheet("background-color: #ddd;");
         layout->addWidget(line);
         
-        // Last updated timestamp
-        m_lastUpdatedLabel = new QLabel("No metadata received");
+        // Last updated timestamp. Manual-test finding 3: the initial state is
+        // "Waiting for DLS+…" (no load yet); after a completed load with zero
+        // DLS+ messages it becomes "No metadata received".
+        m_lastUpdatedLabel = new QLabel("Waiting for DLS+…");
         m_lastUpdatedLabel->setStyleSheet("font-size: 10px; color: #999; font-style: italic;");
         m_lastUpdatedLabel->setAlignment(Qt::AlignRight);
         layout->addWidget(m_lastUpdatedLabel);
         
         return groupBox;
+    }
+
+    // Manual-test finding 3: Now Playing (DLS+) panel state helpers.
+    void resetNowPlayingPanel()
+    {
+        if (m_trackLabel) {
+            m_trackLabel->setText("--");
+        }
+        if (m_artistLabel) {
+            m_artistLabel->setText("--");
+        }
+        if (m_albumLabel) {
+            m_albumLabel->setText("--");
+        }
+        if (m_lastUpdatedLabel) {
+            m_lastUpdatedLabel->setText(tr("Waiting for DLS+…"));
+        }
+    }
+
+    void setNowPlayingEmptyState()
+    {
+        if (m_lastUpdatedLabel) {
+            m_lastUpdatedLabel->setText(tr("No metadata received"));
+        }
     }
 
     // ========================================================================
@@ -5546,7 +6964,7 @@ private:
         QAction* aboutAction = helpMenu->addAction("About Phase 1.4");
         connect(aboutAction, &QAction::triggered, [this]() {
             QMessageBox::about(this, "About", 
-                "Phase 1.4 DAB-XPlorer\n\nBangkok ETI Processing Complete\n\nAll 5,001 frames processed successfully!");
+                "StreamDAB-Analyzer\n\nBangkok ETI Processing Complete\n\nAll 5,001 frames processed successfully!");
         });
     }
 
@@ -5729,8 +7147,7 @@ private:
         
         connect(m_readerThread, &ETIReaderThread::processingError,
                 this, [this](const QString& error) {
-                    qWarning() << "Phase B: Worker thread error:" << error;
-                    QMessageBox::critical(this, "Processing Error", error);
+                    handleWorkerError(error);
                 });
         
         // === Phase B: Connect SharedETIData signals to widgets ===
@@ -6458,6 +7875,29 @@ private:
     
     // Phase 3B: DLS+ decoder instance
     eti::dls_plus::DLSPlusDecoder* m_dlsPlusDecoder{nullptr};
+
+    // Refinement A: GUI DLS+ pipeline state/counters. m_dlsParsers holds one
+    // standard DAB+ superframe/PAD parser per DAB+ audio sub-channel. The
+    // per-subchannel MSC slices are reused from ProcessedFrame::sub_channels
+    // (no raw-frame re-parse).
+    std::map<int, DabPlusSubchannelParser> m_dlsParsers;
+    // Cached DAB+ subchannel -> (service id, label) map (Finding 4): the
+    // analyzer's getDABServices() copies the whole service vector, so it is
+    // only re-read when a service/subchannel count changes or a discovery
+    // invalidates the cache.
+    QSet<int> m_dabPlusSubChannels;
+    QHash<int, QPair<quint32, QString>> m_serviceBySubChannel;
+    bool m_dabPlusServiceMapDirty{true};
+    int m_cachedDabServiceCount{-1};
+    int m_cachedSubChannelCount{-1};
+    uint32_t m_cachedServiceRevision{0};  // AdvancedFIGAnalyzer::getServiceRevision()
+    qint64 m_dlsPipelineNs{0};        // accumulated DLS+ pipeline wall time
+    int m_dlsPlusMessages{0};
+    QStringList m_dlsLabelsSeen;       // distinct decoded DLS labels (GUI tests)
+    int m_dlsPlusPadCalls{0};          // adapted PAD buffers fed to the decoder
+    int m_dlsPlusLabelsAssembled{0};   // DLS labels assembled by the spec parser
+    quint32 m_pendingServiceId{0};     // service of the in-flight DLS+ decode
+    QString m_pendingServiceLabel;
     
     // Live Stream Input Panel widgets
     QRadioButton* m_fileSourceRadio = nullptr;
@@ -6491,6 +7931,11 @@ private:
     bool m_fileLoaded{false};
     size_t m_totalFrames{0};
     size_t m_currentFrameIndex{0};
+
+    // Manual-test finding 2: true while the synchronous ETI parse loop runs.
+    // Frame-navigation handlers must not touch frame data in this state.
+    bool m_processing{false};
+    bool m_frameNotReadyNotified{false};
 
     // === PHASE 3 AGENT 4: Frame Cache with LRU Eviction ===
     struct FrameCache {
@@ -6556,10 +8001,13 @@ private:
     static constexpr int FRAME_LIST_UPDATE_THROTTLE = 10;  // ~10 fps (update every 10 frames)
     static constexpr int ERROR_COUNTER_UPDATE_THROTTLE = 20;  // 5 fps (update every 20 frames)
 
-    // UI redesign (Step E): bumped from 1 -> 2 when the dock layout changed
+    // UI redesign (Step E): bumped 1 -> 2 when the dock layout changed
     // (Input Source -> toolbar, Messages -> bottom strip, Tab-1 regrouped dock
-    // areas). Any saved version != 2 is discarded once on restore.
-    static constexpr int DOCKING_LAYOUT_VERSION = 2;
+    // areas). Bumped 2 -> 3 (Observation a) because v2 saved states could
+    // restore the Signal Analysis group on CU Usage instead of DAB Ensemble
+    // Explorer; v3 discards that stale state once so the default active tab is
+    // deterministic. Any saved version != 3 is discarded once on restore.
+    static constexpr int DOCKING_LAYOUT_VERSION = 3;
     
     // Phase 1: Processing counters
     int m_processedFrames{0};

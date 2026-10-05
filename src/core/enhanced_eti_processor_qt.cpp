@@ -863,6 +863,16 @@ bool EnhancedETIProcessorQt::processEtiFrame(const QByteArray& frameData)
     
     // CRITICAL FIX: Force deep copy of MSC data to prevent dangling pointers
     frame.msc_data = QByteArray(combined_msc.constData(), combined_msc.size());
+
+    // Reuse: carry the already-parsed per-subchannel MSC slices so the GUI
+    // DLS+ pipeline does not have to re-run parseHeader()/extractMSC().
+    frame.sub_channels.reserve(parsed_frame.sub_channels.size());
+    for (const auto& sc : parsed_frame.sub_channels) {
+        ProcessedFrame::SubChannelSlice slice;
+        slice.sub_channel_id = sc.sub_channel_id;
+        slice.data = sc.data;
+        frame.sub_channels.push_back(std::move(slice));
+    }
     
     frame.crc = parsed_frame.frame_crc;
     frame.is_valid = true;
@@ -870,25 +880,23 @@ bool EnhancedETIProcessorQt::processEtiFrame(const QByteArray& frameData)
     // HIGH-007: Store frame using FIFO cleanup method
     storeFrame(frame);
 
-    // CRITICAL FIX: Emit frameProcessed for ALL frames with FIC data to ensure
-    // service labels from frames 26+ are discovered (FIG 1/1 labels don't appear until frame 26)
-    // Also emit for key frames (first, every 100th, last) for progress tracking
-    bool hasValidFIC = !frame.fic_data.isEmpty() && !parsed_frame.fic_data.isEmpty();
-    bool isKeyFrame = (frame.frame_number == 1) || 
-                      (frame.frame_number % 100 == 0) || 
-                      (frame.frame_number == total_frames_);
-    
-    bool shouldEmit = hasValidFIC || isKeyFrame;
-    
-    if (shouldEmit) {
-        // Log only key frames to avoid flooding console
-        if (isKeyFrame || frame.frame_number <= 30) {
-            qDebug() << "EnhancedETIProcessorQt: Emitting frameProcessed signal for frame" 
-                     << frame.frame_number << "FIC size:" << frame.fic_data.size();
-        }
-        emit formatDetected(frame.format, formatToString(frame.format));
-        emit frameProcessed(frame);
+    // Emit frameProcessed() for EVERY valid frame. Rationale (Finding 7):
+    //  - FIG 1/1 service labels are discovered from FIC frames; and
+    //  - the GUI DLS+/Now Playing pipeline must see exactly one CIF chunk per
+    //    ETI frame per sub-channel. Gating on FIC presence (FICF) would skip
+    //    FICF=0 frames — which still carry MSC — and break the 5-CIF DAB+
+    //    superframe cadence. onFrameProcessed() skips FIG analysis when
+    //    fic_data is empty, so those frames only feed the DLS+ accumulator.
+    const bool isKeyFrame = (frame.frame_number == 1)
+                            || (frame.frame_number % 100 == 0)
+                            || (frame.frame_number == total_frames_);
+    // Log only key frames (and early frames) to avoid flooding the console.
+    if (isKeyFrame || frame.frame_number <= 30) {
+        qDebug() << "EnhancedETIProcessorQt: Emitting frameProcessed signal for frame"
+                 << frame.frame_number << "FIC size:" << frame.fic_data.size();
     }
+    emit formatDetected(frame.format, formatToString(frame.format));
+    emit frameProcessed(frame);
 
     return true;
 }

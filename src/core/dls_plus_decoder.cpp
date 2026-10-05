@@ -932,5 +932,19 @@ void DLSPlusDecoder::resetStatistics() {
     has_current_message_ = false;
 }
 
+void DLSPlusDecoder::resetHistory() {
+    QMutexLocker locker(&mutex_);
+    // Clear the change-detection baselines AND the current-message flag so the
+    // next decoded label always emits (even if byte-identical to the previous
+    // capture's last values). current_message_'s contents are left in place but
+    // are no longer reported as current via hasCurrentMessage().
+    previous_artist_.clear();
+    previous_title_.clear();
+    previous_album_.clear();
+    previous_programme_.clear();
+    previous_station_name_.clear();
+    has_current_message_ = false;
+}
+
 } // namespace dls_plus
 } // namespace eti
