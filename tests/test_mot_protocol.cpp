@@ -1,21 +1,23 @@
 /**
  * @file test_mot_protocol.cpp
- * @brief Comprehensive Unit Tests for MOT Protocol Parser
+ * @brief Unit tests for the standard-layout MOT Protocol parser (T26).
  *
- * Test suite for MOT (Multimedia Object Transfer) Protocol implementation
- * following ETSI EN 301 234 specifications.
+ * The parser consumes standard ETSI EN 300 401 §5.3.3 MSC data groups:
+ * data-group header (+ optional extension) · MOT session header · segmentation
+ * header · segment data · ~CRC-16/CCITT-FALSE. Data-group type 3 carries a MOT
+ * header entity, type 4 a MOT body entity. Tests build real standard data
+ * groups (no legacy "simplified layout") and drive MOTProtocol::processMOTData.
  *
- * Test Coverage:
- * - MSC Data Group parsing (structure, CRC validation)
- * - Segment reassembly (single, multi-segment, duplicates, out-of-order)
- * - Content type detection (JPEG, PNG, HTML, unknown)
- * - Header parameter extraction (content name, Thai UTF-8, trigger time)
- * - Transport ID management (range 0-1023, multiple objects)
- * - Edge cases (empty data, corrupted header, invalid segments)
+ * Coverage:
+ * - Standard MSC data group parsing + CRC-16/CCITT-FALSE (one's complement)
+ * - Standard 7-byte MOT header core (28-bit body size, 13-bit header size)
+ * - Header extension parameters (content name, URL, category, trigger time, Thai)
+ * - Header+body entity reassembly (single, multi-segment, out-of-order, gap)
+ * - CRC reject, transport-id validation, carousel reset, oversize, stale eviction
+ * - Progress reporting, statistics, clear/reset
+ * - MotPadAdapter thin-shim façade (forwarding + statistics mapping)
  *
- * @author StreamDAB Development Team
- * @date October 22, 2025
- * @version 1.0
+ * @date October 2026
  */
 
 #include <QtTest/QtTest>
@@ -23,6 +25,9 @@
 #include <QByteArray>
 #include <QSignalSpy>
 #include <QDebug>
+#include <algorithm>
+#include <vector>
+
 #include "../src/core/mot_protocol.hpp"
 #include "../src/core/mot_pad_adapter.hpp"
 #include "../src/core/crc16.hpp"
@@ -30,36 +35,99 @@
 using namespace eti::mot;
 
 // ============================================================================
-// Helpers: build standard EN 300 401 MOT MSC data groups (as carried in
-// DAB+ X-PAD CI 12/13), used by the MotPadAdapter tests below.
+// Helpers: build standard EN 300 401 / EN 301 234 structures.
 // ============================================================================
 namespace {
 
 // 7-byte standard MOT header core (ETSI EN 301 234 §5.1): body size(28)
 // header size(13) content type(6) content subtype(9).
-QByteArray buildStandardMotHeaderCore(uint32_t bodySize, uint8_t contentType,
-                                      uint16_t contentSubType)
+QByteArray buildHeaderCore(uint32_t bodySize, uint8_t contentType, uint16_t subType,
+                           uint16_t headerSize = 7)
 {
     QByteArray h(7, '\0');
     auto* d = reinterpret_cast<uint8_t*>(h.data());
     d[0] = static_cast<uint8_t>((bodySize >> 20) & 0xFF);
     d[1] = static_cast<uint8_t>((bodySize >> 12) & 0xFF);
     d[2] = static_cast<uint8_t>((bodySize >> 4) & 0xFF);
-    d[3] = static_cast<uint8_t>(((bodySize & 0x0F) << 4) | ((7u >> 9) & 0x0F));
-    d[4] = static_cast<uint8_t>((7u >> 1) & 0xFF);
-    d[5] = static_cast<uint8_t>(((7u & 0x01) << 7) |
+    d[3] = static_cast<uint8_t>(((bodySize & 0x0F) << 4) | ((headerSize >> 9) & 0x0F));
+    d[4] = static_cast<uint8_t>((headerSize >> 1) & 0xFF);
+    d[5] = static_cast<uint8_t>(((headerSize & 0x01) << 7) |
                                 ((contentType & 0x3F) << 1) |
-                                ((contentSubType >> 8) & 0x01));
-    d[6] = static_cast<uint8_t>(contentSubType & 0xFF);
+                                ((subType >> 8) & 0x01));
+    d[6] = static_cast<uint8_t>(subType & 0xFF);
+    return h;
+}
+
+// One MOT header extension parameter (EN 301 234 §6.2 Fig.22). `data` is the
+// DataField (for text parameters it starts with the charset/Rfa byte).
+struct ParamSpec {
+    uint8_t id;
+    uint8_t pli;       // 0..3 (Parameter Length Indicator)
+    QByteArray data;   // DataField
+};
+
+// Encode a parameter with an explicit PLI, matching the spec semantics:
+//   0 -> length 0; 1 -> 8-bit length; 2 -> 32-bit length; 3 -> 7/15-bit.
+QByteArray encodeParam(const ParamSpec& p)
+{
+    QByteArray out;
+    out.append(static_cast<char>(((p.pli & 0x03) << 6) | (p.id & 0x3F)));
+    const int n = p.data.size();
+    switch (p.pli & 0x03) {
+        case 0x0:
+            break;
+        case 0x1:
+            out.append(static_cast<char>(n & 0xFF));
+            break;
+        case 0x2:
+            out.append(static_cast<char>((n >> 24) & 0xFF));
+            out.append(static_cast<char>((n >> 16) & 0xFF));
+            out.append(static_cast<char>((n >> 8) & 0xFF));
+            out.append(static_cast<char>(n & 0xFF));
+            break;
+        case 0x3:
+            if (n < 0x80) {
+                out.append(static_cast<char>(n & 0x7F));
+            } else {
+                out.append(static_cast<char>(0x80 | ((n >> 8) & 0x7F)));
+                out.append(static_cast<char>(n & 0xFF));
+            }
+            break;
+    }
+    out.append(p.data);
+    return out;
+}
+
+// Text parameter DataField: charset indicator (high nibble) + Rfa (low nibble)
+// then the character field (EN 301 234 §6.2.2.1.1 Fig.24).
+QByteArray textParam(uint8_t charsetNibble, const QByteArray& text)
+{
+    QByteArray d;
+    d.append(static_cast<char>((charsetNibble & 0x0F) << 4));
+    d.append(text);
+    return d;
+}
+
+// Standard header entity: core + extension parameters.
+QByteArray buildHeaderEntity(uint32_t bodySize, uint8_t contentType, uint16_t subType,
+                             const QList<ParamSpec>& params = {})
+{
+    QByteArray ext;
+    for (const ParamSpec& p : params) {
+        ext.append(encodeParam(p));
+    }
+    const uint16_t headerSize = static_cast<uint16_t>(7 + ext.size());
+    QByteArray h = buildHeaderCore(bodySize, contentType, subType, headerSize);
+    h.append(ext);
     return h;
 }
 
 // Standard MOT MSC data group: 2-byte header (crc/segment/user-access/type) +
 // session header (last|seg, transport-id flag+len, transport id) +
 // segmentation header (segment size) + payload + ~CRC-16/CCITT-FALSE.
-QByteArray buildStandardMotDataGroup(uint8_t dgType, uint16_t transportId,
-                                     uint16_t segNumber, bool last,
-                                     const QByteArray& payload)
+QByteArray buildDataGroup(uint8_t dgType, uint32_t transportId,
+                          uint16_t segNumber, bool last,
+                          const QByteArray& payload)
 {
     QByteArray dg;
     dg.append(static_cast<char>(0x40 | 0x20 | 0x10 | (dgType & 0x0F)));
@@ -88,6 +156,17 @@ QByteArray patternBody(int size, char seed)
     return body;
 }
 
+std::vector<uint8_t> toVector(const QByteArray& data)
+{
+    return std::vector<uint8_t>(data.begin(), data.end());
+}
+
+QByteArray objectBody(const MOTObject& object)
+{
+    return QByteArray(reinterpret_cast<const char*>(object.body.data()),
+                      static_cast<int>(object.body.size()));
+}
+
 }  // namespace
 
 class TestMOTProtocol : public QObject
@@ -95,105 +174,76 @@ class TestMOTProtocol : public QObject
     Q_OBJECT
 
 private slots:
-    // Test lifecycle
     void initTestCase();
     void cleanupTestCase();
     void init();
     void cleanup();
 
-    // MSC Data Group parsing tests
-    void testMSCDataGroup_ValidStructure();
-    void testMSCDataGroup_CRCValidation();
-    void testMSCDataGroup_InvalidCRC();
+    // Standard MSC data group parsing / CRC
+    void testMSCDataGroup_Parse();
+    void testMSCDataGroup_CRCValid();
+    void testMSCDataGroup_CRCInvalid();
     void testMSCDataGroup_MinimumSize();
-    void testMSCDataGroup_WithoutCRC();
-    void testMSCDataGroup_AllFlags();
+    void testMSCDataGroup_Flags();
 
-    // Segment reassembly tests
-    void testSegmentReassembly_SingleSegment();
-    void testSegmentReassembly_MultiSegment();
-    void testSegmentReassembly_DuplicateSegment();
-    void testSegmentReassembly_OutOfOrderSegments();
-    void testSegmentReassembly_MissingSegments();
-    void testSegmentReassembly_ProgressTracking();
+    // Standard MOT header core / extension parameters
+    void testHeaderCore_StandardLayout();
+    void testHeaderCore_28BitBodySize();
+    void testParseMOTHeader_Core();
+    void testHeaderParameter_ContentName();
+    void testHeaderParameter_ClickThroughURL();
+    void testHeaderParameter_CategoryAndTrigger();
+    void testHeaderParameter_ThaiUTF8();
+    void testHeaderParameter_MultipleParameters();
+    void testHeaderParameter_PliBoundsAndZeroLength();
 
-    // Content type detection tests
+    // Content type
     void testContentType_JPEG();
     void testContentType_PNG();
     void testContentType_HTML();
-    void testContentType_Unknown();
 
-    // Header parameter extraction tests
-    void testHeaderParameter_ContentName();
-    void testHeaderParameter_ThaiUTF8();
-    void testHeaderParameter_TriggerTime();
-    void testHeaderParameter_CategoryTitle();
-    void testHeaderParameter_ClickThroughURL();
-    void testHeaderParameter_MultipleParameters();
-
-    // Transport ID management tests
+    // Transport ID management
     void testTransportID_ValidRange();
     void testTransportID_InvalidRange();
-    void testTransportID_MultipleObjects();
-    void testTransportID_ClearObject();
-    void testTransportID_ClearAll();
 
-    // Edge cases and error handling
-    void testEdgeCase_EmptyData();
-    void testEdgeCase_CorruptedHeader();
-    void testEdgeCase_InvalidSegmentNumber();
-    void testEdgeCase_TotalSegmentsMismatch();
-    void testEdgeCase_NullData();
+    // Standard end-to-end reassembly through processMOTData
+    void testProcessMOTData_SingleObject();
+    void testProcessMOTData_Full16BitTransportId();
+    void testProcessMOTData_HeaderParamsRestored();
+    void testProcessMOTData_MultiSegmentOutOfOrder();
+    void testProcessMOTData_DuplicateSegment();
+    void testProcessMOTData_DuplicateHeaderRepeatNoReset();
+    void testProcessMOTData_GapTolerance();
+    void testProcessMOTData_CrcRejected();
+    void testProcessMOTData_CarouselReset();
+    void testProcessMOTData_OversizeRejected();
+    void testProcessMOTData_StaleEviction();
+    void testProcessMOTData_MultipleObjects();
+    void testProcessMOTData_Progress();
 
-    // MOT Header parsing tests
-    void testMOTHeader_BasicStructure();
-    void testMOTHeader_ExtensionParameters();
-    void testMOTHeader_InvalidSize();
+    // State management / statistics
+    void testState_ProgressAndComplete();
+    void testState_ClearAll();
+    void testState_ResetStatistics();
 
-    // Signal emission tests
-    void testSignals_ObjectComplete();
-    void testSignals_ReassemblyProgress();
-    void testSignals_ParseError();
-
-    // Statistics tests
-    void testStatistics_Tracking();
-    void testStatistics_Accuracy();
-
-    // MOT MSC data group adapter (X-PAD CI 12/13 transport) tests
-    void testMotPadAdapter_StandardHeaderCore();
-    void testMotPadAdapter_HeaderBodyObjectComplete();
-    void testMotPadAdapter_MultiSegmentBody();
-    void testMotPadAdapter_CrcRejected();
-    void testMotPadAdapter_ReframedLayout();
-    void testMotPadAdapter_ReframedIsValid();
-    void testMotPadAdapter_OversizeRejected();
-    void testMotPadAdapter_StaleEviction();
-    void testMotPadAdapter_CarouselReset();
+    // MotPadAdapter thin shim
+    void testAdapter_ParseStandardHeader();
+    void testAdapter_ShimCompletesObject();
+    void testAdapter_StatisticsMapping();
 
 private:
-    MOTProtocol* m_motParser;
-
-    // Helper methods
-    QByteArray createValidMSCDataGroup(bool with_crc = true);
-    QByteArray createMSCDataGroupWithSegment(uint16_t segment_num, uint16_t total_segments,
-                                            uint32_t transport_id, const QByteArray& data);
-    std::vector<uint8_t> createMOTHeader(ContentType type, const QString& content_name);
-    uint16_t calculateTestCRC(const QByteArray& data);
-    std::vector<uint8_t> toVector(const QByteArray& data);
+    MOTProtocol* m_motParser = nullptr;
 };
 
 // ============================================================================
-// Test Lifecycle Methods
+// Lifecycle
 // ============================================================================
 
 void TestMOTProtocol::initTestCase()
 {
     qInfo() << "========================================";
-    qInfo() << "Starting MOT Protocol Test Suite";
-    qInfo() << "Phase 3A Wave 1.2 - PDCA DO Phase";
+    qInfo() << "Starting MOT Protocol Test Suite (standard layout, T26)";
     qInfo() << "========================================";
-
-    // Register Qt metatypes
     qRegisterMetaType<MOTObject>("MOTObject");
     qRegisterMetaType<MOTHeader>("MOTHeader");
 }
@@ -221,1084 +271,686 @@ void TestMOTProtocol::cleanup()
 }
 
 // ============================================================================
-// MSC Data Group Parsing Tests
+// Standard MSC data group parsing / CRC
 // ============================================================================
 
-void TestMOTProtocol::testMSCDataGroup_ValidStructure()
+void TestMOTProtocol::testMSCDataGroup_Parse()
 {
-    // Create valid MSC data group
-    QByteArray msc_data = createValidMSCDataGroup(false);
-
-    auto data_group = m_motParser->parseMSCDataGroup(msc_data);
-    
-    QVERIFY(data_group.has_value());
-    QVERIFY(!data_group->data_field.empty());
-    QCOMPARE(data_group->data_group_type, static_cast<uint8_t>(3)); // MOT data group type
+    const QByteArray dg = buildDataGroup(3, 0x0123, 0, true, buildHeaderCore(100, 0x02, 0x01));
+    auto parsed = m_motParser->parseMSCDataGroup(dg);
+    QVERIFY(parsed.has_value());
+    QCOMPARE(parsed->data_group_type, static_cast<uint8_t>(3));
+    QVERIFY(parsed->crc_flag);
+    QVERIFY(parsed->segment_flag);
+    QVERIFY(parsed->user_access_flag);
+    QVERIFY(!parsed->data_field.empty());
+    QVERIFY(parsed->crc_valid);
 }
 
-void TestMOTProtocol::testMSCDataGroup_CRCValidation()
+void TestMOTProtocol::testMSCDataGroup_CRCValid()
 {
-    // Create MSC data group with valid CRC
-    QByteArray msc_data;
-    
-    // Header: extension=0, crc=1, segment=1, user_access=0, type=3
-    uint8_t byte0 = 0x40 | 0x20 | 0x03;  // CRC flag + segment flag + type 3
-    uint8_t byte1 = 0x12;  // CI=1, RI=2
-    
-    msc_data.append(byte0);
-    msc_data.append(byte1);
-    
-    // Add some data
-    msc_data.append("TEST_DATA", 9);
-    
-    // Calculate and append CRC
-    uint16_t crc = calculateTestCRC(msc_data);
-    msc_data.append(static_cast<char>(crc >> 8));
-    msc_data.append(static_cast<char>(crc & 0xFF));
-    
-    auto data_group = m_motParser->parseMSCDataGroup(msc_data);
-    
-    QVERIFY(data_group.has_value());
-    QVERIFY(data_group->crc_flag);
-    
-    bool crc_valid = m_motParser->validateDataGroupCRC(*data_group);
-    QVERIFY(crc_valid);
+    const QByteArray dg = buildDataGroup(4, 0x0042, 0, true, patternBody(64, 0x10));
+    auto parsed = m_motParser->parseMSCDataGroup(dg);
+    QVERIFY(parsed.has_value());
+    QVERIFY(parsed->crc_flag);
+    QVERIFY(m_motParser->validateDataGroupCRC(*parsed));
 }
 
-void TestMOTProtocol::testMSCDataGroup_InvalidCRC()
+void TestMOTProtocol::testMSCDataGroup_CRCInvalid()
 {
-    // Create MSC data group with invalid CRC
-    QByteArray msc_data;
-    
-    uint8_t byte0 = 0x40 | 0x20 | 0x03;  // CRC flag + segment flag + type 3
-    uint8_t byte1 = 0x00;
-    
-    msc_data.append(byte0);
-    msc_data.append(byte1);
-    msc_data.append("TEST_DATA", 9);
-    
-    // Append wrong CRC
-    msc_data.append(static_cast<char>(0xFF));
-    msc_data.append(static_cast<char>(0xFF));
-    
-    auto data_group = m_motParser->parseMSCDataGroup(msc_data);
-    
-    QVERIFY(data_group.has_value());
-    
-    bool crc_valid = m_motParser->validateDataGroupCRC(*data_group);
-    QVERIFY(!crc_valid);
+    QByteArray dg = buildDataGroup(4, 0x0042, 0, true, patternBody(64, 0x10));
+    dg[dg.size() - 1] = static_cast<char>(dg[dg.size() - 1] ^ 0xFF);
+    auto parsed = m_motParser->parseMSCDataGroup(dg);
+    QVERIFY(parsed.has_value());
+    QVERIFY(!m_motParser->validateDataGroupCRC(*parsed));
+
+    // processMOTData must reject it and count a CRC error.
+    QVERIFY(!m_motParser->processMOTData(0, dg));
+    QCOMPARE(m_motParser->getStatistics().crc_errors, static_cast<uint64_t>(1));
 }
 
 void TestMOTProtocol::testMSCDataGroup_MinimumSize()
 {
-    // Test minimum valid data group (2 bytes header only)
-    QByteArray msc_data;
-    msc_data.append(static_cast<char>(0x03));  // Type 3, no flags
-    msc_data.append(static_cast<char>(0x00));
-    
-    auto data_group = m_motParser->parseMSCDataGroup(msc_data);
-    
-    QVERIFY(data_group.has_value());
-    QVERIFY(data_group->data_field.empty());
+    QByteArray dg;
+    dg.append(static_cast<char>(0x03));  // type 3, no flags
+    dg.append(static_cast<char>(0x00));
+    auto parsed = m_motParser->parseMSCDataGroup(dg);
+    QVERIFY(parsed.has_value());
+    QVERIFY(parsed->data_field.empty());
 }
 
-void TestMOTProtocol::testMSCDataGroup_WithoutCRC()
+void TestMOTProtocol::testMSCDataGroup_Flags()
 {
-    QByteArray msc_data = createValidMSCDataGroup(false);
-    
-    auto data_group = m_motParser->parseMSCDataGroup(msc_data);
-    
-    QVERIFY(data_group.has_value());
-    QVERIFY(!data_group->crc_flag);
-}
+    QByteArray dg;
+    dg.append(static_cast<char>(0x80 | 0x40 | 0x20 | 0x10 | 0x03));  // all flags + type 3
+    dg.append(static_cast<char>(0xAB));  // CI=10, RI=11
+    dg.append(static_cast<char>(0xDE));  // extension byte 0
+    dg.append(static_cast<char>(0xAD));  // extension byte 1
+    dg.append("DATA", 4);
+    const uint16_t crc = static_cast<uint16_t>(~eti::crc16ccitt_false(
+        reinterpret_cast<const uint8_t*>(dg.constData()), dg.size()));
+    dg.append(static_cast<char>(crc >> 8));
+    dg.append(static_cast<char>(crc & 0xFF));
 
-void TestMOTProtocol::testMSCDataGroup_AllFlags()
-{
-    QByteArray msc_data;
-    
-    // Set all flags
-    uint8_t byte0 = 0x80 | 0x40 | 0x20 | 0x10 | 0x03;  // All flags + type 3
-    uint8_t byte1 = 0xAB;  // CI=10, RI=11
-    
-    msc_data.append(byte0);
-    msc_data.append(byte1);
-    msc_data.append("DATA", 4);
-    
-    // Add CRC
-    uint16_t crc = calculateTestCRC(msc_data);
-    msc_data.append(static_cast<char>(crc >> 8));
-    msc_data.append(static_cast<char>(crc & 0xFF));
-    
-    auto data_group = m_motParser->parseMSCDataGroup(msc_data);
-    
-    QVERIFY(data_group.has_value());
-    QVERIFY(data_group->extension_flag);
-    QVERIFY(data_group->crc_flag);
-    QVERIFY(data_group->segment_flag);
-    QVERIFY(data_group->user_access_flag);
-    QCOMPARE(data_group->data_group_type, static_cast<uint8_t>(3));
-    QCOMPARE(data_group->continuity_index, static_cast<uint8_t>(10));
-    QCOMPARE(data_group->repetition_index, static_cast<uint8_t>(11));
+    auto parsed = m_motParser->parseMSCDataGroup(dg);
+    QVERIFY(parsed.has_value());
+    QVERIFY(parsed->extension_flag);
+    QVERIFY(parsed->crc_flag);
+    QVERIFY(parsed->segment_flag);
+    QVERIFY(parsed->user_access_flag);
+    QCOMPARE(parsed->data_group_type, static_cast<uint8_t>(3));
+    QCOMPARE(parsed->continuity_index, static_cast<uint8_t>(10));
+    QCOMPARE(parsed->repetition_index, static_cast<uint8_t>(11));
+    QCOMPARE(parsed->extension_data.size(), static_cast<size_t>(2));
+    QVERIFY(m_motParser->validateDataGroupCRC(*parsed));
 }
 
 // ============================================================================
-// Segment Reassembly Tests
+// Standard MOT header core / extension parameters
 // ============================================================================
 
-void TestMOTProtocol::testSegmentReassembly_SingleSegment()
+void TestMOTProtocol::testHeaderCore_StandardLayout()
 {
-    uint32_t transport_id = 100;
-    std::vector<uint8_t> segment_data = {0x01, 0x02, 0x03, 0x04};
-    
-    auto status = m_motParser->addSegment(transport_id, 0, 1, segment_data);
-    
-    QCOMPARE(status, MOTProtocol::ReassemblyStatus::COMPLETE);
-    QVERIFY(m_motParser->isComplete(transport_id));
-    QCOMPARE(m_motParser->getProgress(transport_id), 1.0);
+    const QByteArray core = buildHeaderCore(1234, 0x02, 0x01, 7);
+    uint32_t bodySize = 0;
+    uint16_t headerSize = 0;
+    uint8_t contentType = 0;
+    uint16_t subType = 0;
+    QVERIFY(MOTProtocol::parseHeaderCore(
+        reinterpret_cast<const uint8_t*>(core.constData()),
+        static_cast<size_t>(core.size()), bodySize, headerSize, contentType, subType));
+    QCOMPARE(bodySize, static_cast<uint32_t>(1234));
+    QCOMPARE(headerSize, static_cast<uint16_t>(7));
+    QCOMPARE(contentType, static_cast<uint8_t>(0x02));
+    QCOMPARE(subType, static_cast<uint16_t>(0x01));
+
+    // Too short.
+    QVERIFY(!MOTProtocol::parseHeaderCore(nullptr, 0, bodySize, headerSize, contentType, subType));
+    const QByteArray six(6, '\0');
+    QVERIFY(!MOTProtocol::parseHeaderCore(
+        reinterpret_cast<const uint8_t*>(six.constData()), 6,
+        bodySize, headerSize, contentType, subType));
 }
 
-void TestMOTProtocol::testSegmentReassembly_MultiSegment()
+void TestMOTProtocol::testHeaderCore_28BitBodySize()
 {
-    uint32_t transport_id = 200;
-    uint16_t total_segments = 3;
-    
-    // Add first segment
-    std::vector<uint8_t> seg0 = {0x01, 0x02};
-    auto status0 = m_motParser->addSegment(transport_id, 0, total_segments, seg0);
-    QCOMPARE(status0, MOTProtocol::ReassemblyStatus::INCOMPLETE);
-    QVERIFY(!m_motParser->isComplete(transport_id));
-    
-    // Add second segment
-    std::vector<uint8_t> seg1 = {0x03, 0x04};
-    auto status1 = m_motParser->addSegment(transport_id, 1, total_segments, seg1);
-    QCOMPARE(status1, MOTProtocol::ReassemblyStatus::INCOMPLETE);
-    
-    // Add third segment
-    std::vector<uint8_t> seg2 = {0x05, 0x06};
-    auto status2 = m_motParser->addSegment(transport_id, 2, total_segments, seg2);
-    QCOMPARE(status2, MOTProtocol::ReassemblyStatus::COMPLETE);
-    QVERIFY(m_motParser->isComplete(transport_id));
+    // A body size that does not fit in the legacy 13-bit field, exercising the
+    // standard 28-bit field (the fixture's largest body is ~55 kB).
+    const uint32_t bodySize = 0x0ABCDE;  // 703710
+    const QByteArray core = buildHeaderCore(bodySize, 0x02, 0x0003);
+    MOTHeader header;
+    QVERIFY(m_motParser->parseMOTHeader(toVector(core), header));
+    QCOMPARE(header.body_size, bodySize);
+    QCOMPARE(static_cast<uint8_t>(header.content_type), static_cast<uint8_t>(0x02));
+    QCOMPARE(header.content_subtype, static_cast<uint16_t>(0x0003));
 }
 
-void TestMOTProtocol::testSegmentReassembly_DuplicateSegment()
+void TestMOTProtocol::testParseMOTHeader_Core()
 {
-    uint32_t transport_id = 300;
-    std::vector<uint8_t> segment_data = {0x01, 0x02};
-    
-    // Add segment first time
-    auto status1 = m_motParser->addSegment(transport_id, 0, 2, segment_data);
-    QCOMPARE(status1, MOTProtocol::ReassemblyStatus::INCOMPLETE);
-    
-    // Add same segment again
-    auto status2 = m_motParser->addSegment(transport_id, 0, 2, segment_data);
-    QCOMPARE(status2, MOTProtocol::ReassemblyStatus::ERROR_DUPLICATE);
+    MOTHeader header;
+    QVERIFY(m_motParser->parseMOTHeader(toVector(buildHeaderCore(1000, 0x03, 0x0012)), header));
+    QCOMPARE(header.body_size, static_cast<uint32_t>(1000));
+    QCOMPARE(header.header_size, static_cast<uint16_t>(7));
+    QCOMPARE(static_cast<uint8_t>(header.content_type), static_cast<uint8_t>(ContentType::IMAGE_PNG));
+    QCOMPARE(header.content_subtype, static_cast<uint16_t>(0x0012));
 }
 
-void TestMOTProtocol::testSegmentReassembly_OutOfOrderSegments()
+void TestMOTProtocol::testHeaderParameter_ContentName()
 {
-    uint32_t transport_id = 400;
-    uint16_t total_segments = 3;
-    
-    // Add segments out of order: 2, 0, 1
-    std::vector<uint8_t> seg2 = {0x05, 0x06};
-    auto status2 = m_motParser->addSegment(transport_id, 2, total_segments, seg2);
-    QCOMPARE(status2, MOTProtocol::ReassemblyStatus::INCOMPLETE);
-    
-    std::vector<uint8_t> seg0 = {0x01, 0x02};
-    auto status0 = m_motParser->addSegment(transport_id, 0, total_segments, seg0);
-    QCOMPARE(status0, MOTProtocol::ReassemblyStatus::INCOMPLETE);
-    
-    std::vector<uint8_t> seg1 = {0x03, 0x04};
-    auto status1 = m_motParser->addSegment(transport_id, 1, total_segments, seg1);
-    QCOMPARE(status1, MOTProtocol::ReassemblyStatus::COMPLETE);
+    const QByteArray header = buildHeaderEntity(
+        500, 0x02, 0x03,
+        {{0x0C, 0x3, textParam(0x0, QByteArray("test.jpg"))}});
+    MOTHeader parsed;
+    QVERIFY(m_motParser->parseMOTHeader(toVector(header), parsed));
+    QCOMPARE(parsed.content_name, QString("test.jpg"));
+    QVERIFY(parsed.hasParameter(0x0C));
 }
 
-void TestMOTProtocol::testSegmentReassembly_MissingSegments()
+void TestMOTProtocol::testHeaderParameter_ClickThroughURL()
 {
-    uint32_t transport_id = 500;
-    uint16_t total_segments = 3;
-    
-    // Add only segments 0 and 2, skip 1
-    std::vector<uint8_t> seg0 = {0x01, 0x02};
-    m_motParser->addSegment(transport_id, 0, total_segments, seg0);
-    
-    std::vector<uint8_t> seg2 = {0x05, 0x06};
-    m_motParser->addSegment(transport_id, 2, total_segments, seg2);
-    
-    // Should not be complete
-    QVERIFY(!m_motParser->isComplete(transport_id));
-    
-    double progress = m_motParser->getProgress(transport_id);
-    QCOMPARE(progress, 2.0 / 3.0);  // 2 out of 3 segments
+    const QByteArray header = buildHeaderEntity(
+        500, 0x02, 0x03,
+        {{0x27, 0x3, textParam(0x0, QByteArray("http://example.com/slide"))}});
+    MOTHeader parsed;
+    QVERIFY(m_motParser->parseMOTHeader(toVector(header), parsed));
+    QCOMPARE(parsed.click_through_url, QString("http://example.com/slide"));
 }
 
-void TestMOTProtocol::testSegmentReassembly_ProgressTracking()
+void TestMOTProtocol::testHeaderParameter_CategoryAndTrigger()
 {
-    uint32_t transport_id = 600;
-    uint16_t total_segments = 4;
-    
-    // Initially no progress
-    QCOMPARE(m_motParser->getProgress(transport_id), -1.0);
-    
-    // Add segments and check progress
-    std::vector<uint8_t> seg0 = {0x01};
-    m_motParser->addSegment(transport_id, 0, total_segments, seg0);
-    QCOMPARE(m_motParser->getProgress(transport_id), 0.25);
-    
-    std::vector<uint8_t> seg1 = {0x02};
-    m_motParser->addSegment(transport_id, 1, total_segments, seg1);
-    QCOMPARE(m_motParser->getProgress(transport_id), 0.5);
-    
-    std::vector<uint8_t> seg2 = {0x03};
-    m_motParser->addSegment(transport_id, 2, total_segments, seg2);
-    QCOMPARE(m_motParser->getProgress(transport_id), 0.75);
-    
-    std::vector<uint8_t> seg3 = {0x04};
-    m_motParser->addSegment(transport_id, 3, total_segments, seg3);
-    QCOMPARE(m_motParser->getProgress(transport_id), 1.0);
+    // Category title is a text parameter (PLI=3, 7/15-bit); TriggerTime uses
+    // the 32-bit-length form (PLI=2) per the fixture/EN 301 234.
+    const QByteArray header = buildHeaderEntity(
+        500, 0x02, 0x03,
+        {{0x26, 0x3, textParam(0x0, QByteArray("News!"))},
+         {0x05, 0x2, QByteArray("\x12\x34\x56\x78", 4)}});
+    MOTHeader parsed;
+    QVERIFY(m_motParser->parseMOTHeader(toVector(header), parsed));
+    QCOMPARE(parsed.category_title, QString("News!"));
+    QCOMPARE(parsed.trigger_time, static_cast<uint32_t>(0x12345678));
+}
+
+void TestMOTProtocol::testHeaderParameter_ThaiUTF8()
+{
+    const QByteArray thai = QString("ทดสอบ").toUtf8();
+    // charset nibble 0xF = UTF-8 (EN 301 234 Table 3).
+    const QByteArray header = buildHeaderEntity(
+        500, 0x02, 0x03,
+        {{0x0C, 0x3, textParam(0xF, thai)}});
+    MOTHeader parsed;
+    QVERIFY(m_motParser->parseMOTHeader(toVector(header), parsed));
+    QCOMPARE(parsed.content_name, QString("ทดสอบ"));
+}
+
+void TestMOTProtocol::testHeaderParameter_MultipleParameters()
+{
+    const QByteArray header = buildHeaderEntity(
+        500, 0x02, 0x03,
+        {{0x0C, 0x3, textParam(0x0, QByteArray("test"))},
+         {0x26, 0x3, textParam(0x0, QByteArray("New"))},
+         {0x27, 0x3, textParam(0x0, QByteArray("http://x"))}});
+    MOTHeader parsed;
+    QVERIFY(m_motParser->parseMOTHeader(toVector(header), parsed));
+    QCOMPARE(parsed.content_name, QString("test"));
+    QCOMPARE(parsed.category_title, QString("New"));
+    QCOMPARE(parsed.click_through_url, QString("http://x"));
+    QCOMPARE(parsed.parameters.size(), static_cast<size_t>(3));
+}
+
+void TestMOTProtocol::testHeaderParameter_PliBoundsAndZeroLength()
+{
+    // PLI=00 is a valid 1-byte parameter with an empty DataField.
+    {
+        const std::vector<uint8_t> data = {static_cast<uint8_t>(0x00 | 0x0C)};
+        MOTHeader h;
+        QVERIFY(m_motParser->parseHeaderParameters(data, 0, data.size(), h));
+        QVERIFY(h.hasParameter(0x0C));
+    }
+    // PLI=01 with a length that overruns the buffer -> rejected.
+    {
+        const std::vector<uint8_t> data = {
+            static_cast<uint8_t>(0x40 | 0x0C), 0x20, 'A'};
+        MOTHeader h;
+        QVERIFY(!m_motParser->parseHeaderParameters(data, 0, data.size(), h));
+    }
+    // PLI=11 with a 15-bit length that overruns the buffer -> rejected.
+    {
+        const std::vector<uint8_t> data = {
+            static_cast<uint8_t>(0xC0 | 0x0C), 0x80, 0x7F, 'A'};
+        MOTHeader h;
+        QVERIFY(!m_motParser->parseHeaderParameters(data, 0, data.size(), h));
+    }
+    // PLI=10 with a length field that itself is truncated -> rejected.
+    {
+        const std::vector<uint8_t> data = {
+            static_cast<uint8_t>(0x80 | 0x0C), 0x00, 0x00};
+        MOTHeader h;
+        QVERIFY(!m_motParser->parseHeaderParameters(data, 0, data.size(), h));
+    }
 }
 
 // ============================================================================
-// Content Type Detection Tests
+// Content type
 // ============================================================================
 
 void TestMOTProtocol::testContentType_JPEG()
 {
-    std::vector<uint8_t> header_data = createMOTHeader(ContentType::IMAGE_JPEG, "test.jpg");
-    
     MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(parsed);
+    QVERIFY(m_motParser->parseMOTHeader(
+        toVector(buildHeaderCore(100, static_cast<uint8_t>(ContentType::IMAGE_JPEG), 0)), header));
     QCOMPARE(header.content_type, ContentType::IMAGE_JPEG);
     QCOMPARE(header.getContentTypeString(), QString("JPEG Image"));
 }
 
 void TestMOTProtocol::testContentType_PNG()
 {
-    std::vector<uint8_t> header_data = createMOTHeader(ContentType::IMAGE_PNG, "test.png");
-    
     MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(parsed);
+    QVERIFY(m_motParser->parseMOTHeader(
+        toVector(buildHeaderCore(100, static_cast<uint8_t>(ContentType::IMAGE_PNG), 0)), header));
     QCOMPARE(header.content_type, ContentType::IMAGE_PNG);
     QCOMPARE(header.getContentTypeString(), QString("PNG Image"));
 }
 
 void TestMOTProtocol::testContentType_HTML()
 {
-    std::vector<uint8_t> header_data = createMOTHeader(ContentType::HTML, "index.html");
-    
     MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(parsed);
+    QVERIFY(m_motParser->parseMOTHeader(
+        toVector(buildHeaderCore(100, static_cast<uint8_t>(ContentType::HTML), 0)), header));
     QCOMPARE(header.content_type, ContentType::HTML);
     QCOMPARE(header.getContentTypeString(), QString("HTML Document"));
 }
 
-void TestMOTProtocol::testContentType_Unknown()
-{
-    std::vector<uint8_t> header_data = createMOTHeader(ContentType::UNKNOWN, "unknown.dat");
-    
-    MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(parsed);
-    // ContentType::UNKNOWN (0xFF) is encoded as 0x3F in 6-bit content type field
-    // 0xFF >> 2 = 0x3F (63)
-    QCOMPARE(static_cast<uint8_t>(header.content_type), static_cast<uint8_t>(0x3F));
-    QVERIFY(header.getContentTypeString().contains("Unknown"));
-}
-
 // ============================================================================
-// Header Parameter Extraction Tests
-// ============================================================================
-
-void TestMOTProtocol::testHeaderParameter_ContentName()
-{
-    // Create header with content name parameter
-    std::vector<uint8_t> header_data;
-    
-    // Basic header (7 bytes minimum)
-    header_data.push_back(0x00);  // Body size high (13 bits)
-    header_data.push_back(0x10);  // Body size low / Header size high
-    header_data.push_back(0x20);  // Header size low
-    header_data.push_back(0x08);  // Content type (IMAGE_JPEG = 2 << 2)
-    header_data.push_back(0x00);  // Content subtype
-    header_data.push_back(0x00);  // Reserved
-    header_data.push_back(0x00);  // Reserved
-    
-    // Add content name parameter (ParamId = 12)
-    header_data.push_back(0x0C);  // PLI=0, ParamId=12 (content name)
-    header_data.push_back(0x08);  // Length = 8
-    header_data.push_back('t');
-    header_data.push_back('e');
-    header_data.push_back('s');
-    header_data.push_back('t');
-    header_data.push_back('.');
-    header_data.push_back('j');
-    header_data.push_back('p');
-    header_data.push_back('g');
-    
-    MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(parsed);
-    QCOMPARE(header.content_name, QString("test.jpg"));
-}
-
-void TestMOTProtocol::testHeaderParameter_ThaiUTF8()
-{
-    // Create header with Thai UTF-8 content name
-    std::vector<uint8_t> header_data;
-    
-    // Basic header
-    for (int i = 0; i < 7; i++) header_data.push_back(0x00);
-    header_data[3] = 0x08;  // Content type JPEG
-    
-    // Thai text: "ทดสอบ" (test in Thai)
-    QByteArray thai_text = QString("ทดสอบ").toUtf8();
-    
-    header_data.push_back(0x0C);  // ParamId = 12 (content name)
-    header_data.push_back(thai_text.size());  // Length
-    
-    for (int i = 0; i < thai_text.size(); i++) {
-        header_data.push_back(static_cast<uint8_t>(thai_text[i]));
-    }
-    
-    MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(parsed);
-    QCOMPARE(header.content_name, QString("ทดสอบ"));
-}
-
-void TestMOTProtocol::testHeaderParameter_TriggerTime()
-{
-    // Create header with trigger time parameter
-    std::vector<uint8_t> header_data;
-    
-    // Basic header
-    for (int i = 0; i < 7; i++) header_data.push_back(0x00);
-    
-    // Add trigger time parameter (ParamId = 5)
-    header_data.push_back(0x05);  // ParamId = 5 (trigger time)
-    header_data.push_back(0x04);  // Length = 4 bytes
-    header_data.push_back(0x12);  // Time bytes
-    header_data.push_back(0x34);
-    header_data.push_back(0x56);
-    header_data.push_back(0x78);
-    
-    MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(parsed);
-    QVERIFY(header.trigger_time != 0);
-    QCOMPARE(header.trigger_time, static_cast<uint32_t>(0x12345678));
-}
-
-void TestMOTProtocol::testHeaderParameter_CategoryTitle()
-{
-    // Create header with category title parameter (SlideShow)
-    std::vector<uint8_t> header_data;
-    
-    // Basic header
-    for (int i = 0; i < 7; i++) header_data.push_back(0x00);
-    
-    // Add category title parameter (ParamId = 25)
-    header_data.push_back(0x19);  // ParamId = 25 (category title)
-    header_data.push_back(0x05);  // Length = 5
-    header_data.push_back('N');
-    header_data.push_back('e');
-    header_data.push_back('w');
-    header_data.push_back('s');
-    header_data.push_back('!');
-    
-    MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(parsed);
-    QCOMPARE(header.category_title, QString("News!"));
-}
-
-void TestMOTProtocol::testHeaderParameter_ClickThroughURL()
-{
-    // Create header with click-through URL parameter
-    std::vector<uint8_t> header_data;
-    
-    // Basic header
-    for (int i = 0; i < 7; i++) header_data.push_back(0x00);
-    
-    // Add click-through URL parameter (ParamId = 27)
-    QString url = "http://example.com";
-    QByteArray url_bytes = url.toUtf8();
-    
-    header_data.push_back(0x1B);  // ParamId = 27 (click-through URL)
-    header_data.push_back(url_bytes.size());
-    
-    for (int i = 0; i < url_bytes.size(); i++) {
-        header_data.push_back(static_cast<uint8_t>(url_bytes[i]));
-    }
-    
-    MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(parsed);
-    QCOMPARE(header.click_through_url, url);
-}
-
-void TestMOTProtocol::testHeaderParameter_MultipleParameters()
-{
-    // Create header with multiple parameters
-    std::vector<uint8_t> header_data;
-    
-    // Basic header
-    for (int i = 0; i < 7; i++) header_data.push_back(0x00);
-    header_data[3] = 0x08;  // Content type JPEG
-    
-    // Parameter 1: Content name
-    header_data.push_back(0x0C);
-    header_data.push_back(0x04);
-    header_data.push_back('t');
-    header_data.push_back('e');
-    header_data.push_back('s');
-    header_data.push_back('t');
-    
-    // Parameter 2: Trigger time
-    header_data.push_back(0x05);
-    header_data.push_back(0x04);
-    header_data.push_back(0x00);
-    header_data.push_back(0x00);
-    header_data.push_back(0x00);
-    header_data.push_back(0x01);
-    
-    // Parameter 3: Category
-    header_data.push_back(0x19);
-    header_data.push_back(0x03);
-    header_data.push_back('N');
-    header_data.push_back('e');
-    header_data.push_back('w');
-    
-    MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(parsed);
-    QCOMPARE(header.content_name, QString("test"));
-    QCOMPARE(header.trigger_time, static_cast<uint32_t>(1));
-    QCOMPARE(header.category_title, QString("New"));
-    QCOMPARE(header.parameters.size(), 3);
-}
-
-// ============================================================================
-// Transport ID Management Tests
+// Transport ID management
 // ============================================================================
 
 void TestMOTProtocol::testTransportID_ValidRange()
 {
-    // Test valid transport IDs (0-1023)
     QVERIFY(m_motParser->validateTransportId(0));
     QVERIFY(m_motParser->validateTransportId(512));
-    QVERIFY(m_motParser->validateTransportId(1023));
+    QVERIFY(m_motParser->validateTransportId(0x3FFF));
+    QVERIFY(m_motParser->validateTransportId(0xFFFF));
 }
 
 void TestMOTProtocol::testTransportID_InvalidRange()
 {
-    // The MOT transport id is a 16-bit field, so ids up to 0xFFFF are valid
-    // (real multiplexes use e.g. ~14000) and only >0xFFFF is out of range.
-    QVERIFY(m_motParser->validateTransportId(1024));
-    QVERIFY(m_motParser->validateTransportId(2000));
-    QVERIFY(m_motParser->validateTransportId(0xFFFF));
     QVERIFY(!m_motParser->validateTransportId(0x10000));
     QVERIFY(!m_motParser->validateTransportId(0x7FFFFFFF));
 }
 
-void TestMOTProtocol::testTransportID_MultipleObjects()
-{
-    // Add segments for multiple transport IDs
-    std::vector<uint8_t> data = {0x01, 0x02};
-    
-    m_motParser->addSegment(100, 0, 2, data);
-    m_motParser->addSegment(200, 0, 2, data);
-    m_motParser->addSegment(300, 0, 2, data);
-    
-    auto active_ids = m_motParser->getActiveTransportIds();
-    
-    QCOMPARE(active_ids.size(), 3);
-    QVERIFY(std::find(active_ids.begin(), active_ids.end(), 100) != active_ids.end());
-    QVERIFY(std::find(active_ids.begin(), active_ids.end(), 200) != active_ids.end());
-    QVERIFY(std::find(active_ids.begin(), active_ids.end(), 300) != active_ids.end());
-}
-
-void TestMOTProtocol::testTransportID_ClearObject()
-{
-    std::vector<uint8_t> data = {0x01, 0x02};
-    
-    m_motParser->addSegment(100, 0, 2, data);
-    m_motParser->addSegment(200, 0, 2, data);
-    
-    QCOMPARE(m_motParser->getActiveTransportIds().size(), 2);
-    
-    m_motParser->clearObject(100);
-    
-    auto active_ids = m_motParser->getActiveTransportIds();
-    QCOMPARE(active_ids.size(), 1);
-    QVERIFY(std::find(active_ids.begin(), active_ids.end(), 100) == active_ids.end());
-    QVERIFY(std::find(active_ids.begin(), active_ids.end(), 200) != active_ids.end());
-}
-
-void TestMOTProtocol::testTransportID_ClearAll()
-{
-    std::vector<uint8_t> data = {0x01, 0x02};
-    
-    m_motParser->addSegment(100, 0, 2, data);
-    m_motParser->addSegment(200, 0, 2, data);
-    m_motParser->addSegment(300, 0, 2, data);
-    
-    QCOMPARE(m_motParser->getActiveTransportIds().size(), 3);
-    
-    m_motParser->clearAll();
-    
-    QCOMPARE(m_motParser->getActiveTransportIds().size(), 0);
-}
-
 // ============================================================================
-// Edge Cases and Error Handling Tests
+// Standard end-to-end reassembly through processMOTData
 // ============================================================================
 
-void TestMOTProtocol::testEdgeCase_EmptyData()
-{
-    QByteArray empty_data;
-    
-    auto data_group = m_motParser->parseMSCDataGroup(empty_data);
-    
-    QVERIFY(!data_group.has_value());
-}
-
-void TestMOTProtocol::testEdgeCase_CorruptedHeader()
-{
-    // Create header with invalid size
-    std::vector<uint8_t> header_data;
-    header_data.push_back(0x00);
-    header_data.push_back(0x00);
-    // Only 2 bytes - too short for MOT header
-    
-    MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(!parsed);
-}
-
-void TestMOTProtocol::testEdgeCase_InvalidSegmentNumber()
-{
-    uint32_t transport_id = 700;
-    std::vector<uint8_t> data = {0x01, 0x02};
-    
-    // Add segment with number > total segments
-    auto status = m_motParser->addSegment(transport_id, 5, 3, data);
-    
-    // Should accept but object won't complete
-    QVERIFY(!m_motParser->isComplete(transport_id));
-}
-
-void TestMOTProtocol::testEdgeCase_TotalSegmentsMismatch()
-{
-    uint32_t transport_id = 800;
-    std::vector<uint8_t> data = {0x01, 0x02};
-    
-    // First segment says total = 3
-    auto status1 = m_motParser->addSegment(transport_id, 0, 3, data);
-    QCOMPARE(status1, MOTProtocol::ReassemblyStatus::INCOMPLETE);
-    
-    // Second segment says total = 5 (mismatch!)
-    auto status2 = m_motParser->addSegment(transport_id, 1, 5, data);
-    QCOMPARE(status2, MOTProtocol::ReassemblyStatus::ERROR_MISSING_SEGMENTS);
-}
-
-void TestMOTProtocol::testEdgeCase_NullData()
-{
-    QByteArray null_data;
-    null_data.resize(10);
-    null_data.fill(0);
-    
-    auto data_group = m_motParser->parseMSCDataGroup(null_data);
-    
-    // Should parse but have zero values
-    QVERIFY(data_group.has_value());
-}
-
-// ============================================================================
-// MOT Header Parsing Tests
-// ============================================================================
-
-void TestMOTProtocol::testMOTHeader_BasicStructure()
-{
-    std::vector<uint8_t> header_data;
-    
-    // Body size = 1000 (13 bits), Header size = 20 (13 bits)
-    // Body size: 0x03E8 (1000) = 0001 1111 1010 00
-    // Header size: 0x0014 (20) = 00 0001 0100
-    header_data.push_back(0x03);  // Body size high 5 bits + 3 bits
-    header_data.push_back(0xE8);  // Body size low 8 bits
-    header_data.push_back(0x14);  // Header size 8 bits
-    header_data.push_back(0x08);  // Content type = 2 (JPEG) << 2
-    header_data.push_back(0x00);  // Content subtype
-    header_data.push_back(0x00);
-    header_data.push_back(0x00);
-    
-    MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(parsed);
-    QCOMPARE(header.content_type, ContentType::IMAGE_JPEG);
-}
-
-void TestMOTProtocol::testMOTHeader_ExtensionParameters()
-{
-    std::vector<uint8_t> header_data = createMOTHeader(ContentType::IMAGE_PNG, "image.png");
-    
-    MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(parsed);
-    QVERIFY(header.hasParameter(12));  // Content name parameter
-}
-
-void TestMOTProtocol::testMOTHeader_InvalidSize()
-{
-    std::vector<uint8_t> header_data;
-    
-    // Only 3 bytes - invalid
-    header_data.push_back(0x00);
-    header_data.push_back(0x00);
-    header_data.push_back(0x00);
-    
-    MOTHeader header;
-    bool parsed = m_motParser->parseMOTHeader(header_data, header);
-    
-    QVERIFY(!parsed);
-}
-
-// ============================================================================
-// Signal Emission Tests
-// ============================================================================
-
-void TestMOTProtocol::testSignals_ObjectComplete()
+void TestMOTProtocol::testProcessMOTData_SingleObject()
 {
     QSignalSpy spy(m_motParser, &MOTProtocol::objectComplete);
-    
-    uint32_t transport_id = 900;
-    std::vector<uint8_t> data = {0x01, 0x02};
-    
-    // Add single segment (completes immediately)
-    m_motParser->addSegment(transport_id, 0, 1, data);
-    
-    // Signal should not emit from addSegment directly
-    // Would need full processMOTData flow
-    QVERIFY(spy.count() >= 0);
-}
-
-void TestMOTProtocol::testSignals_ReassemblyProgress()
-{
-    QSignalSpy spy(m_motParser, &MOTProtocol::reassemblyProgress);
-    
-    // Progress signal emitted through processMOTData workflow
-    QVERIFY(spy.isValid());
-}
-
-void TestMOTProtocol::testSignals_ParseError()
-{
-    QSignalSpy spy(m_motParser, &MOTProtocol::parseError);
-    
-    // Error signal emitted through processMOTData workflow
-    QVERIFY(spy.isValid());
-}
-
-// ============================================================================
-// Statistics Tests
-// ============================================================================
-
-void TestMOTProtocol::testStatistics_Tracking()
-{
-    auto stats = m_motParser->getStatistics();
-    
-    QCOMPARE(stats.data_groups_processed, static_cast<uint64_t>(0));
-    QCOMPARE(stats.segments_received, static_cast<uint64_t>(0));
-    QCOMPARE(stats.objects_completed, static_cast<uint64_t>(0));
-}
-
-void TestMOTProtocol::testStatistics_Accuracy()
-{
-    // Add some segments
-    std::vector<uint8_t> data = {0x01, 0x02};
-    m_motParser->addSegment(100, 0, 2, data);
-    m_motParser->addSegment(200, 0, 2, data);
-    
-    auto stats = m_motParser->getStatistics();
-    
-    // Active objects should be tracked
-    QCOMPARE(stats.active_objects, static_cast<uint32_t>(2));
-}
-
-// ============================================================================
-// Helper Methods Implementation
-// ============================================================================
-
-QByteArray TestMOTProtocol::createValidMSCDataGroup(bool with_crc)
-{
-    QByteArray data;
-    
-    // Header: CRC flag depends on parameter, segment flag = 1, type = 3
-    uint8_t byte0 = 0x20 | 0x03;  // Segment flag + type 3
-    if (with_crc) {
-        byte0 |= 0x40;  // Add CRC flag
-    }
-    
-    uint8_t byte1 = 0x00;  // CI=0, RI=0
-    
-    data.append(byte0);
-    data.append(byte1);
-    
-    // Add some test data
-    data.append("TEST_SEGMENT_DATA", 17);
-    
-    if (with_crc) {
-        uint16_t crc = calculateTestCRC(data);
-        data.append(static_cast<char>(crc >> 8));
-        data.append(static_cast<char>(crc & 0xFF));
-    }
-    
-    return data;
-}
-
-QByteArray TestMOTProtocol::createMSCDataGroupWithSegment(uint16_t segment_num,
-                                                          uint16_t total_segments,
-                                                          uint32_t transport_id,
-                                                          const QByteArray& data)
-{
-    QByteArray msc_data;
-    
-    // MSC data group header
-    uint8_t byte0 = 0x20 | 0x03;  // Segment flag + type 3
-    uint8_t byte1 = 0x00;
-    
-    msc_data.append(byte0);
-    msc_data.append(byte1);
-    
-    // MOT segment header
-    msc_data.append(static_cast<char>(0x00));  // Repetition count high
-    msc_data.append(static_cast<char>(0x00));  // Repetition count low
-    msc_data.append(static_cast<char>((segment_num >> 8) & 0x1F));  // Segment number high
-    msc_data.append(static_cast<char>(segment_num & 0xFF));  // Segment number low
-    msc_data.append(static_cast<char>(transport_id >> 8));  // Transport ID high
-    msc_data.append(static_cast<char>(transport_id & 0xFF));  // Transport ID low
-    msc_data.append(static_cast<char>((total_segments >> 8) & 0x1F));  // Total segments high
-    msc_data.append(static_cast<char>(total_segments & 0xFF));  // Total segments low
-    
-    // Append payload data
-    msc_data.append(data);
-    
-    return msc_data;
-}
-
-std::vector<uint8_t> TestMOTProtocol::createMOTHeader(ContentType type, const QString& content_name)
-{
-    std::vector<uint8_t> header;
-    
-    // Basic header structure (7 bytes)
-    header.push_back(0x00);  // Body size high
-    header.push_back(0x10);  // Body size low
-    header.push_back(0x20);  // Header size
-    header.push_back(static_cast<uint8_t>(type) << 2);  // Content type
-    header.push_back(0x00);  // Content subtype
-    header.push_back(0x00);
-    header.push_back(0x00);
-    
-    // Add content name parameter if provided
-    if (!content_name.isEmpty()) {
-        QByteArray name_bytes = content_name.toUtf8();
-        
-        header.push_back(0x0C);  // ParamId = 12 (content name)
-        header.push_back(name_bytes.size());  // Length
-        
-        for (int i = 0; i < name_bytes.size(); i++) {
-            header.push_back(static_cast<uint8_t>(name_bytes[i]));
-        }
-    }
-    
-    return header;
-}
-
-uint16_t TestMOTProtocol::calculateTestCRC(const QByteArray& data)
-{
-    // Simple CRC-CCITT calculation for testing
-    uint16_t crc = 0xFFFF;
-    const uint16_t polynomial = 0x1021;
-    
-    for (int i = 0; i < data.size(); i++) {
-        crc ^= (static_cast<uint8_t>(data[i]) << 8);
-        
-        for (int j = 0; j < 8; j++) {
-            if (crc & 0x8000) {
-                crc = (crc << 1) ^ polynomial;
-            } else {
-                crc <<= 1;
-            }
-        }
-    }
-    
-    return crc;
-}
-
-std::vector<uint8_t> TestMOTProtocol::toVector(const QByteArray& data)
-{
-    std::vector<uint8_t> vec;
-    vec.reserve(data.size());
-    
-    for (int i = 0; i < data.size(); i++) {
-        vec.push_back(static_cast<uint8_t>(data[i]));
-    }
-    
-    return vec;
-}
-
-// ============================================================================
-// MOT MSC data group adapter tests (X-PAD CI 12/13 transport path)
-// ============================================================================
-
-void TestMOTProtocol::testMotPadAdapter_StandardHeaderCore()
-{
-    const QByteArray body = patternBody(1234, 0x10);
-    const QByteArray header = buildStandardMotHeaderCore(body.size(), 0x02, 0x01);
-
-    uint32_t bodySize = 0;
-    uint16_t headerSize = 0;
-    uint8_t contentType = 0;
-    uint16_t subtype = 0;
-    QVERIFY(MotPadAdapter::parseStandardHeader(header, bodySize, headerSize, contentType, subtype));
-    QCOMPARE(bodySize, static_cast<uint32_t>(1234));
-    QCOMPARE(headerSize, static_cast<uint16_t>(7));
-    QCOMPARE(contentType, static_cast<uint8_t>(0x02));
-    QCOMPARE(subtype, static_cast<uint16_t>(0x01));
-
-    // Too-short header is rejected.
-    MOTHeader dummy;
-    uint32_t bs = 0; uint16_t hs = 0; uint8_t ct = 0; uint16_t st = 0;
-    QVERIFY(!MotPadAdapter::parseStandardHeader(QByteArray(6, '\0'), bs, hs, ct, st));
-}
-
-void TestMOTProtocol::testMotPadAdapter_HeaderBodyObjectComplete()
-{
-    MOTProtocol mot;
-    MotPadAdapter adapter(&mot);
-    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
     QVERIFY(spy.isValid());
 
-    const uint16_t transportId = 0x0123;
+    const uint16_t tid = 0x0123;
     const QByteArray body = patternBody(300, 0x40);
-    const QByteArray header = buildStandardMotHeaderCore(body.size(), 0x02, 0x01);
+    const QByteArray header = buildHeaderEntity(body.size(), 0x02, 0x01);
 
-    // Header entity then body entity (each a single segment).
-    QVERIFY(adapter.processDataGroup(0x2C61,
-        buildStandardMotDataGroup(3, transportId, 0, true, header)));
-    QCOMPARE(spy.count(), 0);
-    QVERIFY(adapter.processDataGroup(0x2C61,
-        buildStandardMotDataGroup(4, transportId, 0, true, body)));
+    QVERIFY(m_motParser->processMOTData(0x2C61, buildDataGroup(3, tid, 0, true, header)));
+    QCOMPARE(spy.count(), 0);  // header alone must not complete an object
+    QVERIFY(m_motParser->processMOTData(0x2C61, buildDataGroup(4, tid, 0, true, body)));
 
     QCOMPARE(spy.count(), 1);
     const QList<QVariant> args = spy.takeFirst();
-    QCOMPARE(args.at(0).toUInt(), static_cast<uint>(transportId));
+    QCOMPARE(args.at(0).toUInt(), static_cast<uint>(tid));
     const MOTObject object = qvariant_cast<MOTObject>(args.at(1));
-    QCOMPARE(object.transport_id, static_cast<uint32_t>(transportId));
-    const QByteArray got(reinterpret_cast<const char*>(object.body.data()),
-                         static_cast<int>(object.body.size()));
-    QCOMPARE(got, body);
+    QCOMPARE(object.transport_id, static_cast<uint32_t>(tid));
+    QCOMPARE(objectBody(object), body);
+    QCOMPARE(object.body.size(), static_cast<size_t>(body.size()));
+    QCOMPARE(object.header.body_size, static_cast<uint32_t>(body.size()));
     QCOMPARE(static_cast<uint8_t>(object.header.content_type),
              static_cast<uint8_t>(ContentType::IMAGE_JPEG));
+    QVERIFY(object.isValid());
 
-    const MotPadAdapter::Statistics stats = adapter.statistics();
-    QCOMPARE(stats.dataGroups, static_cast<uint64_t>(2));
-    QCOMPARE(stats.headerSegments, static_cast<uint64_t>(1));
-    QCOMPARE(stats.bodySegments, static_cast<uint64_t>(1));
-    QCOMPARE(stats.objectsCompleted, static_cast<uint64_t>(1));
-    QCOMPARE(stats.objectsEmitted, static_cast<uint64_t>(1));
+    const auto stats = m_motParser->getStatistics();
+    QCOMPARE(stats.data_groups_valid, static_cast<uint64_t>(2));
+    QCOMPARE(stats.header_segments, static_cast<uint64_t>(1));
+    QCOMPARE(stats.body_segments, static_cast<uint64_t>(1));
+    QCOMPARE(stats.objects_completed, static_cast<uint64_t>(1));
+    QCOMPARE(stats.objects_emitted, static_cast<uint64_t>(1));
+    QCOMPARE(stats.crc_errors, static_cast<uint64_t>(0));
 }
 
-void TestMOTProtocol::testMotPadAdapter_MultiSegmentBody()
+void TestMOTProtocol::testProcessMOTData_Full16BitTransportId()
 {
-    MOTProtocol mot;
-    MotPadAdapter adapter(&mot);
-    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+    QSignalSpy spy(m_motParser, &MOTProtocol::objectComplete);
 
-    const uint16_t transportId = 77;
-    const QByteArray body = patternBody(500, 0x20);
-    const QByteArray header = buildStandardMotHeaderCore(body.size(), 0x02, 0x01);
+    const uint32_t tid = 14496;  // real-capture-like 16-bit id
+    const QByteArray body = patternBody(20000, 0x33);  // multi-segment
+    const QByteArray header = buildHeaderEntity(body.size(), 0x02, 0x03);
 
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(3, transportId, 0, true, header)));
-    // Body split into three segments, delivered out of order (2, 0, 1).
-    const QByteArray s0 = body.left(200);
-    const QByteArray s1 = body.mid(200, 150);
-    const QByteArray s2 = body.mid(350);
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, transportId, 2, true, s2)));
-    QCOMPARE(spy.count(), 0);
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, transportId, 0, false, s0)));
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, transportId, 1, false, s1)));
-
-    QCOMPARE(spy.count(), 1);
-    const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
-    const QByteArray got(reinterpret_cast<const char*>(object.body.data()),
-                         static_cast<int>(object.body.size()));
-    QCOMPARE(got, body);
-}
-
-void TestMOTProtocol::testMotPadAdapter_CrcRejected()
-{
-    MOTProtocol mot;
-    MotPadAdapter adapter(&mot);
-    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
-
-    const QByteArray body = patternBody(64, 0x01);
-    const QByteArray header = buildStandardMotHeaderCore(body.size(), 0x02, 0x01);
-    QByteArray badHeaderDg = buildStandardMotDataGroup(3, 9, 0, true, header);
-    badHeaderDg[badHeaderDg.size() - 1] =
-        static_cast<char>(badHeaderDg[badHeaderDg.size() - 1] ^ 0xFF);  // corrupt CRC
-
-    QVERIFY(!adapter.processDataGroup(0, badHeaderDg));
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, 9, 0, true, body)));
-    QCOMPARE(spy.count(), 0);  // header never accepted -> no object
-
-    const MotPadAdapter::Statistics stats = adapter.statistics();
-    QCOMPARE(stats.crcErrors, static_cast<uint64_t>(1));
-}
-
-void TestMOTProtocol::testMotPadAdapter_ReframedLayout()
-{
-    // The adapter's re-framed data group must be parseable by MOTProtocol and
-    // expose core[0..6] immediately followed by the body.
-    const QByteArray body = patternBody(40, 0x55);
-    const QByteArray dg = MotPadAdapter::buildReframedDataGroup(0x2A, 0x02, body);
-    QVERIFY(dg.size() > body.size());
-
-    MOTProtocol mot;
-    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
-    QVERIFY(mot.processMOTData(0, dg));
-    QCOMPARE(spy.count(), 1);
-    const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
-    const QByteArray got(reinterpret_cast<const char*>(object.body.data()),
-                         static_cast<int>(object.body.size()));
-    QCOMPARE(got, body);
-}
-
-void TestMOTProtocol::testMotPadAdapter_ReframedIsValid()
-{
-    // The re-framed object must satisfy MOTObject::isValid() (body size
-    // reconciled) and keep the full 16-bit transport id (>= 1024).
-    MOTProtocol mot;
-    MotPadAdapter adapter(&mot);
-    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
-
-    const uint16_t transportId = 14496;  // real-capture-like 16-bit id
-    const QByteArray body = patternBody(20000, 0x33);  // > 8191: multi-segment
-    const QByteArray header = buildStandardMotHeaderCore(body.size(), 0x02, 0x03);
-
-    QVERIFY(adapter.processDataGroup(0x2C61,
-        buildStandardMotDataGroup(3, transportId, 0, true, header)));
-    // Split into 3 body segments (each <= the 13-bit segment size limit).
+    QVERIFY(m_motParser->processMOTData(0x2C61, buildDataGroup(3, tid, 0, true, header)));
     const int segLen = 7000;
     for (int seg = 0, off = 0; off < body.size(); ++seg, off += segLen) {
         const bool last = (off + segLen >= body.size());
-        QVERIFY(adapter.processDataGroup(0x2C61, buildStandardMotDataGroup(
-            4, transportId, static_cast<uint16_t>(seg), last, body.mid(off, segLen))));
+        QVERIFY(m_motParser->processMOTData(0x2C61, buildDataGroup(
+            4, tid, static_cast<uint16_t>(seg), last, body.mid(off, segLen))));
     }
 
     QCOMPARE(spy.count(), 1);
     const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
-    QVERIFY2(object.isValid(),
-             qPrintable(QString("re-framed object must be valid: body=%1 declared=%2 hdr=%3")
-                            .arg(object.body.size())
-                            .arg(object.header.body_size)
-                            .arg(object.header.header_size)));
-    QCOMPARE(object.transport_id, static_cast<uint32_t>(transportId));
-    QCOMPARE(static_cast<uint32_t>(object.header.body_size),
-             static_cast<uint32_t>(body.size()));
-    const QByteArray got(reinterpret_cast<const char*>(object.body.data()),
-                         static_cast<int>(object.body.size()));
-    QCOMPARE(got, body);
+    QCOMPARE(object.transport_id, tid);
+    QCOMPARE(objectBody(object), body);
+    QVERIFY(object.isValid());
 }
 
-void TestMOTProtocol::testMotPadAdapter_OversizeRejected()
+void TestMOTProtocol::testProcessMOTData_HeaderParamsRestored()
 {
-    MOTProtocol mot;
-    MotPadAdapter adapter(&mot);
-    MotPadAdapter::Limits limits;
-    limits.maxBodyBytes = 64;  // tiny cap for the boundary test
-    adapter.setLimits(limits);
-    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+    QSignalSpy spy(m_motParser, &MOTProtocol::objectComplete);
 
-    const QByteArray body = patternBody(200, 0x01);
-    const QByteArray header = buildStandardMotHeaderCore(body.size(), 0x02, 0x01);
+    const uint16_t tid = 0x0201;
+    const QByteArray body = patternBody(128, 0x11);
+    const QByteArray header = buildHeaderEntity(
+        body.size(), 0x02, 0x03,
+        {{0x0C, 0x3, textParam(0x0, QByteArray("slide.jpg"))},
+         {0x26, 0x3, textParam(0x0, QByteArray("Weather"))},
+         {0x27, 0x3, textParam(0x0, QByteArray("https://dab.example"))}});
 
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(3, 5, 0, true, header)));
-    // The 200-byte body segment must be rejected on the running counter,
-    // before it is buffered.
-    QVERIFY(!adapter.processDataGroup(0, buildStandardMotDataGroup(4, 5, 0, true, body)));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(3, tid, 0, true, header)));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 0, true, body)));
+
+    QCOMPARE(spy.count(), 1);
+    const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
+    // The standard header extension parameters survive end to end (no reframing).
+    QCOMPARE(object.header.content_name, QString("slide.jpg"));
+    QCOMPARE(object.header.category_title, QString("Weather"));
+    QCOMPARE(object.header.click_through_url, QString("https://dab.example"));
+    QCOMPARE(object.header.content_subtype, static_cast<uint16_t>(0x03));
+    QCOMPARE(objectBody(object), body);
+}
+
+void TestMOTProtocol::testProcessMOTData_MultiSegmentOutOfOrder()
+{
+    QSignalSpy spy(m_motParser, &MOTProtocol::objectComplete);
+
+    const uint16_t tid = 77;
+    const QByteArray body = patternBody(500, 0x20);
+    const QByteArray header = buildHeaderEntity(body.size(), 0x02, 0x01);
+
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(3, tid, 0, true, header)));
+    const QByteArray s0 = body.left(200);
+    const QByteArray s1 = body.mid(200, 150);
+    const QByteArray s2 = body.mid(350);
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 2, true, s2)));
     QCOMPARE(spy.count(), 0);
-    QVERIFY2(adapter.statistics().oversized >= 1, "oversize must be counted");
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 0, false, s0)));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 1, false, s1)));
+
+    QCOMPARE(spy.count(), 1);
+    const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
+    QCOMPARE(objectBody(object), body);
 }
 
-void TestMOTProtocol::testMotPadAdapter_StaleEviction()
+void TestMOTProtocol::testProcessMOTData_DuplicateSegment()
 {
-    MOTProtocol mot;
-    MotPadAdapter adapter(&mot);
-    MotPadAdapter::Limits limits;
-    limits.maxBodyBytes = 1u << 20;
-    limits.maxAssemblies = 16;
-    limits.staleTicks = 3;
-    adapter.setLimits(limits);
+    // F11: a duplicate body segment must be tolerated (ignored) and must not
+    // corrupt the assembly or prevent completion.
+    QSignalSpy spy(m_motParser, &MOTProtocol::objectComplete);
 
-    // Incomplete object for tid 1, then advance the tick with rejected groups.
-    const QByteArray header = buildStandardMotHeaderCore(100, 0x02, 0x01);
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(3, 1, 0, true, header)));
-    for (int i = 0; i < 6; ++i) {
-        adapter.processDataGroup(0, QByteArray(1, '\0'));  // rejected, advances tick
-    }
-    // A new key triggers stale eviction of the idle tid-1 assembly.
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(3, 2, 0, true, header)));
-    QVERIFY2(adapter.statistics().staleEvictions >= 1,
-             "an idle incomplete assembly must be evicted");
+    const uint16_t tid = 0x0D01;
+    const QByteArray body = patternBody(300, 0x3C);
+    const QByteArray header = buildHeaderEntity(body.size(), 0x02, 0x01);
+
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(3, tid, 0, true, header)));
+
+    const QByteArray s0 = body.left(100);
+    const QByteArray s1 = body.mid(100, 100);
+    const QByteArray s2 = body.mid(200);
+
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 0, false, s0)));
+    // Exact duplicate of segment 0: accepted but ignored (no state change).
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 0, false, s0)));
+    QCOMPARE(spy.count(), 0);
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 1, false, s1)));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 2, true, s2)));
+
+    QCOMPARE(spy.count(), 1);
+    const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
+    QCOMPARE(objectBody(object), body);  // duplicate must not duplicate bytes
 }
 
-void TestMOTProtocol::testMotPadAdapter_CarouselReset()
+void TestMOTProtocol::testProcessMOTData_DuplicateHeaderRepeatNoReset()
+{
+    // F11: a byte-identical header retransmission is just a repeat and must NOT
+    // count as a carousel reset / discard the in-flight body.
+    const uint16_t tid = 0x0D02;
+    const QByteArray body = patternBody(240, 0x2A);
+    const QByteArray header = buildHeaderEntity(body.size(), 0x02, 0x01);
+
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(3, tid, 0, true, header)));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 0, false, body.left(120))));
+
+    // Identical header repeat mid-object.
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(3, tid, 0, true, header)));
+    QCOMPARE(m_motParser->getStatistics().object_resets, static_cast<uint64_t>(0));
+
+    QSignalSpy spy(m_motParser, &MOTProtocol::objectComplete);
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 1, true, body.mid(120))));
+    QCOMPARE(spy.count(), 1);
+    const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
+    QCOMPARE(objectBody(object), body);
+}
+
+void TestMOTProtocol::testProcessMOTData_GapTolerance()
+{
+    QSignalSpy spy(m_motParser, &MOTProtocol::objectComplete);
+
+    const uint16_t tid = 88;
+    const QByteArray body = patternBody(300, 0x55);
+    const QByteArray header = buildHeaderEntity(body.size(), 0x02, 0x01);
+
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(3, tid, 0, true, header)));
+    // Body segments 0 and 2 with segment 1 missing: must never complete.
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 0, false, body.left(100))));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 2, true, body.mid(200))));
+    QCOMPARE(spy.count(), 0);
+    QVERIFY(!m_motParser->isComplete(tid));
+}
+
+void TestMOTProtocol::testProcessMOTData_CrcRejected()
 {
     MOTProtocol mot;
-    MotPadAdapter adapter(&mot);
     QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+
+    const uint16_t tid = 9;
+    const QByteArray body = patternBody(64, 0x01);
+    const QByteArray header = buildHeaderEntity(body.size(), 0x02, 0x01);
+    QByteArray badHeader = buildDataGroup(3, tid, 0, true, header);
+    badHeader[badHeader.size() - 1] =
+        static_cast<char>(badHeader[badHeader.size() - 1] ^ 0xFF);
+
+    QVERIFY(!mot.processMOTData(0, badHeader));
+    QVERIFY(mot.processMOTData(0, buildDataGroup(4, tid, 0, true, body)));
+    QCOMPARE(spy.count(), 0);  // header never accepted -> no object
+    QCOMPARE(mot.getStatistics().crc_errors, static_cast<uint64_t>(1));
+}
+
+void TestMOTProtocol::testProcessMOTData_CarouselReset()
+{
+    QSignalSpy spy(m_motParser, &MOTProtocol::objectComplete);
 
     const uint16_t tid = 9;
     const QByteArray body1 = patternBody(120, 0x10);
     const QByteArray body2 = patternBody(150, 0x60);
 
     // Cycle 1: header + body seg 0/1, but never the last segment.
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(
-        3, tid, 0, true, buildStandardMotHeaderCore(body1.size(), 0x02, 0x01))));
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, tid, 0, false, body1.left(60))));
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, tid, 1, false, body1.mid(60))));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(
+        3, tid, 0, true, buildHeaderEntity(body1.size(), 0x02, 0x01))));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 0, false, body1.left(60))));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 1, false, body1.mid(60))));
     QCOMPARE(spy.count(), 0);
 
-    // Cycle 2 (new object version, same transport id): repeating segment 0
+    // Cycle 2 (new object version, same transport id): a changed header segment 0
     // resets the stale assembly, then the new body completes.
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(
-        3, tid, 0, true, buildStandardMotHeaderCore(body2.size(), 0x02, 0x01))));
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, tid, 0, false, body2.left(70))));
-    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, tid, 1, true, body2.mid(70))));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(
+        3, tid, 0, true, buildHeaderEntity(body2.size(), 0x02, 0x01))));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 0, false, body2.left(70))));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 1, true, body2.mid(70))));
 
     QCOMPARE(spy.count(), 1);
     const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
-    const QByteArray got(reinterpret_cast<const char*>(object.body.data()),
-                         static_cast<int>(object.body.size()));
-    QCOMPARE(got, body2);  // cycle-1 bytes must NOT have merged in
-    QVERIFY2(adapter.statistics().objResets >= 1, "the carousel restart must reset the assembly");
+    QCOMPARE(objectBody(object), body2);  // cycle-1 bytes must NOT have merged in
+    QVERIFY2(m_motParser->getStatistics().object_resets >= 1,
+             "the carousel restart must reset the assembly");
+}
+
+void TestMOTProtocol::testProcessMOTData_OversizeRejected()
+{
+    MOTProtocol mot;
+    MOTProtocol::Limits limits;
+    limits.maxBodyBytes = 64;  // tiny cap for the boundary test
+    mot.setLimits(limits);
+    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+
+    const QByteArray body = patternBody(200, 0x01);
+    const QByteArray header = buildHeaderEntity(body.size(), 0x02, 0x01);
+
+    QVERIFY(mot.processMOTData(0, buildDataGroup(3, 5, 0, true, header)));
+    // The 200-byte body segment must be rejected on the running counter.
+    QVERIFY(!mot.processMOTData(0, buildDataGroup(4, 5, 0, true, body)));
+    QCOMPARE(spy.count(), 0);
+    QVERIFY2(mot.getStatistics().oversized >= 1, "oversize must be counted");
+}
+
+void TestMOTProtocol::testProcessMOTData_StaleEviction()
+{
+    MOTProtocol mot;
+    MOTProtocol::Limits limits;
+    limits.maxBodyBytes = 1u << 20;
+    limits.maxAssemblies = 16;
+    limits.staleTicks = 3;
+    mot.setLimits(limits);
+
+    const QByteArray header = buildHeaderEntity(100, 0x02, 0x01);
+    QVERIFY(mot.processMOTData(0, buildDataGroup(3, 1, 0, true, header)));
+    // Advance the tick with rejected (too-short) data groups.
+    for (int i = 0; i < 6; ++i) {
+        mot.processMOTData(0, QByteArray(1, '\0'));
+    }
+    // A new key triggers stale eviction of the idle tid-1 assembly.
+    QVERIFY(mot.processMOTData(0, buildDataGroup(3, 2, 0, true, header)));
+    QVERIFY2(mot.getStatistics().stale_evictions >= 1,
+             "an idle incomplete assembly must be evicted");
+}
+
+void TestMOTProtocol::testProcessMOTData_MultipleObjects()
+{
+    QSignalSpy spy(m_motParser, &MOTProtocol::objectComplete);
+
+    for (uint16_t tid = 1; tid <= 3; ++tid) {
+        const QByteArray body = patternBody(50 + tid, static_cast<char>(tid));
+        QVERIFY(m_motParser->processMOTData(0, buildDataGroup(
+            3, tid, 0, true, buildHeaderEntity(body.size(), 0x02, 0x01))));
+        QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 0, true, body)));
+    }
+    QCOMPARE(spy.count(), 3);
+    QCOMPARE(m_motParser->getStatistics().objects_completed, static_cast<uint64_t>(3));
+}
+
+void TestMOTProtocol::testProcessMOTData_Progress()
+{
+    QSignalSpy progressSpy(m_motParser, &MOTProtocol::reassemblyProgress);
+    QSignalSpy completeSpy(m_motParser, &MOTProtocol::objectComplete);
+
+    const uint16_t tid = 0x0500;
+    const QByteArray body = patternBody(400, 0x22);
+    const QByteArray header = buildHeaderEntity(body.size(), 0x02, 0x01);
+
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(3, tid, 0, true, header)));
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 0, false, body.left(200))));
+
+    QVERIFY(progressSpy.count() >= 1);
+    const double fraction = progressSpy.last().at(1).toDouble();
+    QVERIFY2(fraction > 0.0 && fraction < 1.0,
+             qPrintable(QString("expected partial progress, got %1").arg(fraction)));
+    QCOMPARE(completeSpy.count(), 0);
+
+    QVERIFY(m_motParser->processMOTData(0, buildDataGroup(4, tid, 1, true, body.mid(200))));
+    QCOMPARE(completeSpy.count(), 1);
+}
+
+// ============================================================================
+// State management / statistics
+// ============================================================================
+
+void TestMOTProtocol::testState_ProgressAndComplete()
+{
+    const uint16_t tid = 0x0300;
+    const QByteArray body = patternBody(200, 0x77);
+    const QByteArray header = buildHeaderEntity(body.size(), 0x02, 0x01);
+
+    QCOMPARE(m_motParser->getProgress(tid), -1.0);
+    m_motParser->processMOTData(0, buildDataGroup(3, tid, 0, true, header));
+    QCOMPARE(m_motParser->getProgress(tid), 0.0);
+    m_motParser->processMOTData(0, buildDataGroup(4, tid, 0, false, body.left(100)));
+    QCOMPARE(m_motParser->getProgress(tid), 0.5);
+    QVERIFY(!m_motParser->isComplete(tid));
+
+    auto active = m_motParser->getActiveTransportIds();
+    QVERIFY(std::find(active.begin(), active.end(), tid) != active.end());
+
+    m_motParser->processMOTData(0, buildDataGroup(4, tid, 1, true, body.mid(100)));
+    // Completed objects are removed from the active set.
+    active = m_motParser->getActiveTransportIds();
+    QVERIFY(std::find(active.begin(), active.end(), tid) == active.end());
+}
+
+void TestMOTProtocol::testState_ClearAll()
+{
+    std::vector<uint32_t> ids = {0x100, 0x200, 0x300};
+    for (uint32_t tid : ids) {
+        m_motParser->processMOTData(0, buildDataGroup(
+            3, tid, 0, true, buildHeaderEntity(100, 0x02, 0x01)));
+    }
+    QCOMPARE(m_motParser->getActiveTransportIds().size(), static_cast<size_t>(3));
+
+    QSignalSpy clearedSpy(m_motParser, &MOTProtocol::objectCleared);
+    m_motParser->clearObject(0x100);
+    QCOMPARE(m_motParser->getActiveTransportIds().size(), static_cast<size_t>(2));
+    QCOMPARE(clearedSpy.count(), 1);
+
+    m_motParser->clearAll();
+    QCOMPARE(m_motParser->getActiveTransportIds().size(), static_cast<size_t>(0));
+}
+
+void TestMOTProtocol::testState_ResetStatistics()
+{
+    const QByteArray body = patternBody(64, 0x01);
+    m_motParser->processMOTData(0, buildDataGroup(
+        3, 1, 0, true, buildHeaderEntity(body.size(), 0x02, 0x01)));
+    m_motParser->processMOTData(0, buildDataGroup(4, 1, 0, true, body));
+    QVERIFY(m_motParser->getStatistics().objects_completed >= 1);
+
+    m_motParser->resetStatistics();
+    QCOMPARE(m_motParser->getStatistics().objects_completed, static_cast<uint64_t>(0));
+    QCOMPARE(m_motParser->getStatistics().data_groups_processed, static_cast<uint64_t>(0));
+}
+
+// ============================================================================
+// MotPadAdapter thin shim
+// ============================================================================
+
+void TestMOTProtocol::testAdapter_ParseStandardHeader()
+{
+    const QByteArray header = buildHeaderCore(1234, 0x02, 0x01);
+    uint32_t bodySize = 0;
+    uint16_t headerSize = 0;
+    uint8_t contentType = 0;
+    uint16_t subType = 0;
+    QVERIFY(MotPadAdapter::parseStandardHeader(header, bodySize, headerSize, contentType, subType));
+    QCOMPARE(bodySize, static_cast<uint32_t>(1234));
+    QCOMPARE(headerSize, static_cast<uint16_t>(7));
+    QCOMPARE(contentType, static_cast<uint8_t>(0x02));
+    QCOMPARE(subType, static_cast<uint16_t>(0x01));
+
+    uint32_t bs = 0; uint16_t hs = 0; uint8_t ct = 0; uint16_t st = 0;
+    QVERIFY(!MotPadAdapter::parseStandardHeader(QByteArray(6, '\0'), bs, hs, ct, st));
+}
+
+void TestMOTProtocol::testAdapter_ShimCompletesObject()
+{
+    MOTProtocol mot;
+    MotPadAdapter adapter(&mot);
+    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+
+    const uint16_t tid = 0x0123;
+    const QByteArray body = patternBody(300, 0x40);
+    const QByteArray header = buildHeaderEntity(body.size(), 0x02, 0x01);
+
+    QVERIFY(adapter.processDataGroup(0x2C61, buildDataGroup(3, tid, 0, true, header)));
+    QCOMPARE(spy.count(), 0);
+    QVERIFY(adapter.processDataGroup(0x2C61, buildDataGroup(4, tid, 0, true, body)));
+
+    QCOMPARE(spy.count(), 1);
+    const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
+    QCOMPARE(adapter.statistics().dataGroups, static_cast<uint64_t>(2));
+    QCOMPARE(objectBody(object), body);
+}
+
+void TestMOTProtocol::testAdapter_StatisticsMapping()
+{
+    MOTProtocol mot;
+    MotPadAdapter adapter(&mot);
+    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+
+    const QByteArray body = patternBody(120, 0x05);
+    QVERIFY(adapter.processDataGroup(0, buildDataGroup(
+        3, 3, 0, true, buildHeaderEntity(body.size(), 0x02, 0x01))));
+    QVERIFY(adapter.processDataGroup(0, buildDataGroup(4, 3, 0, true, body)));
+
+    const MotPadAdapter::Statistics st = adapter.statistics();
+    QCOMPARE(st.dataGroups, static_cast<uint64_t>(2));
+    QCOMPARE(st.headerSegments, static_cast<uint64_t>(1));
+    QCOMPARE(st.bodySegments, static_cast<uint64_t>(1));
+    QCOMPARE(st.objectsCompleted, static_cast<uint64_t>(1));
+    QCOMPARE(st.objectsEmitted, static_cast<uint64_t>(1));
+    QCOMPARE(st.crcErrors, static_cast<uint64_t>(0));
+    QCOMPARE(st.maxObjectBytes, static_cast<uint64_t>(body.size()));
 }
 
 // ============================================================================

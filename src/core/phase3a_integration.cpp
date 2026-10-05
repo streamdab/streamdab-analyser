@@ -431,9 +431,14 @@ bool Phase3AIntegrationManager::processETIFrame(const QByteArray& frameData)
             m_audioValidator->processAudioData(subchannel.sub_channel_id,
                                               subchannel.data);
 
-            // Try MOT extraction (will skip if not MOT data)
-            m_motProtocol->processMOTData(subchannel.sub_channel_id,
-                                         subchannel.data);
+            // NOTE (T26): MOT is NOT fed from raw sub-channel bytes. A MOT
+            // object is carried in standard EN 300 401 §5.3.3 MSC data groups
+            // assembled from the DAB+ X-PAD CI 12/13 sub-fields (see
+            // DABAnalyzerWindow's PAD parser). Feeding `subchannel.data` (raw
+            // sub-channel bytes) to MOTProtocol::processMOTData() can never
+            // parse, so this hook is intentionally removed. Any future MSC
+            // data-service path must assemble the data group first, then call
+            // m_motProtocol->processMOTData(serviceId, dataGroup).
         }
     }
 

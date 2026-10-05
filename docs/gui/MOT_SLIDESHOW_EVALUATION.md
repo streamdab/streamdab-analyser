@@ -28,14 +28,36 @@
 >   re-framed layout + validity, oversize, stale eviction, carousel reset), `test_gui_dock_layout`
 >   (`testMotPadAdapterXpadPipeline`, `testMotXpadCiFlagZeroContinuation`, `testMotSlideshowPanelAndTabs`,
 >   `testMotSlideshowRealFixture`), `test_e2e_mot_slideshow` (stub replaced). Full `ctest`: 50/50.
+>
+> **Update 2026-10-05 — T26 retired the re-framing.** The header/body re-framing
+> described above (`MotPadAdapter::buildReframedDataGroup` + the synthesized
+> legacy 7-byte core) is **deleted**. `MOTProtocol::processMOTData()` now parses
+> the standard EN 300 401 §5.3.3 data group end to end (session header §5.3.3.1,
+> segmentation header §5.1.1, header entity type 3 / body entity type 4, standard
+> 28-bit/13-bit core §6.1, extension parameters §6.2, one's-complement
+> CRC-16/CCITT-FALSE), and `MotPadAdapter` is a thin façade. Review follow-up
+> fixed the header-extension **PLI model** (EN 301 234 §6.2 Fig.22:
+> 00→len 0, 01→8-bit, 10→32-bit, 11→7/15-bit), the **parameter IDs**
+> (§6.2.2.2 Table 5) and the **ContentName charset byte** (§6.2.2.1.1 Fig.24),
+> so the fixture's parameters are recovered: 97 objects carry ContentName +
+> TriggerTime (e.g. `ThaiPBS_SLS_image_1.jpg`, `GW_106.5_SLS_image_1.jpg`,
+> `KU Radio.jpg`; JPEG type 0x02). Fixture parity is unchanged (2773 DGs, 0 CRC,
+> 112 header + 2661 body segments, 97 objects → 97 images, 0 MOT errors,
+> DLS+ 1114); `ctest` 51/51.
 
 ---
 
-## 1. Current state (verified by code inspection)
+## 1. Pre-implementation state (historical snapshot — SUPERSEDED)
+
+> **NOTE:** this section is the original 2026-10-05 reconnaissance snapshot
+> written *before* the feature existed. It is retained for the historical
+> record only; the "Implemented (2026-10-05)" block and the **T26** update at
+> the top of this document describe the current reality (standard-layout
+> `MOTProtocol`, thin `MotPadAdapter` façade, slideshow dock implemented).
 
 | Layer | What exists | Gap |
 |---|---|---|
-| **Core MOT protocol** | `src/core/mot_protocol.{hpp,cpp}` — MOTHeader / MOTDirectory / MOTSegmentHeader / **MOTObject** / SegmentBuffer (reassembly + progress + CRC), `MOTProtocol : QObject` with `processMOTData(service_id, msc_data)`, signals `objectComplete(transport_id, MOTObject)`, `reassemblyProgress`, `parseError`; `ContentType` incl. **IMAGE_JPEG (0x02) / PNG / BMP**; `MOTObject` registered as a Qt metatype | — (core is ready) |
+| **Core MOT protocol** | `src/core/mot_protocol.{hpp,cpp}` — `MOTHeader` / `MOTDirectory` / **`MOTObject`** and the standard-layout reassembler (header/body entity maps + progress + CRC), `MOTProtocol : QObject` with `processMOTData(service_id, msc_data_group)`, signals `objectComplete(transport_id, MOTObject)`, `reassemblyProgress`, `parseError`; `ContentType` incl. **IMAGE_JPEG (0x02) / PNG / BMP**; `MOTObject` registered as a Qt metatype. **T26:** consumes the standard EN 300 401 §5.3.3 MSC data group directly (no `MOTSegmentHeader`/`SegmentBuffer` legacy types, no re-framing) | — (core is ready) |
 | **Unit tests** | `tests/test_mot_protocol.cpp` — MSC data-group parsing, CRC, segment reassembly (single/multi/dup/out-of-order/missing), progress | — |
 | **E2E test** | target `test_e2e_mot_slideshow` | ⚠️ **stub** — body is `QSKIP("E2E test stub")`; no real pipeline coverage |
 | **GUI** | none — grep for `mot|slideshow|pixmap|QImage|setPixmap` in `src/main.cpp` = **0 hits** | ❌ no widget, no wiring |
@@ -45,7 +67,7 @@
 
 ## 2. Required work (independent of the UI choice)
 
-1. **Adapter (PAD → MOT)**: extend the existing `DabPlusSubchannelParser` (src/main.cpp, X-PAD CI parsing): for CI types 12/13 build the EN 300 401 §5.3.2 MSC Data Group (2-byte header + segment + CRC16/CCITT) and feed `MOTProtocol::processMOTData(service_id, group)`. Type 12 = header group (transport id/session/segmentation), type 13 = body/segment group.
+1. **Adapter (PAD → MOT)**: extend the existing `DabPlusSubchannelParser` (src/main.cpp, X-PAD CI parsing): for CI types 12/13 build the EN 300 401 §5.3.3 MSC Data Group (2-byte header + session/segmentation headers + CRC16/CCITT; X-PAD framing §7.4.2) and feed `MOTProtocol::processMOTData(service_id, group)`. Type 12 = header group (transport id/session/segmentation), type 13 = body/segment group.
 2. **Decoder wiring in the GUI**: create `eti::mot::MOTProtocol m_motProtocol` in `DABAnalyzerWindow`, connect `objectComplete` → slot; keep per-transport-id bookkeeping; report `reassemblyProgress` to the panel status line ("Receiving image… 65%").
 3. **Image render**: `MOTObject.body` → `QImage::loadFromData(body, "JPEG")` (Qt6 base ships the JPEG plugin) → scaled-to-fit `QLabel`; keep a small list of the last N images (thumbnails) + "slide k/n" navigation if desired; show content type/size/transport id + timestamp.
 4. **States & errors**: "Waiting for slideshow…", "Receiving (x %)", "No slideshow in this stream" (count check after load), decode-failure → status text; multi-service limitation noted (like DLS+).

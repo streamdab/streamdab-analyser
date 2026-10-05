@@ -1004,6 +1004,13 @@ public:
     int motObjectsForTest() const { return m_motObjectsReceived; }
     int motImagesDecodedForTest() const { return m_motImagesDecoded; }
     int motErrorsForTest() const { return m_motErrors; }
+    // T26: objects whose standard header extension parameters were parsed, and
+    // samples of the restored values (content name / click-through URL /
+    // category title) from the real capture.
+    int motHeaderParamsSeenForTest() const { return m_motHeaderParamsSeen; }
+    QString lastMotContentNameForTest() const { return m_lastMotContentName; }
+    QString lastMotClickThroughUrlForTest() const { return m_lastMotClickThroughUrl; }
+    QString lastMotCategoryTitleForTest() const { return m_lastMotCategoryTitle; }
     int motSlideHistorySizeForTest() const { return static_cast<int>(m_slideHistory.size()); }
     quint32 lastMotTransportIdForTest() const { return m_lastMotTransportId; }
     QImage slideshowImageForTest() const { return m_lastDecodedSlide; }
@@ -1014,6 +1021,12 @@ public:
     QString slideshowInfoForTest() const
     {
         return m_slideshowInfo ? m_slideshowInfo->text() : QString();
+    }
+    // T26 fixture-parity hook: the adapter's detailed MOT counters (mapped
+    // from MOTProtocol's standard-layout statistics).
+    eti::mot::MotPadAdapter::Statistics motAdapterStatisticsForTest() const
+    {
+        return m_motAdapter.statistics();
     }
     QLabel* slideshowImageLabelForTest() const { return m_slideshowImage; }
     QTabWidget* nowPlayingTabsForTest() const { return m_nowPlayingTabs; }
@@ -1128,6 +1141,10 @@ private slots:
         m_motImagesDecoded = 0;
         m_motErrors = 0;
         m_lastMotTransportId = 0;
+        m_motHeaderParamsSeen = 0;
+        m_lastMotContentName.clear();
+        m_lastMotClickThroughUrl.clear();
+        m_lastMotCategoryTitle.clear();
         m_lastMotServiceId = 0;
         m_lastMotServiceLabel.clear();
         m_slideHistory.clear();
@@ -1963,6 +1980,17 @@ private slots:
         ++m_motObjectsReceived;
         m_lastMotTransportId = transportId;
 
+        // T26: record the standard MOT header extension parameters so the
+        // real-fixture test can prove they survive parsing.
+        const eti::mot::MOTHeader& hdr = object.header;
+        if (!hdr.content_name.isEmpty() || !hdr.click_through_url.isEmpty() ||
+            !hdr.category_title.isEmpty()) {
+            ++m_motHeaderParamsSeen;
+            if (!hdr.content_name.isEmpty()) m_lastMotContentName = hdr.content_name;
+            if (!hdr.click_through_url.isEmpty()) m_lastMotClickThroughUrl = hdr.click_through_url;
+            if (!hdr.category_title.isEmpty()) m_lastMotCategoryTitle = hdr.category_title;
+        }
+
         const eti::mot::ContentType contentType = object.header.content_type;
         const char* format = motImageFormat(contentType);
         const int byteCount = static_cast<int>(object.body.size());
@@ -2021,14 +2049,19 @@ private slots:
             if (!m_lastMotServiceLabel.isEmpty()) {
                 serviceInfo += QString(" %1").arg(m_lastMotServiceLabel);
             }
-            m_slideshowInfo->setText(
-                QString("%1 · %2 bytes · TID %3%4 · %5")
+            QString info = QString("%1 · %2 bytes · TID %3%4 · %5")
                     .arg(object.header.getContentTypeString())
                     .arg(byteCount)
                     .arg(transportId)
                     .arg(serviceInfo.isEmpty() ? QString()
                                                : QString(" (%1)").arg(serviceInfo))
-                    .arg(QDateTime::currentDateTime().toString("HH:mm:ss")));
+                    .arg(QDateTime::currentDateTime().toString("HH:mm:ss"));
+            // Prove the standard MOT header extension parameters survive: show
+            // the content name when the object carries one (T26).
+            if (!object.header.content_name.isEmpty()) {
+                info += QString(" · %1").arg(object.header.content_name);
+            }
+            m_slideshowInfo->setText(info);
         }
     }
 
@@ -8463,9 +8496,9 @@ private:
     // Phase 3B: DLS+ decoder instance
     eti::dls_plus::DLSPlusDecoder* m_dlsPlusDecoder{nullptr};
 
-    // MOT SlideShow (option A). The adapter re-frames the standard EN 300 401
-    // MSC data groups (assembled from X-PAD CI 12/13) into the layout consumed
-    // by MOTProtocol and feeds them with the carrying service id.
+    // MOT SlideShow (option A). The standard EN 300 401 MSC data groups
+    // (assembled from X-PAD CI 12/13) are decoded directly by MOTProtocol
+    // through the thin MotPadAdapter façade (T26 — no re-framing).
     eti::mot::MOTProtocol m_motProtocol;
     eti::mot::MotPadAdapter m_motAdapter{&m_motProtocol};
 
@@ -8480,6 +8513,10 @@ private:
     int m_motObjectsReceived{0};   // objectComplete signals seen
     int m_motImagesDecoded{0};     // successfully decoded images
     int m_motErrors{0};            // adapter parse errors surfaced
+    int m_motHeaderParamsSeen{0};  // objects carrying extension parameters
+    QString m_lastMotContentName;      // sample restored extension params
+    QString m_lastMotClickThroughUrl;
+    QString m_lastMotCategoryTitle;
     quint32 m_lastMotTransportId{0};
     quint32 m_lastMotServiceId{0};
     QString m_lastMotServiceLabel;
