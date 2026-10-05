@@ -53,6 +53,7 @@
 #include <functional>
 #include <algorithm>
 #include <cstring>
+#include <cstdio>
 
 #include "DockManager.h"
 #include "DockWidget.h"
@@ -319,8 +320,14 @@ void TestGuiDockLayout::testDefaultGroupedPlacement()
     QCOMPARE(columnIndexOf(root, systemArea), 0);
     QVERIFY(systemArea != transportArea);
 
-    // CENTER column (1): Signal Analysis (3 tabs), Frame Analysis (2 tabs),
-    // Now Playing standalone (compact, bottom of center).
+    // CENTER column (1): T30.5 top->bottom Now Playing / Slideshow,
+    // Signal Analysis (3 tabs), Frame Analysis (2 tabs).
+    ads::CDockAreaWidget* nowPlayingArea =
+        m1->findDockWidget(QStringLiteral("tab1_NowPlaying"))->dockAreaWidget();
+    QVERIFY(nowPlayingArea);
+    QCOMPARE(nowPlayingArea->dockWidgetsCount(), 1);
+    QCOMPARE(columnIndexOf(root, nowPlayingArea), 1);
+
     verifyTabbedGroup(m1, root,
                       {QStringLiteral("tab1_EnsembleExplorer"),
                        QStringLiteral("tab1_SubchannelOrg"),
@@ -333,14 +340,21 @@ void TestGuiDockLayout::testDefaultGroupedPlacement()
                       {QStringLiteral("tab1_FrameNavigator"),
                        QStringLiteral("tab1_HexCompliance")},
                       2, 1);
-    QVERIFY(m1->findDockWidget(QStringLiteral("tab1_FrameNavigator"))->dockAreaWidget()
-            != signalAnalysisArea);
-    ads::CDockAreaWidget* nowPlayingArea =
-        m1->findDockWidget(QStringLiteral("tab1_NowPlaying"))->dockAreaWidget();
-    QVERIFY(nowPlayingArea);
-    QCOMPARE(nowPlayingArea->dockWidgetsCount(), 1);
-    QCOMPARE(columnIndexOf(root, nowPlayingArea), 1);
+    ads::CDockAreaWidget* frameAnalysisArea =
+        m1->findDockWidget(QStringLiteral("tab1_FrameNavigator"))->dockAreaWidget();
+    QVERIFY(frameAnalysisArea);
+    QVERIFY(frameAnalysisArea != signalAnalysisArea);
     QVERIFY(nowPlayingArea != signalAnalysisArea);
+
+    // T30.5: the center column is a vertical stack whose TOP entry is Now
+    // Playing, then Signal Analysis, then Frame Analysis.
+    auto* centerCol = qobject_cast<QSplitter*>(root->widget(1));
+    QVERIFY2(centerCol && centerCol->orientation() == Qt::Vertical,
+             "center column must be a vertical stack");
+    QCOMPARE(centerCol->count(), 3);
+    QCOMPARE(centerCol->widget(0), static_cast<QWidget*>(nowPlayingArea));
+    QCOMPARE(centerCol->widget(1), static_cast<QWidget*>(signalAnalysisArea));
+    QCOMPARE(centerCol->widget(2), static_cast<QWidget*>(frameAnalysisArea));
 
     // RIGHT column (2): Signal Info (3 tabs) + Error & Statistics (2 tabs).
     verifyTabbedGroup(m1, root,
@@ -457,6 +471,12 @@ void TestGuiDockLayout::testBottomSixDocks()
 
     auto* mBottom = w.findChild<ads::CDockManager*>("bottomDockManager");
     QVERIFY(mBottom);
+
+    // T30.1: the shared strip host is capped at ~120 px so the strip shows
+    // about five text lines and cannot grow into the workspace.
+    QWidget* stripHost = mBottom->parentWidget();
+    QVERIFY(stripHost);
+    QCOMPARE(stripHost->maximumHeight(), 120);
 
     const QSet<QString> bottomNames = {
         QStringLiteral("bottom_SystemMessages"), QStringLiteral("bottom_Performance"),
@@ -1413,6 +1433,115 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
                                 .arg(nowPlayingStatus)));
     }
 
+    // T33.1: on the real fixture the Overview digital-services line must be
+    // resolved (not the pre-load placeholder).
+    QLabel* digitalLabel = w.tab2DigitalServicesLabelForTest();
+    QVERIFY(digitalLabel);
+    QVERIFY2(!digitalLabel->text().contains(QStringLiteral("awaiting decode")),
+             qPrintable(QString("digital-services line was never updated: %1")
+                            .arg(digitalLabel->text())));
+    QVERIFY2(digitalLabel->text().startsWith(QStringLiteral("Digital services:")),
+             qPrintable(QString("digital-services line malformed: %1")
+                            .arg(digitalLabel->text())));
+
+    // =====================================================================
+    // T31 (rework): the playhead replays a LOAD-TIME timeline (pure lookup):
+    //   * load-time counters are invariant under playback/scrub;
+    //   * seeking between two different timeline states POSITIVELY changes the
+    //     DLS text and/or the slideshow image.
+    // =====================================================================
+    {
+        // --- Invariant baseline: the post-load values MUST NOT change. ---
+        const int dlsMsgsBefore = w.dlsPlusMessageCountForTest();
+        const int dlsPadBefore = w.dlsPlusPadCallCountForTest();
+        const int motObjectsBefore = w.motObjectsForTest();
+        const int motImagesBefore = w.motImagesDecodedForTest();
+        QVERIFY2(dlsMsgsBefore > 0, "fixture must decode DLS labels");
+        QCOMPARE(motObjectsBefore, 97);
+        QCOMPARE(motImagesBefore, 97);
+
+        // The timeline must be populated (sparse change points) and the
+        // retained store must hold the fixture's decoded slides.
+        const auto& timeline = w.playbackMediaTimelineForTest();
+        QVERIFY2(timeline.size() >= 2,
+                 qPrintable(QString("T31 timeline too small: %1").arg(timeline.size())));
+        QCOMPARE(w.retainedSlideCountForTest(), 97);
+        QVERIFY2(w.retainedSlideBytesForTest() > 0
+                     && w.retainedSlideBytesForTest() < (32LL * 1024 * 1024),
+                 qPrintable(QString("retained bytes out of range: %1")
+                                .arg(w.retainedSlideBytesForTest())));
+        std::fprintf(stderr, "[T31-TEST] timeline entries=%zu retained_slides=%d retained_bytes=%lld post_load_dls_msgs=%d mot_objects=%d\n",
+                     timeline.size(), w.retainedSlideCountForTest(),
+                     static_cast<long long>(w.retainedSlideBytesForTest()),
+                     dlsMsgsBefore, motObjectsBefore);
+
+        // --- Find two change points that differ in DLS text and/or image id ---
+        int dlsFrameA = -1, dlsFrameB = -1;
+        QString trackA;
+        for (auto it = timeline.begin(); it != timeline.end(); ++it) {
+            if (dlsFrameA < 0) { dlsFrameA = it->first; trackA = it->second.track; continue; }
+            if (it->second.track != trackA) { dlsFrameB = it->first; break; }
+        }
+        int imgFrameA = -1, imgFrameB = -1, imgIdA = -1;
+        for (auto it = timeline.begin(); it != timeline.end(); ++it) {
+            if (imgFrameA < 0) { imgFrameA = it->first; imgIdA = it->second.motImageId; continue; }
+            if (it->second.motImageId != imgIdA) { imgFrameB = it->first; break; }
+        }
+        QVERIFY2(dlsFrameB >= 0 || imgFrameB >= 0,
+                 "fixture timeline must expose at least one media change");
+        std::fprintf(stderr, "[T31-TEST] change points: dls %d -> %d, image %d -> %d\n",
+                     dlsFrameA, dlsFrameB, imgFrameA, imgFrameB);
+
+        // --- POSITIVE refresh: DLS text must follow the playhead ---
+        if (dlsFrameB >= 0) {
+            w.playbackSeekForTest(dlsFrameA);
+            const QString trackAtA = w.nowPlayingTrackForTest();
+            w.playbackSeekForTest(dlsFrameB);
+            const QString trackAtB = w.nowPlayingTrackForTest();
+            QVERIFY2(trackAtA != trackAtB,
+                     qPrintable(QString("T31 positive DLS refresh failed: "
+                                        "frames %1/%2 -> '%3'/'%4'")
+                                    .arg(dlsFrameA).arg(dlsFrameB)
+                                    .arg(trackAtA, trackAtB)));
+        }
+
+        // --- POSITIVE refresh: slideshow image must follow the playhead ---
+        if (imgFrameB >= 0) {
+            w.playbackSeekForTest(imgFrameA);
+            const QImage imgAtA = w.slideshowImageForTest();
+            w.playbackSeekForTest(imgFrameB);
+            const QImage imgAtB = w.slideshowImageForTest();
+            QVERIFY2(imgAtA != imgAtB,
+                     qPrintable(QString("T31 positive slideshow refresh failed: "
+                                        "frames %1/%2").arg(imgFrameA).arg(imgFrameB)));
+        }
+
+        // --- Tick while playing advances the playhead (throttled lookup). ---
+        w.playbackSeekForTest(4000);
+        w.playbackPlayForTest();
+        w.playbackTickForTest();
+        QCOMPARE(w.playbackFrameForTest(), 4001);
+        w.playbackStopForTest();          // forced reset to frame 0 (timeline[0])
+
+        // Stop/Reset restores the frame-0 timeline state (no image was decoded
+        // before frame 0, so the slideshow returns to its waiting state).
+        QVERIFY2(w.slideshowImageForTest().isNull(),
+                 "T31: Stop must restore the frame-0 timeline state");
+
+        // Invariant after all playback/scrub: the load-time counters are
+        // EXACTLY the post-load values.
+        QCOMPARE(w.dlsPlusMessageCountForTest(), dlsMsgsBefore);
+        QCOMPARE(w.dlsPlusPadCallCountForTest(), dlsPadBefore);
+        QCOMPARE(w.motObjectsForTest(), motObjectsBefore);
+        QCOMPARE(w.motImagesDecodedForTest(), motImagesBefore);
+
+        // A negative/out-of-range frame is a no-op lookup (panel untouched).
+        const QString dlsAtMiss = w.nowPlayingTrackForTest();
+        w.refeedDlsForPlayheadForTest(-1);
+        QCOMPARE(w.nowPlayingTrackForTest(), dlsAtMiss);
+        QCOMPARE(w.dlsPlusMessageCountForTest(), dlsMsgsBefore);
+    }
+
     w.close();
     QCoreApplication::processEvents();
 }
@@ -2314,10 +2443,12 @@ void TestGuiDockLayout::testTabPagesDescriptiveTitles()
         }
     }
 
-    // The meaningful names requested by the user must be present.
+    // The meaningful names requested by the user must be present. T33.1
+    // removed "Digital Org Info" from the UI (its intent folded into
+    // Overview), so it is no longer expected.
     const QStringList expected = {
         QStringLiteral("Overview"), QStringLiteral("Service Tree"),
-        QStringLiteral("Digital Org Info"), QStringLiteral("Service Components"),
+        QStringLiteral("Service Components"),
         QStringLiteral("Ensemble Table"), QStringLiteral("Sub-Channel Table"),
         QStringLiteral("Service Table"), QStringLiteral("FIG Content"),
         QStringLiteral("FIG Instance List"), QStringLiteral("FIG Item Details"),
@@ -2327,6 +2458,43 @@ void TestGuiDockLayout::testTabPagesDescriptiveTitles()
                  qPrintable(QString("expected section title missing: %1 (have: %2)")
                                 .arg(name, seenTitles.join(", "))));
     }
+    QVERIFY2(!seenTitles.contains(QStringLiteral("Digital Org Info")),
+             "T33.1: the Digital Org Info panel must be removed");
+
+    // T33.1/F6: this window has no capture loaded, so the Overview
+    // digital-services line must show the documented placeholder. The RESOLVED
+    // value is asserted in testEnsembleTreeRealFixture (the weak
+    // "startsWith" check would also pass for the placeholder).
+    QLabel* digitalLabel = w.tab2DigitalServicesLabelForTest();
+    QVERIFY2(digitalLabel, "T33.1: Overview must carry a digital-services label");
+    QVERIFY2(digitalLabel->text() == QStringLiteral("Digital services: awaiting decode"),
+             qPrintable(QString("pre-load digital-services line must be the placeholder, got: %1")
+                            .arg(digitalLabel->text())));
+
+    // T33.2: Service Components moved to the CENTER panel, below the Service
+    // table (no longer a left-panel child).
+    auto* m2 = w.findChild<ads::CDockManager*>("tab2DockManager");
+    QVERIFY(m2);
+    QTreeWidget* components = w.tab2ServiceComponentsForTest();
+    QVERIFY2(components, "T33.2: Service Components tree must exist");
+    QWidget* centerPanel = m2->findDockWidget(QStringLiteral("tab2_Center"))->widget();
+    QVERIFY(centerPanel);
+    QVERIFY2(centerPanel->isAncestorOf(components),
+             "T33.2: Service Components must live in the center panel");
+    QWidget* leftPanel = m2->findDockWidget(QStringLiteral("tab2_Left"))->widget();
+    QVERIFY(leftPanel);
+    QVERIFY2(!leftPanel->isAncestorOf(components),
+             "T33.2: Service Components must no longer be in the left panel");
+    // The center is now split 4 ways (ensemble/subchannel/service/components).
+    const QList<QGroupBox*> centerGroups = centerPanel->findChildren<QGroupBox*>();
+    QCOMPARE(centerGroups.size(), 4);
+
+    // T33.3: the left layout stretch is Overview 20 / Service Tree 60.
+    auto* leftLayout = qobject_cast<QVBoxLayout*>(leftPanel->layout());
+    QVERIFY(leftLayout);
+    QCOMPARE(leftLayout->count(), 2);
+    QCOMPARE(leftLayout->stretch(0), 20);
+    QCOMPARE(leftLayout->stretch(1), 60);
 
     w.close();
     QCoreApplication::processEvents();
@@ -2657,15 +2825,39 @@ void TestGuiDockLayout::testMotSlideshowPanelAndTabs()
     QVERIFY2(slideFrame, "T27: the 4:3 slideshow frame must exist");
     QVERIFY(slideFrame->minimumHeight() > 0);
 
-    // L7: default split is ~45/55 (within tolerance) and is user-draggable.
+    // T30.4: default split is DLS+ 2/3 : Slideshow 1/3 (within tolerance) and
+    // remains user-draggable / non-collapsible.
+    QVERIFY2(!split->childrenCollapsible(),
+             "T30.4: the Now Playing splitter must stay non-collapsible");
     const QList<int> splitSizes = split->sizes();
     QCOMPARE(splitSizes.size(), 2);
     const int splitExtent = splitSizes[0] + splitSizes[1];
     QVERIFY2(splitExtent > 0, "splitter must have a positive extent");
     const double leftFraction = double(splitSizes[0]) / double(splitExtent);
-    QVERIFY2(leftFraction > 0.30 && leftFraction < 0.60,
-             qPrintable(QString("T27 splitter left fraction must be ~0.45, got %1")
+    QVERIFY2(leftFraction > 0.58 && leftFraction < 0.76,
+             qPrintable(QString("T30.4 splitter left fraction must be ~0.667, got %1")
                             .arg(leftFraction)));
+
+    // T30.3: dark-theme-readable DLS label colours. Track is the brand accent
+    // (bold/prominent); artist uses palette(text); album is dimmer
+    // palette(mid) italic. No fixed light-theme greys.
+    QLabel* trackLbl = w.nowPlayingTrackLabelForTest();
+    QLabel* artistLbl = w.nowPlayingArtistLabelForTest();
+    QLabel* albumLbl = w.nowPlayingAlbumLabelForTest();
+    QVERIFY(trackLbl && artistLbl && albumLbl);
+    QVERIFY2(trackLbl->styleSheet().contains(QStringLiteral("#4a8fd4"))
+                 && trackLbl->styleSheet().contains(QStringLiteral("bold")),
+             qPrintable(QString("track label must use the accent/bold, got: %1")
+                            .arg(trackLbl->styleSheet())));
+    QVERIFY2(artistLbl->styleSheet().contains(QStringLiteral("palette(text)")),
+             qPrintable(QString("artist label must derive from palette(text), got: %1")
+                            .arg(artistLbl->styleSheet())));
+    QVERIFY2(albumLbl->styleSheet().contains(QStringLiteral("palette(mid)"))
+                 && albumLbl->styleSheet().contains(QStringLiteral("italic")),
+             qPrintable(QString("album label must be dimmer/italic palette(mid), got: %1")
+                            .arg(albumLbl->styleSheet())));
+    QVERIFY2(!trackLbl->styleSheet().contains(QStringLiteral("#1976d2")),
+             "the light-theme #1976d2 track colour must be gone");
 
     // Documented initial slideshow state.
     QCOMPARE(w.slideshowStatusForTest(), QStringLiteral("Waiting for slideshow…"));
@@ -2712,8 +2904,8 @@ void TestGuiDockLayout::testMotSlideshowPanelAndTabs()
                             .arg(w.slideshowInfoForTest())));
     QCOMPARE(w.motHeaderParamsSeenForTest(), 1);
     QCOMPARE(w.lastMotContentNameForTest(), QStringLiteral("panel-slide.png"));
-    // Bounded retention.
-    QVERIFY(w.motSlideHistorySizeForTest() <= 8);
+    // T31: the byte-capped retained store keeps the decoded slide.
+    QCOMPARE(w.retainedSlideCountForTest(), 1);
 
     w.close();
     QCoreApplication::processEvents();
@@ -2769,8 +2961,12 @@ void TestGuiDockLayout::testMotSlideshowRealFixture()
     const QImage slide = w.slideshowImageForTest();
     QVERIFY2(!slide.isNull(), "the slideshow image must be non-null after the load");
     QVERIFY(slide.width() > 0 && slide.height() > 0);
-    QVERIFY2(w.motSlideHistorySizeForTest() <= 8,
-             "retained slideshow images must stay bounded");
+    // T31: the ≤8 history was replaced by a 32 MB-capped retained store; the
+    // fixture's 97 decoded slides all fit under the cap.
+    QCOMPARE(w.retainedSlideCountForTest(), 97);
+    QVERIFY2(w.retainedSlideBytesForTest() > 0
+                 && w.retainedSlideBytesForTest() < (32LL * 1024 * 1024),
+             "retained slideshow images must stay under the 32 MB byte cap");
     QVERIFY2(w.slideshowStatusForTest().contains(QStringLiteral("Showing slide")),
              qPrintable(QString("slideshow status after load: %1")
                             .arg(w.slideshowStatusForTest())));

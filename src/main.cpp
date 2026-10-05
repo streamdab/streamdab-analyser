@@ -778,6 +778,40 @@ private:
     QLabel* m_image = nullptr;
 };
 
+// ============================================================================
+// T31 (rework): load-time playback media timeline
+// ============================================================================
+// The DLS+/Slideshow panels are fed once, sequentially, during the load loop —
+// that is what makes the 5-frame DAB+ superframes and the multi-superframe MOT
+// reassembly work. Re-feeding isolated raw frames at the playhead is therefore
+// both superframe-incorrect (FireCode never syncs) and would inflate the
+// load-time counters. Instead we record a COMPACT, SPARSE timeline at load time
+// (only when the media state changes) and look it up at the playhead.
+//
+// `motImageId` is an absolute identity into the retained-slide store, so a
+// lookup never decodes an image nor touches the MOT adapter.
+struct PlaybackMediaState {
+    QString track;
+    QString artist;
+    QString album;
+    int motImageId = -1;  // -1 = no slideshow image decoded at/before this frame
+
+    bool operator==(const PlaybackMediaState& o) const
+    {
+        return track == o.track && artist == o.artist && album == o.album
+               && motImageId == o.motImageId;
+    }
+    bool operator!=(const PlaybackMediaState& o) const { return !(*this == o); }
+};
+
+// One decoded MOT slide retained for scrubbing, together with the panel strings
+// produced at load time so a playhead lookup needs no decode and no adapter.
+struct RetainedSlide {
+    QImage image;
+    QString status;  // e.g. "Showing slide 12 — JPEG"
+    QString info;    // full info line as decoded at load
+};
+
 class DABAnalyzerWindow : public QMainWindow
 {
     Q_OBJECT
@@ -871,6 +905,10 @@ public:
     QLabel* tab2EnsembleNameLabel() const { return m_tab2_ensembleName; }
     QLabel* tab2FicContentSummaryLabel() const { return m_tab2_ficContentSummary; }
     QLabel* tab2SubchannelOrgSummaryLabel() const { return m_tab2_subchannelOrgSummary; }
+    // T33: Overview's digital-services line + the relocated Service Components
+    // tree (now a center-panel child).
+    QLabel* tab2DigitalServicesLabelForTest() const { return m_tab2_digitalServices; }
+    QTreeWidget* tab2ServiceComponentsForTest() const { return m_tab2_serviceComponents; }
     QTableWidget* tab2ServiceTable() const { return m_tab2_serviceTable; }
     QTreeWidget* tab3FigInstanceTree() const { return m_tab3_figInstanceTree; }
     QTreeWidget* tab3FigItemDetailsTree() const { return m_tab3_figItemDetailsTree; }
@@ -945,6 +983,17 @@ public:
     int dlsPlusPadCallCountForTest() const { return m_dlsPlusPadCalls; }
     int dlsPlusLabelsAssembledForTest() const { return m_dlsPlusLabelsAssembled; }
     QStringList dlsLabelsSeenForTest() const { return m_dlsLabelsSeen; }
+    // T31 (rework): read-only view of the load-time media timeline + retained
+    // slides for the strengthened playback test. Mutating drivers live in the
+    // GUI_TEST_MODE block with the other playback hooks.
+    const std::map<int, PlaybackMediaState>& playbackMediaTimelineForTest() const
+    {
+        return m_mediaTimeline;
+    }
+    int playbackMediaTimelineSizeForTest() const
+    {
+        return static_cast<int>(m_mediaTimeline.size());
+    }
     // Refinement A test hook: drive the REAL DAB+ superframe/AU/PAD parser on
     // a synthetic superframe and feed the assembled DLS to the decoder.
     bool runDabPlusDlsParserForTest(const QByteArray& superframe)
@@ -1044,6 +1093,11 @@ public:
     {
         return m_lastUpdatedLabel ? m_lastUpdatedLabel->text() : QString();
     }
+    // T30.3: expose the metadata labels so the palette/accent colours can be
+    // asserted without walking the dock tree.
+    QLabel* nowPlayingTrackLabelForTest() const { return m_trackLabel; }
+    QLabel* nowPlayingArtistLabelForTest() const { return m_artistLabel; }
+    QLabel* nowPlayingAlbumLabelForTest() const { return m_albumLabel; }
 
     // --- MOT SlideShow (option A) test hooks -------------------------------
     // Drive the real X-PAD CI 12/13 parser + adapter for a sequence of raw
@@ -1077,7 +1131,10 @@ public:
     QString lastMotContentNameForTest() const { return m_lastMotContentName; }
     QString lastMotClickThroughUrlForTest() const { return m_lastMotClickThroughUrl; }
     QString lastMotCategoryTitleForTest() const { return m_lastMotCategoryTitle; }
-    int motSlideHistorySizeForTest() const { return static_cast<int>(m_slideHistory.size()); }
+    // T31 (rework): the ≤8 slide history was replaced by a byte-capped
+    // retained store so the playhead can scrub back to any decoded slide.
+    int retainedSlideCountForTest() const { return static_cast<int>(m_retainedSlides.size()); }
+    qint64 retainedSlideBytesForTest() const { return m_retainedSlideBytes; }
     quint32 lastMotTransportIdForTest() const { return m_lastMotTransportId; }
     QImage slideshowImageForTest() const { return m_lastDecodedSlide; }
     QString slideshowStatusForTest() const
@@ -1191,6 +1248,16 @@ private slots:
         m_dlsPlusPadCalls = 0;
         m_dlsPlusLabelsAssembled = 0;
         m_dlsParsers.clear();
+        // T31 (rework): reset the load-time media timeline + retained slides.
+        m_mediaTimeline.clear();
+        m_retainedSlides.clear();
+        m_retainedSlideBaseId = 0;
+        m_retainedSlideNextId = 0;
+        m_retainedSlideBytes = 0;
+        m_lastMotImageId = -1;
+        m_curTrack.clear();
+        m_curArtist.clear();
+        m_curAlbum.clear();
         m_dabPlusSubChannels.clear();
         m_serviceBySubChannel.clear();
         m_dabPlusServiceMapDirty = true;
@@ -1216,7 +1283,6 @@ private slots:
         m_lastMotCategoryTitle.clear();
         m_lastMotServiceId = 0;
         m_lastMotServiceLabel.clear();
-        m_slideHistory.clear();
         m_lastDecodedSlide = QImage();
         resetSlideshowPanel();
         // Finding 6: clear the decoder's change-detection history so a second
@@ -1423,6 +1489,11 @@ private slots:
             m_dlsPipelineNs += dlsTimer.nsecsElapsed();
         }
 
+        // T31: snapshot the media state AFTER this frame was fed so the
+        // playhead can replay it without re-parsing (sparse; ~1200 entries on
+        // the fixture). rawIndex == frame.frame_number - 1 (0-based).
+        recordPlaybackMediaState(rawIndex);
+
         // === F8: Performance Dashboard live metrics ===
         // Cheap (counter arithmetic; label updates throttled to 100 ms) and
         // now that ProcessedFrame carries msc_size instead of a duplicate MSC
@@ -1542,6 +1613,125 @@ private slots:
             const QPair<quint32, QString> svc =
                 m_serviceBySubChannel.value(sc.sub_channel_id, qMakePair(0u, QString()));
             feedDlsAssembly(assembly, svc.first, svc.second);
+        }
+    }
+
+    // ========================================================================
+    // T31 (rework): load-time timeline record + playhead lookup
+    // ========================================================================
+    // Called once per fed frame from onFrameProcessed(). Records the CURRENT
+    // DLS values + MOT image identity only when they change (sparse: the
+    // fixture yields ~1200 entries over 5001 frames). A frame-0 entry is always
+    // recorded so Stop/Reset has a well-defined "start of capture" state.
+    void recordPlaybackMediaState(int frameIndex)
+    {
+        if (frameIndex < 0) {
+            return;
+        }
+        PlaybackMediaState st;
+        st.track = m_curTrack;
+        st.artist = m_curArtist;
+        st.album = m_curAlbum;
+        st.motImageId = m_lastMotImageId;
+        if (frameIndex != 0 && !m_mediaTimeline.empty()
+            && m_mediaTimeline.rbegin()->second == st) {
+            return;  // sparse: nothing changed at this frame
+        }
+        m_mediaTimeline[frameIndex] = st;
+    }
+
+    // Retain a decoded MOT slide for scrubbing. FIFO eviction keeps the total
+    // image bytes under RETAINED_SLIDE_BYTE_CAP; ids are absolute so the
+    // timeline reference stays valid across eviction.
+    void appendRetainedSlide(RetainedSlide slide)
+    {
+        m_retainedSlideBytes += slide.image.sizeInBytes();
+        m_retainedSlides.push_back(std::move(slide));
+        ++m_retainedSlideNextId;
+        while (m_retainedSlideBytes > RETAINED_SLIDE_BYTE_CAP
+               && m_retainedSlides.size() > 1) {
+            m_retainedSlideBytes -= m_retainedSlides.front().image.sizeInBytes();
+            m_retainedSlides.pop_front();
+            ++m_retainedSlideBaseId;
+        }
+    }
+
+    // Pure lookup + panel apply (NO parser, NO MOT adapter, NO counter, NO
+    // decode). Finds the latest timeline entry at or before `frameIndex` and
+    // restores the DLS labels + slideshow image/status for that frame. Called
+    // from handleFrameSelection() — the throttled detail path and the forced
+    // seek/stop/reset path both reach it.
+    void refeedDlsForPlayhead(int frameIndex)
+    {
+        if (m_mediaTimeline.empty() || frameIndex < 0) {
+            return;
+        }
+        auto it = m_mediaTimeline.upper_bound(frameIndex);
+        if (it == m_mediaTimeline.begin()) {
+            return;  // playhead precedes the first recorded state
+        }
+        --it;
+        const PlaybackMediaState& st = it->second;
+
+        // DLS labels restored straight from the timeline (the load-time
+        // decoder already produced these exact strings).
+        if (m_trackLabel) {
+            m_trackLabel->setText(st.track.isEmpty() ? QStringLiteral("--") : st.track);
+        }
+        if (m_artistLabel) {
+            m_artistLabel->setText(st.artist.isEmpty() ? QStringLiteral("--") : st.artist);
+        }
+        if (m_albumLabel) {
+            m_albumLabel->setText(st.album.isEmpty() ? QStringLiteral("--") : st.album);
+        }
+        if (m_lastUpdatedLabel) {
+            m_lastUpdatedLabel->setText(
+                QString("Frame %1 · replaying load metadata").arg(frameIndex + 1));
+        }
+
+        applyRetainedSlideForPlayhead(st.motImageId);
+    }
+
+    // Restore the slideshow panel from a retained-slide identity. A negative id
+    // means no image had been decoded at/before that frame -> show the
+    // pre-slideshow state. An evicted id falls back to the nearest retained
+    // slide and says so in the status line.
+    void applyRetainedSlideForPlayhead(int imageId)
+    {
+        if (!m_slideshowImage) {
+            return;
+        }
+        if (imageId < 0) {
+            m_lastDecodedSlide = QImage();
+            m_slideshowImage->clear();
+            m_slideshowImage->setText(tr("Waiting for slideshow…"));
+            if (m_slideshowStatus) {
+                m_slideshowStatus->setText(tr("Waiting for slideshow…"));
+            }
+            if (m_slideshowInfo) {
+                m_slideshowInfo->setText(QStringLiteral("—"));
+            }
+            return;
+        }
+        if (m_retainedSlides.empty()) {
+            return;  // nothing retained at all -> leave the panel as-is
+        }
+        const int lastId = m_retainedSlideNextId - 1;
+        int resolved = imageId;
+        QString note;
+        if (resolved < m_retainedSlideBaseId || resolved > lastId) {
+            resolved = qBound(m_retainedSlideBaseId, resolved, lastId);
+            note = QStringLiteral(" (nearest retained image)");
+        }
+        const RetainedSlide& slide =
+            m_retainedSlides[static_cast<size_t>(resolved - m_retainedSlideBaseId)];
+        m_lastDecodedSlide = slide.image;
+        refreshSlideshowPixmap();
+        if (m_slideshowStatus) {
+            m_slideshowStatus->setText(slide.status + note);
+        }
+        if (m_slideshowInfo) {
+            m_slideshowInfo->setText(slide.info + note);
         }
     }
 
@@ -1885,6 +2075,11 @@ private slots:
                 << static_cast<int>(m_dlsParsers.size());
         qInfo() << "[DLS+] pipeline time (ms):" << (m_dlsPipelineNs / 1000000.0);
 
+        // T31: load-time playback timeline evidence (sparse + bounded store).
+        qInfo() << "[T31] media timeline entries:" << m_mediaTimeline.size()
+                << "retained slides:" << m_retainedSlides.size()
+                << "retained bytes:" << m_retainedSlideBytes;
+
         // === MOT SlideShow evidence (honest counters for this capture) ===
         const eti::mot::MotPadAdapter::Statistics motStats = m_motAdapter.statistics();
         const auto motProtoStats = m_motProtocol.getStatistics();
@@ -1985,6 +2180,12 @@ private slots:
     // Phase 3B: DLS+ "Now Playing" update slot
     void updateNowPlaying(const QString& track, const QString& artist, const QString& album)
     {
+        // T31: remember the latest decoded DLS values so the load-time timeline
+        // can snapshot them per frame without querying the decoder again.
+        m_curTrack = track;
+        m_curArtist = artist;
+        m_curAlbum = album;
+
         // Update track label
         if (m_trackLabel) {
             m_trackLabel->setText(track.isEmpty() ? "--" : track);
@@ -2122,22 +2323,23 @@ private slots:
             return;
         }
 
-        // Bounded retention: only the last MOT_SLIDE_HISTORY_MAX images.
+        // T31: retain the decoded slide (byte-capped store) and remember its
+        // absolute identity for the timeline. The panel status/info strings are
+        // captured too so a playhead lookup needs neither a decode nor the MOT
+        // adapter.
         m_lastDecodedSlide = image;
-        m_slideHistory.push_back(image);
-        while (static_cast<int>(m_slideHistory.size()) > MOT_SLIDE_HISTORY_MAX) {
-            m_slideHistory.pop_front();
-        }
         ++m_motImagesDecoded;
         refreshSlideshowPixmap();
 
+        QString statusText;
         if (m_slideshowStatus) {
-            m_slideshowStatus->setText(
-                QString("Showing slide %1 — %2")
-                    .arg(m_motImagesDecoded)
-                    .arg(object.header.getContentTypeString()));
+            statusText = QString("Showing slide %1 — %2")
+                             .arg(m_motImagesDecoded)
+                             .arg(object.header.getContentTypeString());
+            m_slideshowStatus->setText(statusText);
         }
-        if (m_slideshowInfo) {
+        QString infoText;
+        {
             QString serviceInfo;
             if (m_lastMotServiceId != 0) {
                 serviceInfo = QString("SId 0x%1")
@@ -2146,7 +2348,7 @@ private slots:
             if (!m_lastMotServiceLabel.isEmpty()) {
                 serviceInfo += QString(" %1").arg(m_lastMotServiceLabel);
             }
-            QString info = QString("%1 · %2 bytes · TID %3%4 · %5")
+            infoText = QString("%1 · %2 bytes · TID %3%4 · %5")
                     .arg(object.header.getContentTypeString())
                     .arg(byteCount)
                     .arg(transportId)
@@ -2156,10 +2358,19 @@ private slots:
             // Prove the standard MOT header extension parameters survive: show
             // the content name when the object carries one (T26).
             if (!object.header.content_name.isEmpty()) {
-                info += QString(" · %1").arg(object.header.content_name);
+                infoText += QString(" · %1").arg(object.header.content_name);
             }
-            m_slideshowInfo->setText(info);
+            if (m_slideshowInfo) {
+                m_slideshowInfo->setText(infoText);
+            }
         }
+
+        RetainedSlide slide;
+        slide.image = image;
+        slide.status = statusText;
+        slide.info = infoText;
+        appendRetainedSlide(std::move(slide));
+        m_lastMotImageId = m_retainedSlideNextId - 1;
     }
 
     // Scale the retained slide to the label, keeping the aspect ratio.
@@ -2251,6 +2462,11 @@ private slots:
         } catch (...) {
             qWarning() << "[NAV] Unknown exception in ETI overview for frame" << currentRow;
         }
+
+        // NOTE: the T31 media-timeline replay is intentionally NOT done here.
+        // handleFrameSelection() also serves real navigator clicks, which must
+        // keep the load-complete Now Playing state; the replay belongs to the
+        // PLAYHEAD path (applyPlayheadFrame()).
     }
 
     // ========================================================================
@@ -2485,6 +2701,17 @@ private:
         if (detailsDue) {
             m_detailThrottleTimer.restart();
             handleFrameSelection(frameIndex);
+            // T31 (rework): replay the LOAD-TIME media state for this frame
+            // (pure lookup + panel apply; no parser/adapter/counter). Throttled
+            // with the panels above; forced on seek/stop/reset via forceDetails.
+            try {
+                refeedDlsForPlayhead(frameIndex);
+            } catch (const std::exception& e) {
+                qWarning() << "[T31] media replay failed for frame" << frameIndex << ":"
+                           << e.what();
+            } catch (...) {
+                qWarning() << "[T31] Unknown exception in media replay for frame" << frameIndex;
+            }
             // L4: rebuildFrameFIGDetails() and the FIG-instance selection share
             // m_tab3_figItemDetailsTree (they overwrite each other). Only the
             // playback-driven rebuild is skipped while the Frame List tab is
@@ -2607,6 +2834,9 @@ public:
     }
     void setTotalFramesForTest(int n) { m_totalFrames = static_cast<size_t>(qMax(0, n)); }
     void setFileLoadedFlagForTest(bool loaded) { m_fileLoaded = loaded; }
+    // T31: drive the pure lookup directly (e.g. the eviction fallback / miss
+    // paths) without running the playback timer.
+    void refeedDlsForPlayheadForTest(int frameIndex) { refeedDlsForPlayhead(frameIndex); }
 #endif
     bool isPlayingForTest() const { return m_playbackPlaying; }
     int playbackFrameForTest() const { return m_playbackFrame; }
@@ -4814,6 +5044,30 @@ private:
             m_tab2_subchannelOrgSummary->setText(
                 QString("Sub-Channels: %1").arg(m_figAnalyzer->getAllSubChannels().size()));
         }
+        // T33.1: compact summary of the FIC-decoded DATA services (service_type
+        // 1 = data service, ETSI EN 300 401 §6.3.1 via FIG 0/2's P/D flag),
+        // sourced from the same analyzer data as the service tables.
+        if (m_tab2_digitalServices) {
+            QStringList digital;
+            for (const DABService& svc : m_figAnalyzer->getDABServices()) {
+                if (svc.service_type != 1) {
+                    continue;
+                }
+                QString sid = QString("0x%1")
+                                  .arg(svc.service_id, 8, 16, QChar('0'))
+                                  .toUpper();
+                if (!svc.service_label.isEmpty()) {
+                    sid += QString(" (%1)").arg(svc.service_label);
+                }
+                digital << sid;
+            }
+            m_tab2_digitalServices->setText(
+                digital.isEmpty()
+                    ? QStringLiteral("Digital services: none")
+                    : QString("Digital services: %1 — %2")
+                          .arg(digital.size())
+                          .arg(digital.join(QStringLiteral(", "))));
+        }
         qDebug() << "[PHASE 6.1] Tab 2 overview labels updated";
     }
     
@@ -5898,8 +6152,12 @@ private:
         buildSharedBottomDocks();
         mainVerticalSplitter->addWidget(bottomHost);
 
-        // Set vertical split: 70% tabs, 30% bottom dock area (700px : 300px)
-        mainVerticalSplitter->setSizes({700, 300});
+        // T30.1: the shared strip is a quick status read, not a workspace. Cap
+        // its height so it cannot grow beyond ~120 px (≈5 monospace lines plus
+        // the dock tab bar); the System Messages QTextEdit stays scrollable with
+        // ~3-5 visible lines. Initial split ≈ 89% workspace / 11% strip.
+        bottomHost->setMaximumHeight(120);
+        mainVerticalSplitter->setSizes({880, 110});
 
         // Manual-test finding 1: matching tab touch for the Qt-ADS dock tab
         // bars (appends to the ADS default stylesheet; see helper).
@@ -6025,9 +6283,9 @@ private:
         // toolbar above the page) and Messages moved to the shared bottom
         // strip; the remaining 14 panels are grouped into tabbed dock areas:
         //   LEFT  : Transport (Player | Decoder), System
-        //   CENTER: Signal Analysis (Ensemble Explorer | Subchannel Org |
-        //           CU Usage), Frame Analysis (ETI Frame Navigator |
-        //           Hex/ETSI Compliance), Now Playing
+        //   CENTER: Now Playing, Signal Analysis (Ensemble Explorer |
+        //           Subchannel Org | CU Usage), Frame Analysis
+        //           (ETI Frame Navigator | Hex/ETSI Compliance)
         //   RIGHT : Signal Info (ETI Overview | Status | Timing),
         //           Error & Statistics (DAB Error Counter | Stream Stats)
         // Each panel keeps its OWN CDockWidget (float/auto-hide/close-one-tab
@@ -6073,7 +6331,7 @@ private:
         transportFirst->dockAreaWidget()->setCurrentDockWidget(transportFirst);
         m_tab1DockManager->addDockWidget(ads::LeftDockWidgetArea, D("tab1_System"), nullptr);
 
-        // === CENTER column: Signal Analysis, Frame Analysis, Now Playing ===
+        // === CENTER column: Now Playing, Signal Analysis, Frame Analysis ===
         ads::CDockWidget* signalAnalysisFirst = D("tab1_EnsembleExplorer");
         m_tab1DockManager->addDockWidget(ads::CenterDockWidgetArea, signalAnalysisFirst, nullptr);
         m_tab1DockManager->addDockWidgetTabToArea(D("tab1_SubchannelOrg"), signalAnalysisFirst->dockAreaWidget());
@@ -6146,13 +6404,14 @@ private:
         // structure into our column splitters, preserving top->bottom order
         // (QSplitter::addWidget() reparents an area out of its old splitter).
         // Tabified docks SHARE one CDockAreaWidget -> add each unique area once.
-        // Center order (mockup, top->bottom): Signal Analysis, Frame Analysis,
-        // Now Playing.
+        // T30.5 center order (top->bottom): Now Playing / Slideshow first,
+        // then Signal Analysis (Ensemble Explorer | Subchannel Org | CU Usage),
+        // then Frame Analysis (ETI Frame Navigator | Hex/ETSI Compliance).
         QSet<ads::CDockAreaWidget*> moved;
         const QList<ads::CDockWidget*> centerDocks = {
+            D("tab1_NowPlaying"),
             D("tab1_EnsembleExplorer"), D("tab1_SubchannelOrg"), D("tab1_CUUsage"),
-            D("tab1_FrameNavigator"), D("tab1_HexCompliance"),
-            D("tab1_NowPlaying")};
+            D("tab1_FrameNavigator"), D("tab1_HexCompliance")};
         for (ads::CDockWidget* d : centerDocks) {
             if (ads::CDockAreaWidget* a = d->dockAreaWidget()) {
                 if (!moved.contains(a)) {
@@ -6217,7 +6476,9 @@ private:
             nowPlayingArea->setMinimumHeight(200);
         }
         if (centerV->count() == 3) {
-            centerV->setSizes({190, 150, 200});  // Signal Analysis ≈ 190, Frame Analysis flex, Now Playing ≈ 200
+            // T30.5: Now Playing (top) ≈ 200 (matches the 200 px minimum set
+            // above), Signal Analysis ≈ 190, Frame Analysis takes the rest.
+            centerV->setSizes({200, 190, 150});
         }
 
         // Observation (a): reparenting the areas during the splitter surgery
@@ -6713,19 +6974,28 @@ private:
         if (!m_tab2_subchannelOrgSummary) {
             m_tab2_subchannelOrgSummary = new QLabel("Sub-Channels: awaiting decode");
         }
+        // T33.1: the removed "Digital Org Info" panel's intent is folded into
+        // Overview as one compact line summarising the FIC-decoded data
+        // services (same analyzer data the service tables use).
+        if (!m_tab2_digitalServices) {
+            m_tab2_digitalServices = new QLabel("Digital services: awaiting decode");
+        }
         
         m_tab2_ensembleName->setWordWrap(true);
         m_tab2_ficContentSummary->setWordWrap(true);
         m_tab2_subchannelOrgSummary->setWordWrap(true);
+        m_tab2_digitalServices->setWordWrap(true);
         
         overviewLayout->addWidget(m_tab2_ensembleName);
         overviewLayout->addWidget(m_tab2_ficContentSummary);
         overviewLayout->addWidget(m_tab2_subchannelOrgSummary);
+        overviewLayout->addWidget(m_tab2_digitalServices);
         overviewLayout->addStretch();
         
         layout->addWidget(overviewGroup, 20);
 
-        // 2. Service Tree (QTreeWidget) - 40%
+        // 2. Service Tree (QTreeWidget) - T33.3: expands 40% -> 60% now that
+        // Digital Org Info is gone and Service Components moved to the center.
         QGroupBox* serviceTreeGroup = new QGroupBox("Service Tree");
         QVBoxLayout* serviceTreeLayout = new QVBoxLayout(serviceTreeGroup);
         
@@ -6736,35 +7006,7 @@ private:
         }
         serviceTreeLayout->addWidget(m_tab2_serviceTree);
         
-        layout->addWidget(serviceTreeGroup, 40);
-
-        // 3. Digital Org Info (QLabel list) - 20%
-        QGroupBox* digitalOrgGroup = new QGroupBox("Digital Org Info");
-        QVBoxLayout* digitalOrgLayout = new QVBoxLayout(digitalOrgGroup);
-        
-        if (!m_tab2_digitalOrgInfo) {
-            m_tab2_digitalOrgInfo = new QTextEdit();
-            m_tab2_digitalOrgInfo->setReadOnly(true);
-            m_tab2_digitalOrgInfo->setPlaceholderText(
-                "Digital service IDs / names decoded from the FIC "
-                "(FIG 1/1 labels + FIG 0/2 organisation) appear here.");
-        }
-        digitalOrgLayout->addWidget(m_tab2_digitalOrgInfo);
-        
-        layout->addWidget(digitalOrgGroup, 20);
-
-        // 4. Service Components (QTreeWidget) - 20%
-        QGroupBox* componentsGroup = new QGroupBox("Service Components");
-        QVBoxLayout* componentsLayout = new QVBoxLayout(componentsGroup);
-        
-        if (!m_tab2_serviceComponents) {
-            m_tab2_serviceComponents = new QTreeWidget();
-            m_tab2_serviceComponents->setHeaderLabels({"Component", "Type", "Details"});
-            m_tab2_serviceComponents->setAlternatingRowColors(true);
-        }
-        componentsLayout->addWidget(m_tab2_serviceComponents);
-        
-        layout->addWidget(componentsGroup, 20);
+        layout->addWidget(serviceTreeGroup, 60);
 
         return panel;
     }
@@ -6776,7 +7018,10 @@ private:
         layout->setContentsMargins(2, 2, 2, 2);
         layout->setSpacing(4);
 
-        // 1. Ensemble Table (10 columns) - 33%
+        // T33.2: center height split 4 ways (~25% each):
+        // Ensemble Table / Sub-Channel Table / Service Table / Service Components.
+
+        // 1. Ensemble Table (10 columns) - 25%
         QGroupBox* ensembleTableGroup = new QGroupBox("Ensemble Table");
         QVBoxLayout* ensembleTableLayout = new QVBoxLayout(ensembleTableGroup);
         
@@ -6791,9 +7036,9 @@ private:
         }
         ensembleTableLayout->addWidget(m_tab2_ensembleTable);
         
-        layout->addWidget(ensembleTableGroup, 33);
+        layout->addWidget(ensembleTableGroup, 25);
 
-        // 2. Sub-Channel Table (10 columns) - 33%
+        // 2. Sub-Channel Table (10 columns) - 25%
         QGroupBox* subchannelTableGroup = new QGroupBox("Sub-Channel Table");
         QVBoxLayout* subchannelTableLayout = new QVBoxLayout(subchannelTableGroup);
         
@@ -6808,9 +7053,9 @@ private:
         }
         subchannelTableLayout->addWidget(m_tab2_subchannelTable);
         
-        layout->addWidget(subchannelTableGroup, 33);
+        layout->addWidget(subchannelTableGroup, 25);
 
-        // 3. Service Table (4 columns) - 34%
+        // 3. Service Table (4 columns) - 25%
         QGroupBox* serviceTableGroup = new QGroupBox("Service Table");
         QVBoxLayout* serviceTableLayout = new QVBoxLayout(serviceTableGroup);
         
@@ -6825,7 +7070,21 @@ private:
         }
         serviceTableLayout->addWidget(m_tab2_serviceTable);
         
-        layout->addWidget(serviceTableGroup, 34);
+        layout->addWidget(serviceTableGroup, 25);
+
+        // 4. Service Components (QTreeWidget) - 25% (moved here from the left
+        // panel in T33.2).
+        QGroupBox* componentsGroup = new QGroupBox("Service Components");
+        QVBoxLayout* componentsLayout = new QVBoxLayout(componentsGroup);
+        
+        if (!m_tab2_serviceComponents) {
+            m_tab2_serviceComponents = new QTreeWidget();
+            m_tab2_serviceComponents->setHeaderLabels({"Component", "Type", "Details"});
+            m_tab2_serviceComponents->setAlternatingRowColors(true);
+        }
+        componentsLayout->addWidget(m_tab2_serviceComponents);
+        
+        layout->addWidget(componentsGroup, 25);
 
         return panel;
     }
@@ -7336,13 +7595,24 @@ private:
         )";
         groupBox->setStyleSheet(nowPlayingStyle);
         
+        // T30.3: palette-derived, high-contrast metadata colours. The previous
+        // fixed light-theme greys (#333/#555/#777) were near-invisible on the
+        // app's dark surface (and #1976d2 was too dim there as well).
+        //   track  : brand accent (#4a8fd4) + bold 14 px  -> most prominent
+        //   artist : palette(text) 12 px                  -> full contrast
+        //   album  : palette(mid) 11 px italic            -> dimmer third tier
+        // palette(...) tracks the user's light/dark system theme, so the same
+        // hierarchy reads on either background. The track colour is the
+        // INTENTIONAL brand accent (#4a8fd4, the app's selected-tab colour); on
+        // a light theme it has lower contrast than palette(text), accepted as
+        // the deliberate accent trade-off (bold + larger size keeps it legible).
         // Track title row
         QHBoxLayout* trackRow = new QHBoxLayout();
         QLabel* trackTitleLabel = new QLabel("Track:");
-        trackTitleLabel->setStyleSheet("font-weight: bold; color: #333;");
+        trackTitleLabel->setStyleSheet("font-weight: bold; color: palette(text);");
         trackRow->addWidget(trackTitleLabel);
         m_trackLabel = new QLabel("--");
-        m_trackLabel->setStyleSheet("font-weight: bold; font-size: 14px; color: #1976d2;");
+        m_trackLabel->setStyleSheet("font-weight: bold; font-size: 14px; color: #4a8fd4;");
         m_trackLabel->setWordWrap(true);
         trackRow->addWidget(m_trackLabel, 1);
         layout->addLayout(trackRow);
@@ -7350,10 +7620,10 @@ private:
         // Artist row
         QHBoxLayout* artistRow = new QHBoxLayout();
         QLabel* artistTitleLabel = new QLabel("Artist:");
-        artistTitleLabel->setStyleSheet("font-weight: bold; color: #333;");
+        artistTitleLabel->setStyleSheet("font-weight: bold; color: palette(text);");
         artistRow->addWidget(artistTitleLabel);
         m_artistLabel = new QLabel("--");
-        m_artistLabel->setStyleSheet("font-size: 12px; color: #555;");
+        m_artistLabel->setStyleSheet("font-size: 12px; color: palette(text);");
         m_artistLabel->setWordWrap(true);
         artistRow->addWidget(m_artistLabel, 1);
         layout->addLayout(artistRow);
@@ -7361,10 +7631,10 @@ private:
         // Album row
         QHBoxLayout* albumRow = new QHBoxLayout();
         QLabel* albumTitleLabel = new QLabel("Album:");
-        albumTitleLabel->setStyleSheet("font-weight: bold; color: #333;");
+        albumTitleLabel->setStyleSheet("font-weight: bold; color: palette(text);");
         albumRow->addWidget(albumTitleLabel);
         m_albumLabel = new QLabel("--");
-        m_albumLabel->setStyleSheet("font-size: 11px; color: #777; font-style: italic;");
+        m_albumLabel->setStyleSheet("font-size: 11px; color: palette(mid); font-style: italic;");
         m_albumLabel->setWordWrap(true);
         albumRow->addWidget(m_albumLabel, 1);
         layout->addLayout(albumRow);
@@ -7416,10 +7686,12 @@ private:
         slideLayout->addWidget(m_slideshowInfo);
 
         m_nowPlayingSplitter->addWidget(slidePanel);
-        // Initial 45 / 55 split; the user may drag it (unequal allowed).
-        m_nowPlayingSplitter->setStretchFactor(0, 45);
-        m_nowPlayingSplitter->setStretchFactor(1, 55);
-        m_nowPlayingSplitter->setSizes({450, 550});
+        // T30.4: default DLS+ : Slideshow = 2/3 : 1/3 (text gets the room; the
+        // 4:3 letterbox still shows at this width). Draggable and
+        // non-collapsible (set above).
+        m_nowPlayingSplitter->setStretchFactor(0, 2);
+        m_nowPlayingSplitter->setStretchFactor(1, 1);
+        m_nowPlayingSplitter->setSizes({667, 333});
         outerLayout->addWidget(m_nowPlayingSplitter);
 
         return groupBox;
@@ -7443,6 +7715,10 @@ private:
     // Manual-test finding 3: Now Playing (DLS+) panel state helpers.
     void resetNowPlayingPanel()
     {
+        // T31: clear the captured DLS values with the panel state.
+        m_curTrack.clear();
+        m_curArtist.clear();
+        m_curAlbum.clear();
         if (m_trackLabel) {
             m_trackLabel->setText("--");
         }
@@ -9125,14 +9401,17 @@ private:
     QLabel* m_tab2_ensembleName = nullptr;
     QLabel* m_tab2_ficContentSummary = nullptr;
     QLabel* m_tab2_subchannelOrgSummary = nullptr;
+    // T33.1: folded-in summary of the FIC-decoded data services (replaces the
+    // removed Digital Org Info panel).
+    QLabel* m_tab2_digitalServices = nullptr;
     QTreeWidget* m_tab2_serviceTree = nullptr;
-    QTextEdit* m_tab2_digitalOrgInfo = nullptr;
-    QTreeWidget* m_tab2_serviceComponents = nullptr;
     
     // CENTER Panel widgets
     QTableWidget* m_tab2_ensembleTable = nullptr;  // 10 columns
     QTableWidget* m_tab2_subchannelTable = nullptr;  // 10 columns
     QTableWidget* m_tab2_serviceTable = nullptr;  // 4 columns
+    // T33.2: moved here from the left panel.
+    QTreeWidget* m_tab2_serviceComponents = nullptr;
     
     // RIGHT Panel widgets
     QTableWidget* m_tab2_figContentTable = nullptr;  // 4 columns
@@ -9190,9 +9469,7 @@ private:
     QLabel* m_slideshowImage = nullptr;
     QLabel* m_slideshowStatus = nullptr;
     QLabel* m_slideshowInfo = nullptr;
-    std::deque<QImage> m_slideHistory;
     QImage m_lastDecodedSlide;
-    static constexpr int MOT_SLIDE_HISTORY_MAX = 8;
     int m_motObjectsReceived{0};   // objectComplete signals seen
     int m_motImagesDecoded{0};     // successfully decoded images
     int m_motErrors{0};            // adapter parse errors surfaced
@@ -9209,6 +9486,21 @@ private:
     // per-subchannel MSC slices are reused from ProcessedFrame::sub_channels
     // (no raw-frame re-parse).
     std::map<int, DabPlusSubchannelParser> m_dlsParsers;
+    // T31 (rework): sparse load-time media timeline (0-based frame -> DLS/MOT
+    // snapshot). Only recorded when the state changes; a frame-0 entry always
+    // exists so Stop/Reset has a defined start state.
+    std::map<int, PlaybackMediaState> m_mediaTimeline;
+    // T31: bounded retained-slide store keyed by absolute id. FIFO eviction
+    // keeps the total image bytes under the cap; the fixture's 97 images fit.
+    std::deque<RetainedSlide> m_retainedSlides;
+    int m_retainedSlideBaseId{0};    // id of m_retainedSlides.front()
+    int m_retainedSlideNextId{0};    // id assigned to the next decoded slide
+    qint64 m_retainedSlideBytes{0};
+    int m_lastMotImageId{-1};        // latest decoded slide id (-1 = none yet)
+    QString m_curTrack;              // latest decoded DLS values (timeline input)
+    QString m_curArtist;
+    QString m_curAlbum;
+    static constexpr qint64 RETAINED_SLIDE_BYTE_CAP = 32 * 1024 * 1024;  // 32 MB
     // Cached DAB+ subchannel -> (service id, label) map (Finding 4): the
     // analyzer's getDABServices() copies the whole service vector, so it is
     // only re-read when a service/subchannel count changes or a discovery
