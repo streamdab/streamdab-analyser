@@ -26,7 +26,11 @@ struct ProcessedFrame {
     uint32_t sync_pattern = 0;
     uint32_t lidata = 0;
     QByteArray fic_data;
-    QByteArray msc_data;
+    // T24: total concatenated MSC size (bytes). The MSC bytes themselves are
+    // owned exactly once, by the per-subchannel slices below — this replaces
+    // the old duplicate `msc_data` copy and is only used for byte-count
+    // metrics. Defaults to 0 (no MSC).
+    std::size_t msc_size = 0;
     // Per-subchannel MSC slices already extracted by the frame parser, so
     // downstream consumers (e.g. DLS+ PAD parsing) can reuse them instead of
     // re-running parseHeader()/extractMSC() on the raw frame.
@@ -34,92 +38,31 @@ struct ProcessedFrame {
         uint8_t sub_channel_id = 0;
         QByteArray data;
     };
-    std::vector<SubChannelSlice> sub_channels;
+    // T24: held behind a shared_ptr<const vector> so the frameProcessed()
+    // signal hand-off (by-value / queued connections) is an O(1) refcount bump
+    // instead of a deep copy of every ~5-6 KB slice each frame. Null means the
+    // frame carries no MSC slices.
+    std::shared_ptr<const std::vector<SubChannelSlice>> sub_channels;
     uint32_t crc = 0;
     QDateTime timestamp;
     bool is_valid = false;
-    
-    // Default constructor
+
+    // Default-constructible/copyable/movable: required by Q_DECLARE_METATYPE
+    // and Qt::QueuedConnection. The shared_ptr makes copies cheap and keeps the
+    // slice bytes alive across a queued hand-off (refcounted, immutable).
     ProcessedFrame() = default;
-    
-    // Explicit copy constructor with deep copy to fix Qt::QueuedConnection crash
-    ProcessedFrame(const ProcessedFrame& other)
-        : frame_number(other.frame_number)
-        , format(other.format)
-        , sync_pattern(other.sync_pattern)
-        , lidata(other.lidata)
-        , fic_data(other.fic_data)
-        , msc_data(other.msc_data)
-        , sub_channels(other.sub_channels)
-        , crc(other.crc)
-        , timestamp(other.timestamp)
-        , is_valid(other.is_valid)
-    {
-        // Force deep copy to avoid Qt implicit sharing issues with queued signals
-        fic_data.detach();
-        msc_data.detach();
-        for (auto& sc : sub_channels) {
-            sc.data.detach();
-        }
+    ProcessedFrame(const ProcessedFrame&) = default;
+    ProcessedFrame& operator=(const ProcessedFrame&) = default;
+    ProcessedFrame(ProcessedFrame&&) noexcept = default;
+    ProcessedFrame& operator=(ProcessedFrame&&) noexcept = default;
+
+    // Convenience accessors that never dereference the null shared_ptr.
+    bool hasSubChannels() const {
+        return sub_channels && !sub_channels->empty();
     }
-    
-    // Copy assignment operator
-    ProcessedFrame& operator=(const ProcessedFrame& other) {
-        if (this != &other) {
-            frame_number = other.frame_number;
-            format = other.format;
-            sync_pattern = other.sync_pattern;
-            lidata = other.lidata;
-            fic_data = other.fic_data;
-            msc_data = other.msc_data;
-            sub_channels = other.sub_channels;
-            crc = other.crc;
-            timestamp = other.timestamp;
-            is_valid = other.is_valid;
-            fic_data.detach();
-            msc_data.detach();
-            for (auto& sc : sub_channels) {
-                sc.data.detach();
-            }
-        }
-        return *this;
-    }
-    
-    // Move constructor - CRITICAL for std::vector reallocation safety
-    ProcessedFrame(ProcessedFrame&& other) noexcept
-        : frame_number(other.frame_number)
-        , format(other.format)
-        , sync_pattern(other.sync_pattern)
-        , lidata(other.lidata)
-        , fic_data(std::move(other.fic_data))
-        , msc_data(std::move(other.msc_data))
-        , sub_channels(std::move(other.sub_channels))
-        , crc(other.crc)
-        , timestamp(std::move(other.timestamp))
-        , is_valid(other.is_valid)
-    {
-        // QByteArray move is safe, but detach to ensure independence
-        fic_data.detach();
-        msc_data.detach();
-    }
-    
-    // Move assignment operator - CRITICAL for std::vector operations
-    ProcessedFrame& operator=(ProcessedFrame&& other) noexcept {
-        if (this != &other) {
-            frame_number = other.frame_number;
-            format = other.format;
-            sync_pattern = other.sync_pattern;
-            lidata = other.lidata;
-            fic_data = std::move(other.fic_data);
-            msc_data = std::move(other.msc_data);
-            sub_channels = std::move(other.sub_channels);
-            crc = other.crc;
-            timestamp = std::move(other.timestamp);
-            is_valid = other.is_valid;
-            fic_data.detach();
-            msc_data.detach();
-        }
-        return *this;
+    const std::vector<SubChannelSlice>& subChannels() const {
+        static const std::vector<SubChannelSlice> kNoSubChannels;
+        return sub_channels ? *sub_channels : kNoSubChannels;
     }
 };
 

@@ -67,6 +67,8 @@ public:
     
     // Phase C: UDP configuration methods
     void setUDPPort(quint16 port);
+    // F7: configured UDP port (default 12000) — used to seed the settings dialog.
+    quint16 getUDPPort() const { return m_udpPort; }
     void setMulticastAddress(const QString& address);
     void setUseMulticast(bool enable);
     int getPacketsReceived() const { return m_packetsReceived; }
