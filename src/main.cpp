@@ -64,6 +64,7 @@
 #include <atomic>               // Phase 1.1: Thread-safe counter
 #include <algorithm>            // std::min (DLS+ F-PAD candidate extraction)
 #include <exception>            // std::exception (frame-decode try/catch guards)
+#include <limits>               // std::numeric_limits (T32 slide eviction)
 
 #include "core/enhanced_eti_processor_qt.h"
 #include "core/crc16.hpp"  // shared CRC-16/CCITT-FALSE (AU + DL Data Group CRC)
@@ -804,12 +805,30 @@ struct PlaybackMediaState {
     bool operator!=(const PlaybackMediaState& o) const { return !(*this == o); }
 };
 
+// T32: per-service sparse media history keyed by the service id (SId). The T31
+// timeline was global (the last-fed service won each frame); scoping it per
+// service lets the Player's service selector show exactly one service's
+// DLS+/slideshow at the playhead — no cross-service leakage.
+using ServiceMediaTimeline = std::map<int, PlaybackMediaState>;
+
 // One decoded MOT slide retained for scrubbing, together with the panel strings
 // produced at load time so a playhead lookup needs no decode and no adapter.
 struct RetainedSlide {
     QImage image;
-    QString status;  // e.g. "Showing slide 12 — JPEG"
-    QString info;    // full info line as decoded at load
+    QString status;        // e.g. "Showing slide 12 — JPEG"
+    QString info;          // full info line as decoded at load
+    quint64 sequence = 0;  // T32: global insertion order (cross-service eviction)
+};
+
+// T32: per-service retained-slide ring. Ids are scoped to the service's own
+// store (`baseId`/`nextId`), so a per-service timeline's `motImageId` always
+// resolves against the owning service's slides and can never show another
+// service's picture. The byte cap is enforced globally (see
+// appendRetainedSlide) so N services cannot multiply the memory bound.
+struct RetainedSlideStore {
+    std::deque<RetainedSlide> slides;
+    int baseId = 0;  // id of slides.front()
+    int nextId = 0;  // id assigned to the next decoded slide
 };
 
 class DABAnalyzerWindow : public QMainWindow
@@ -932,6 +951,11 @@ public:
     {
         return m_figAnalyzer ? static_cast<int>(m_figAnalyzer->figInstances().size()) : 0;
     }
+    // T32: the analyzer's service count (the service selector is populated 1:1).
+    int analyzerServiceCountForTest() const
+    {
+        return m_figAnalyzer ? m_figAnalyzer->getServiceCount() : 0;
+    }
     int analyzerTotalFigCount() const
     {
         return m_figAnalyzer ? m_figAnalyzer->getTotalFIGsProcessed() : 0;
@@ -983,16 +1007,76 @@ public:
     int dlsPlusPadCallCountForTest() const { return m_dlsPlusPadCalls; }
     int dlsPlusLabelsAssembledForTest() const { return m_dlsPlusLabelsAssembled; }
     QStringList dlsLabelsSeenForTest() const { return m_dlsLabelsSeen; }
-    // T31 (rework): read-only view of the load-time media timeline + retained
-    // slides for the strengthened playback test. Mutating drivers live in the
-    // GUI_TEST_MODE block with the other playback hooks.
-    const std::map<int, PlaybackMediaState>& playbackMediaTimelineForTest() const
+    // T31 (rework) / T32: read-only view of the SELECTED service's load-time
+    // media timeline + the aggregate retained-slide store for the strengthened
+    // playback tests. Mutating drivers live in the GUI_TEST_MODE block with the
+    // other playback hooks.
+    const ServiceMediaTimeline& playbackMediaTimelineForTest() const
     {
-        return m_mediaTimeline;
+        static const ServiceMediaTimeline kEmpty;
+        auto it = m_mediaTimelineByService.find(m_selectedServiceId);
+        return it == m_mediaTimelineByService.end() ? kEmpty : it->second;
     }
     int playbackMediaTimelineSizeForTest() const
     {
-        return static_cast<int>(m_mediaTimeline.size());
+        auto it = m_mediaTimelineByService.find(m_selectedServiceId);
+        return it == m_mediaTimelineByService.end()
+                   ? 0
+                   : static_cast<int>(it->second.size());
+    }
+    // T32: per-service timeline for an arbitrary service (empty map if none).
+    const ServiceMediaTimeline& playbackMediaTimelineForServiceForTest(quint32 serviceId) const
+    {
+        static const ServiceMediaTimeline kEmpty;
+        auto it = m_mediaTimelineByService.find(serviceId);
+        return it == m_mediaTimelineByService.end() ? kEmpty : it->second;
+    }
+    // T32: services that have at least one recorded media state (sorted by SId).
+    QList<quint32> serviceIdsWithTimelineForTest() const
+    {
+        QList<quint32> ids;
+        ids.reserve(static_cast<int>(m_mediaTimelineByService.size()));
+        for (const auto& entry : m_mediaTimelineByService) {
+            ids.append(entry.first);
+        }
+        return ids;
+    }
+    // T32: the Player panel's service selector + its current selection.
+    QComboBox* playerServiceSelectorForTest() const { return m_serviceCombo; }
+    quint32 selectedServiceIdForTest() const { return m_selectedServiceId; }
+    QString selectedServiceDisplayForTest() const { return selectedServiceDisplay(); }
+    QStringList serviceSelectorItemsForTest() const
+    {
+        QStringList items;
+        if (m_serviceCombo) {
+            for (int i = 0; i < m_serviceCombo->count(); ++i) {
+                items << m_serviceCombo->itemText(i);
+            }
+        }
+        return items;
+    }
+    QList<quint32> serviceSelectorIdsForTest() const
+    {
+        QList<quint32> ids;
+        if (m_serviceCombo) {
+            for (int i = 0; i < m_serviceCombo->count(); ++i) {
+                ids.append(m_serviceCombo->itemData(i).toUInt());
+            }
+        }
+        return ids;
+    }
+    // T32: service ids whose first/only component is DAB+ audio (ASCTy 0x3F).
+    QList<quint32> dabPlusServiceIdsForTest() const
+    {
+        QList<quint32> ids;
+        if (m_figAnalyzer) {
+            for (const DABService& svc : m_figAnalyzer->getDABServices()) {
+                if (serviceHasDabPlusAudio(svc)) {
+                    ids.append(svc.service_id);
+                }
+            }
+        }
+        return ids;
     }
     // Refinement A test hook: drive the REAL DAB+ superframe/AU/PAD parser on
     // a synthetic superframe and feed the assembled DLS to the decoder.
@@ -1131,10 +1215,37 @@ public:
     QString lastMotContentNameForTest() const { return m_lastMotContentName; }
     QString lastMotClickThroughUrlForTest() const { return m_lastMotClickThroughUrl; }
     QString lastMotCategoryTitleForTest() const { return m_lastMotCategoryTitle; }
-    // T31 (rework): the ≤8 slide history was replaced by a byte-capped
-    // retained store so the playhead can scrub back to any decoded slide.
-    int retainedSlideCountForTest() const { return static_cast<int>(m_retainedSlides.size()); }
+    // T31 (rework)/T32: the ≤8 slide history was replaced by a byte-capped
+    // retained store (now per service) so the playhead can scrub back to any
+    // decoded slide. The counters aggregate across services for the fixture
+    // parity assertions.
+    int retainedSlideCountForTest() const { return static_cast<int>(m_retainedSlideCount); }
     qint64 retainedSlideBytesForTest() const { return m_retainedSlideBytes; }
+    // T32 review #4: resolve a slide id within ONE service's store. `noteOut`
+    // receives the " (nearest retained image)" eviction note; statusOut the
+    // resolved slide's tag. Returns false when that service has no slide.
+    bool retainedSlideResolvesForTest(quint32 serviceId, int imageId, QString& noteOut,
+                                      QString& statusOut) const
+    {
+        noteOut.clear();
+        statusOut.clear();
+        const RetainedSlide* s = findRetainedSlide(serviceId, imageId, noteOut);
+        if (!s) {
+            return false;
+        }
+        statusOut = s->status;
+        return true;
+    }
+    int retainedSlideBaseIdForTest(quint32 serviceId) const
+    {
+        auto it = m_slidesByService.find(serviceId);
+        return it == m_slidesByService.end() ? 0 : it->second.baseId;
+    }
+    int retainedSlideNextIdForTest(quint32 serviceId) const
+    {
+        auto it = m_slidesByService.find(serviceId);
+        return it == m_slidesByService.end() ? 0 : it->second.nextId;
+    }
     quint32 lastMotTransportIdForTest() const { return m_lastMotTransportId; }
     QImage slideshowImageForTest() const { return m_lastDecodedSlide; }
     QString slideshowStatusForTest() const
@@ -1248,16 +1359,15 @@ private slots:
         m_dlsPlusPadCalls = 0;
         m_dlsPlusLabelsAssembled = 0;
         m_dlsParsers.clear();
-        // T31 (rework): reset the load-time media timeline + retained slides.
-        m_mediaTimeline.clear();
-        m_retainedSlides.clear();
-        m_retainedSlideBaseId = 0;
-        m_retainedSlideNextId = 0;
+        // T31 (rework) / T32: reset the per-service media timelines + the
+        // per-service retained slides. The byte cap/sequence are global.
+        m_mediaTimelineByService.clear();
+        m_liveServiceMediaState.clear();
+        m_slidesByService.clear();
+        m_retainedSlideCount = 0;
         m_retainedSlideBytes = 0;
-        m_lastMotImageId = -1;
-        m_curTrack.clear();
-        m_curArtist.clear();
-        m_curAlbum.clear();
+        m_retainedSlideSequence = 0;
+        m_timelineRecordFrame = -1;
         m_dabPlusSubChannels.clear();
         m_serviceBySubChannel.clear();
         m_dabPlusServiceMapDirty = true;
@@ -1268,6 +1378,9 @@ private slots:
         m_pendingServiceId = 0;
         m_pendingServiceLabel.clear();
         resetNowPlayingPanel();
+        // T32: the service selector is re-populated once the new capture's
+        // services are known; clear stale items + selection and disable it.
+        resetServiceSelectorForLoad();
         // T29: stop the playhead + disable the transport while parsing.
         stopPlaybackForLoad();
         // MOT SlideShow: clear the decoder + adapter and the slideshow tab.
@@ -1482,17 +1595,18 @@ private slots:
         
         // === Manual-test finding 3: feed the GUI DLS+ decoder ===
         // (was constructed but never fed, so Now Playing stayed empty)
+        // T32: the frame index is published so feedDlsPlusPad()/onMotObject-
+        // Complete() can record the per-service media state at THIS frame while
+        // the shared parser/adapter runs. Reset afterwards so feeds outside the
+        // load loop (tests) never record.
         {
+            m_timelineRecordFrame = rawIndex;
             QElapsedTimer dlsTimer;
             dlsTimer.start();
             processDlsPlusFromFrame(frame);
             m_dlsPipelineNs += dlsTimer.nsecsElapsed();
+            m_timelineRecordFrame = -1;
         }
-
-        // T31: snapshot the media state AFTER this frame was fed so the
-        // playhead can replay it without re-parsing (sparse; ~1200 entries on
-        // the fixture). rawIndex == frame.frame_number - 1 (0-based).
-        recordPlaybackMediaState(rawIndex);
 
         // === F8: Performance Dashboard live metrics ===
         // Cheap (counter arithmetic; label updates throttled to 100 ms) and
@@ -1617,58 +1731,164 @@ private slots:
     }
 
     // ========================================================================
-    // T31 (rework): load-time timeline record + playhead lookup
+    // T31 (rework) / T32: per-service load-time media history + playhead lookup
     // ========================================================================
-    // Called once per fed frame from onFrameProcessed(). Records the CURRENT
-    // DLS values + MOT image identity only when they change (sparse: the
-    // fixture yields ~1200 entries over 5001 frames). A frame-0 entry is always
-    // recorded so Stop/Reset has a well-defined "start of capture" state.
-    void recordPlaybackMediaState(int frameIndex)
+    // Recording is done at FEED time (inside feedDlsPlusPad / onMotObject-
+    // Complete) while m_timelineRecordFrame is the current 0-based frame, and
+    // only when that service's state changes (sparse). A frame-0 baseline
+    // entry is seeded for any service whose first change is later, so Stop/
+    // Reset always has a well-defined "start of capture" state.
+    void recordServiceMediaState(quint32 serviceId, int frameIndex)
     {
         if (frameIndex < 0) {
             return;
         }
-        PlaybackMediaState st;
-        st.track = m_curTrack;
-        st.artist = m_curArtist;
-        st.album = m_curAlbum;
-        st.motImageId = m_lastMotImageId;
-        if (frameIndex != 0 && !m_mediaTimeline.empty()
-            && m_mediaTimeline.rbegin()->second == st) {
+        auto liveIt = m_liveServiceMediaState.find(serviceId);
+        if (liveIt == m_liveServiceMediaState.end()) {
+            return;
+        }
+        ServiceMediaTimeline& tl = m_mediaTimelineByService[serviceId];
+        if (tl.empty() && frameIndex != 0) {
+            tl.emplace(0, PlaybackMediaState{});
+        }
+        if (!tl.empty() && tl.rbegin()->second == liveIt->second) {
             return;  // sparse: nothing changed at this frame
         }
-        m_mediaTimeline[frameIndex] = st;
+        tl[frameIndex] = liveIt->second;
     }
 
-    // Retain a decoded MOT slide for scrubbing. FIFO eviction keeps the total
-    // image bytes under RETAINED_SLIDE_BYTE_CAP; ids are absolute so the
-    // timeline reference stays valid across eviction.
-    void appendRetainedSlide(RetainedSlide slide)
+    // T32: a DLS label for `serviceId` decoded at `frameIndex` (load time).
+    void recordServiceDlsState(quint32 serviceId, int frameIndex, const QString& track,
+                               const QString& artist, const QString& album)
     {
-        m_retainedSlideBytes += slide.image.sizeInBytes();
-        m_retainedSlides.push_back(std::move(slide));
-        ++m_retainedSlideNextId;
-        while (m_retainedSlideBytes > RETAINED_SLIDE_BYTE_CAP
-               && m_retainedSlides.size() > 1) {
-            m_retainedSlideBytes -= m_retainedSlides.front().image.sizeInBytes();
-            m_retainedSlides.pop_front();
-            ++m_retainedSlideBaseId;
+        if (frameIndex < 0) {
+            return;
         }
+        PlaybackMediaState& live = m_liveServiceMediaState[serviceId];
+        live.track = track;
+        live.artist = artist;
+        live.album = album;
+        recordServiceMediaState(serviceId, frameIndex);
+    }
+
+    // T32: a MOT slide for `serviceId` decoded at `frameIndex` (load time).
+    void recordServiceMotState(quint32 serviceId, int frameIndex, int imageId)
+    {
+        if (frameIndex < 0) {
+            return;
+        }
+        PlaybackMediaState& live = m_liveServiceMediaState[serviceId];
+        live.motImageId = imageId;
+        recordServiceMediaState(serviceId, frameIndex);
+    }
+
+    // Retain a decoded MOT slide for scrubbing in that service's own store.
+    // Ids are scoped per service so a per-service timeline reference always
+    // resolves against the owning service (no cross-service leak). Eviction is
+    // globally FIFO by insertion sequence, so the total image bytes stay under
+    // the cap regardless of the number of services. The cap is a runtime member
+    // (default 32 MB) so the eviction path is testable with a tiny value.
+    void appendRetainedSlide(quint32 serviceId, RetainedSlide slide)
+    {
+        slide.sequence = m_retainedSlideSequence++;
+        RetainedSlideStore& store = m_slidesByService[serviceId];
+        m_retainedSlideBytes += slide.image.sizeInBytes();
+        store.slides.push_back(std::move(slide));
+        ++store.nextId;
+        ++m_retainedSlideCount;
+        while (m_retainedSlideBytes > m_retainedSlideByteCap && m_retainedSlideCount > 1) {
+            quint32 victim = 0;
+            quint64 minSeq = std::numeric_limits<quint64>::max();
+            bool found = false;
+            for (const auto& entry : m_slidesByService) {
+                if (!entry.second.slides.empty()
+                    && entry.second.slides.front().sequence < minSeq) {
+                    minSeq = entry.second.slides.front().sequence;
+                    victim = entry.first;
+                    found = true;
+                }
+            }
+            if (!found) {
+                break;
+            }
+            RetainedSlideStore& vs = m_slidesByService[victim];
+            m_retainedSlideBytes -= vs.slides.front().image.sizeInBytes();
+            vs.slides.pop_front();
+            ++vs.baseId;
+            --m_retainedSlideCount;
+        }
+    }
+
+    // Resolve a slide id IN `serviceId`'s store. An evicted id falls back to
+    // that service's nearest retained slide (and says so); a service with no
+    // retained slide returns nullptr (waiting state — never another service's
+    // image).
+    const RetainedSlide* findRetainedSlide(quint32 serviceId, int imageId,
+                                           QString& note) const
+    {
+        auto it = m_slidesByService.find(serviceId);
+        if (it == m_slidesByService.end() || it->second.slides.empty()) {
+            return nullptr;
+        }
+        const RetainedSlideStore& store = it->second;
+        const int lastId = store.nextId - 1;
+        int resolved = imageId;
+        if (resolved < store.baseId || resolved > lastId) {
+            resolved = qBound(store.baseId, resolved, lastId);
+            note = QStringLiteral(" (nearest retained image)");
+        }
+        return &store.slides[static_cast<size_t>(resolved - store.baseId)];
+    }
+
+    // The selected service as "label (0xSID)" / "SId 0xSID" (empty before load).
+    QString selectedServiceDisplay() const
+    {
+        if (m_selectedServiceLabel.isEmpty() && m_selectedServiceId == 0) {
+            return QString();
+        }
+        const QString sid = serviceSidHex(m_selectedServiceId);
+        if (!m_selectedServiceLabel.isEmpty()) {
+            return QString("%1 (%2)").arg(m_selectedServiceLabel, sid);
+        }
+        return QString("SId %1").arg(sid);
+    }
+
+    // Media panels' documented waiting state for the SELECTED service.
+    void showWaitingMediaStateForSelectedService()
+    {
+        if (m_trackLabel) m_trackLabel->setText(QStringLiteral("--"));
+        if (m_artistLabel) m_artistLabel->setText(QStringLiteral("--"));
+        if (m_albumLabel) m_albumLabel->setText(QStringLiteral("--"));
+        const QString svcText = selectedServiceDisplay();
+        if (m_lastUpdatedLabel) {
+            m_lastUpdatedLabel->setText(
+                svcText.isEmpty()
+                    ? tr("Waiting for DLS+…")
+                    : QString("Waiting for DLS+… · %1").arg(svcText));
+        }
+        applyRetainedSlideForPlayhead(-1);
     }
 
     // Pure lookup + panel apply (NO parser, NO MOT adapter, NO counter, NO
-    // decode). Finds the latest timeline entry at or before `frameIndex` and
-    // restores the DLS labels + slideshow image/status for that frame. Called
-    // from handleFrameSelection() — the throttled detail path and the forced
-    // seek/stop/reset path both reach it.
+    // decode) for the CURRENTLY SELECTED service. Finds the latest entry at or
+    // before `frameIndex` and restores that service's DLS labels + slide. When
+    // the selected service has no record at/before the frame, the panels show
+    // the waiting state instead of another service's metadata (T32).
     void refeedDlsForPlayhead(int frameIndex)
     {
-        if (m_mediaTimeline.empty() || frameIndex < 0) {
+        if (frameIndex < 0) {
+            return;  // negative playhead is a no-op (T31 invariant test)
+        }
+        auto tlIt = m_mediaTimelineByService.find(m_selectedServiceId);
+        if (tlIt == m_mediaTimelineByService.end() || tlIt->second.empty()) {
+            showWaitingMediaStateForSelectedService();
             return;
         }
-        auto it = m_mediaTimeline.upper_bound(frameIndex);
-        if (it == m_mediaTimeline.begin()) {
-            return;  // playhead precedes the first recorded state
+        const ServiceMediaTimeline& tl = tlIt->second;
+        auto it = tl.upper_bound(frameIndex);
+        if (it == tl.begin()) {
+            showWaitingMediaStateForSelectedService();
+            return;  // playhead precedes this service's first recorded state
         }
         --it;
         const PlaybackMediaState& st = it->second;
@@ -1685,8 +1905,13 @@ private slots:
             m_albumLabel->setText(st.album.isEmpty() ? QStringLiteral("--") : st.album);
         }
         if (m_lastUpdatedLabel) {
+            const QString svcText = selectedServiceDisplay();
             m_lastUpdatedLabel->setText(
-                QString("Frame %1 · replaying load metadata").arg(frameIndex + 1));
+                svcText.isEmpty()
+                    ? QString("Frame %1 · replaying load metadata").arg(frameIndex + 1)
+                    : QString("Frame %1 · %2 · replaying load metadata")
+                          .arg(frameIndex + 1)
+                          .arg(svcText));
         }
 
         applyRetainedSlideForPlayhead(st.motImageId);
@@ -1694,44 +1919,44 @@ private slots:
 
     // Restore the slideshow panel from a retained-slide identity. A negative id
     // means no image had been decoded at/before that frame -> show the
-    // pre-slideshow state. An evicted id falls back to the nearest retained
-    // slide and says so in the status line.
+    // pre-slideshow state. Resolution is scoped to the selected service, so a
+    // missing/evicted id can never show another service's picture.
     void applyRetainedSlideForPlayhead(int imageId)
     {
         if (!m_slideshowImage) {
             return;
         }
+        const QString svcText = selectedServiceDisplay();
         if (imageId < 0) {
             m_lastDecodedSlide = QImage();
             m_slideshowImage->clear();
             m_slideshowImage->setText(tr("Waiting for slideshow…"));
             if (m_slideshowStatus) {
-                m_slideshowStatus->setText(tr("Waiting for slideshow…"));
+                m_slideshowStatus->setText(
+                    svcText.isEmpty()
+                        ? tr("Waiting for slideshow…")
+                        : QString("Waiting for slideshow… · %1").arg(svcText));
             }
             if (m_slideshowInfo) {
-                m_slideshowInfo->setText(QStringLiteral("—"));
+                m_slideshowInfo->setText(svcText.isEmpty() ? QStringLiteral("—") : svcText);
             }
             return;
         }
-        if (m_retainedSlides.empty()) {
-            return;  // nothing retained at all -> leave the panel as-is
-        }
-        const int lastId = m_retainedSlideNextId - 1;
-        int resolved = imageId;
         QString note;
-        if (resolved < m_retainedSlideBaseId || resolved > lastId) {
-            resolved = qBound(m_retainedSlideBaseId, resolved, lastId);
-            note = QStringLiteral(" (nearest retained image)");
+        const RetainedSlide* slide = findRetainedSlide(m_selectedServiceId, imageId, note);
+        if (!slide) {
+            // No slide retained for this service -> waiting state (never leak
+            // another service's image).
+            applyRetainedSlideForPlayhead(-1);
+            return;
         }
-        const RetainedSlide& slide =
-            m_retainedSlides[static_cast<size_t>(resolved - m_retainedSlideBaseId)];
-        m_lastDecodedSlide = slide.image;
+        m_lastDecodedSlide = slide->image;
         refreshSlideshowPixmap();
         if (m_slideshowStatus) {
-            m_slideshowStatus->setText(slide.status + note);
+            m_slideshowStatus->setText(slide->status + note);
         }
         if (m_slideshowInfo) {
-            m_slideshowInfo->setText(slide.info + note);
+            m_slideshowInfo->setText(slide->info + note);
         }
     }
 
@@ -1861,10 +2086,18 @@ private slots:
                 ++m_dlsPlusMessages;
                 // Collect decoded labels for GUI tests (Finding 1 round-trip /
                 // Thai-label assertions on the real fixture).
-                const QString label = m_dlsPlusDecoder->getCurrentMessage().dls_text;
+                const eti::dls_plus::DLSPlusMessage msg =
+                    m_dlsPlusDecoder->getCurrentMessage();
+                const QString label = msg.dls_text;
                 if (!label.isEmpty() && !m_dlsLabelsSeen.contains(label)) {
                     m_dlsLabelsSeen.append(label);
                 }
+                // T32: snapshot THIS service's media state at the current frame
+                // (the shared decoder's current message is the one just parsed).
+                recordServiceDlsState(serviceId, m_timelineRecordFrame,
+                                      msg.getTag("ITEM.TITLE"),
+                                      msg.getTag("ITEM.ARTIST"),
+                                      msg.getTag("ITEM.ALBUM"));
                 return true;
             }
         } catch (const std::exception& e) {
@@ -2017,6 +2250,11 @@ private slots:
         buildFrameList();
         // T29: playback starts at frame 0, paused, controls enabled.
         resetPlaybackForNewFile();
+        // T32: populate the Player's service selector from the decoded services
+        // and select the first DAB+ audio service (fallback: first service).
+        // The default service's latest state is then applied so the panels name
+        // the selected service immediately (review #3).
+        populateServiceSelector();
         
         // === PHASE 9: Update Tab 3 RIGHT panel ===
         buildFIGItemDetailsTree();
@@ -2075,10 +2313,18 @@ private slots:
                 << static_cast<int>(m_dlsParsers.size());
         qInfo() << "[DLS+] pipeline time (ms):" << (m_dlsPipelineNs / 1000000.0);
 
-        // T31: load-time playback timeline evidence (sparse + bounded store).
-        qInfo() << "[T31] media timeline entries:" << m_mediaTimeline.size()
-                << "retained slides:" << m_retainedSlides.size()
-                << "retained bytes:" << m_retainedSlideBytes;
+        // T31/T32: load-time per-service playback history evidence (sparse +
+        // globally byte-capped store).
+        {
+            size_t totalEntries = 0;
+            for (const auto& entry : m_mediaTimelineByService) {
+                totalEntries += entry.second.size();
+            }
+            qInfo() << "[T32] per-service media timelines:" << m_mediaTimelineByService.size()
+                    << "total entries:" << totalEntries
+                    << "retained slides:" << m_retainedSlideCount
+                    << "retained bytes:" << m_retainedSlideBytes;
+        }
 
         // === MOT SlideShow evidence (honest counters for this capture) ===
         const eti::mot::MotPadAdapter::Statistics motStats = m_motAdapter.statistics();
@@ -2180,12 +2426,6 @@ private slots:
     // Phase 3B: DLS+ "Now Playing" update slot
     void updateNowPlaying(const QString& track, const QString& artist, const QString& album)
     {
-        // T31: remember the latest decoded DLS values so the load-time timeline
-        // can snapshot them per frame without querying the decoder again.
-        m_curTrack = track;
-        m_curArtist = artist;
-        m_curAlbum = album;
-
         // Update track label
         if (m_trackLabel) {
             m_trackLabel->setText(track.isEmpty() ? "--" : track);
@@ -2369,8 +2609,13 @@ private slots:
         slide.image = image;
         slide.status = statusText;
         slide.info = infoText;
-        appendRetainedSlide(std::move(slide));
-        m_lastMotImageId = m_retainedSlideNextId - 1;
+        // T32: retain the slide in the DECODING service's own store and record
+        // the new image identity for that service at the current frame. The
+        // panel status/info update above stays (live load behaviour).
+        appendRetainedSlide(m_lastMotServiceId, std::move(slide));
+        const int imageId =
+            m_slidesByService[m_lastMotServiceId].nextId - 1;
+        recordServiceMotState(m_lastMotServiceId, m_timelineRecordFrame, imageId);
     }
 
     // Scale the retained slide to the label, keeping the aspect ratio.
@@ -2601,6 +2846,166 @@ private:
         updatePlaybackStatus(QStringLiteral("Paused"));
         updatePlaybackClockUi();
         highlightFrameInNavigator(m_playbackFrame);
+    }
+
+    // ========================================================================
+    // T32: Player service selector (which service's DLS+/slideshow is shown)
+    // ========================================================================
+    // T32 review #1: format a service SID by magnitude. 16-bit programme SIDs
+    // use 4 hex digits; 32-bit data-service SIDs (e.g. 0xF3200000) use 8, so a
+    // legitimate large data SID is never truncated to an invalid-looking value.
+    static QString serviceSidHex(quint32 id)
+    {
+        return QStringLiteral("0x")
+               + QString("%1")
+                     .arg(id, id > 0xFFFFu ? 8 : 4, 16, QChar('0'))
+                     .toUpper();
+    }
+
+    static bool serviceHasDabPlusAudio(const DABService& svc)
+    {
+        for (const ServiceComponent& comp : svc.components) {
+            if (comp.isDabPlus()) {
+                return true;  // FIG 0/8 ASCTy == 0x3F
+            }
+        }
+        return false;
+    }
+
+    // Clear stale items + selection and disable the selector (on load start and
+    // in the no-file state). Guarded so it never fires onServiceSelectionChanged.
+    void resetServiceSelectorForLoad()
+    {
+        m_selectedServiceId = 0;
+        m_selectedServiceLabel.clear();
+        if (!m_serviceCombo) {
+            return;
+        }
+        m_populatingServiceSelector = true;
+        m_serviceCombo->clear();
+        m_serviceCombo->setEnabled(false);
+        m_populatingServiceSelector = false;
+    }
+
+    // Populate from the analyzer's services after a completed load. Display is
+    // "label (0xSID)" (fallback "SId 0xSID" for unlabeled services; SIDs are
+    // formatted by magnitude so 32-bit data SIDs are shown in full); the
+    // default selection is the first service that has a DAB+ audio component
+    // (fallback: the first service). Afterwards the default service's latest
+    // state is applied so the selector and the media panels agree immediately
+    // (review #3) — pure lookup, no re-parse.
+    void populateServiceSelector()
+    {
+        if (!m_serviceCombo) {
+            return;
+        }
+        m_populatingServiceSelector = true;
+        m_serviceCombo->clear();
+
+        int defaultIndex = -1;
+        int firstIndex = -1;
+        if (m_figAnalyzer) {
+            for (const DABService& svc : m_figAnalyzer->getDABServices()) {
+                const QString label = svc.service_label.trimmed();
+                const QString sid = serviceSidHex(svc.service_id);
+                const QString itemText = label.isEmpty()
+                    ? QString("SId %1").arg(sid)
+                    : QString("%1 (%2)").arg(label, sid);
+                m_serviceCombo->addItem(itemText, svc.service_id);
+                const int index = m_serviceCombo->count() - 1;
+                if (firstIndex < 0) {
+                    firstIndex = index;
+                }
+                if (defaultIndex < 0 && serviceHasDabPlusAudio(svc)) {
+                    defaultIndex = index;
+                }
+            }
+        }
+        if (defaultIndex < 0) {
+            defaultIndex = firstIndex;  // fall back to the first service
+        }
+        if (defaultIndex >= 0) {
+            m_serviceCombo->setCurrentIndex(defaultIndex);
+            applySelectedServiceFromCombo(defaultIndex);
+        } else {
+            m_selectedServiceId = 0;
+            m_selectedServiceLabel.clear();
+        }
+        m_serviceCombo->setEnabled(m_serviceCombo->count() > 0);
+        m_populatingServiceSelector = false;
+        // T32 review #3: apply the DEFAULT service's state on load so the
+        // selector and the Now Playing/Slideshow panels agree immediately
+        // (otherwise the panels would keep the last live-fed service, ~0x2CBD,
+        // until the first seek/play). The selected service's latest recorded
+        // state is applied — pure lookup, no re-parse, counters unchanged.
+        if (m_fileLoaded && m_selectedServiceId != 0 && m_serviceCombo->count() > 0) {
+            try {
+                applySelectedServiceLatestMediaState();
+            } catch (const std::exception& e) {
+                qWarning() << "[T32] post-load service apply failed:" << e.what();
+            } catch (...) {
+                qWarning() << "[T32] post-load service apply failed (unknown)";
+            }
+        }
+    }
+
+    // Apply the selected service's latest recorded DLS/slideshow state (the
+    // state the live feed would have left for that service). No-op counters.
+    void applySelectedServiceLatestMediaState()
+    {
+        auto tlIt = m_mediaTimelineByService.find(m_selectedServiceId);
+        if (tlIt == m_mediaTimelineByService.end() || tlIt->second.empty()) {
+            showWaitingMediaStateForSelectedService();
+            return;
+        }
+        refeedDlsForPlayhead(tlIt->second.rbegin()->first);
+    }
+
+    // Cache the selected service's id + label from the combo.
+    void applySelectedServiceFromCombo(int index)
+    {
+        if (!m_serviceCombo || index < 0 || index >= m_serviceCombo->count()) {
+            m_selectedServiceId = 0;
+            m_selectedServiceLabel.clear();
+            return;
+        }
+        m_selectedServiceId = m_serviceCombo->itemData(index).toUInt();
+        m_selectedServiceLabel = displayServiceLabel(m_selectedServiceId);
+    }
+
+    // The label part of the combo item for `serviceId` (empty when unlabeled).
+    QString displayServiceLabel(quint32 serviceId) const
+    {
+        if (!m_figAnalyzer) {
+            return QString();
+        }
+        for (const DABService& svc : m_figAnalyzer->getDABServices()) {
+            if (svc.service_id == serviceId) {
+                return svc.service_label.trimmed();
+            }
+        }
+        return QString();
+    }
+
+    // User changed the service: keep the playhead frame, immediately re-apply
+    // the selected service's state for it (pure lookup — no re-parse, so the
+    // load-time counters stay invariant).
+    void onServiceSelectionChanged(int index)
+    {
+        if (m_populatingServiceSelector) {
+            return;
+        }
+        applySelectedServiceFromCombo(index);
+        if (!m_fileLoaded || m_selectedServiceId == 0) {
+            return;
+        }
+        try {
+            refeedDlsForPlayhead(m_playbackFrame);
+        } catch (const std::exception& e) {
+            qWarning() << "[T32] service switch replay failed:" << e.what();
+        } catch (...) {
+            qWarning() << "[T32] service switch replay failed (unknown)";
+        }
     }
 
     void playbackPlay()
@@ -2837,6 +3242,18 @@ public:
     // T31: drive the pure lookup directly (e.g. the eviction fallback / miss
     // paths) without running the playback timer.
     void refeedDlsForPlayheadForTest(int frameIndex) { refeedDlsForPlayhead(frameIndex); }
+    // T32 review #4: exercise the retained-slide eviction path with a tiny cap
+    // and synthetic per-service slides (no file/decode needed).
+    void setRetainedSlideByteCapForTest(qint64 cap) { m_retainedSlideByteCap = cap; }
+    void appendSyntheticRetainedSlideForTest(quint32 serviceId, const QString& tag)
+    {
+        RetainedSlide s;
+        s.image = QImage(64, 64, QImage::Format_ARGB32);
+        s.image.fill(Qt::red);
+        s.status = tag;
+        s.info = tag;
+        appendRetainedSlide(serviceId, std::move(s));
+    }
 #endif
     bool isPlayingForTest() const { return m_playbackPlaying; }
     int playbackFrameForTest() const { return m_playbackFrame; }
@@ -7715,10 +8132,6 @@ private:
     // Manual-test finding 3: Now Playing (DLS+) panel state helpers.
     void resetNowPlayingPanel()
     {
-        // T31: clear the captured DLS values with the panel state.
-        m_curTrack.clear();
-        m_curArtist.clear();
-        m_curAlbum.clear();
         if (m_trackLabel) {
             m_trackLabel->setText("--");
         }
@@ -7798,7 +8211,26 @@ private:
         layout->addWidget(frameLabel, 3, 0);
         layout->addWidget(m_playerFrameLabel, 3, 1);
         
-        // Row 4: Transport controls (Play / Pause / Stop / Reset), Skip -/+
+        // Row 4: Service selector (T32) — which service's DLS+/slideshow the
+        // Now Playing / Slideshow panels show at the playhead. Populated after
+        // a successful load; disabled before.
+        QHBoxLayout* serviceRow = new QHBoxLayout();
+        QLabel* serviceTitle = new QLabel(tr("Service:"));
+        serviceTitle->setStyleSheet("font-weight: bold;");
+        m_serviceCombo = new QComboBox();
+        m_serviceCombo->setObjectName(QStringLiteral("serviceSelectorCombo"));
+        m_serviceCombo->setToolTip(
+            tr("Service whose DLS+/slideshow is shown at the playhead"));
+        m_serviceCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+        m_serviceCombo->setMinimumContentsLength(12);
+        m_serviceCombo->setEnabled(false);  // enabled once a capture is loaded
+        serviceRow->addWidget(serviceTitle);
+        serviceRow->addWidget(m_serviceCombo, 1);
+        layout->addLayout(serviceRow, 4, 0, 1, 2);
+        connect(m_serviceCombo, &QComboBox::currentIndexChanged,
+                this, &DABAnalyzerWindow::onServiceSelectionChanged);
+
+        // Row 5: Transport controls (Play / Pause / Stop / Reset), Skip -/+
         QHBoxLayout* transportRow = new QHBoxLayout();
         m_playButton = new QPushButton(QStringLiteral("▶"));
         m_playButton->setObjectName(QStringLiteral("playButton"));
@@ -7823,9 +8255,9 @@ private:
             b->setMaximumWidth(40);
             transportRow->addWidget(b);
         }
-        layout->addLayout(transportRow, 4, 0, 1, 2);
+        layout->addLayout(transportRow, 5, 0, 1, 2);
 
-        // Row 5: Speed
+        // Row 6: Speed
         QHBoxLayout* speedRow = new QHBoxLayout();
         QLabel* speedLabel = new QLabel(tr("Speed:"));
         speedLabel->setStyleSheet("font-weight: bold;");
@@ -7839,26 +8271,26 @@ private:
         m_playbackSpeedCombo->setCurrentIndex(2);  // 1× default
         speedRow->addWidget(speedLabel);
         speedRow->addWidget(m_playbackSpeedCombo, 1);
-        layout->addLayout(speedRow, 5, 0, 1, 2);
+        layout->addLayout(speedRow, 6, 0, 1, 2);
 
-        // Row 6: Loop checkbox
+        // Row 7: Loop checkbox
         m_playerLoopCheckbox = new QCheckBox("Loop playback");
-        layout->addWidget(m_playerLoopCheckbox, 6, 0, 1, 2);
+        layout->addWidget(m_playerLoopCheckbox, 7, 0, 1, 2);
 
-        // Row 7: Time bar (seek slider). During parsing it mirrors the load
+        // Row 8: Time bar (seek slider). During parsing it mirrors the load
         // progress; after load it becomes the playback seek control.
         m_playerProgressBar = new QSlider(Qt::Horizontal);
         m_playerProgressBar->setObjectName(QStringLiteral("playerTimeBar"));
         m_playerProgressBar->setRange(0, 0);
-        layout->addWidget(m_playerProgressBar, 7, 0, 1, 2);
+        layout->addWidget(m_playerProgressBar, 8, 0, 1, 2);
 
-        // Row 8: Load progress bar (unchanged load-time behaviour).
+        // Row 9: Load progress bar (unchanged load-time behaviour).
         if (!m_progressBar) {
             m_progressBar = new QProgressBar();
         }
         m_progressBar->setValue(0);
         m_progressBar->setTextVisible(true);
-        layout->addWidget(m_progressBar, 8, 0, 1, 2);
+        layout->addWidget(m_progressBar, 9, 0, 1, 2);
 
         return group;
     }
@@ -9359,6 +9791,12 @@ private:
     QPushButton* m_skipBackButton = nullptr;
     QPushButton* m_skipForwardButton = nullptr;
     QComboBox* m_playbackSpeedCombo = nullptr;
+    // T32: Player service selector (which service's DLS+/slideshow is shown).
+    QComboBox* m_serviceCombo = nullptr;
+    quint32 m_selectedServiceId = 0;
+    QString m_selectedServiceLabel;
+    bool m_populatingServiceSelector = false;
+
     QTimer* m_playbackTimer = nullptr;
     int m_playbackFrame = 0;              // 0-based UI playhead
     bool m_playbackPlaying = false;
@@ -9486,21 +9924,29 @@ private:
     // per-subchannel MSC slices are reused from ProcessedFrame::sub_channels
     // (no raw-frame re-parse).
     std::map<int, DabPlusSubchannelParser> m_dlsParsers;
-    // T31 (rework): sparse load-time media timeline (0-based frame -> DLS/MOT
-    // snapshot). Only recorded when the state changes; a frame-0 entry always
-    // exists so Stop/Reset has a defined start state.
-    std::map<int, PlaybackMediaState> m_mediaTimeline;
-    // T31: bounded retained-slide store keyed by absolute id. FIFO eviction
-    // keeps the total image bytes under the cap; the fixture's 97 images fit.
-    std::deque<RetainedSlide> m_retainedSlides;
-    int m_retainedSlideBaseId{0};    // id of m_retainedSlides.front()
-    int m_retainedSlideNextId{0};    // id assigned to the next decoded slide
+    // T31 (rework) / T32: sparse load-time media histories keyed by service id
+    // (SId -> (0-based frame -> DLS/MOT snapshot)). Recorded at feed time only
+    // when that service's state changes; a frame-0 baseline always exists so
+    // Stop/Reset has a defined start state. Selecting a service swaps which map
+    // the playhead replays.
+    std::map<quint32, ServiceMediaTimeline> m_mediaTimelineByService;
+    // Mutable per-service state accumulated during the load (only committed to
+    // a timeline entry when it changes).
+    std::map<quint32, PlaybackMediaState> m_liveServiceMediaState;
+    // T32: frame being fed (0-based) while the load loop runs; -1 outside it so
+    // synthetic test feeds never record. The DLS/MOT callbacks read this.
+    int m_timelineRecordFrame = -1;
+    // T31/T32: globally byte-capped retained-slide stores, one per service. The
+    // id sequence is per service; eviction is global FIFO by sequence, so N
+    // services cannot multiply the cap.
+    std::map<quint32, RetainedSlideStore> m_slidesByService;
+    qint64 m_retainedSlideCount{0};  // aggregate slide count (all services)
     qint64 m_retainedSlideBytes{0};
-    int m_lastMotImageId{-1};        // latest decoded slide id (-1 = none yet)
-    QString m_curTrack;              // latest decoded DLS values (timeline input)
-    QString m_curArtist;
-    QString m_curAlbum;
+    quint64 m_retainedSlideSequence{0};
     static constexpr qint64 RETAINED_SLIDE_BYTE_CAP = 32 * 1024 * 1024;  // 32 MB
+    // Runtime cap (defaults to RETAINED_SLIDE_BYTE_CAP); a test hook lowers it
+    // to exercise eviction. Kept in sync with the byte counter (both qint64).
+    qint64 m_retainedSlideByteCap{RETAINED_SLIDE_BYTE_CAP};
     // Cached DAB+ subchannel -> (service id, label) map (Finding 4): the
     // analyzer's getDABServices() copies the whole service vector, so it is
     // only re-read when a service/subchannel count changes or a discovery
