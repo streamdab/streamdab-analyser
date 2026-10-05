@@ -10,6 +10,9 @@
 #include <QListWidget>
 #include <QTextEdit>
 #include <QLabel>
+#include <QImage>
+#include <QPixmap>
+#include <QResizeEvent>
 #include <QProgressBar>
 #include <QStatusBar>
 #include <QMenuBar>
@@ -51,6 +54,8 @@
 #include <memory>
 #include <map>
 #include <list>
+#include <deque>
+#include <functional>
 #include <optional>
 #include <atomic>               // Phase 1.1: Thread-safe counter
 #include <algorithm>            // std::min (DLS+ F-PAD candidate extraction)
@@ -66,6 +71,8 @@
 #include "core/advanced_error_detection.hpp"
 #include "core/professional_logging_system.hpp"
 #include "core/dls_plus_decoder.hpp"  // Phase 3B: DLS+ decoder integration
+#include "core/mot_protocol.hpp"      // MOT SlideShow decoder (option A)
+#include "core/mot_pad_adapter.hpp"   // X-PAD CI 12/13 -> MOTProtocol adapter
 #include "core/network_stream_receiver.hpp"  // Phase 4: ETI-over-IP live streaming
 #include "core/eti_reader_thread.hpp"  // Phase A: Pattern 3 - Worker Thread
 #include "core/shared_eti_data.hpp"  // Phase A: Pattern 5 - Shared Data Model
@@ -223,6 +230,16 @@ struct DabPlusSubchannelParser {
     // Entries are {CI type, sub-field length}.
     std::vector<std::pair<int, int>> lastXpadCi;
 
+    // === MOT SlideShow (X-PAD CI type 12/13, ETSI TS 101 499) ===
+    // Callback invoked with a COMPLETE standard MSC data group (ETSI EN 300 401
+    // §5.3.3). The window routes it to its MotPadAdapter -> MOTProtocol.
+    std::function<void(const QByteArray&)> onMotDataGroup;
+    int motDgliLen = 0;             // announced length (X-PAD CI type 1, DGLI)
+    QByteArray motGroupBuffer;      // current standard data group accumulator
+    bool motGroupActive = false;    // a CI-12 start has been seen
+    int motContinuationLen = -1;    // DABlin last_xpad_ci continuation length
+    uint64_t motDataGroups = 0;     // completed standard data groups
+
     void reset()
     {
         superframeBuffer.clear();
@@ -232,6 +249,10 @@ struct DabPlusSubchannelParser {
         dataGroupBuffer.clear();
         dataGroupActive = false;
         lastXpadCi.clear();
+        motDgliLen = 0;
+        motGroupBuffer.clear();
+        motGroupActive = false;
+        motContinuationLen = -1;
     }
 
     // Feed one ETI-frame CIF chunk for this subchannel. Uses a sliding sync:
@@ -458,13 +479,23 @@ struct DabPlusSubchannelParser {
         } else {
             // ci_flag == 0: this AU has no CI bytes; it continues the previous
             // CI list. Reuse the last announced list (DABlin prev_xpad_ci).
-            if ((xpadInd != 0x01 && xpadInd != 0x02) || lastXpadCi.empty()) {
+            // For MOT (CI 12 -> 13) DABlin remembers the continuation sub-field
+            // length instead of the whole list; prefer that when present.
+            if (xpadInd != 0x01 && xpadInd != 0x02) {
                 return false;
             }
-            for (const auto& ci : lastXpadCi) {
-                cis.push_back({ci.first, ci.second});
+            if (motContinuationLen >= 0) {
+                cis.push_back({13, std::min(motContinuationLen,
+                                            static_cast<int>(xpadLen))});
+                ciLen = 0;  // continuation payload starts at byte 0 of the X-PAD
+            } else if (!lastXpadCi.empty()) {
+                for (const auto& ci : lastXpadCi) {
+                    cis.push_back({ci.first, ci.second});
+                }
+                ciLen = 0;  // continuation payload starts at byte 0 of the X-PAD
+            } else {
+                return false;
             }
-            ciLen = 0;  // continuation payload starts at byte 0 of the X-PAD
         }
 
         size_t announced = ciLen;
@@ -491,6 +522,11 @@ struct DabPlusSubchannelParser {
         }
 
         bool produced = false;
+        if (ciFlag) {
+            // This AU announces its own CI list; reset the MOT continuation
+            // tracking until a MOT sub-field is actually processed below.
+            motContinuationLen = -1;
+        }
         size_t offset = ciLen;
         for (const XpadCi& ci : cis) {
             ++xpadGroups;
@@ -507,10 +543,61 @@ struct DabPlusSubchannelParser {
                                      dataGroupStarts)) {
                     produced = true;
                 }
+            } else if (ci.type == 1) {
+                // Data Group Length Indicator (DGLI): announces the length of
+                // the immediate next MOT data group. Layout: 14-bit length
+                // (6-bit high in byte 0 + 8-bit low in byte 1) + the one's
+                // complement CRC-16/CCITT-FALSE over those 2 bytes.
+                // (ETSI EN 300 401 §7.4.2, ETSI TS 101 499 §4.3.)
+                if (ci.len >= 4) {
+                    const uint8_t* p = xpad + offset;
+                    const uint16_t crcStored =
+                        static_cast<uint16_t>((p[2] << 8) | p[3]);
+                    const uint16_t crcCalc =
+                        static_cast<uint16_t>(~eti::crc16ccitt_false(p, 2));
+                    if (crcStored == crcCalc) {
+                        motDgliLen = ((p[0] & 0x3F) << 8) | p[1];
+                    }
+                }
+            } else if (ci.type == 12 || ci.type == 13) {
+                // MOT SlideShow data group: type 12 starts (resets the
+                // accumulator), type 13 continues. A ci_flag==0 AU is always a
+                // continuation (start == false).
+                // A following ci_flag==0 AU continues THIS sub-field, so track
+                // its own length (not the whole announced X-PAD) — otherwise a
+                // co-resident DGLI would inflate the continuation length.
+                motContinuationLen = ci.len;
+                const bool start = ciFlag && (ci.type == 12);
+                processMotDataSubfield(xpad + offset, static_cast<size_t>(ci.len), start);
             }
             offset += static_cast<size_t>(ci.len);
         }
         return produced;
+    }
+
+    // Append an X-PAD MOT sub-field (CI 12/13) to the standard MSC data group
+    // accumulator and, once the DGLI-announced length is reached, hand the
+    // complete data group to onMotDataGroup().
+    void processMotDataSubfield(const uint8_t* data, size_t len, bool start)
+    {
+        if (start) {
+            motGroupBuffer.clear();
+            motGroupActive = true;
+        } else if (!motGroupActive) {
+            return;  // continuation without a start: cannot assemble safely
+        }
+        motGroupBuffer.append(reinterpret_cast<const char*>(data), static_cast<int>(len));
+
+        if (motDgliLen > 0 && motGroupBuffer.size() >= motDgliLen) {
+            const QByteArray dg = motGroupBuffer.left(motDgliLen);
+            motGroupBuffer.clear();
+            motGroupActive = false;
+            motDgliLen = 0;
+            ++motDataGroups;
+            if (onMotDataGroup) {
+                onMotDataGroup(dg);
+            }
+        }
     }
 
     // Reassemble a Dynamic Label Data Group (prefix + text + CRC16 into DLS,
@@ -670,6 +757,18 @@ public:
                 this, [this](const QString& track, const QString& artist, const QString& album) {
                     updateNowPlaying(track, artist, album);
                 });
+
+        // MOT SlideShow (option A): wire the decoder + adapter to the panel.
+        connect(&m_motProtocol, &eti::mot::MOTProtocol::objectComplete,
+                this, &DABAnalyzerWindow::onMotObjectComplete);
+        connect(&m_motProtocol, &eti::mot::MOTProtocol::parseError,
+                this, &DABAnalyzerWindow::onMotParseError);
+        connect(&m_motProtocol, &eti::mot::MOTProtocol::reassemblyProgress,
+                this, &DABAnalyzerWindow::onMotProgress);
+        m_motAdapter.setProgressCallback(
+            [this](uint32_t transportId, double progress) {
+                onMotProgress(transportId, progress);
+            });
 
         // Phase A: Initialize worker thread architecture
         m_sharedData = new streamdab::core::SharedETIData(this);
@@ -879,6 +978,45 @@ public:
         return m_lastUpdatedLabel ? m_lastUpdatedLabel->text() : QString();
     }
 
+    // --- MOT SlideShow (option A) test hooks -------------------------------
+    // Drive the real X-PAD CI 12/13 parser + adapter for a sequence of raw
+    // on-wire X-PADs (all fed to the SAME parser so multi-AU groups reassemble)
+    // and observe the slideshow tab state.
+    bool feedMotXpadsForTest(const QList<QByteArray>& onWireXpads)
+    {
+        DabPlusSubchannelParser parser;
+        parser.onMotDataGroup = [this](const QByteArray& dg) {
+            m_lastMotServiceId = 0;
+            m_lastMotServiceLabel.clear();
+            m_motAdapter.processDataGroup(0, dg);
+        };
+        const uint8_t fpad[2] = {0x20, 0x02};  // type 0, variable X-PAD, CI set
+        bool any = false;
+        for (const QByteArray& onWire : onWireXpads) {
+            DlsAssembly assembly;
+            parser.processPad(reinterpret_cast<const uint8_t*>(onWire.constData()),
+                              static_cast<size_t>(onWire.size()), fpad, assembly);
+            any = true;
+        }
+        return any;
+    }
+    int motObjectsForTest() const { return m_motObjectsReceived; }
+    int motImagesDecodedForTest() const { return m_motImagesDecoded; }
+    int motErrorsForTest() const { return m_motErrors; }
+    int motSlideHistorySizeForTest() const { return static_cast<int>(m_slideHistory.size()); }
+    quint32 lastMotTransportIdForTest() const { return m_lastMotTransportId; }
+    QImage slideshowImageForTest() const { return m_lastDecodedSlide; }
+    QString slideshowStatusForTest() const
+    {
+        return m_slideshowStatus ? m_slideshowStatus->text() : QString();
+    }
+    QString slideshowInfoForTest() const
+    {
+        return m_slideshowInfo ? m_slideshowInfo->text() : QString();
+    }
+    QLabel* slideshowImageLabelForTest() const { return m_slideshowImage; }
+    QTabWidget* nowPlayingTabsForTest() const { return m_nowPlayingTabs; }
+
     // --- T22 network-stream connect hooks -----------------------------------
     // Drive the full connect entry point without a modal dialog (offscreen
     // tests). Returns true when a connection attempt was started; the rejected
@@ -977,6 +1115,18 @@ private slots:
         m_pendingServiceId = 0;
         m_pendingServiceLabel.clear();
         resetNowPlayingPanel();
+        // MOT SlideShow: clear the decoder + adapter and the slideshow tab.
+        m_motProtocol.clearAll();
+        m_motAdapter.reset();
+        m_motObjectsReceived = 0;
+        m_motImagesDecoded = 0;
+        m_motErrors = 0;
+        m_lastMotTransportId = 0;
+        m_lastMotServiceId = 0;
+        m_lastMotServiceLabel.clear();
+        m_slideHistory.clear();
+        m_lastDecodedSlide = QImage();
+        resetSlideshowPanel();
         // Finding 6: clear the decoder's change-detection history so a second
         // load cannot suppress its first label (identical to the previous
         // capture's last values).
@@ -1264,8 +1414,22 @@ private slots:
             if (!m_dabPlusSubChannels.contains(sc.sub_channel_id)) {
                 continue;
             }
+            // Lazily create the parser and hook its MOT data-group callback so
+            // X-PAD CI 12/13 groups reach the MOTProtocol via the adapter.
+            auto parserIt = m_dlsParsers.find(sc.sub_channel_id);
+            if (parserIt == m_dlsParsers.end()) {
+                const int scId = sc.sub_channel_id;
+                parserIt = m_dlsParsers.emplace(scId, DabPlusSubchannelParser{}).first;
+                parserIt->second.onMotDataGroup = [this, scId](const QByteArray& dataGroup) {
+                    const QPair<quint32, QString> svc =
+                        m_serviceBySubChannel.value(scId, qMakePair(0u, QString()));
+                    m_lastMotServiceId = svc.first;
+                    m_lastMotServiceLabel = svc.second;
+                    m_motAdapter.processDataGroup(svc.first, dataGroup);
+                };
+            }
             DlsAssembly assembly;
-            if (!m_dlsParsers[sc.sub_channel_id].feedChunk(sc.data, assembly)
+            if (!parserIt->second.feedChunk(sc.data, assembly)
                 || !assembly.hasLabel) {
                 continue;
             }
@@ -1559,6 +1723,7 @@ private slots:
         // can distinguish "no PAD at all" from "PAD but no DLS/DL+".
         uint64_t sf = 0, firecode = 0, aus = 0, ausCrc = 0, pad = 0, fpadCi = 0;
         uint64_t xpadGroups = 0, dlsSegs = 0, dlPlusSegs = 0, labels = 0;
+        uint64_t motDgs = 0;
         uint64_t groupTypes[32] = {0};
         for (const auto& entry : m_dlsParsers) {
             const DabPlusSubchannelParser& p = entry.second;
@@ -1572,6 +1737,7 @@ private slots:
             dlsSegs += p.dlSegments;
             dlPlusSegs += p.dlPlusSegments;
             labels += p.labels;
+            motDgs += p.motDataGroups;
             for (int i = 0; i < 32; ++i) {
                 groupTypes[i] += p.groupTypeCounts[i];
             }
@@ -1595,11 +1761,41 @@ private slots:
         qInfo() << "[DLS+] subchannels with a DAB+ PAD parser:"
                 << static_cast<int>(m_dlsParsers.size());
         qInfo() << "[DLS+] pipeline time (ms):" << (m_dlsPipelineNs / 1000000.0);
+
+        // === MOT SlideShow evidence (honest counters for this capture) ===
+        const eti::mot::MotPadAdapter::Statistics motStats = m_motAdapter.statistics();
+        const auto motProtoStats = m_motProtocol.getStatistics();
+        qInfo() << "[MOT] XPAD 12/13 standard data groups assembled:" << motDgs
+                << "adapter DGs:" << motStats.dataGroups
+                << "crcErrors:" << motStats.crcErrors
+                << "rejected:" << motStats.rejected
+                << "headerSegs:" << motStats.headerSegments
+                << "bodySegs:" << motStats.bodySegments
+                << "objectsCompleted:" << motStats.objectsCompleted
+                << "objectsEmitted:" << motStats.objectsEmitted;
+        qInfo() << "[MOT] oversized:" << motStats.oversized
+                << "staleEvictions:" << motStats.staleEvictions
+                << "carouselResets:" << motStats.objResets
+                << "maxBodyBytes:" << motStats.maxObjectBytes;
+        qInfo() << "[MOT] objects received:" << m_motObjectsReceived
+                << "images decoded:" << m_motImagesDecoded
+                << "errors:" << m_motErrors
+                << "MOTProtocol objects completed:" << motProtoStats.objects_completed
+                << "crc errors:" << motProtoStats.crc_errors;
         if (m_dlsPlusMessages == 0) {
             // Capture genuinely carries no DLS/DLS+ (the parser was wired and
             // ran; it just found no DLS label). Distinguish this final empty
             // state from the "Waiting for DLS+…" in-progress one.
             setNowPlayingEmptyState();
+        }
+
+        // MOT SlideShow final empty state: distinguish "no slideshow in this
+        // stream" from the in-progress "Waiting/Receiving" one.
+        if (m_motObjectsReceived == 0 && m_slideshowStatus) {
+            m_slideshowStatus->setText(tr("No slideshow in this stream"));
+            if (m_slideshowImage) {
+                m_slideshowImage->setText(tr("No slideshow in this stream"));
+            }
         }
     }
 
@@ -1698,6 +1894,130 @@ private slots:
                 m_systemMessages->append(message);
             }
         }
+    }
+
+    // ========================================================================
+    // MOT SlideShow (option A): decoder -> panel wiring
+    // ========================================================================
+    static const char* motImageFormat(eti::mot::ContentType type)
+    {
+        switch (type) {
+            case eti::mot::ContentType::IMAGE_JPEG: return "JPEG";
+            case eti::mot::ContentType::IMAGE_PNG:  return "PNG";
+            case eti::mot::ContentType::IMAGE_BMP:  return "BMP";
+            default:                                return nullptr;
+        }
+    }
+
+    void onMotProgress(uint32_t transportId, double progress)
+    {
+        m_lastMotTransportId = transportId;
+        if (!m_slideshowStatus) {
+            return;
+        }
+        if (progress < 1.0 && m_motImagesDecoded == 0) {
+            m_slideshowStatus->setText(
+                QString("Receiving slideshow … %1 %")
+                    .arg(progress * 100.0, 0, 'f', 0));
+        }
+    }
+
+    void onMotParseError(uint32_t transportId, const QString& error)
+    {
+        ++m_motErrors;
+        if (m_slideshowStatus) {
+            m_slideshowStatus->setText(
+                QString("MOT error (transport %1): %2").arg(transportId).arg(error));
+        }
+    }
+
+    void onMotObjectComplete(uint32_t transportId, const eti::mot::MOTObject& object)
+    {
+        ++m_motObjectsReceived;
+        m_lastMotTransportId = transportId;
+
+        const eti::mot::ContentType contentType = object.header.content_type;
+        const char* format = motImageFormat(contentType);
+        const int byteCount = static_cast<int>(object.body.size());
+
+        if (object.body.empty()) {
+            if (m_slideshowStatus) {
+                m_slideshowStatus->setText(tr("MOT object carried no image data"));
+            }
+            return;
+        }
+
+        QImage image;
+        bool ok = false;
+        if (format) {
+            // Qt6 ships the JPEG/PNG/BMP image plugins; declared format first,
+            // then a tolerant auto-detect (standard MOT content type 0x02
+            // covers both JPEG and PNG, distinguished only by the subtype).
+            ok = image.loadFromData(reinterpret_cast<const uchar*>(object.body.data()),
+                                    byteCount, format);
+        }
+        if (!ok) {
+            ok = image.loadFromData(reinterpret_cast<const uchar*>(object.body.data()),
+                                    byteCount);
+        }
+        if (!ok || image.isNull()) {
+            if (m_slideshowStatus) {
+                m_slideshowStatus->setText(
+                    QString("Slide decode failed (%1, %2 bytes)")
+                        .arg(object.header.getContentTypeString())
+                        .arg(byteCount));
+            }
+            return;
+        }
+
+        // Bounded retention: only the last MOT_SLIDE_HISTORY_MAX images.
+        m_lastDecodedSlide = image;
+        m_slideHistory.push_back(image);
+        while (static_cast<int>(m_slideHistory.size()) > MOT_SLIDE_HISTORY_MAX) {
+            m_slideHistory.pop_front();
+        }
+        ++m_motImagesDecoded;
+        refreshSlideshowPixmap();
+
+        if (m_slideshowStatus) {
+            m_slideshowStatus->setText(
+                QString("Showing slide %1 — %2")
+                    .arg(m_motImagesDecoded)
+                    .arg(object.header.getContentTypeString()));
+        }
+        if (m_slideshowInfo) {
+            QString serviceInfo;
+            if (m_lastMotServiceId != 0) {
+                serviceInfo = QString("SId 0x%1")
+                                  .arg(m_lastMotServiceId & 0xFFFF, 4, 16, QChar('0')).toUpper();
+            }
+            if (!m_lastMotServiceLabel.isEmpty()) {
+                serviceInfo += QString(" %1").arg(m_lastMotServiceLabel);
+            }
+            m_slideshowInfo->setText(
+                QString("%1 · %2 bytes · TID %3%4 · %5")
+                    .arg(object.header.getContentTypeString())
+                    .arg(byteCount)
+                    .arg(transportId)
+                    .arg(serviceInfo.isEmpty() ? QString()
+                                               : QString(" (%1)").arg(serviceInfo))
+                    .arg(QDateTime::currentDateTime().toString("HH:mm:ss")));
+        }
+    }
+
+    // Scale the retained slide to the label, keeping the aspect ratio.
+    void refreshSlideshowPixmap()
+    {
+        if (!m_slideshowImage || m_lastDecodedSlide.isNull()) {
+            return;
+        }
+        QSize target = m_slideshowImage->size();
+        if (target.width() < 16 || target.height() < 16) {
+            target = QSize(200, 120);  // offscreen/tests before the first show()
+        }
+        m_slideshowImage->setPixmap(
+            QPixmap::fromImage(m_lastDecodedSlide).scaled(
+                target, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     }
 
     void onFrameSelectionChanged()
@@ -5214,12 +5534,13 @@ private:
         leftV->setSizes({178, 320});       // Transport ≈ 178, System grows
         rightV->setSizes({210, 240});      // Signal Info ≈ 210, Error & Stats grows
 
-        // Now Playing: compact, fixed ≈ 82 px at the bottom of the center.
+        // Now Playing / Slideshow (option A): grow the compact dock so the
+        // inner Slideshow tab can actually show an image (previously 82 px).
         if (ads::CDockAreaWidget* nowPlayingArea = D("tab1_NowPlaying")->dockAreaWidget()) {
-            nowPlayingArea->setMinimumHeight(82);
+            nowPlayingArea->setMinimumHeight(200);
         }
         if (centerV->count() == 3) {
-            centerV->setSizes({190, 150, 82});  // Signal Analysis ≈ 190, Frame Analysis flex, Now Playing 82
+            centerV->setSizes({190, 150, 200});  // Signal Analysis ≈ 190, Frame Analysis flex, Now Playing ≈ 200
         }
 
         // Observation (a): reparenting the areas during the splitter surgery
@@ -5581,10 +5902,10 @@ private:
             sections.append({QStringLiteral("tab1_CUUsage"), QStringLiteral("CU Usage"), cuUsagePanel});
         }
 
-        // 6. Now Playing (DLS+) (Item #9) - moved from RIGHT - 25%
+        // 6. Now Playing / Slideshow (Item #9) - inner tabs (option A)
         QGroupBox* nowPlayingPanel = createNowPlayingPanel();
         if (nowPlayingPanel) {
-            sections.append({QStringLiteral("tab1_NowPlaying"), QStringLiteral("Now Playing (DLS+)"), nowPlayingPanel});
+            sections.append({QStringLiteral("tab1_NowPlaying"), QStringLiteral("Now Playing / Slideshow"), nowPlayingPanel});
         }
 
         return sections;
@@ -6271,8 +6592,17 @@ private:
     
     QGroupBox* createNowPlayingPanel()
     {
-        QGroupBox* groupBox = new QGroupBox("Now Playing (DLS+)");
-        QVBoxLayout* layout = new QVBoxLayout(groupBox);
+        QGroupBox* groupBox = new QGroupBox("Now Playing / Slideshow");
+        QVBoxLayout* outerLayout = new QVBoxLayout(groupBox);
+        outerLayout->setContentsMargins(4, 4, 4, 4);
+
+        // Option A: inner tabs so media (DLS+ text + slide image) stay together
+        // in the one dock. The DLS+ Text tab keeps the existing widgets; the
+        // Slideshow tab adds the image + status/info lines.
+        m_nowPlayingTabs = new QTabWidget();
+        m_nowPlayingTabs->setObjectName(QStringLiteral("nowPlayingTabs"));
+        QWidget* dlsTab = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(dlsTab);
         
         // Professional styling (respects system theme)
         QString nowPlayingStyle = R"(
@@ -6340,8 +6670,56 @@ private:
         m_lastUpdatedLabel->setStyleSheet("font-size: 10px; color: #999; font-style: italic;");
         m_lastUpdatedLabel->setAlignment(Qt::AlignRight);
         layout->addWidget(m_lastUpdatedLabel);
-        
+
+        m_nowPlayingTabs->addTab(dlsTab, tr("DLS+ Text"));
+
+        // --- Slideshow tab: image + status + info -------------------------
+        QWidget* slideTab = new QWidget();
+        QVBoxLayout* slideLayout = new QVBoxLayout(slideTab);
+        slideLayout->setContentsMargins(2, 2, 2, 2);
+        slideLayout->setSpacing(4);
+
+        m_slideshowImage = new QLabel(tr("Waiting for slideshow…"));
+        m_slideshowImage->setObjectName(QStringLiteral("slideshowImage"));
+        m_slideshowImage->setAlignment(Qt::AlignCenter);
+        m_slideshowImage->setMinimumSize(160, 120);
+        m_slideshowImage->setStyleSheet(
+            QStringLiteral("background-color: #101010; color: #888; border: 1px solid #333;"));
+        m_slideshowImage->setScaledContents(false);
+        slideLayout->addWidget(m_slideshowImage, 1);
+
+        m_slideshowStatus = new QLabel(tr("Waiting for slideshow…"));
+        m_slideshowStatus->setObjectName(QStringLiteral("slideshowStatus"));
+        m_slideshowStatus->setStyleSheet(
+            QStringLiteral("font-size: 10px; color: #999; font-style: italic;"));
+        m_slideshowStatus->setWordWrap(true);
+        slideLayout->addWidget(m_slideshowStatus);
+
+        m_slideshowInfo = new QLabel(QStringLiteral("—"));
+        m_slideshowInfo->setObjectName(QStringLiteral("slideshowInfo"));
+        m_slideshowInfo->setStyleSheet(QStringLiteral("font-size: 10px; color: #777;"));
+        m_slideshowInfo->setWordWrap(true);
+        slideLayout->addWidget(m_slideshowInfo);
+
+        m_nowPlayingTabs->addTab(slideTab, tr("Slideshow"));
+        outerLayout->addWidget(m_nowPlayingTabs);
+
         return groupBox;
+    }
+
+    // MOT SlideShow: reset the slideshow tab to its waiting state.
+    void resetSlideshowPanel()
+    {
+        if (m_slideshowImage) {
+            m_slideshowImage->clear();
+            m_slideshowImage->setText(tr("Waiting for slideshow…"));
+        }
+        if (m_slideshowStatus) {
+            m_slideshowStatus->setText(tr("Waiting for slideshow…"));
+        }
+        if (m_slideshowInfo) {
+            m_slideshowInfo->setText(QStringLiteral("—"));
+        }
     }
 
     // Manual-test finding 3: Now Playing (DLS+) panel state helpers.
@@ -7997,6 +8375,27 @@ private:
     // Phase 3B: DLS+ decoder instance
     eti::dls_plus::DLSPlusDecoder* m_dlsPlusDecoder{nullptr};
 
+    // MOT SlideShow (option A). The adapter re-frames the standard EN 300 401
+    // MSC data groups (assembled from X-PAD CI 12/13) into the layout consumed
+    // by MOTProtocol and feeds them with the carrying service id.
+    eti::mot::MOTProtocol m_motProtocol;
+    eti::mot::MotPadAdapter m_motAdapter{&m_motProtocol};
+
+    // Slideshow tab widgets + bounded image history (last N decoded images).
+    QTabWidget* m_nowPlayingTabs = nullptr;
+    QLabel* m_slideshowImage = nullptr;
+    QLabel* m_slideshowStatus = nullptr;
+    QLabel* m_slideshowInfo = nullptr;
+    std::deque<QImage> m_slideHistory;
+    QImage m_lastDecodedSlide;
+    static constexpr int MOT_SLIDE_HISTORY_MAX = 8;
+    int m_motObjectsReceived{0};   // objectComplete signals seen
+    int m_motImagesDecoded{0};     // successfully decoded images
+    int m_motErrors{0};            // adapter parse errors surfaced
+    quint32 m_lastMotTransportId{0};
+    quint32 m_lastMotServiceId{0};
+    QString m_lastMotServiceLabel;
+
     // Refinement A: GUI DLS+ pipeline state/counters. m_dlsParsers holds one
     // standard DAB+ superframe/PAD parser per DAB+ audio sub-channel. The
     // per-subchannel MSC slices are reused from ProcessedFrame::sub_channels
@@ -8133,11 +8532,23 @@ private:
     // areas). Bumped 2 -> 3 (Observation a) because v2 saved states could
     // restore the Signal Analysis group on CU Usage instead of DAB Ensemble
     // Explorer; v3 discards that stale state once so the default active tab is
-    // deterministic. Any saved version != 3 is discarded once on restore.
-    static constexpr int DOCKING_LAYOUT_VERSION = 3;
+    // deterministic. Bumped 3 -> 4 (MOT SlideShow, option A): the Now Playing
+    // dock grew from 82 px to ≈200 px and gained inner tabs; a saved v3 state
+    // would restore the old 82 px geometry and hide the Slideshow tab, so v4
+    // discards v3 state once to re-apply the new default geometry. Any saved
+    // version != 4 is discarded once on restore.
+    static constexpr int DOCKING_LAYOUT_VERSION = 4;
     
     // Phase 1: Processing counters
     int m_processedFrames{0};
+
+protected:
+    // Re-scale the retained slide when the panel is resized (keep aspect).
+    void resizeEvent(QResizeEvent* event) override
+    {
+        QMainWindow::resizeEvent(event);
+        refreshSlideshowPixmap();
+    }
 
 };
 

@@ -24,6 +24,7 @@ set(CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_compliance_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dabplus_stream_validator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/mot_protocol.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/mot_pad_adapter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/epg_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/journaline_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dls_plus_decoder.cpp
@@ -218,6 +219,7 @@ add_test(NAME test_charset_converter COMMAND test_charset_converter)
 add_executable(test_mot_protocol
     test_mot_protocol.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/mot_protocol.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/mot_pad_adapter.cpp
 )
 target_link_libraries(test_mot_protocol
     Qt6::Test
@@ -684,9 +686,10 @@ if(CAN_RUN_GUI_TESTS)
              COMMAND test_gui_dock_layout)
     set_tests_properties(test_gui_dock_layout PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        # Two full-fixture loads (real-data assertions + the reload/reset
-        # test) need more than the default 30 s headroom on slow CI hosts.
-        TIMEOUT 90
+        # Several full-fixture loads (real-data assertions, the reload/reset
+        # test and the MOT Slideshow real-fixture test) need extra headroom on
+        # slow CI hosts.
+        TIMEOUT 240
     )
 
     message(STATUS "  ✓ test_gui_stream_info_panel (10 widget tests)")
@@ -731,6 +734,10 @@ target_link_libraries(test_e2e_mot_slideshow
     pthread
 )
 add_test(NAME test_e2e_mot_slideshow COMMAND test_e2e_mot_slideshow)
+set_tests_properties(test_e2e_mot_slideshow PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60
+)
 
 add_executable(test_e2e_epg_journaline
     e2e/test_e2e_epg_journaline.cpp

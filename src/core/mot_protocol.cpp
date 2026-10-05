@@ -154,7 +154,7 @@ bool MOTProtocol::processMOTData(uint32_t service_id, const QByteArray& msc_data
 
     // Validate transport ID
     if (!validateTransportId(segment_header.transport_id)) {
-        QString error = QString("Invalid transport ID: %1 (must be 0-1023)")
+        QString error = QString("Invalid transport ID: %1 (must be 0-65535)")
             .arg(segment_header.transport_id);
         emit parseError(segment_header.transport_id, error);
         return false;
@@ -327,13 +327,21 @@ bool MOTProtocol::parseMOTHeader(const std::vector<uint8_t>& data, MOTHeader& he
     // Content subtype (9 bits)
     header.content_subtype = ((data[3] & 0x03) << 7) | (data[4] & 0x7F);
 
-    // Parse header extension parameters (if present)
+    // Parse header extension parameters (if present). They live in
+    // [7, header.header_size). When the declared header_size is 0 or exceeds
+    // the buffer (legacy/synthetic headers) fall back to the whole remaining
+    // buffer. This bound is what keeps a re-framed object's body bytes from
+    // being misinterpreted as parameters.
     if (data.size() > 7) {
-        size_t param_offset = 7;
-        size_t param_length = data.size() - param_offset;
-        if (!parseHeaderParameters(data, param_offset, param_length, header)) {
-            qWarning() << "Failed to parse MOT header parameters";
-            // Continue anyway - header structure is valid
+        size_t param_end = data.size();
+        if (header.header_size >= 7 && header.header_size <= data.size()) {
+            param_end = header.header_size;
+        }
+        if (param_end > 7) {
+            if (!parseHeaderParameters(data, 7, param_end - 7, header)) {
+                qWarning() << "Failed to parse MOT header parameters";
+                // Continue anyway - header structure is valid
+            }
         }
     }
 
@@ -524,7 +532,7 @@ bool MOTProtocol::parseMOTDirectory(const std::vector<uint8_t>& data, MOTDirecto
 // ============================================================================
 
 std::optional<MOTSegmentHeader> MOTProtocol::parseMOTSegmentHeader(const MSCDataGroup& data_group) {
-    if (data_group.data_field.size() < 7) {
+    if (data_group.data_field.size() < 8) {
         qWarning() << "Data field too short for MOT segment header";
         return std::nullopt;
     }
@@ -640,11 +648,15 @@ std::optional<MOTObject> MOTProtocol::reassembleObject(uint32_t transport_id) {
         );
     }
 
-    // Validate body size
+    // Validate/reconcile body size. The re-framed internal format synthesises
+    // a header core whose 13-bit body_size field cannot represent a large MOT
+    // body; the authoritative size is the extracted body length. Reconcile it
+    // so isValid() holds and a spurious "body size mismatch" is not logged for
+    // every re-framed slide.
     if (object.body.size() != object.header.body_size) {
-        qWarning() << "Body size mismatch: Expected" << object.header.body_size
-                   << "Got" << object.body.size();
-        // Continue anyway - may be acceptable
+        qDebug() << "MOT body size reconciled: declared" << object.header.body_size
+                 << "actual" << object.body.size();
+        object.header.body_size = static_cast<uint16_t>(object.body.size());
     }
 
     return object;
