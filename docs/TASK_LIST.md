@@ -54,9 +54,9 @@ Living checklist for active work. Check off items when done (add commit ref).
 
 ## v1.5.x — manual-test round 2 (2026-10-06)
 
-- [ ] **T27: Now Playing — splitter instead of inner tabs** — replace the inner `QTabWidget` (`DLS+ Text` · `Slideshow`) with a **left/right split** inside the same dock: left = DLS+ text, right = Slideshow with **4:3** image area (split need not be equal, e.g. 45/55). Keep dock title/states.
-- [ ] **T28: FIC-Extractor — FIG list collapsed + new Frame List tab** — groups default **collapsed** (no expandAll); add a **Frame List** tab beside "FIG Instance List" in the same left dock; selecting a frame decodes that frame and shows its FIGs/details in the right pane.
-- [ ] **T29: Player default tab + media controls** — Transport group must open on **Player** (stale layout state currently restores Decoder → layout version bump); add Play/Pause/Stop/Reset/Speed (slow/fast)/Skip + time-bar seek to the Player panel; make the **Loop playback** checkbox actually loop (playhead timer over the retained frame cache; 24 ms/frame default; detail panels throttled); post-load state = paused at frame 0.
+- [x] **T27: Now Playing — splitter instead of inner tabs** — inner `QTabWidget` replaced by a draggable **left/right splitter** (DLS+ text | Slideshow) with a **4:3** letterboxed image area, rescaled on splitter/floating-dock resize. Committed `1512f53`.
+- [x] **T28: FIC-Extractor — FIG list collapsed + new Frame List tab** — groups default **collapsed** (no expandAll/pre-select); left dock gains inner tabs **FIG Instance List** + **Frame List**; selecting a frame decodes it and shows its FIGs + full element details in the right pane (reuses the instance collector + builders). Committed `1512f53`.
+- [x] **T29: Player default tab + media controls** — Transport opens on **Player** (`DOCKING_LAYOUT_VERSION` 4→5 discards stale state); Player panel gains **Play/Pause/Stop/Reset/Skip ±10 s/Speed 0.25×–4×/Loop (wired)** + time-bar seek with time/frame labels; playback = QTimer playhead over the retained frames (24 ms/frame at 1×), detail panels throttled to 150 ms, loop wraps / stops at end, post-load = paused at frame 0. Committed `1512f53`.
 
 ## Later (see `docs/PHASE_E_PLAN.md`)
 
