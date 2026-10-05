@@ -113,6 +113,10 @@ private slots:
     void testPlayerPanelTransportControls();
     void testPlaybackController();
     void testPlayerActiveTabAfterVersionBump();
+    // T32: Player service selector + per-service media pipeline
+    void testPlayerServiceSelector();
+    // T32 review #4: retained-slide eviction (tiny cap, cross-service)
+    void testRetainedSlideEviction();
 
 private:
     // Removes every DABAnalyzerWindow QSettings key used by the app so each
@@ -1424,9 +1428,28 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
 
     const QString nowPlayingStatus = w.nowPlayingStatusForTest();
     if (dlsCount > 0) {
-        QVERIFY2(nowPlayingStatus.startsWith(QStringLiteral("Updated:")),
-                 qPrintable(QString("Now Playing must show real metadata, got: %1")
+        // T32 review #3: on load the selector's default service is applied, so
+        // the panel now names the SELECTED service and shows its metadata
+        // (instead of the pre-T32 global "Updated:…" line from the last-fed
+        // service). The assertion stays meaningful: the selected service must
+        // be identified and its latest timeline state reflected.
+        const QString selectedSvc = w.selectedServiceDisplayForTest();
+        QVERIFY2(!selectedSvc.isEmpty(),
+                 "T32: a service must be selected after a completed load");
+        QVERIFY2(nowPlayingStatus.contains(selectedSvc),
+                 qPrintable(QString("Now Playing must name the selected service "
+                                    "('%1'), got: %2")
+                                .arg(selectedSvc, nowPlayingStatus)));
+        QVERIFY2(nowPlayingStatus.startsWith(QStringLiteral("Frame ")),
+                 qPrintable(QString("Now Playing must reflect the replayed "
+                                    "playhead state, got: %1")
                                 .arg(nowPlayingStatus)));
+        const auto& selectedTl = w.playbackMediaTimelineForTest();
+        QVERIFY2(!selectedTl.empty(),
+                 "T32: the selected service must have a media timeline");
+        const QString expectedTrack = selectedTl.rbegin()->second.track;
+        QCOMPARE(w.nowPlayingTrackForTest(),
+                 expectedTrack.isEmpty() ? QStringLiteral("--") : expectedTrack);
     } else {
         QVERIFY2(nowPlayingStatus == QStringLiteral("No metadata received"),
                  qPrintable(QString("Now Playing must show the documented empty state, got: %1")
@@ -1470,10 +1493,10 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
                      && w.retainedSlideBytesForTest() < (32LL * 1024 * 1024),
                  qPrintable(QString("retained bytes out of range: %1")
                                 .arg(w.retainedSlideBytesForTest())));
-        std::fprintf(stderr, "[T31-TEST] timeline entries=%zu retained_slides=%d retained_bytes=%lld post_load_dls_msgs=%d mot_objects=%d\n",
+        std::fprintf(stderr, "[T31-TEST] before scrub: timeline_entries=%zu retained_slides=%d retained_bytes=%lld dls_msgs=%d pad_calls=%d mot_objects=%d mot_images=%d\n",
                      timeline.size(), w.retainedSlideCountForTest(),
                      static_cast<long long>(w.retainedSlideBytesForTest()),
-                     dlsMsgsBefore, motObjectsBefore);
+                     dlsMsgsBefore, dlsPadBefore, motObjectsBefore, motImagesBefore);
 
         // --- Find two change points that differ in DLS text and/or image id ---
         int dlsFrameA = -1, dlsFrameB = -1;
@@ -1534,6 +1557,9 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
         QCOMPARE(w.dlsPlusPadCallCountForTest(), dlsPadBefore);
         QCOMPARE(w.motObjectsForTest(), motObjectsBefore);
         QCOMPARE(w.motImagesDecodedForTest(), motImagesBefore);
+        std::fprintf(stderr, "[T31-TEST] after scrub: dls_msgs=%d pad_calls=%d mot_objects=%d mot_images=%d\n",
+                     w.dlsPlusMessageCountForTest(), w.dlsPlusPadCallCountForTest(),
+                     w.motObjectsForTest(), w.motImagesDecodedForTest());
 
         // A negative/out-of-range frame is a no-op lookup (panel untouched).
         const QString dlsAtMiss = w.nowPlayingTrackForTest();
@@ -3166,6 +3192,409 @@ void TestGuiDockLayout::testPlayerActiveTabAfterVersionBump()
         QCoreApplication::processEvents();
     }
     clearSettingsStore();
+}
+
+// ============================================================================
+// T32: Player service selector + per-service DLS+/slideshow pipeline
+// ============================================================================
+void TestGuiDockLayout::testPlayerServiceSelector()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    QComboBox* combo = w.playerServiceSelectorForTest();
+    QVERIFY2(combo, "T32: the Player panel must expose a service selector");
+
+    // --- No-file state: empty + disabled, and switching is a no-op. ---
+    QCOMPARE(combo->count(), 0);
+    QVERIFY2(!combo->isEnabled(), "T32: selector must be disabled before a load");
+    QCOMPARE(w.selectedServiceIdForTest(), 0u);
+    combo->setCurrentIndex(0);  // no-op (no items)
+    QCoreApplication::processEvents();
+    QCOMPARE(combo->count(), 0);
+    QCOMPARE(w.dlsPlusMessageCountForTest(), 0);
+    QCOMPARE(w.motObjectsForTest(), 0);
+
+    // --- Load the real fixture. ---
+    const QString fixture = QStringLiteral("../../eti/bkk_20062022_141637.eti");
+    QVERIFY2(QFileInfo::exists(fixture),
+             qPrintable(QString("fixture missing: %1 (cwd=%2)")
+                            .arg(fixture, QDir::currentPath())));
+    w.autoLoadFile(fixture);
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0, 120000);
+
+    // --- Selector populated with all decoded services, enabled. ---
+    // The GUI analyzer exposes the fixture's services 1:1: 14 DAB+ audio plus
+    // 2 data services (0xF3200000 and 0xF3200001). The CLI's separate headless
+    // discovery reports only one data service because validate_service_id()
+    // inspects the 16-bit service_id (SRef) and ModernETIFrameParser stores
+    // `sid32 & 0xFFFF`, so 0xF3200000 is FILTERED there — NOT deduped. The GUI
+    // selector must keep the real 16th service.
+    QVERIFY2(combo->isEnabled(), "T32: selector must be enabled after a load");
+    const QList<quint32> ids = w.serviceSelectorIdsForTest();
+    std::fprintf(stderr, "[T32-TEST] selector items=%d (analyzer services=%d)\n",
+                 combo->count(), w.analyzerServiceCountForTest());
+    for (int i = 0; i < combo->count(); ++i) {
+        std::fprintf(stderr, "[T32-TEST]   [%d] %s (0x%08X)\n", i,
+                     qPrintable(combo->itemText(i)),
+                     static_cast<unsigned>(combo->itemData(i).toUInt()));
+    }
+    QCOMPARE(ids.size(), combo->count());
+    QCOMPARE(combo->count(), w.analyzerServiceCountForTest());
+    QCOMPARE(combo->count(), 16);  // review #5: exact fixture service count
+    for (int i = 0; i < combo->count(); ++i) {
+        QVERIFY2(combo->itemText(i).contains(QStringLiteral("0x")),
+                 qPrintable(QString("selector item missing 0xSID: %1")
+                                .arg(combo->itemText(i))));
+    }
+
+    // Labels/`0x` SIDs: known labelled + unlabelled fixture services. Review
+    // #1/#5: 32-bit data SIDs must render in full (8 hex digits), not masked.
+    const int rro = ids.indexOf(0x2C61u);  // RROne FM 101
+    QVERIFY2(rro >= 0, "RROne FM 101 (SId 0x2C61) must be in the selector");
+    QCOMPARE(combo->itemText(rro), QStringLiteral("RROne FM 101 (0x2C61)"));
+    const int data0 = ids.indexOf(0xF3200000u);
+    QVERIFY2(data0 >= 0, "the real 16th service 0xF3200000 must be in the selector");
+    QCOMPARE(combo->itemText(data0), QStringLiteral("SId 0xF3200000"));
+    const int data1 = ids.indexOf(0xF3200001u);
+    QVERIFY2(data1 >= 0, "the unlabelled data service 0xF3200001 must be in the selector");
+    QCOMPARE(combo->itemText(data1), QStringLiteral("SId 0xF3200001"));
+
+    // --- Default selection = first service with a DAB+ audio component. ---
+    const QList<quint32> audioSids = w.dabPlusServiceIdsForTest();
+    QVERIFY2(!audioSids.isEmpty(), "fixture must expose DAB+ audio services");
+    QCOMPARE(audioSids.size(), 14);  // fixture parity: 14 DAB+ audio subchannels
+    for (quint32 sid : audioSids) {
+        QVERIFY2(ids.contains(sid),
+                 qPrintable(QString("DAB+ audio service 0x%1 missing from selector")
+                                .arg(sid, 4, 16, QChar('0'))));
+    }
+    QCOMPARE(w.selectedServiceIdForTest(), audioSids.first());
+    QCOMPARE(combo->currentIndex(), ids.indexOf(audioSids.first()));
+    QVERIFY2(w.selectedServiceDisplayForTest().contains(QStringLiteral("0x")),
+             "T32: the selected service display must carry the SID");
+
+    // --- Review #3: selector and panels agree immediately after load. ---
+    // populateServiceSelector() applies the default service's latest state, so
+    // the Now Playing panel must name the selected service (not the last
+    // live-fed one) and show that service's last recorded metadata.
+    {
+        const QString svc = w.selectedServiceDisplayForTest();
+        const QString status = w.nowPlayingStatusForTest();
+        QVERIFY2(status.contains(svc),
+                 qPrintable(QString("T32 #3: panel '%1' must name the selected "
+                                    "service '%2'").arg(status, svc)));
+        const ServiceMediaTimeline& tl0 =
+            w.playbackMediaTimelineForServiceForTest(w.selectedServiceIdForTest());
+        QVERIFY2(!tl0.empty(), "T32 #3: selected service must have media history");
+        const QString expected =
+            tl0.rbegin()->second.track.isEmpty() ? QStringLiteral("--")
+                                                 : tl0.rbegin()->second.track;
+        QCOMPARE(w.nowPlayingTrackForTest(), expected);
+        std::fprintf(stderr, "[T32-TEST] post-load panel agrees with selector: "
+                             "svc=%s track='%s' status='%s'\n",
+                     qPrintable(svc), qPrintable(w.nowPlayingTrackForTest()),
+                     qPrintable(status));
+    }
+
+    // --- Invariant baseline (post-load). ---
+    const int dlsMsgsBefore = w.dlsPlusMessageCountForTest();
+    const int dlsPadBefore = w.dlsPlusPadCallCountForTest();
+    const int motObjectsBefore = w.motObjectsForTest();
+    const int motImagesBefore = w.motImagesDecodedForTest();
+    QCOMPARE(dlsMsgsBefore, 1114);
+    QCOMPARE(motObjectsBefore, 97);
+    QCOMPARE(motImagesBefore, 97);
+
+    // --- Pick two services whose DLS content differs. ---
+    const QList<quint32> sids = w.serviceIdsWithTimelineForTest();
+    QVERIFY2(sids.size() >= 2,
+             qPrintable(QString("T32 needs >=2 per-service timelines, got %1")
+                            .arg(sids.size())));
+    quint32 sidA = 0, sidB = 0;
+    int frameA = -1, frameB = -1;
+    QString trackA, trackB;
+    for (quint32 sid : sids) {
+        const ServiceMediaTimeline& tl = w.playbackMediaTimelineForServiceForTest(sid);
+        for (auto it = tl.begin(); it != tl.end(); ++it) {
+            if (!it->second.track.isEmpty()) {
+                sidA = sid;
+                frameA = it->first;
+                trackA = it->second.track;
+                break;
+            }
+        }
+        if (sidA != 0) break;
+    }
+    for (quint32 sid : sids) {
+        if (sid == sidA) continue;
+        const ServiceMediaTimeline& tl = w.playbackMediaTimelineForServiceForTest(sid);
+        for (auto it = tl.begin(); it != tl.end(); ++it) {
+            if (!it->second.track.isEmpty() && it->second.track != trackA) {
+                sidB = sid;
+                frameB = it->first;
+                trackB = it->second.track;
+                break;
+            }
+        }
+        if (sidB != 0) break;
+    }
+    QVERIFY2(sidA != 0 && sidB != 0,
+             "fixture must expose two services with different DLS content");
+    std::fprintf(stderr,
+                 "[T32-TEST] A sid=0x%04X frame=%d track='%s' | "
+                 "B sid=0x%04X frame=%d track='%s'\n",
+                 static_cast<unsigned>(sidA), frameA, qPrintable(trackA),
+                 static_cast<unsigned>(sidB), frameB, qPrintable(trackB));
+    // Per-service structure + bounded store evidence.
+    {
+        size_t totalEntries = 0;
+        int servicesWithHistory = 0;
+        for (quint32 sid : sids) {
+            const ServiceMediaTimeline& tl = w.playbackMediaTimelineForServiceForTest(sid);
+            if (!tl.empty()) {
+                ++servicesWithHistory;
+            }
+            totalEntries += tl.size();
+        }
+        std::fprintf(stderr,
+                     "[T32-TEST] per-service histories: services=%zu (non-empty=%d) "
+                     "total_entries=%zu | retained slides=%d bytes=%lld\n",
+                     static_cast<size_t>(sids.size()), servicesWithHistory, totalEntries,
+                     w.retainedSlideCountForTest(),
+                     static_cast<long long>(w.retainedSlideBytesForTest()));
+    }
+
+    // --- Switch to A and apply at A's frame -> A's DLS text. ---
+    combo->setCurrentIndex(ids.indexOf(sidA));
+    QCoreApplication::processEvents();
+    QCOMPARE(w.selectedServiceIdForTest(), sidA);
+    w.playbackSeekForTest(frameA);
+    const QString shownA = w.nowPlayingTrackForTest();
+    QVERIFY2(shownA == trackA,
+             qPrintable(QString("T32: service A DLS mismatch: '%1' vs '%2'")
+                            .arg(shownA, trackA)));
+
+    // --- Switch to B and apply at B's frame -> B's DIFFERENT DLS text. ---
+    combo->setCurrentIndex(ids.indexOf(sidB));
+    QCoreApplication::processEvents();
+    QCOMPARE(w.selectedServiceIdForTest(), sidB);
+    w.playbackSeekForTest(frameB);
+    const QString shownB = w.nowPlayingTrackForTest();
+    QVERIFY2(shownB == trackB,
+             qPrintable(QString("T32: service B DLS mismatch: '%1' vs '%2'")
+                            .arg(shownB, trackB)));
+    // POSITIVE switch evidence: the shown metadata really changed.
+    QVERIFY2(shownA != shownB,
+             qPrintable(QString("T32: switching services did not change the DLS "
+                                "text ('%1')").arg(shownA)));
+    // The status line names the selected service.
+    QVERIFY2(w.nowPlayingStatusForTest().contains(QStringLiteral("0x")),
+             qPrintable(QString("T32: replay status must name the service, got: %1")
+                            .arg(w.nowPlayingStatusForTest())));
+
+    // --- Best-effort: the slideshow image can differ between services too. ---
+    {
+        quint32 imgSidA = 0, imgSidB = 0;
+        int imgFrameA = -1, imgFrameB = -1;
+        for (quint32 sid : sids) {
+            const ServiceMediaTimeline& tl = w.playbackMediaTimelineForServiceForTest(sid);
+            for (auto it = tl.begin(); it != tl.end(); ++it) {
+                if (it->second.motImageId >= 0) {
+                    if (imgSidA == 0) { imgSidA = sid; imgFrameA = it->first; }
+                    else if (sid != imgSidA) { imgSidB = sid; imgFrameB = it->first; }
+                    break;
+                }
+            }
+            if (imgSidA != 0 && imgSidB != 0) break;
+        }
+        // Review #6: require both to resolve and POSITIVELY assert the two
+        // services' slideshow images differ (not merely a print).
+        QVERIFY2(imgSidA != 0 && imgSidB != 0,
+                 "T32: fixture must expose slideshow images for two services");
+        combo->setCurrentIndex(ids.indexOf(imgSidA));
+        w.playbackSeekForTest(imgFrameA);
+        const QImage imgA = w.slideshowImageForTest();
+        combo->setCurrentIndex(ids.indexOf(imgSidB));
+        w.playbackSeekForTest(imgFrameB);
+        const QImage imgB = w.slideshowImageForTest();
+        QVERIFY2(!imgA.isNull() && !imgB.isNull(),
+                 "T32: selected services' slideshow images must resolve");
+        QVERIFY2(imgA != imgB,
+                 "T32: two services' slideshow images must differ");
+        std::fprintf(stderr,
+                     "[T32-TEST] slideshow A sid=0x%04X frame=%d vs "
+                     "B sid=0x%04X frame=%d -> different\n",
+                     static_cast<unsigned>(imgSidA), imgFrameA,
+                     static_cast<unsigned>(imgSidB), imgFrameB);
+    }
+
+    // --- Switching while paused keeps the playhead frame + updates panels. ---
+    if (w.isPlayingForTest()) {
+        w.playbackPauseForTest();
+    }
+    w.playbackSeekForTest(4000);
+    QCOMPARE(w.playbackFrameForTest(), 4000);
+    combo->setCurrentIndex(ids.indexOf(sidA));
+    QCoreApplication::processEvents();
+    QCOMPARE(w.playbackFrameForTest(), 4000);
+    const QString at4000A = w.nowPlayingTrackForTest();
+    combo->setCurrentIndex(ids.indexOf(sidB));
+    QCoreApplication::processEvents();
+    QCOMPARE(w.playbackFrameForTest(), 4000);
+    const QString at4000B = w.nowPlayingTrackForTest();
+    // Each service's shown text must equal its own lookup at frame 4000 (or the
+    // documented waiting/short state) — i.e. no cross-service leak.
+    auto expectAt = [](const ServiceMediaTimeline& tl, int frame) {
+        if (tl.empty()) return QStringLiteral("--");
+        auto it = tl.upper_bound(frame);
+        if (it == tl.begin()) return QStringLiteral("--");
+        --it;
+        return it->second.track.isEmpty() ? QStringLiteral("--") : it->second.track;
+    };
+    QCOMPARE(at4000A, expectAt(w.playbackMediaTimelineForServiceForTest(sidA), 4000));
+    QCOMPARE(at4000B, expectAt(w.playbackMediaTimelineForServiceForTest(sidB), 4000));
+    std::fprintf(stderr, "[T32-TEST] at frame 4000: A='%s' B='%s'\n",
+                 qPrintable(at4000A), qPrintable(at4000B));
+
+    // --- Switching while playing keeps the playhead frame. ---
+    w.playbackSeekForTest(2000);
+    w.playbackPlayForTest();
+    QVERIFY(w.isPlayingForTest());
+    const int playingFrame = w.playbackFrameForTest();
+    // Signal is delivered synchronously by setCurrentIndex (no event pump), so
+    // the playhead frame cannot advance here.
+    combo->setCurrentIndex(ids.indexOf(sidA));
+    QCOMPARE(w.playbackFrameForTest(), playingFrame);
+    QVERIFY(w.isPlayingForTest());
+    w.playbackStopForTest();
+
+    // --- No-record service -> waiting state (no cross-service leak). ---
+    // Explicitly exercise the 32-bit data service 0xF3200000: review #1 in the
+    // panel path (the status line must show the full SID, not a masked 0x0000).
+    {
+        const int dataIdx = ids.indexOf(0xF3200000u);
+        QVERIFY2(dataIdx >= 0, "T32: the 16th service 0xF3200000 must be present");
+        QVERIFY2(w.playbackMediaTimelineForServiceForTest(0xF3200000u).empty(),
+                 "0xF3200000 is a data service with no media history");
+        combo->setCurrentIndex(dataIdx);
+        QCoreApplication::processEvents();
+        QCOMPARE(w.selectedServiceIdForTest(), 0xF3200000u);
+        w.playbackSeekForTest(1000);
+        QCOMPARE(w.nowPlayingTrackForTest(), QStringLiteral("--"));
+        QVERIFY2(w.slideshowImageForTest().isNull(),
+                 "T32: a service without a record must not leak another image");
+        QVERIFY2(w.nowPlayingStatusForTest().contains(QStringLiteral("SId 0xF3200000")),
+                 qPrintable(QString("review #1: panel status must show the full "
+                                    "32-bit SID, got: %1")
+                                .arg(w.nowPlayingStatusForTest())));
+        std::fprintf(stderr,
+                     "[T32-TEST] no-record data service status='%s'\n",
+                     qPrintable(w.nowPlayingStatusForTest()));
+    }
+
+    // --- T31 invariant: every load-time counter is unchanged. ---
+    QCOMPARE(w.dlsPlusMessageCountForTest(), dlsMsgsBefore);
+    QCOMPARE(w.dlsPlusPadCallCountForTest(), dlsPadBefore);
+    QCOMPARE(w.motObjectsForTest(), motObjectsBefore);
+    QCOMPARE(w.motImagesDecodedForTest(), motImagesBefore);
+    QCOMPARE(w.retainedSlideCountForTest(), 97);
+    std::fprintf(stderr,
+                 "[T32-TEST] invariant after switch/scrub/playback: "
+                 "dls=%d pad=%d mot_objects=%d mot_images=%d\n",
+                 w.dlsPlusMessageCountForTest(), w.dlsPlusPadCallCountForTest(),
+                 w.motObjectsForTest(), w.motImagesDecodedForTest());
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// T32 review #4: retained-slide eviction under a tiny byte cap
+// ============================================================================
+void TestGuiDockLayout::testRetainedSlideEviction()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;  // no file needed: synthetic slides + injected cap
+
+    const qint64 slideBytes = QImage(64, 64, QImage::Format_ARGB32).sizeInBytes();
+    QVERIFY2(slideBytes > 0, "synthetic slide size must be positive");
+    const qint64 cap = 3 * slideBytes;
+    w.setRetainedSlideByteCapForTest(cap);
+
+    const quint32 svcA = 0x1111u;
+    const quint32 svcB = 0x2222u;
+
+    // Fill service A to exactly the cap: no eviction yet.
+    w.appendSyntheticRetainedSlideForTest(svcA, QStringLiteral("A0"));
+    w.appendSyntheticRetainedSlideForTest(svcA, QStringLiteral("A1"));
+    w.appendSyntheticRetainedSlideForTest(svcA, QStringLiteral("A2"));
+    QCOMPARE(w.retainedSlideCountForTest(), 3);
+    QCOMPARE(w.retainedSlideBytesForTest(), cap);
+    QCOMPARE(w.retainedSlideBaseIdForTest(svcA), 0);
+
+    // A 4th slide exceeds the cap -> the globally-oldest slide (A0) is evicted.
+    w.appendSyntheticRetainedSlideForTest(svcA, QStringLiteral("A3"));
+    QCOMPARE(w.retainedSlideCountForTest(), 3);
+    QVERIFY2(w.retainedSlideBytesForTest() <= cap,
+             qPrintable(QString("retained bytes %1 must stay <= cap %2")
+                            .arg(w.retainedSlideBytesForTest()).arg(cap)));
+    QCOMPARE(w.retainedSlideBaseIdForTest(svcA), 1);  // A0 gone
+    QCOMPARE(w.retainedSlideNextIdForTest(svcA), 4);  // A0..A3 assigned
+
+    // Exact id resolves to its own slide, no note.
+    {
+        QString note, tag;
+        QVERIFY(w.retainedSlideResolvesForTest(svcA, 3, note, tag));
+        QCOMPARE(tag, QStringLiteral("A3"));
+        QVERIFY2(note.isEmpty(), "exact hit must not report an eviction");
+    }
+    // Evicted id -> service A's nearest retained slide + the eviction note.
+    {
+        QString note, tag;
+        QVERIFY(w.retainedSlideResolvesForTest(svcA, 0, note, tag));
+        QCOMPARE(tag, QStringLiteral("A1"));
+        QVERIFY2(note.contains(QStringLiteral("nearest retained image")),
+                 qPrintable(QString("eviction note missing, got: '%1'").arg(note)));
+    }
+
+    // Add service B slides: global FIFO keeps evicting A's older slides first,
+    // never B's, and B's ids always resolve within B (no cross-service leak).
+    w.appendSyntheticRetainedSlideForTest(svcB, QStringLiteral("B0"));
+    w.appendSyntheticRetainedSlideForTest(svcB, QStringLiteral("B1"));
+    QVERIFY2(w.retainedSlideBytesForTest() <= cap,
+             qPrintable(QString("retained bytes %1 must stay <= cap %2")
+                            .arg(w.retainedSlideBytesForTest()).arg(cap)));
+    {
+        QString note, tag;
+        QVERIFY(w.retainedSlideResolvesForTest(svcB, 0, note, tag));
+        QCOMPARE(tag, QStringLiteral("B0"));
+        QVERIFY2(note.isEmpty(), "exact B hit must not report an eviction");
+        QVERIFY(w.retainedSlideResolvesForTest(svcB, 1, note, tag));
+        QCOMPARE(tag, QStringLiteral("B1"));
+    }
+    {
+        // A's id 1 was evicted; it must fall back to A's nearest (A3), NOT B.
+        QString note, tag;
+        QVERIFY(w.retainedSlideResolvesForTest(svcA, 1, note, tag));
+        QVERIFY2(tag.startsWith(QLatin1String("A")),
+                 qPrintable(QString("A must resolve within A, got: %1").arg(tag)));
+        QCOMPARE(tag, QStringLiteral("A3"));
+        QVERIFY2(note.contains(QStringLiteral("nearest retained image")),
+                 "evicted A id must report the nearest-retained-image note");
+    }
+    std::fprintf(stderr,
+                 "[T32-TEST] eviction: cap=%lld slide=%lld final_count=%d "
+                 "final_bytes=%lld baseA=%d nextA=%d\n",
+                 static_cast<long long>(cap), static_cast<long long>(slideBytes),
+                 w.retainedSlideCountForTest(),
+                 static_cast<long long>(w.retainedSlideBytesForTest()),
+                 w.retainedSlideBaseIdForTest(svcA), w.retainedSlideNextIdForTest(svcA));
+
+    w.close();
+    QCoreApplication::processEvents();
 }
 
 QTEST_MAIN(TestGuiDockLayout)
