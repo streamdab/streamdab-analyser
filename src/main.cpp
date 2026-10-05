@@ -27,6 +27,7 @@
 #include <QStandardItemModel>   // Quick-example combo: disable unsupported items
 #include <QSpinBox>
 #include <QPushButton>
+#include <QToolButton>          // T23: ⚙ UDP-streaming-settings button in the network row
 #include <QFrame>
 #include <QDateTime>
 #include <QRadioButton>
@@ -37,7 +38,7 @@
 #include <QDialog>              // Phase C: UDP settings dialog
 #include <QFormLayout>          // Phase C: UDP settings dialog
 #include <QDialogButtonBox>     // Phase C: UDP settings dialog
-#include <QActionGroup>         // Phase C: Input menu radio group
+
 #include <QRegularExpression>   // Phase 1.1: Hex viewer formatting
 #include <QElapsedTimer>        // Phase 1.2: Timing throttle
 // === Qt Advanced Docking System (Qt-ADS) 4.5.0 — v1.3 GUI migration ===
@@ -1058,6 +1059,11 @@ public:
         m_showStreamDialogs = saved;
     }
 
+    // T23 test hooks: the ⚙ button + the UDP settings dialog it opens.
+    QToolButton* udpSettingsButtonForTest() const { return m_udpSettingsBtn; }
+    // Build (without exec'ing) the UDP Streaming Settings dialog. Caller owns it.
+    QDialog* buildUdpSettingsDialogForTest() { return buildUDPSettingsDialog().dialog; }
+
 private slots:
     void openFile()
     {
@@ -1323,6 +1329,12 @@ private slots:
             m_dlsPipelineNs += dlsTimer.nsecsElapsed();
         }
 
+        // === F8: Performance Dashboard live metrics ===
+        // Cheap (counter arithmetic; label updates throttled to 100 ms) and
+        // now that ProcessedFrame carries msc_size instead of a duplicate MSC
+        // buffer, this does not retain or copy frame bytes.
+        updatePerformanceMetrics(frame);
+
         // === PHASE 4: Throttled error counter updates (5 fps) ===
         if (++m_errorCounterUpdateCounter % ERROR_COUNTER_UPDATE_THROTTLE == 0) {
             updateErrorCounterTable();
@@ -1392,7 +1404,7 @@ private slots:
         if (!m_dlsPlusDecoder || !m_etiProcessor || frame.frame_number == 0) {
             return;
         }
-        if (frame.sub_channels.empty()) {
+        if (!frame.hasSubChannels()) {
             return;  // ETI processor produced no MSC slices for this frame
         }
 
@@ -1410,7 +1422,7 @@ private slots:
         // Reuse the per-subchannel MSC slices already extracted by the ETI
         // processor (ProcessedFrame::sub_channels) instead of re-running
         // parseHeader()/extractMSC() on the raw frame.
-        for (const ProcessedFrame::SubChannelSlice& sc : frame.sub_channels) {
+        for (const ProcessedFrame::SubChannelSlice& sc : frame.subChannels()) {
             if (!m_dabPlusSubChannels.contains(sc.sub_channel_id)) {
                 continue;
             }
@@ -1647,6 +1659,15 @@ private slots:
 
     void onProcessingComplete(int totalFrames, int processingTimeMs)
     {
+        // T25 (F4): a queued processingComplete() can be delivered during
+        // teardown, after m_etiProcessor was reset. The handler dereferences
+        // m_etiProcessor below; degrade gracefully and skip all processor/UI
+        // work instead of crashing on a half-torn-down window.
+        if (m_closing || !m_etiProcessor) {
+            qDebug() << "onProcessingComplete ignored (closing or no processor)";
+            return;
+        }
+
         // Manual-test finding 2: parsing finished -> re-arm navigation.
         rearmNavigation();
 
@@ -1811,7 +1832,13 @@ private slots:
         statusBar()->showMessage(tr("Processing aborted — %1").arg(error));
 
         m_systemMessages->append(QString("❌ Error: %1").arg(error));
-        QMessageBox::critical(this, "Processing Error", error);
+        if (m_closing) {
+            // T25 (F5): a stale queued processingError during teardown must not
+            // pop a modal (would block/hang an offscreen close). Keep the log.
+            qWarning() << "Processing error during teardown (dialog suppressed):" << error;
+        } else {
+            QMessageBox::critical(this, "Processing Error", error);
+        }
 
         // Forward error to Error Detection system using performance error detection
         if (m_errorDetector) {
@@ -2977,7 +3004,10 @@ private slots:
     
     void onErrorDetected(const error_detection::ErrorReport& error)
     {
-        if (!m_errorHistoryTree) return;
+        // T25 (F5): queued from the detector's worker thread. During teardown
+        // m_errorDetector is reset; ignore stale deliveries instead of
+        // dereferencing a freed detector / touching a half-torn-down window.
+        if (m_closing || !m_errorHistoryTree) return;
         
         QTreeWidgetItem* item = new QTreeWidgetItem(m_errorHistoryTree);
         item->setText(0, error.timestamp.toString("hh:mm:ss"));
@@ -3034,7 +3064,7 @@ private slots:
         m_errorHistoryTree->scrollToBottom();
         
         // Update error count
-        if (m_errorCountLabel) {
+        if (m_errorCountLabel && m_errorDetector) {
             uint32_t totalErrors = m_errorDetector->getTotalErrorCount();
             m_errorCountLabel->setText(QString("Total Errors: %1").arg(totalErrors));
         }
@@ -3511,14 +3541,18 @@ private slots:
     // No-op function, no signal connections found, safe to delete per PDCA review 2025-10-26
     
     // Performance metrics update method
-    void updatePerformanceMetrics(ProcessedFrame frame)  // Pass by value for Qt::QueuedConnection safety
+    // F8: wired into onFrameProcessed() (DirectConnection, same thread) so the
+    // Performance Dashboard's FPS/memory/compliance labels actually update.
+    // const& avoids a per-frame struct copy; the body only does cheap counter
+    // arithmetic and (throttled to 100 ms) a few label updates.
+    void updatePerformanceMetrics(const ProcessedFrame& frame)
     {
         static auto startTime = std::chrono::steady_clock::now();
         static uint64_t frameCount = 0;
         static uint64_t totalBytes = 0;
         
         frameCount++;
-        totalBytes += frame.fic_data.size() + frame.msc_data.size();
+        totalBytes += frame.fic_data.size() + frame.msc_size;
         
         // Calculate processing rate
         auto currentTime = std::chrono::steady_clock::now();
@@ -3564,7 +3598,50 @@ protected:
 
         // AGGRESSIVE cleanup: Destroy Phase 2B components completely before closing
         qDebug() << "Window closing - performing aggressive component cleanup...";
-        
+
+        // T25 (F5): mark teardown before any reset/processEvents so stale queued
+        // slots degrade gracefully and suppress modal dialogs.
+        m_closing = true;
+
+        // T25 (F3): disconnect every sender from this receiver BEFORE the
+        // resets. Note the accurate mechanism: QObject::disconnect stops only
+        // FUTURE emissions. Queued calls already posted to this thread's event
+        // queue are NOT removed by disconnect — those are neutralised by the
+        // null-guards in the slots (onServicesUpdated/onSubChannelsUpdated/
+        // onProcessingComplete/onProcessingError/onErrorDetected), which is the
+        // actual crash fix. The disconnects are defense-in-depth so a still-live
+        // emitter cannot post new events while teardown runs.
+        if (m_figAnalyzer) {
+            QObject::disconnect(m_figAnalyzer.get(), nullptr, this, nullptr);
+        }
+        if (m_etiProcessor) {
+            QObject::disconnect(m_etiProcessor.get(), nullptr, this, nullptr);
+        }
+        if (m_errorDetector) {
+            QObject::disconnect(m_errorDetector.get(), nullptr, this, nullptr);
+        }
+        if (m_multiStreamProcessor) {
+            QObject::disconnect(m_multiStreamProcessor.get(), nullptr, this, nullptr);
+        }
+        if (m_etsiComplianceEngine) {
+            QObject::disconnect(m_etsiComplianceEngine.get(), nullptr, this, nullptr);
+        }
+        if (m_dlsPlusDecoder) {
+            QObject::disconnect(m_dlsPlusDecoder, nullptr, this, nullptr);
+        }
+        QObject::disconnect(&m_motProtocol, nullptr, this, nullptr);
+        if (m_readerThread) {
+            QObject::disconnect(m_readerThread, nullptr, this, nullptr);
+        }
+        if (m_sharedData) {
+            QObject::disconnect(m_sharedData, nullptr, this, nullptr);
+        }
+        // Stop the stream receiver posting further frame/error signals during
+        // teardown. Its own destructor stops reception and joins its thread.
+        if (m_networkReceiver) {
+            QObject::disconnect(m_networkReceiver.get(), nullptr, this, nullptr);
+        }
+
         // Force destroy Error Detection system (timers, threads, etc.)
         if (m_errorDetector) {
             qDebug() << "Destroying Error Detection system...";
@@ -5696,6 +5773,18 @@ private:
         controlLayout->addWidget(new QLabel("Status:"));
         controlLayout->addWidget(m_streamStatus);
         controlLayout->addStretch();
+
+        // T23 (option A): the Input menu was removed; its unique item — UDP
+        // Streaming Settings — moves here as a ⚙ button at the end of the
+        // network row (after Record/status). Same dialog/handler as before.
+        m_udpSettingsBtn = new QToolButton();
+        m_udpSettingsBtn->setObjectName(QStringLiteral("udpSettingsButton"));
+        m_udpSettingsBtn->setText(QStringLiteral("⚙"));
+        m_udpSettingsBtn->setToolTip(QStringLiteral("UDP streaming settings"));
+        m_udpSettingsBtn->setAccessibleName(QStringLiteral("UDP streaming settings"));
+        m_udpSettingsBtn->setAutoRaise(true);
+        m_udpSettingsBtn->setCursor(Qt::PointingHandCursor);
+        controlLayout->addWidget(m_udpSettingsBtn);
         networkLayout->addLayout(controlLayout);
 
         // Stream Statistics GroupBox
@@ -5789,6 +5878,7 @@ private:
         connect(m_connectBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onConnectClicked);
         connect(m_disconnectBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onDisconnectClicked);
         connect(m_recordBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onRecordClicked);
+        connect(m_udpSettingsBtn, &QToolButton::clicked, this, &DABAnalyzerWindow::showUDPSettings);
         connect(m_browseFileButton, &QPushButton::clicked, this, &DABAnalyzerWindow::onBrowseFileClicked);
         connect(m_loadFileButton, &QPushButton::clicked, this, &DABAnalyzerWindow::onLoadFileClicked);
 
@@ -7416,43 +7506,11 @@ private:
         QAction* exitAction = fileMenu->addAction("Exit");
         connect(exitAction, &QAction::triggered, this, &QWidget::close);
         
-        // Phase C: Input Source menu
-        QMenu* inputMenu = menuBar->addMenu("Input");
-        
-        QActionGroup* inputGroup = new QActionGroup(this);
-        
-        QAction* fileInputAction = new QAction("File Input", this);
-        fileInputAction->setCheckable(true);
-        fileInputAction->setChecked(true);  // Default to file mode
-        fileInputAction->setActionGroup(inputGroup);
-        
-        QAction* udpInputAction = new QAction("UDP Streaming", this);
-        udpInputAction->setCheckable(true);
-        udpInputAction->setActionGroup(inputGroup);
-        
-        inputMenu->addAction(fileInputAction);
-        inputMenu->addAction(udpInputAction);
-        inputMenu->addSeparator();
-        
-        QAction* udpSettingsAction = new QAction("UDP Settings...", this);
-        inputMenu->addAction(udpSettingsAction);
-        
-        // Phase C: Connect input mode actions
-        connect(fileInputAction, &QAction::triggered, [this]() {
-            if (m_readerThread) {
-                m_readerThread->setInputMode(ETIReaderThread::InputMode::FileMode);
-                qDebug() << "Phase C: Switched to File input mode";
-            }
-        });
-        
-        connect(udpInputAction, &QAction::triggered, [this]() {
-            if (m_readerThread) {
-                m_readerThread->setInputMode(ETIReaderThread::InputMode::UDPMode);
-                qDebug() << "Phase C: Switched to UDP input mode";
-            }
-        });
-        
-        connect(udpSettingsAction, &QAction::triggered, this, &DABAnalyzerWindow::showUDPSettings);
+        // T23 (option A): the Input menu is gone. Input mode is owned solely by
+        // the File/Network radios + Connect/Disconnect/Record in the input
+        // toolbar, and the unique menu item (UDP Streaming Settings…) now lives
+        // behind the ⚙ button appended to the toolbar's network row. The menu
+        // bar is intentionally File / View / Help only.
         
         // View menu
         QMenu* viewMenu = menuBar->addMenu("View");
@@ -7763,33 +7821,49 @@ private:
     }
     
     // Phase C: UDP Settings Dialog
-    void showUDPSettings()
+    // T23 (option A): factored out of showUDPSettings() so tests can build the
+    // dialog offscreen without entering its modal exec() loop. The returned
+    // dialog is owned by the caller.
+    struct UdpSettingsWidgets {
+        QDialog* dialog = nullptr;
+        QSpinBox* port = nullptr;
+        QLineEdit* address = nullptr;
+        QCheckBox* multicast = nullptr;
+    };
+
+    UdpSettingsWidgets buildUDPSettingsDialog()
     {
-        QDialog dialog(this);
-        dialog.setWindowTitle("UDP Streaming Settings");
-        dialog.setMinimumWidth(400);
-        
-        QFormLayout* layout = new QFormLayout(&dialog);
-        
+        UdpSettingsWidgets w;
+        w.dialog = new QDialog(this);
+        w.dialog->setWindowTitle("UDP Streaming Settings");
+        w.dialog->setMinimumWidth(400);
+
+        QFormLayout* layout = new QFormLayout(w.dialog);
+
         // Port setting
-        QSpinBox* portSpinBox = new QSpinBox(&dialog);
-        portSpinBox->setRange(1024, 65535);
-        portSpinBox->setValue(m_readerThread ? m_readerThread->getPacketsReceived() : 12000);
-        layout->addRow("UDP Port:", portSpinBox);
-        
+        w.port = new QSpinBox(w.dialog);
+        w.port->setObjectName(QStringLiteral("udpSettingsPort"));
+        w.port->setRange(1024, 65535);
+        // F7: seed from the configured UDP port (default 12000), not the
+        // received-packet count.
+        w.port->setValue(m_readerThread ? m_readerThread->getUDPPort() : 12000);
+        layout->addRow("UDP Port:", w.port);
+
         // Multicast address
-        QLineEdit* addressEdit = new QLineEdit(&dialog);
-        addressEdit->setText("239.0.0.1");
-        addressEdit->setPlaceholderText("239.0.0.1");
-        layout->addRow("Multicast Address:", addressEdit);
-        
+        w.address = new QLineEdit(w.dialog);
+        w.address->setObjectName(QStringLiteral("udpSettingsAddress"));
+        w.address->setText("239.0.0.1");
+        w.address->setPlaceholderText("239.0.0.1");
+        layout->addRow("Multicast Address:", w.address);
+
         // Enable multicast checkbox
-        QCheckBox* multicastCheck = new QCheckBox("Enable Multicast Subscription", &dialog);
-        multicastCheck->setChecked(false);
-        layout->addRow(multicastCheck);
-        
+        w.multicast = new QCheckBox("Enable Multicast Subscription", w.dialog);
+        w.multicast->setObjectName(QStringLiteral("udpSettingsMulticast"));
+        w.multicast->setChecked(false);
+        layout->addRow(w.multicast);
+
         // Info label
-        QLabel* infoLabel = new QLabel(&dialog);
+        QLabel* infoLabel = new QLabel(w.dialog);
         infoLabel->setText(
             "<b>ETI-over-IP Configuration</b><br><br>"
             "<b>Common Ports:</b> 5004, 12000, 9200<br>"
@@ -7801,33 +7875,42 @@ private:
         infoLabel->setWordWrap(true);
         infoLabel->setStyleSheet("QLabel { background-color: #f0f0f0; padding: 10px; border: 1px solid #ccc; }");
         layout->addRow(infoLabel);
-        
+
         // Buttons
         QDialogButtonBox* buttons = new QDialogButtonBox(
-            QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+            QDialogButtonBox::Ok | QDialogButtonBox::Cancel, w.dialog);
         layout->addRow(buttons);
-        
-        connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-        connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-        
-        if (dialog.exec() == QDialog::Accepted) {
-            if (m_readerThread) {
-                m_readerThread->setUDPPort(portSpinBox->value());
-                m_readerThread->setMulticastAddress(addressEdit->text());
-                m_readerThread->setUseMulticast(multicastCheck->isChecked());
-                
-                qDebug() << "Phase C: UDP settings updated - Port:" << portSpinBox->value()
-                         << "Multicast:" << addressEdit->text()
-                         << "Enabled:" << multicastCheck->isChecked();
-                
-                QMessageBox::information(this, "Settings Updated",
-                    QString("UDP settings saved.\n\nPort: %1\nMulticast: %2\nEnabled: %3\n\n"
-                            "Switch to UDP mode in Input menu to start streaming.")
-                            .arg(portSpinBox->value())
-                            .arg(addressEdit->text())
-                            .arg(multicastCheck->isChecked() ? "Yes" : "No"));
-            }
+
+        connect(buttons, &QDialogButtonBox::accepted, w.dialog, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, w.dialog, &QDialog::reject);
+        return w;
+    }
+
+    void showUDPSettings()
+    {
+        const UdpSettingsWidgets w = buildUDPSettingsDialog();
+        std::unique_ptr<QDialog> dialog(w.dialog);
+
+        if (dialog->exec() != QDialog::Accepted) {
+            return;
         }
+        if (!m_readerThread) {
+            return;
+        }
+        m_readerThread->setUDPPort(w.port->value());
+        m_readerThread->setMulticastAddress(w.address->text());
+        m_readerThread->setUseMulticast(w.multicast->isChecked());
+
+        qDebug() << "Phase C: UDP settings updated - Port:" << w.port->value()
+                 << "Multicast:" << w.address->text()
+                 << "Enabled:" << w.multicast->isChecked();
+
+        QMessageBox::information(this, "Settings Updated",
+            QString("UDP settings saved.\n\nPort: %1\nMulticast: %2\nEnabled: %3\n\n"
+                    "Switch to Network Stream mode to start streaming.")
+                    .arg(w.port->value())
+                    .arg(w.address->text())
+                    .arg(w.multicast->isChecked() ? "Yes" : "No"));
     }
 
     // === PHASE 3: Real ETI Processing Helpers ===
@@ -8196,17 +8279,18 @@ private:
 
     void onServicesUpdated()
     {
-        qDebug() << "\n***** [DEBUG onServicesUpdated] SIGNAL RECEIVED *****";
-        if (m_figAnalyzer) {
-            int count = m_figAnalyzer->getServiceCount();
-            qDebug() << "[DEBUG onServicesUpdated] Service count:" << count;
+        // T25: a queued emission may race teardown — never dereference a
+        // destroyed/cleared analyzer.
+        if (!m_figAnalyzer) {
+            return;
         }
+        qDebug() << "\n***** [DEBUG onServicesUpdated] SIGNAL RECEIVED *****";
+        int count = m_figAnalyzer->getServiceCount();
+        qDebug() << "[DEBUG onServicesUpdated] Service count:" << count;
         qDebug() << "[PHASE 3] Services updated - batch update received";
 
-        // Get service count for logging
-        int serviceCount = m_figAnalyzer->getServiceCount();
         m_systemMessages->append(QString("🎵 Services discovered: %1 services")
-            .arg(serviceCount));
+            .arg(count));
 
         // === PHASE 1.4: Rebuild ensemble tree ===
         buildEnsembleTree();
@@ -8214,6 +8298,10 @@ private:
 
     void onSubChannelsUpdated()
     {
+        // T25: guard against teardown races (see onServicesUpdated).
+        if (!m_figAnalyzer) {
+            return;
+        }
         qDebug() << "[PHASE 2.1] Subchannels updated - updating table and CU usage";
 
         // Get subchannel count for logging
@@ -8431,6 +8519,9 @@ private:
     QPushButton* m_connectBtn = nullptr;
     QPushButton* m_disconnectBtn = nullptr;
     QPushButton* m_recordBtn = nullptr;
+    // T23 (option A): ⚙ opens the UDP Streaming Settings dialog; replaces the
+    // removed Input-menu "UDP Settings…" action.
+    QToolButton* m_udpSettingsBtn = nullptr;
     QLabel* m_streamStatus = nullptr;
     
     // NOTE: Stream statistics labels already declared above (lines 4114-4123)
@@ -8444,6 +8535,11 @@ private:
     bool m_streamEverConnected{false};   // gate for the failure popup vs. logs
     bool m_streamFailureDialogShown{false};
     bool m_showStreamDialogs{true};      // F6: consult in the async error handler
+
+    // T25 (F5): set at the start of closeEvent()/destructor. Stale queued
+    // slots delivered during teardown must degrade gracefully and must never
+    // pop a modal dialog (would block/hang an offscreen teardown).
+    bool m_closing{false};
 
     // Phase 4 Week 3: Stream recording
     QFile m_recordingFile;
@@ -8554,6 +8650,46 @@ protected:
 
 DABAnalyzerWindow::~DABAnalyzerWindow()
 {
+    // T25 (F5): direct `delete` may skip closeEvent(); mark teardown so stale
+    // queued slots degrade gracefully / suppress dialogs.
+    m_closing = true;
+
+    // T25 (F3/F9/F10): disconnect every sender from this receiver BEFORE member
+    // destruction. disconnect stops FUTURE emissions only; already-posted queued
+    // calls are handled by the slots' null-guards. This set mirrors closeEvent()
+    // exactly (fig analyzer, ETI processor, error detector, multi-stream,
+    // ETSI engine, DLS+ decoder, MOT protocol, reader thread, shared data,
+    // stream receiver). The NetworkStreamReceiver joins its own thread in its
+    // destructor, so no explicit stop/wait is needed here.
+    if (m_figAnalyzer) {
+        QObject::disconnect(m_figAnalyzer.get(), nullptr, this, nullptr);
+    }
+    if (m_etiProcessor) {
+        QObject::disconnect(m_etiProcessor.get(), nullptr, this, nullptr);
+    }
+    if (m_errorDetector) {
+        QObject::disconnect(m_errorDetector.get(), nullptr, this, nullptr);
+    }
+    if (m_multiStreamProcessor) {
+        QObject::disconnect(m_multiStreamProcessor.get(), nullptr, this, nullptr);
+    }
+    if (m_etsiComplianceEngine) {
+        QObject::disconnect(m_etsiComplianceEngine.get(), nullptr, this, nullptr);
+    }
+    if (m_dlsPlusDecoder) {
+        QObject::disconnect(m_dlsPlusDecoder, nullptr, this, nullptr);
+    }
+    QObject::disconnect(&m_motProtocol, nullptr, this, nullptr);
+    if (m_readerThread) {
+        QObject::disconnect(m_readerThread, nullptr, this, nullptr);
+    }
+    if (m_sharedData) {
+        QObject::disconnect(m_sharedData, nullptr, this, nullptr);
+    }
+    if (m_networkReceiver) {
+        QObject::disconnect(m_networkReceiver.get(), nullptr, this, nullptr);
+    }
+
     // Phase A: Stop worker thread first
     if (m_readerThread) {
         m_readerThread->stopProcessing();

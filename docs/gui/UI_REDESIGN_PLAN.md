@@ -87,7 +87,7 @@ Tabify via `addDockWidgetTabToArea(dock, area)` (each panel remains its own `CDo
 | Risk | Mitigation |
 |---|---|
 | Saved layouts (QSettings) break after regrouping | Step E version guard resets once; objectNames stable |
-| Toolbar loses network/record/quick-example surface | Step A keeps all controls in the expandable bar row; Input menu stays |
+| Toolbar loses network/record/quick-example surface | Step A keeps all controls in the expandable bar row; the Input menu was later removed (T23-A) with UDP settings moved to a ⚙ button |
 | GUI tests assert old dock structure | Update `tests/gui/test_gui_dock_layout.cpp` expectations (dock count 26→26: −InputSource +Messages move; areas/groups change) |
 | Grouped tabs hide panels users expect visible | Groups default to first tab; all panels reachable in 1 click; float persists per panel |
 

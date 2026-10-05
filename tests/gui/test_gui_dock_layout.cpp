@@ -75,6 +75,8 @@ private slots:
     void testDefaultActiveTabs();
     void testBottomSixDocks();
     void testInputToolbar();
+    // T23: Input menu removed; ⚙ opens the UDP settings dialog
+    void testUdpSettingsGearOpensDialog();
     void testPersistenceRoundTrip();
     void testLayoutVersionReset();
     void testFloatingRoundTrip();
@@ -95,6 +97,8 @@ private slots:
     // T20 review findings 1 + 2
     void testXpadOversizePadRejected();
     void testDabPlusServiceCacheRevision();
+    // T25: queued FIG signals must not fire against a torn-down analyzer
+    void testTeardownDropsQueuedFigSignals();
     // T22 network-stream invalid-URL guard
     void testNetworkStreamInvalidUrlGuard();
     // T22 review F3a: post-connect stream errors are log-only
@@ -521,6 +525,23 @@ void TestGuiDockLayout::testInputToolbar()
     QVERIFY(hasBrowse);
     QVERIFY(hasLoad);
 
+    // T23 (option A): the menu bar must have NO "Input" menu — the File/Network
+    // radios below are the single source of truth for the input mode. The
+    // unique Input-menu item (UDP Streaming Settings…) now lives behind the ⚙
+    // button at the end of this network row.
+    QMenuBar* menuBar = w.menuBar();
+    QVERIFY(menuBar);
+    bool hasInputMenu = false;
+    for (QAction* a : menuBar->actions()) {
+        if (a->text() == QLatin1String("Input")) hasInputMenu = true;
+    }
+    QVERIFY2(!hasInputMenu,
+             "T23: the Input menu must be removed (menu bar is File / View / Help)");
+    QToolButton* gear = w.udpSettingsButtonForTest();
+    QVERIFY2(gear, "T23: ⚙ UDP-streaming-settings button must exist in the network row");
+    QCOMPARE(gear->toolTip(), QStringLiteral("UDP streaming settings"));
+    QCOMPARE(gear->text(), QStringLiteral("⚙"));
+
     // Network row: hidden by default (File mode), expands on Network radio.
     auto* netRow = toolbar->findChild<QStackedWidget*>(QStringLiteral("inputToolbarNetworkRow"));
     QVERIFY(netRow);
@@ -540,6 +561,57 @@ void TestGuiDockLayout::testInputToolbar()
     QVERIFY(!netRow->isVisible());
     QCOMPARE(netRow->currentIndex(), 0);
     QVERIFY(!netRadio->isChecked());
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// T23 (option A): the ⚙ button in the network row opens the UDP Streaming
+// Settings dialog that used to live in the removed Input menu. Exercises the
+// non-modal construction path directly (no modal left open) and then the real
+// click path with an offscreen auto-reject so the exec() loop cannot hang.
+// ============================================================================
+void TestGuiDockLayout::testUdpSettingsGearOpensDialog()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // 1) Non-modal construction: same dialog content as the old menu item.
+    std::unique_ptr<QDialog> dlg(w.buildUdpSettingsDialogForTest());
+    QVERIFY(dlg);
+    QCOMPARE(dlg->windowTitle(), QStringLiteral("UDP Streaming Settings"));
+    QVERIFY(dlg->findChild<QSpinBox*>(QStringLiteral("udpSettingsPort")));
+    QVERIFY(dlg->findChild<QLineEdit*>(QStringLiteral("udpSettingsAddress")));
+    QVERIFY(dlg->findChild<QCheckBox*>(QStringLiteral("udpSettingsMulticast")));
+    dlg.reset();  // never leave a modal open
+
+    // 2) The gear button is wired to the same handler: click it and auto-reject
+    //    the modal as soon as it appears (offscreen, no user interaction).
+    QToolButton* gear = w.udpSettingsButtonForTest();
+    QVERIFY(gear);
+    bool openedAndRejected = false;
+    QTimer closer;
+    closer.setInterval(20);
+    QObject::connect(&closer, &QTimer::timeout, [&]() {
+        for (QWidget* top : QApplication::topLevelWidgets()) {
+            if (auto* d = qobject_cast<QDialog*>(top)) {
+                if (d->windowTitle() == QStringLiteral("UDP Streaming Settings")
+                    && d->isVisible()) {
+                    openedAndRejected = true;
+                    d->reject();
+                    closer.stop();
+                    return;
+                }
+            }
+        }
+    });
+    closer.start();
+    gear->click();
+    QVERIFY2(openedAndRejected,
+             "T23: clicking the ⚙ button must open the UDP Streaming Settings dialog");
 
     w.close();
     QCoreApplication::processEvents();
@@ -1991,6 +2063,51 @@ void TestGuiDockLayout::testDabPlusServiceCacheRevision()
 
     w.close();
     QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// T25: a queued FIG signal (servicesUpdated/subChannelsUpdated/
+// ensembleInfoUpdated) posted right before close must NOT be delivered against
+// the torn-down AdvancedFIGAnalyzer. Pre-T25, closeEvent() reset m_figAnalyzer
+// and then called processEvents(), which delivered the still-queued
+// onServicesUpdated() -> getServiceCount() on the freed analyzer (latent
+// crash). Mechanism note (F3): QObject::disconnect only stops FUTURE emissions;
+// the already-posted queued call is neutralised by the null-guard in
+// onServicesUpdated()/onSubChannelsUpdated() (the actual fix). This feeds a FIG
+// update, leaves the queued emission pending, closes the window (closeEvent
+// path) and then destroys it.
+// ============================================================================
+void TestGuiDockLayout::testTeardownDropsQueuedFigSignals()
+{
+    clearSettingsStore();
+    auto* w = new DABAnalyzerWindow;
+    w->show();
+    QCoreApplication::processEvents();
+
+    // FIG 0/2 advances the service revision and makes AdvancedFIGAnalyzer emit
+    // servicesUpdated(). The window's connection is Qt::QueuedConnection, so a
+    // delivery event is now pending in this thread's event queue — deliberately
+    // NOT drained before close.
+    w->feedFicForTest(fig02ServiceOnSubChannel(0x1234, 3));
+    const uint32_t revisionBeforeClose = w->figServiceRevisionForTest();
+    QVERIFY(revisionBeforeClose != 0u);
+
+    // close() -> closeEvent() resets the analyzer and runs processEvents();
+    // the stale queued servicesUpdated() must be a no-op (null-guard), so the
+    // window survives and its analyzer-dependent hook reports the torn-down
+    // (null-analyzer) state instead of dereferencing a freed pointer.
+    w->close();
+    QCoreApplication::processEvents();
+    QCOMPARE(w->figServiceRevisionForTest(), 0u);  // analyzer gone, window alive
+
+    // Destroy with no close event in flight — the destructor's own disconnect
+    // + guard path must also be safe.
+    delete w;
+    QCoreApplication::processEvents();
+
+    // Reaching here means teardown with a pending queued FIG signal completed
+    // without a crash; the post-condition is the null-analyzer state asserted
+    // above while the window was still alive.
 }
 
 // ============================================================================

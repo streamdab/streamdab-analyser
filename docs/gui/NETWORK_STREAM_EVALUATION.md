@@ -25,7 +25,7 @@
 
 ## 3. Input menu — is it still needed?
 
-Current contents (`src/main.cpp:6645-6663`): `File Input` (radio), `UDP Input` (radio), separator, **`UDP Streaming Settings…`** (dialog, `main.cpp:~7000` with multicast address/port fields).
+**Current state (after T23 option A, 2026-10-05): the Input menu is REMOVED.** The former contents were `File Input` (radio), `UDP Input` (radio) — both redundant with the toolbar File/Network radios — and **`UDP Streaming Settings…`**, which now lives on a ⚙ button (`objectName=udpSettingsButton`) at the end of the network toolbar row. The options below are kept for the historical record.
 
 | # | Option | Pros | Cons |
 |---|---|---|---|
@@ -35,6 +35,8 @@ Current contents (`src/main.cpp:6645-6663`): `File Input` (radio), `UDP Input` (
 | **D** | **Keep the menu but re-purpose**: File Input / UDP Input toggle **and** Settings, with the toolbar radios bound to the same `QActionGroup` (single source of truth via shared actions) | No duplication (actions shared), menu + toolbar stay in sync; a11y/keyboard | More wiring |
 
 **Recommendation: A** (with B as the conservative fallback) — the redesigned toolbar already owns File/Network + Connect/Disconnect/Record, so the menu duplicates it; keep only the unique thing (UDP settings) next to the controls it configures.
+
+**Decision (2026-10-05): Option A — implemented (T23).** The Input menu is removed (menu bar is **File / View / Help**); the File/Network radios + Connect/Disconnect/Record remain the single source of truth for input mode, and "UDP Streaming Settings…" now opens from the ⚙ button (`objectName=udpSettingsButton`, tooltip "UDP streaming settings") appended to the network row after Record/status (`src/main.cpp`). The old radio `QActionGroup` is deleted. Covered by `test_gui_dock_layout` (`testInputToolbar` asserts no Input menu + the gear, `testUdpSettingsGearOpensDialog` exercises the dialog path offscreen).
 
 ## 4. Sequencing
 

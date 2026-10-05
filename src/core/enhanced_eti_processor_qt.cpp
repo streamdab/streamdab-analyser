@@ -855,24 +855,28 @@ bool EnhancedETIProcessorQt::processEtiFrame(const QByteArray& frameData)
     frame.fic_data = QByteArray(parsed_frame.fic_data.constData(), 
                                 parsed_frame.fic_data.size());
     
-    // Combine all MSC sub-channels for legacy compatibility
-    QByteArray combined_msc;
+    // T24: the MSC bytes are owned exactly once — by the per-subchannel slices
+    // built below. Keep only the concatenated size for byte-count metrics; the
+    // old duplicate `msc_data` copy (~5-6 KB/frame) is gone.
+    std::size_t msc_size_total = 0;
     for (const auto& sc : parsed_frame.sub_channels) {
-        combined_msc.append(sc.data);
+        msc_size_total += static_cast<std::size_t>(sc.data.size());
     }
-    
-    // CRITICAL FIX: Force deep copy of MSC data to prevent dangling pointers
-    frame.msc_data = QByteArray(combined_msc.constData(), combined_msc.size());
+    frame.msc_size = msc_size_total;
 
     // Reuse: carry the already-parsed per-subchannel MSC slices so the GUI
-    // DLS+ pipeline does not have to re-run parseHeader()/extractMSC().
-    frame.sub_channels.reserve(parsed_frame.sub_channels.size());
+    // DLS+ pipeline does not have to re-run parseHeader()/extractMSC(). Shared
+    // behind a shared_ptr so a queued/by-value frame hand-off copies only the
+    // pointer (O(1)) instead of every slice's bytes.
+    auto slices = std::make_shared<std::vector<ProcessedFrame::SubChannelSlice>>();
+    slices->reserve(parsed_frame.sub_channels.size());
     for (const auto& sc : parsed_frame.sub_channels) {
         ProcessedFrame::SubChannelSlice slice;
         slice.sub_channel_id = sc.sub_channel_id;
         slice.data = sc.data;
-        frame.sub_channels.push_back(std::move(slice));
+        slices->push_back(std::move(slice));
     }
+    frame.sub_channels = std::move(slices);
     
     frame.crc = parsed_frame.frame_crc;
     frame.is_valid = true;

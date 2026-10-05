@@ -5,21 +5,42 @@
  * This file contains regression tests for all fixes applied to resolve
  * the segmentation fault when loading bkk_20062022_141637.eti
  * 
- * Fixes tested:
- * 1. ProcessedFrame deep copy with explicit copy constructor
- * 2. QByteArray detach() for Qt::QueuedConnection safety
+ * Fixes tested (updated for T24's shared-slice hand-off):
+ * 1. ProcessedFrame copy is safe — slice bytes are refcounted (shared_ptr),
+ *    not deep-copied, and stay alive after the source frame is destroyed
+ * 2. QByteArray detach for Qt::QueuedConnection safety (fic_data)
  * 3. Pass-by-value for slots using QueuedConnection
- * 4. MSC bounds error handling
+ * 4. Empty / absent sub-channel slices handled safely
  * 5. Qt meta-type registration across compilation units
  * 
- * Date: October 24, 2025
+ * Date: October 24, 2025; T24 update: October 5, 2026
  */
 
 #include <QtTest/QtTest>
 #include <QSignalSpy>
 #include <QThread>
 #include <memory>
+#include <utility>
+#include <initializer_list>
 #include "../src/core/enhanced_eti_processor_qt.h"
+
+namespace {
+using Slice = ProcessedFrame::SubChannelSlice;
+
+std::shared_ptr<const std::vector<Slice>> makeSlices(
+    std::initializer_list<std::pair<uint8_t, QByteArray>> entries)
+{
+    auto slices = std::make_shared<std::vector<Slice>>();
+    slices->reserve(entries.size());
+    for (const auto& e : entries) {
+        Slice s;
+        s.sub_channel_id = e.first;
+        s.data = e.second;
+        slices->push_back(std::move(s));
+    }
+    return slices;
+}
+} // namespace
 
 class TestSegfaultFixes : public QObject
 {
@@ -29,81 +50,66 @@ private slots:
     void initTestCase()
     {
         qDebug() << "=== Segfault Fixes Regression Test Suite ===";
-        qDebug() << "Testing all fixes applied on October 24, 2025";
+        qDebug() << "Testing all fixes applied on October 24, 2025 (T24 updated)";
     }
 
     /**
-     * TEST 1: ProcessedFrame Deep Copy Constructor
-     * 
-     * Verifies that ProcessedFrame creates true deep copies of QByteArray
-     * members when using the copy constructor.
-     * 
-     * This prevents dangling pointers when Qt::QueuedConnection copies
-     * the frame for the event queue.
+     * TEST 1: ProcessedFrame Copy — Shared Slice Ownership
+     *
+     * T24: the copy shares the `sub_channels` shared_ptr (single owner of the
+     * MSC bytes) rather than deep-copying every slice. The bytes must stay valid
+     * and identical for both frames, and `msc_size` must be preserved.
      */
-    void test_ProcessedFrame_DeepCopy()
+    void test_ProcessedFrame_CopySharesSlices()
     {
-        qDebug() << "\n[TEST 1] ProcessedFrame Deep Copy Constructor";
-        
-        // Create original frame with QByteArray data
+        qDebug() << "\n[TEST 1] ProcessedFrame Copy — Shared Slice Ownership";
+
         ProcessedFrame original;
         original.frame_number = 1;
         original.format = ETIFormat::ETI_LI_A;
         original.sync_pattern = 0xfff8c549;
         original.lidata = 0x12345678;
-        
-        // Add FIC and MSC data
-        QByteArray fic_test_data("FIC_DATA_TEST_123456789", 23);
-        QByteArray msc_test_data("MSC_DATA_TEST_ABCDEFGHIJKLMNOP", 31);
-        
-        original.fic_data = fic_test_data;
-        original.msc_data = msc_test_data;
+
+        original.fic_data = QByteArray("FIC_DATA_TEST_123456789", 23);
+        original.sub_channels = makeSlices({{7, QByteArray("MSC_DATA_TEST_ABCDEFGHIJKLMNOP", 31)}});
+        original.msc_size = 31;
         original.crc = 0xABCDEF01;
         original.is_valid = true;
-        
-        // Get original data pointers
-        const char* original_fic_ptr = original.fic_data.constData();
-        const char* original_msc_ptr = original.msc_data.constData();
-        
-        // Create copy using copy constructor
+
+        // Copy shares the slice owner (no 31-byte duplication). Assert the
+        // T24 semantics explicitly: the shared_ptr identity is preserved and the
+        // copy bumps the refcount (1 -> 2), proving an O(1) hand-off.
         ProcessedFrame copy(original);
-        
-        // Get copy data pointers
-        const char* copy_fic_ptr = copy.fic_data.constData();
-        const char* copy_msc_ptr = copy.msc_data.constData();
-        
-        // CRITICAL TEST: Verify deep copy - pointers must be different
-        QVERIFY2(copy_fic_ptr != original_fic_ptr, 
-                 "FIC data must be deep copied (different memory addresses)");
-        QVERIFY2(copy_msc_ptr != original_msc_ptr,
-                 "MSC data must be deep copied (different memory addresses)");
-        
-        // Verify data content is identical
+        QVERIFY2(copy.sub_channels == original.sub_channels,
+                 "copy must share the same slice owner (no deep copy)");
+        QCOMPARE(copy.sub_channels.get(), original.sub_channels.get());
+        QCOMPARE(original.sub_channels.use_count(), 2L);
+        QVERIFY(copy.hasSubChannels());
+        QCOMPARE(int(copy.subChannels().size()), 1);
+        QCOMPARE(copy.subChannels()[0].sub_channel_id, static_cast<uint8_t>(7));
+        QCOMPARE(copy.subChannels()[0].data,
+                 QByteArray("MSC_DATA_TEST_ABCDEFGHIJKLMNOP", 31));
+
+        // Scalar + FIC fields preserved.
         QCOMPARE(copy.frame_number, original.frame_number);
         QCOMPARE(copy.format, original.format);
         QCOMPARE(copy.sync_pattern, original.sync_pattern);
         QCOMPARE(copy.lidata, original.lidata);
         QCOMPARE(copy.fic_data, original.fic_data);
-        QCOMPARE(copy.msc_data, original.msc_data);
+        QCOMPARE(copy.msc_size, original.msc_size);
         QCOMPARE(copy.crc, original.crc);
         QCOMPARE(copy.is_valid, original.is_valid);
-        
-        // Verify sizes are correct
+
         QCOMPARE(copy.fic_data.size(), 23);
-        QCOMPARE(copy.msc_data.size(), 31);
-        
-        qDebug() << "✓ Deep copy verified - different memory addresses";
-        qDebug() << "  Original FIC ptr:" << (void*)original_fic_ptr;
-        qDebug() << "  Copy FIC ptr:    " << (void*)copy_fic_ptr;
-        qDebug() << "  Original MSC ptr:" << (void*)original_msc_ptr;
-        qDebug() << "  Copy MSC ptr:    " << (void*)copy_msc_ptr;
+        QCOMPARE(copy.msc_size, static_cast<std::size_t>(31));
+
+        qDebug() << "✓ Shared slice ownership verified — bytes alive, no duplication";
     }
 
     /**
      * TEST 2: QByteArray Detach After Copy
      * 
-     * Verifies that QByteArray::detach() is called during copy operations
-     * to ensure no implicit sharing with source data.
+     * Verifies that fic_data copies remain independent (Qt COW detach).
      */
     void test_QByteArray_Detach()
     {
@@ -130,7 +136,7 @@ private slots:
     /**
      * TEST 3: Copy Assignment Operator
      * 
-     * Verifies that the copy assignment operator also performs deep copies.
+     * Verifies scalar fields, msc_size and shared slices after assignment.
      */
     void test_ProcessedFrame_CopyAssignment()
     {
@@ -139,19 +145,32 @@ private slots:
         ProcessedFrame original;
         original.frame_number = 42;
         original.fic_data = QByteArray("ASSIGNMENT_TEST_FIC", 19);
-        original.msc_data = QByteArray("ASSIGNMENT_TEST_MSC", 19);
+        original.sub_channels = makeSlices({{5, QByteArray("ASSIGNMENT_TEST_MSC", 19)}});
+        original.msc_size = 19;
         
         ProcessedFrame copy;
         copy = original;  // Use assignment operator
-        
-        // Verify deep copy
-        QVERIFY2(copy.fic_data.constData() != original.fic_data.constData(),
-                 "Assignment must create deep copy");
-        
-        // Verify content
-        QCOMPARE(copy.frame_number, 42);
+
+        // FIC is COW, so after assignment the two may still share a buffer.
+        // Equality holds before mutation; independence is proven by mutating
+        // the ORIGINAL after the copy and checking the copy is unchanged
+        // (COW detaches only on write).
+        QCOMPARE(copy.fic_data, original.fic_data);
         QCOMPARE(copy.fic_data.size(), 19);
-        QCOMPARE(copy.msc_data.size(), 19);
+        original.fic_data[0] = 'X';
+        QVERIFY2(copy.fic_data[0] == 'A',
+                 "copy must be COW-independent from the original after assignment");
+        QVERIFY2(original.fic_data[0] == 'X', "original mutation applied");
+
+        // Slice owner is shared and the assignment bumped its refcount; content
+        // intact and msc_size copied.
+        QVERIFY(copy.sub_channels == original.sub_channels);
+        QCOMPARE(copy.sub_channels.get(), original.sub_channels.get());
+        QCOMPARE(original.sub_channels.use_count(), 2L);
+        QCOMPARE(copy.frame_number, 42);
+        QCOMPARE(copy.msc_size, static_cast<std::size_t>(19));
+        QCOMPARE(copy.subChannels().size(), static_cast<std::size_t>(1));
+        QCOMPARE(copy.subChannels()[0].data.size(), 19);
         
         qDebug() << "✓ Copy assignment operator verified";
     }
@@ -163,7 +182,7 @@ private slots:
      * - Stack-allocated ProcessedFrame in a function
      * - Copy made for Qt::QueuedConnection
      * - Original destroyed when function returns
-     * - Copy must remain valid
+     * - The shared slice bytes must remain valid for the heap copy
      */
     void test_StackToHeapCopy()
     {
@@ -176,7 +195,8 @@ private slots:
             ProcessedFrame stack_frame;
             stack_frame.frame_number = 1;
             stack_frame.fic_data = QByteArray("STACK_FIC_DATA_12345", 20);
-            stack_frame.msc_data = QByteArray("STACK_MSC_DATA_67890", 20);
+            stack_frame.sub_channels = makeSlices({{3, QByteArray("STACK_MSC_DATA_67890", 20)}});
+            stack_frame.msc_size = 20;
             
             // Simulate Qt::QueuedConnection copy to heap
             heap_copy = new ProcessedFrame(stack_frame);
@@ -188,15 +208,17 @@ private slots:
         QVERIFY2(heap_copy != nullptr, "Heap copy exists");
         QCOMPARE(heap_copy->frame_number, 1);
         QCOMPARE(heap_copy->fic_data.size(), 20);
-        QCOMPARE(heap_copy->msc_data.size(), 20);
+        QCOMPARE(heap_copy->msc_size, static_cast<std::size_t>(20));
+        QVERIFY(heap_copy->hasSubChannels());
+        QCOMPARE(heap_copy->subChannels()[0].data.size(), 20);
         
         // Verify data is still readable (would crash with dangling pointers)
-        QVERIFY2(heap_copy->fic_data.at(0) == 'S',
-                 "Heap copy data still valid after stack destruction");
+        QVERIFY2(heap_copy->subChannels()[0].data.at(0) == 'S',
+                 "Heap copy slice data still valid after stack destruction");
         
         delete heap_copy;
         
-        qDebug() << "✓ Stack-to-heap copy safe - no dangling pointers";
+        qDebug() << "✓ Stack-to-heap copy safe - refcounted slices survived";
     }
 
     /**
@@ -219,9 +241,9 @@ private slots:
         QVERIFY2(etiFormatTypeId != QMetaType::UnknownType,
                  "ETIFormat must be registered as Qt meta-type");
         
-        // Verify type names
-        const char* processedFrameName = QMetaType::typeName(processedFrameTypeId);
-        const char* etiFormatName = QMetaType::typeName(etiFormatTypeId);
+        // Verify type names (Qt6: use QMetaType::fromType, typeName(int) is deprecated)
+        const char* processedFrameName = QMetaType::fromType<ProcessedFrame>().name();
+        const char* etiFormatName = QMetaType::fromType<ETIFormat>().name();
         
         QVERIFY2(processedFrameName != nullptr,
                  "ProcessedFrame type name exists");
@@ -256,7 +278,8 @@ private slots:
         ProcessedFrame test_frame;
         test_frame.frame_number = 999;
         test_frame.fic_data = QByteArray("QUEUED_FIC_DATA", 15);
-        test_frame.msc_data = QByteArray("QUEUED_MSC_DATA", 15);
+        test_frame.sub_channels = makeSlices({{1, QByteArray("QUEUED_MSC_DATA", 15)}});
+        test_frame.msc_size = 15;
         
         // Emit signal (simulates what happens in processEtiFrame)
         // The signal uses Qt::QueuedConnection in actual code
@@ -277,95 +300,96 @@ private slots:
         // Verify received frame data is intact
         QCOMPARE(received.frame_number, 999);
         QCOMPARE(received.fic_data.size(), 15);
-        QCOMPARE(received.msc_data.size(), 15);
+        QCOMPARE(received.msc_size, static_cast<std::size_t>(15));
+        QVERIFY(received.hasSubChannels());
+        QCOMPARE(received.subChannels()[0].data.size(), 15);
         
         qDebug() << "✓ Qt::QueuedConnection safe - data intact after delivery";
     }
 
     /**
-     * TEST 7: Empty QByteArray Handling
+     * TEST 7: Absent / Empty MSC Slices
      * 
-     * Verifies that empty QByteArrays (from MSC bounds errors) are
+     * Verifies that a frame with no MSC slices (bounds errors / no MSC) is
      * handled safely without crashes.
      */
-    void test_EmptyQByteArraySafety()
+    void test_EmptySubChannelsSafety()
     {
-        qDebug() << "\n[TEST 7] Empty QByteArray Handling (MSC Bounds Errors)";
+        qDebug() << "\n[TEST 7] Absent MSC Slices Handling";
         
         ProcessedFrame frame;
         frame.frame_number = 1;
         frame.fic_data = QByteArray();  // Empty from bounds error
-        frame.msc_data = QByteArray();  // Empty from bounds error
+        frame.msc_size = 0;             // No MSC bytes
+        // sub_channels stays null (no slices)
         
-        // Copy should not crash with empty arrays
+        // Copy should not crash
         ProcessedFrame copy(frame);
         
         // Access should not crash
         QCOMPARE(copy.fic_data.size(), 0);
-        QCOMPARE(copy.msc_data.size(), 0);
+        QCOMPARE(copy.msc_size, static_cast<std::size_t>(0));
+        QVERIFY(!copy.hasSubChannels());
+        QVERIFY(copy.subChannels().empty());
         QVERIFY(copy.fic_data.isEmpty());
-        QVERIFY(copy.msc_data.isEmpty());
         
         // constData() should return valid pointer even for empty
         QVERIFY2(copy.fic_data.constData() != nullptr,
                  "constData() safe for empty QByteArray");
         
-        qDebug() << "✓ Empty QByteArray safe - no crashes on bounds errors";
+        qDebug() << "✓ Absent MSC slices safe - no crashes";
     }
 
     /**
-     * TEST 8: Large QByteArray Deep Copy
+     * TEST 8: Large Slice Data Integrity
      * 
-     * Verifies that large data (realistic MSC sizes) are properly
-     * deep copied without corruption or crashes.
+     * Verifies that realistic MSC slice data stays intact across copies and is
+     * not duplicated (the shared owner keeps the total retained bytes low).
      */
-    void test_LargeDataDeepCopy()
+    void test_LargeDataIntegrity()
     {
-        qDebug() << "\n[TEST 8] Large QByteArray Deep Copy (Realistic MSC Size)";
+        qDebug() << "\n[TEST 8] Large Slice Data Integrity (Realistic MSC Size)";
         
-        // Create frame with realistic MSC data size (~5-6KB)
         ProcessedFrame original;
         original.frame_number = 1;
         
         // FIC: 96 bytes (typical)
-        QByteArray fic_data(96, 'F');
-        original.fic_data = fic_data;
+        original.fic_data = QByteArray(96, 'F');
         
-        // MSC: 5614 bytes (typical combined sub-channels)
-        QByteArray msc_data(5614, 'M');
-        // Add pattern to verify data integrity
-        for (int i = 0; i < msc_data.size(); i++) {
-            msc_data[i] = static_cast<char>(i % 256);
-        }
-        original.msc_data = msc_data;
+        // MSC: 5614 bytes (typical combined sub-channels), split into slices.
+        QByteArray slice_a(2807, 'M');
+        QByteArray slice_b(2807, 'N');
+        for (int i = 0; i < slice_a.size(); i++) slice_a[i] = static_cast<char>(i % 256);
+        for (int i = 0; i < slice_b.size(); i++) slice_b[i] = static_cast<char>((i + 7) % 256);
+        original.sub_channels = makeSlices({{0, slice_a}, {1, slice_b}});
+        original.msc_size = 5614;
         
         // Create copy
         ProcessedFrame copy(original);
         
-        // Verify sizes
+        // Verify sizes + shared owner
         QCOMPARE(copy.fic_data.size(), 96);
-        QCOMPARE(copy.msc_data.size(), 5614);
-        
-        // Verify deep copy
-        QVERIFY(copy.fic_data.constData() != original.fic_data.constData());
-        QVERIFY(copy.msc_data.constData() != original.msc_data.constData());
+        QCOMPARE(copy.msc_size, static_cast<std::size_t>(5614));
+        QVERIFY(copy.sub_channels == original.sub_channels);
+        QCOMPARE(copy.subChannels().size(), static_cast<std::size_t>(2));
+        QCOMPARE(copy.subChannels()[0].data.size(), 2807);
+        QCOMPARE(copy.subChannels()[1].data.size(), 2807);
         
         // Verify data integrity (check pattern)
-        for (int i = 0; i < copy.msc_data.size(); i++) {
-            QCOMPARE(copy.msc_data.at(i), static_cast<char>(i % 256));
+        for (int i = 0; i < copy.subChannels()[0].data.size(); i++) {
+            QCOMPARE(copy.subChannels()[0].data.at(i), static_cast<char>(i % 256));
         }
         
-        qDebug() << "✓ Large data deep copy verified:";
+        qDebug() << "✓ Large slice data verified:";
         qDebug() << "  FIC size:" << copy.fic_data.size() << "bytes";
-        qDebug() << "  MSC size:" << copy.msc_data.size() << "bytes";
-        qDebug() << "  Total:" << (copy.fic_data.size() + copy.msc_data.size()) << "bytes";
+        qDebug() << "  MSC size:" << copy.msc_size << "bytes";
     }
 
     /**
      * TEST 9: Multiple Copies Stress Test
      * 
-     * Creates multiple copies in sequence to verify no memory leaks
-     * or corruption occurs.
+     * Creates multiple copies in sequence to verify no memory leaks or
+     * corruption; all copies share the single slice owner.
      */
     void test_MultipleCopiesStress()
     {
@@ -374,7 +398,8 @@ private slots:
         ProcessedFrame original;
         original.frame_number = 1;
         original.fic_data = QByteArray(96, 'F');
-        original.msc_data = QByteArray(5614, 'M');
+        original.sub_channels = makeSlices({{0, QByteArray(5614, 'M')}});
+        original.msc_size = 5614;
         
         // Create 100 copies
         std::vector<ProcessedFrame> copies;
@@ -382,65 +407,60 @@ private slots:
             copies.push_back(ProcessedFrame(original));
         }
         
-        // Verify all copies are valid
+        // Verify all copies are valid and share the same slice owner.
         for (size_t i = 0; i < copies.size(); i++) {
             QCOMPARE(copies[i].frame_number, 1);
             QCOMPARE(copies[i].fic_data.size(), 96);
-            QCOMPARE(copies[i].msc_data.size(), 5614);
-            
-            // Verify each copy has unique memory
-            if (i > 0) {
-                QVERIFY(copies[i].fic_data.constData() != copies[i-1].fic_data.constData());
-            }
+            QCOMPARE(copies[i].msc_size, static_cast<std::size_t>(5614));
+            QVERIFY(copies[i].sub_channels == original.sub_channels);
+            QCOMPARE(copies[i].subChannels()[0].data.size(), 5614);
         }
         
-        qDebug() << "✓ 100 copies created and verified - no corruption";
+        qDebug() << "✓ 100 copies created and verified - single slice owner, no corruption";
     }
 
     /**
      * TEST 10: Pass-by-Value Slot Safety
      * 
      * Verifies that passing ProcessedFrame by value (not const reference)
-     * to slots prevents access to invalid memory.
+     * to slots keeps the refcounted slices alive inside the slot.
      */
     void test_PassByValueSlotSafety()
     {
         qDebug() << "\n[TEST 10] Pass-by-Value Slot Safety";
         
-        // This test verifies the fix where we changed:
-        // void onFrameProcessed(const ProcessedFrame& frame)  // ❌ Unsafe
-        // to:
-        // void onFrameProcessed(ProcessedFrame frame)  // ✅ Safe
-        
         ProcessedFrame original;
         original.frame_number = 1;
         original.fic_data = QByteArray("PASS_BY_VALUE_TEST", 18);
+        original.sub_channels = makeSlices({{0, QByteArray("SLICE_BYTES", 11)}});
+        original.msc_size = 11;
         
         // Simulate pass-by-value copy
         auto slot_function = [](ProcessedFrame frame) {
             // Inside slot, we have our own copy
             QCOMPARE(frame.fic_data.size(), 18);
             QVERIFY(!frame.fic_data.isEmpty());
+            QVERIFY(frame.hasSubChannels());
+            QCOMPARE(frame.subChannels()[0].data.size(), 11);
         };
         
         // Call with temporary (simulates queued signal delivery)
         slot_function(ProcessedFrame(original));
         
-        qDebug() << "✓ Pass-by-value safe - slot receives independent copy";
+        qDebug() << "✓ Pass-by-value safe - slice bytes alive inside the slot";
     }
 
     void cleanupTestCase()
     {
         qDebug() << "\n=== All Segfault Regression Tests Passed ===";
-        qDebug() << "Date: October 24, 2025";
         qDebug() << "Fixes verified:";
-        qDebug() << "  ✓ ProcessedFrame deep copy constructor";
-        qDebug() << "  ✓ QByteArray detach() calls";
+        qDebug() << "  ✓ ProcessedFrame shared slice ownership (T24)";
+        qDebug() << "  ✓ QByteArray detach() (fic_data)";
         qDebug() << "  ✓ Copy assignment operator";
         qDebug() << "  ✓ Stack-to-heap copy safety";
         qDebug() << "  ✓ Qt meta-type registration";
         qDebug() << "  ✓ Qt::QueuedConnection safety";
-        qDebug() << "  ✓ Empty QByteArray handling";
+        qDebug() << "  ✓ Absent MSC slices handling";
         qDebug() << "  ✓ Large data integrity";
         qDebug() << "  ✓ Multiple copies stress test";
         qDebug() << "  ✓ Pass-by-value slot safety";

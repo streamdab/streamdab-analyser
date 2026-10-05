@@ -971,3 +971,28 @@ target_link_libraries(test_network_stream_validation
 )
 add_test(NAME test_network_stream_validation COMMAND test_network_stream_validation)
 set_tests_properties(test_network_stream_validation PROPERTIES TIMEOUT 30)
+
+# ============================================================================
+# T24 ProcessedFrame hand-off / segfault regression suite
+# ============================================================================
+# Resurrected orphan: covers the ProcessedFrame ownership model after T24
+# (shared_ptr<const vector<SubChannelSlice>> slices, msc_size byte count,
+# cheap COW-safe copy), the deep-copy/queued-connection crash regression, and
+# Qt meta-type registration. Links CORE_SOURCES because it drives
+# EnhancedETIProcessorQt::frameProcessed / qRegisterMetaType<ProcessedFrame>.
+add_executable(test_segfault_fixes
+    test_segfault_fixes.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_segfault_fixes
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    pthread
+)
+add_test(NAME test_segfault_fixes COMMAND test_segfault_fixes)
+set_tests_properties(test_segfault_fixes PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60
+)

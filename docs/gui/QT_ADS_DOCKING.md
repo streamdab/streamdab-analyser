@@ -164,7 +164,7 @@ title is the original column name (`Left`/`Center`/`Right`) exactly as passed to
   selecting "Network Stream" expands the network row (URL, quick examples, Connect/Disconnect/Record and the
   stream status/stats labels). All original slots remain wired (`onSourceTypeChanged`, `onBrowseFileClicked`,
   `onLoadFileClicked`, `onQuickExampleSelected`, `onConnectClicked`, `onDisconnectClicked`, `onRecordClicked`);
-  the menu-bar **Input** menu is unchanged.
+  the menu-bar **Input** menu was removed (T23 option A) — the menu bar is now File / View / Help, and the UDP settings live on a ⚙ button at the end of the network row.
 - **Layout persistence + versioning** — on exit, each `CDockManager::saveState()` is stored alongside the
   window geometry in QSettings (`org = "StreamDAB-Analyzer"`, `app = "DABAnalyzer"`); on start,
   `restoreState()` restores it. Keys: `window/geometry`, `docking/layout_version`, `docking/tab1`,
