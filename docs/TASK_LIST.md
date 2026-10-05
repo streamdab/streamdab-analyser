@@ -33,6 +33,20 @@ Living checklist for active work. Check off items when done (add commit ref).
 - [x] **T14: Housekeeping** — QDateTime deprecations fixed (0 warnings), 7 tracked *.backup removed, LI-TIST note — `ea07065`.
 - [ ] **T15: Coverage re-measure + merge feature→main + tag** (in progress) — then v2.0 EWS branch.
 
+## v1.5 — manual-test fixes (2026-10-05, branch `main`)
+
+- [ ] **T16: Tab styling** — inactive tabs normal (readable), active tab highlighted (palette-derived).
+- [ ] **T17: Frame-click crash guard** — selecting a frame during load must not segfault; one-shot info message + disabled list + bounds/null guards.
+- [ ] **T18: Now Playing (DLS+) wiring** — GUI decoder was never fed; **spec-based DAB+ PAD parser implemented** (FireCode→AU→DSE→F-PAD→X-PAD→DLS): 1114 labels / 15 unique on the fixture; service-aware display.
+- [ ] **T19: Dock title rename** — tab2: Service Tree / Ensemble & Sub-Channel Tables / FIG Content; tab3: FIG Instance List / FIG Item Details (+ docs registry updated).
+- [ ] **T20 (in progress): close 9 DLS+ review findings** (HIGH: 64–127-char/Thai label length marker; CI continuation/start semantics; per-frame perf cache; `m_frameDetails` instantiation; decoder history reset; guard RAII; strict X-PAD length) **+ 4 user observations**: (a) Signal Analysis opens on DAB Ensemble Explorer, (b) window title → `StreamDAB-Analyzer`, (c) demote per-frame INFO logs (CLI flood), (d) FIC-Extractor FIG Instance List grouped by FIG type/ext first.
+- [ ] **T21: MOT slideshow — option A** (decision 2026-10-05): inner tabs in the now-playing dock (`DLS+ Text` · `Slideshow`), dock grows ≈200 px; adapter X-PAD 12/13 → MOT MSC data groups → `MOTProtocol::objectComplete` → `QImage`; fill the `test_e2e_mot_slideshow` stub with the real fixture (MOT present). Plan: `docs/gui/MOT_SLIDESHOW_EVALUATION.md`.
+
+## v1.5.x — network stream (found in manual test 2026-10-05)
+
+- [ ] **T22: Network stream robustness** — root cause: `localhost` (from quick example `zmq+tcp://localhost:9201`) rejected by the multicast-only receiver (`network_stream_receiver.cpp:112-115` **throws**), plus `auto_reconnect=true`/10 attempts + UI re-enabling Connect on each `error_occurred` (`main.cpp:1907-1909`, `1945-1956`) → **error loop**, no popup. Fix: pre-validate URL (multicast IPv4 only) with a clear `QMessageBox`; disable auto-reconnect on the initial attempt; make the receiver return errors instead of throwing out of the worker; fix/validate the quick examples; tests (validator + no-retry-on-bad-config + GUI guard). Plan: `docs/gui/NETWORK_STREAM_EVALUATION.md`.
+- [ ] **T23: Input menu decision** — menu holds File Input / UDP Input radios (duplicate of the toolbar) + UDP Streaming Settings…. Options A (remove menu, move settings to a ⚙ in the toolbar row — recommended) / B (slim to settings only) / C (keep) / D (share one QActionGroup). Awaiting user's choice.
+
 ## Later (see `docs/PHASE_E_PLAN.md`)
 
 - v1.4 — test closeout (fix `test_performance_fig019_parsing_speed` 7.6 µs vs 5 µs threshold and `test_fig10_basic_parsing` <50 µs flake (31–51 µs measured) → 100 % pass).

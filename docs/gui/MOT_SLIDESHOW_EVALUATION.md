@@ -1,7 +1,11 @@
 # MOT Slideshow (MOT Body) — Evaluation & UI Options
 
-**Date:** 2026-10-05 · **Branch:** `main` · **Status:** evaluation only — implementation pending user's option choice
+**Date:** 2026-10-05 · **Branch:** `main` · **Status:** ✅ **DECISION: option A** (2026-10-05) — implement after the DLS+ wave findings are closed
 **Question:** do we already show MOT Body (slideshow images) anywhere? If not, where should the widget go?
+
+> **Decision (user, 2026-10-05): Option A** — inner tabs in the now-playing dock
+> (`Now Playing (DLS+)` → `DLS+ Text` · `Slideshow`), dock height grown from 82 px to ≈200 px.
+> No new dock; registry stays at 25. Implementation follows the DLS+ findings close-out.
 
 ---
 
