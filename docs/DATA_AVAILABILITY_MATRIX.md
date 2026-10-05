@@ -244,10 +244,10 @@
 | Service types | FIG 0/2 | ✅ Available |
 | Component IDs | FIG 0/2 components | ✅ Available |
 
-#### Digital Org Info (QLabel list)
+#### Digital services summary (folded into the Overview panel — T33, 2026-10-06)
 | Field | Data Source | Status | Notes |
 |-------|-------------|--------|-------|
-| Service IDs + names | FIG 0/2 + 1/1 | ✅ Available | Format: "0x202E: Digital Org." |
+| Digital (data) service IDs + names | FIG 0/2 (P/D=1) + FIG 1/1 | ✅ Available | Overview line: `Digital services: N — 0x…` (or "none"); the former standalone "Digital Org Info" panel was removed as dead UI. |
 
 #### Service Components (QTreeWidget)
 | Field | Data Source | Status |
