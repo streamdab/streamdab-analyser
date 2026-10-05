@@ -12,6 +12,8 @@ Code-style conventions live in `docs/Qt6_CPP20_Style_Guide.md`; this document is
 
 **Revisions:** 2026-10-02 — v2 UI redesign (grouped Tab-1 docks, Input toolbar, Messages→strip,
 `docking/layout_version = 2`); earlier placeholder-panel experiment rejected (layout-preserving plan kept).
+2026-10-05 — v4 MOT Slideshow (option A): Now Playing grows to ≈200 px and hosts inner tabs
+(DLS+ Text · Slideshow); `docking/layout_version = 4`.
 
 ---
 
@@ -77,8 +79,8 @@ group is the default active tab.
 |                               | [Frame Analysis]             | [Error & Statistics]          |
 |                               |   ETI Frame Navigator     *  |   DAB Error Counter       *   |
 |                               |   Hex Viewer / ETSI Compl.   |   DAB Stream Statistics       |
-|                               | [Now Playing (DLS+)]         |                               |
-|                               |   (standalone, compact 82px) |                               |
+|                               | [Now Playing / Slideshow]    |                               |
+|                               |   (2 tabs: DLS+ · Slideshow) |                               |
 +-------------------------------+-------------------------------+-------------------------------+
 |         ↑ inputToolbar (File/Network radios · path · Browse… · Load File) sits ABOVE this grid |
 +-------------------------------+-------------------------------+-------------------------------+
@@ -115,7 +117,7 @@ title is the original column name (`Left`/`Center`/`Right`) exactly as passed to
 | `tab1_CUUsage` | CU Usage | Signal Analysis (3 tabs) | Center |
 | `tab1_FrameNavigator` | ETI Frame Navigator | Frame Analysis (2 tabs) | Center |
 | `tab1_HexCompliance` | Hex Viewer / ETSI Compliance | Frame Analysis (2 tabs) | Center |
-| `tab1_NowPlaying` | Now Playing (DLS+) | — (standalone, compact 82 px) | Center |
+| `tab1_NowPlaying` | Now Playing / Slideshow | — (standalone; inner tabs DLS+ Text · Slideshow, ≈200 px) | Center |
 | `tab1_ETIOverview` | ETI Overview | Signal Info (3 tabs) | Right |
 | `tab1_Status` | Status | Signal Info (3 tabs) | Right |
 | `tab1_Timing` | Timing | Signal Info (3 tabs) | Right |
@@ -167,10 +169,11 @@ title is the original column name (`Left`/`Center`/`Right`) exactly as passed to
   window geometry in QSettings (`org = "StreamDAB-Analyzer"`, `app = "DABAnalyzer"`); on start,
   `restoreState()` restores it. Keys: `window/geometry`, `docking/layout_version`, `docking/tab1`,
   `docking/tab2`, `docking/tab3`, `docking/bottom`.
-  - `docking/layout_version = 2` is written on save. On restore, any saved version **≠ 2** (including a
+  - `docking/layout_version = 4` is written on save. On restore, any saved version **≠ 4** (including a
     missing key, i.e. first launch) causes the stored dock states to be **discarded once** — the redesigned
-    default layout is shown and version 2 is written again at the next close. `window/geometry` is kept.
-    This gives existing v1.3 users exactly one reset after the upgrade.
+    default layout is shown and version 4 is written again at the next close. `window/geometry` is kept.
+    This gives existing users exactly one reset after each layout upgrade (v3 → v4 grew the Now Playing /
+    Slideshow dock from 82 px to ≈200 px and added its inner tabs).
 - **First launch** — no saved state ⇒ each manager builds the default layout (§1), identical to the mockup
   (`docs/gui/StreamDAB-Analyzer UI Redesign.html`).
 
@@ -181,8 +184,9 @@ title is the original column name (`Left`/`Center`/`Right`) exactly as passed to
 - Tab-1 vertical group heights (Qt-ADS 4.5.0 has no public API for per-dock vertical stretch; splitter
   sizes are **approximations** — residual differences are documented/expected):
   `leftV {178, 320}` (Transport ≈ 178, System grows), `rightV {210, 240}` (Signal Info ≈ 210,
-  Error & Statistics grows), `centerV {190, 150, 82}` (Signal Analysis ≈ 190, Frame Analysis flex,
-  Now Playing ≈ 82) with `tab1_NowPlaying` area `setMinimumHeight(82)` (compact, bottom of center).
+  Error & Statistics grows), `centerV {190, 150, 200}` (Signal Analysis ≈ 190, Frame Analysis flex,
+  Now Playing / Slideshow ≈ 200) with `tab1_NowPlaying` area `setMinimumHeight(200)` (bottom of center;
+  option A — the dock hosts an inner `QTabWidget` with the DLS+ text and the MOT Slideshow image).
   The center column is rebuilt in our own vertical `CDockSplitter` (the Qt-ADS built one carries an empty
   bookkeeping "ghost" splitter; the clean column is swapped into the root).
 - Per-panel **vertical** proportions inside each group are set by the group tabs (one tab visible at a time).

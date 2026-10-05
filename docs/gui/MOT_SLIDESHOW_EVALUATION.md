@@ -1,11 +1,33 @@
 # MOT Slideshow (MOT Body) — Evaluation & UI Options
 
-**Date:** 2026-10-05 · **Branch:** `main` · **Status:** ✅ **DECISION: option A** (2026-10-05) — implement after the DLS+ wave findings are closed
+**Date:** 2026-10-05 · **Branch:** `main` · **Status:** ✅ **DECISION: option A** (2026-10-05) — **IMPLEMENTED** (2026-10-05)
 **Question:** do we already show MOT Body (slideshow images) anywhere? If not, where should the widget go?
 
 > **Decision (user, 2026-10-05): Option A** — inner tabs in the now-playing dock
 > (`Now Playing (DLS+)` → `DLS+ Text` · `Slideshow`), dock height grown from 82 px to ≈200 px.
 > No new dock; registry stays at 25. Implementation follows the DLS+ findings close-out.
+>
+> **Implemented (2026-10-05):**
+> - `src/core/mot_pad_adapter.{hpp,cpp}` — parses standard EN 300 401 MOT MSC data groups
+>   (header entity + body entity, out-of-order/gap tolerant) and re-frames completed objects into
+>   the layout consumed by `MOTProtocol` (recursive-mutex deadlock in `MOTProtocol::processMOTData`
+>   fixed along the way). Bounded accumulation (running byte counter + 2 MiB cap, stale/LRU
+>   assembly eviction), carousel new-version reset (changed header core), full 16-bit transport id
+>   end to end (`MOTProtocol::validateTransportId` widened to 0..0xFFFF).
+> - `src/core/mot_protocol.cpp` — `parseMOTHeader()` now bounds the extension-parameter walk by
+>   `header_size` and reconciles the (re-framed) body size, so the fixture load is **warning-free**.
+> - `src/main.cpp` DAB+ PAD parser extended with X-PAD CI 1 (DGLI) + CI 12/13 assembly (continuation
+>   length = the MOT sub-field, not the whole X-PAD), routed to `MOTProtocol` via the adapter; Now
+>   Playing dock got the inner `QTabWidget` + Slideshow tab and grew to ≈200 px;
+>   `DOCKING_LAYOUT_VERSION` bumped 3 → 4.
+> - Real capture `eti/bkk_20062022_141637.eti`: 2795 CI-1 / 2795 CI-12 / 31480 CI-13 groups →
+>   2773 standard data groups, 112 header + 2661 body segments, **97 objects, 97 images decoded**,
+>   0 CRC errors, **0 MOT-path warnings**, max body 55703 B, 0 stale evictions; DLS+ unchanged
+>   (1114 labels).
+> - Tests: `test_mot_protocol` (+9 adapter tests: header core, object, multi-segment, CRC reject,
+>   re-framed layout + validity, oversize, stale eviction, carousel reset), `test_gui_dock_layout`
+>   (`testMotPadAdapterXpadPipeline`, `testMotXpadCiFlagZeroContinuation`, `testMotSlideshowPanelAndTabs`,
+>   `testMotSlideshowRealFixture`), `test_e2e_mot_slideshow` (stub replaced). Full `ctest`: 50/50.
 
 ---
 
@@ -36,7 +58,7 @@ Effort estimate: adapter + wiring + widget + tests ≈ one focused work package 
 
 | # | Option | Pros | Cons | Layout impact |
 |---|---|---|---|---|
-| **A** | **Inner tab in `Now Playing (DLS+)`** (user's suggestion): dock becomes "Now Playing / Slideshow" with 2 inner tabs (DLS+ text · Slideshow) | No new dock/area; media content stays together (text + image); zero layout-version churn; dock count stays 25 | The dock is currently **compact (82 px fixed)** → must grow (e.g. ≥200 px) to be useful, which changes the mockup's "compact Now Playing" intent; small graphics | dock height 82 → ~200 px (layout stays v2; saved layouts keep positions) |
+| **A** | **Inner tab in `Now Playing (DLS+)`** (user's suggestion): dock becomes "Now Playing / Slideshow" with 2 inner tabs (DLS+ text · Slideshow) | No new dock/area; media content stays together (text + image); dock count stays 25 | The dock is currently **compact (82 px fixed)** → must be grown (≥200 px) to be useful, which changes the mockup's "compact Now Playing" intent; small graphics | dock height 82 → ~200 px; `docking/layout_version` **v3 → v4** so the old 82 px geometry is re-applied |
 | **B** | **New tab in the center `Frame Analysis` group** (Navigator · Hex · ETSI · **Slideshow**) | Space is good; group already tabbed; no new area | Not media-related grouping (analysis tools); slideshow hidden behind an analysis tab | registry +1 dock (26); layout v2 unchanged |
 | **C** | **New standalone dock in the center column** (below Now Playing) | Dedicated, always visible; big image | Adds a new row to tab 1 (deviates from current mockup); registry +1; saved layouts → bump `layout_version` v3 | layout change (new area/row) |
 | **D** | **7th bottom-strip tab** (System Messages … Constellation · **Slideshow**) | Shared across all 3 tabs; doesn't disturb tab 1 | Strip is a fixed 28 px bar → must grow substantially to show an image; strip is for logs/stats semantically | strip height change |

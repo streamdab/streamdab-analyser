@@ -16,9 +16,9 @@
  *   d) the Input Source toolbar sits at the TOP of the Tab-1 page with an
  *      expandable network row (visible only in Network Stream mode)
  *   e) QSettings persistence round-trip (closed dock stays closed; restored
- *      group structure matches the default layout) incl. layout_version=3
- *   f) stale v1/v2 layout state (layout_version != 3) is discarded once so the
- *      first run after the upgrade shows the new default layout
+ *      group structure matches the default layout) incl. layout_version=4
+ *   f) stale v1/v2/v3 layout state (layout_version != 4) is discarded once so
+ *      the first run after the upgrade shows the new default layout
  *   g) auto-hide (pin) config sanity
  *   h) floating round-trip safety (float a dock, re-dock it, no crash)
  *   i) default ACTIVE tab per tabbed group on a fresh launch (first dock of
@@ -48,6 +48,8 @@
 #include <QPushButton>
 #include <QLineEdit>
 #include <QVBoxLayout>
+#include <QBuffer>
+#include <QImage>
 #include <functional>
 #include <algorithm>
 #include <cstring>
@@ -97,6 +99,11 @@ private slots:
     void testNetworkStreamInvalidUrlGuard();
     // T22 review F3a: post-connect stream errors are log-only
     void testStreamErrorAfterConnectedIsLogOnly();
+    // MOT SlideShow (option A): X-PAD 12/13 adapter, panel, real fixture
+    void testMotPadAdapterXpadPipeline();
+    void testMotXpadCiFlagZeroContinuation();
+    void testMotSlideshowPanelAndTabs();
+    void testMotSlideshowRealFixture();
 
 private:
     // Removes every DABAnalyzerWindow QSettings key used by the app so each
@@ -568,7 +575,7 @@ void TestGuiDockLayout::testPersistenceRoundTrip()
     }
 
     const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 3);
+    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 4);
     QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab2")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab3")).isNull());
@@ -681,7 +688,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
     }
     {
         const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(check.value(versionKey).toInt(), 3);
+        QCOMPARE(check.value(versionKey).toInt(), 4);
         QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     }
 
@@ -738,14 +745,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(mBottom);
         QVERIFY(mBottom->findDockWidget(QStringLiteral("bottom_Messages")));
 
-        w2.close(); // writes layout version 3 again
+        w2.close(); // writes layout version 4 again
         QCoreApplication::processEvents();
     }
 
-    // 4) Version is 3 again; a third launch restores normally (v3 round-trip).
+    // 4) Version is 4 again; a third launch restores normally (v4 round-trip).
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 3);
+        QCOMPARE(s.value(versionKey).toInt(), 4);
     }
     {
         DABAnalyzerWindow w3;
@@ -756,16 +763,16 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(m1);
         ads::CDockWidget* np = m1->findDockWidget(hiddenDockName);
         QVERIFY(np);
-        QVERIFY(!np->isClosed());  // v3 state restored (Now Playing visible)
+        QVERIFY(!np->isClosed());  // v4 state restored (Now Playing visible)
 
         w3.close();
         QCoreApplication::processEvents();
     }
 
-    // 5) Real upgrade path: a stale v2 store (layout_version == 2) must also be
-    // discarded once, not only v1. Produce a v2-tagged store whose saved layout
-    // differs (Now Playing hidden), then confirm the next launch shows the
-    // default redesign layout and re-saves v3.
+    // 5) Real upgrade path: a stale v3 store (layout_version == 3, the MOT-
+    // Slideshow predecessor) must also be discarded once, not only v1. Produce a
+    // v3-tagged store whose saved layout differs (Now Playing hidden), then
+    // confirm the next launch shows the default redesign layout and re-saves v4.
     {
         DABAnalyzerWindow w;
         w.show();
@@ -776,14 +783,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(np);
         np->toggleView(false);
         QCoreApplication::processEvents();
-        w.close();  // writes layout_version 3 with Now Playing hidden
+        w.close();  // writes layout_version 4 with Now Playing hidden
         QCoreApplication::processEvents();
     }
     {
         QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 3);
+        QCOMPARE(s.value(versionKey).toInt(), 4);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
-        s.setValue(versionKey, 2);  // simulate the v2 -> v3 migration
+        s.setValue(versionKey, 3);  // simulate the v3 -> v4 migration
         s.sync();
     }
     {
@@ -795,14 +802,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         ads::CDockWidget* np = m1->findDockWidget(hiddenDockName);
         QVERIFY(np);
         QVERIFY2(!np->isClosed() && np->isVisible(),
-                 "stale v2 layout must be discarded: Now Playing visible in "
+                 "stale v3 layout must be discarded: Now Playing visible in "
                  "the default redesign layout");
-        w4.close();  // re-saves layout_version 3
+        w4.close();  // re-saves layout_version 4
         QCoreApplication::processEvents();
     }
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 3);
+        QCOMPARE(s.value(versionKey).toInt(), 4);
     }
 
     clearSettingsStore();
@@ -2143,6 +2150,375 @@ void TestGuiDockLayout::testTabPagesDescriptiveTitles()
                  qPrintable(QString("expected section title missing: %1 (have: %2)")
                                 .arg(name, seenTitles.join(", "))));
     }
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// MOT SlideShow (option A): X-PAD CI 12/13 -> adapter -> MOTProtocol -> panel
+// ============================================================================
+namespace {
+
+// 7-byte standard MOT header core: body size(28) header size(13) type(6) sub(9).
+QByteArray motStdHeaderCore(uint32_t bodySize, uint8_t contentType, uint16_t subType)
+{
+    QByteArray h(7, '\0');
+    auto* d = reinterpret_cast<uint8_t*>(h.data());
+    d[0] = static_cast<uint8_t>((bodySize >> 20) & 0xFF);
+    d[1] = static_cast<uint8_t>((bodySize >> 12) & 0xFF);
+    d[2] = static_cast<uint8_t>((bodySize >> 4) & 0xFF);
+    d[3] = static_cast<uint8_t>(((bodySize & 0x0F) << 4) | ((7u >> 9) & 0x0F));
+    d[4] = static_cast<uint8_t>((7u >> 1) & 0xFF);
+    d[5] = static_cast<uint8_t>(((7u & 0x01) << 7) |
+                                ((contentType & 0x3F) << 1) |
+                                ((subType >> 8) & 0x01));
+    d[6] = static_cast<uint8_t>(subType & 0xFF);
+    return h;
+}
+
+// Standard MOT MSC data group (EN 300 401 §5.3.3): header + MOT session
+// header + segmentation header + payload + ~CRC-16/CCITT-FALSE.
+QByteArray motStdDataGroup(uint8_t dgType, uint16_t tid, uint16_t seg, bool last,
+                           const QByteArray& payload)
+{
+    QByteArray dg;
+    dg.append(static_cast<char>(0x40 | 0x20 | 0x10 | (dgType & 0x0F)));
+    dg.append(static_cast<char>(0x00));
+    dg.append(static_cast<char>((last ? 0x80 : 0x00) | ((seg >> 8) & 0x7F)));
+    dg.append(static_cast<char>(seg & 0xFF));
+    dg.append(static_cast<char>(0x10 | 0x02));  // transport id flag, len = 2
+    dg.append(static_cast<char>((tid >> 8) & 0xFF));
+    dg.append(static_cast<char>(tid & 0xFF));
+    dg.append(static_cast<char>((payload.size() >> 8) & 0x1F));
+    dg.append(static_cast<char>(payload.size() & 0xFF));
+    dg.append(payload);
+    const uint16_t crc = static_cast<uint16_t>(~eti::crc16ccitt_false(
+        reinterpret_cast<const uint8_t*>(dg.constData()), dg.size()));
+    dg.append(static_cast<char>((crc >> 8) & 0xFF));
+    dg.append(static_cast<char>(crc & 0xFF));
+    return dg;
+}
+
+// Wrap one X-PAD variable-size sub-field in on-wire (reversed) byte order.
+QByteArray motOnWireSubfield(int ciType, const QByteArray& chunk)
+{
+    static const int lens[8] = {4, 6, 8, 12, 16, 24, 32, 48};
+    int idx = -1;
+    for (int i = 0; i < 8; ++i) {
+        if (lens[i] >= chunk.size()) {
+            idx = i;
+            break;
+        }
+    }
+    Q_ASSERT(idx >= 0);
+    QByteArray logical;
+    logical.append(static_cast<char>((idx << 5) | (ciType & 0x1F)));
+    logical.append(static_cast<char>(0x00));  // CI end marker
+    QByteArray padded = chunk;
+    padded.resize(lens[idx], '\0');
+    logical.append(padded);
+    std::reverse(logical.begin(), logical.end());
+    return logical;
+}
+
+// Full on-wire X-PAD sequence for one standard data group: DGLI (CI 1) +
+// MOT start (CI 12) + MOT continuations (CI 13), <=48-byte sub-fields.
+QList<QByteArray> motOnWireDataGroup(const QByteArray& dg)
+{
+    QList<QByteArray> out;
+    QByteArray dgli;
+    dgli.append(static_cast<char>((dg.size() >> 8) & 0x3F));
+    dgli.append(static_cast<char>(dg.size() & 0xFF));
+    const uint16_t c = static_cast<uint16_t>(~eti::crc16ccitt_false(
+        reinterpret_cast<const uint8_t*>(dgli.constData()), 2));
+    dgli.append(static_cast<char>((c >> 8) & 0xFF));
+    dgli.append(static_cast<char>(c & 0xFF));
+    out.append(motOnWireSubfield(1, dgli));
+
+    out.append(motOnWireSubfield(12, dg.left(48)));
+    for (int off = 48; off < dg.size(); off += 48) {
+        out.append(motOnWireSubfield(13, dg.mid(off, 48)));
+    }
+    return out;
+}
+
+// Build one variable-size X-PAD holding MULTIPLE CI sub-fields (CI bytes first,
+// then the end marker, then the concatenated, length-padded sub-field data), in
+// on-wire (reversed) byte order.
+QByteArray motOnWireMultiCi(const QList<QPair<int, QByteArray>>& subfields)
+{
+    static const int lens[8] = {4, 6, 8, 12, 16, 24, 32, 48};
+    QByteArray logical;
+    for (const auto& s : subfields) {
+        int idx = -1;
+        for (int i = 0; i < 8; ++i) {
+            if (lens[i] >= s.second.size()) {
+                idx = i;
+                break;
+            }
+        }
+        Q_ASSERT(idx >= 0);
+        logical.append(static_cast<char>((idx << 5) | (s.first & 0x1F)));
+    }
+    logical.append(static_cast<char>(0x00));  // CI end marker
+    for (const auto& s : subfields) {
+        int idx = -1;
+        for (int i = 0; i < 8; ++i) {
+            if (lens[i] >= s.second.size()) {
+                idx = i;
+                break;
+            }
+        }
+        QByteArray padded = s.second;
+        padded.resize(lens[idx], '\0');
+        logical.append(padded);
+    }
+    std::reverse(logical.begin(), logical.end());
+    return logical;
+}
+
+// A raw ci_flag==0 continuation X-PAD: no CI bytes, just the data (reversed).
+QByteArray motOnWireContinuation(const QByteArray& data)
+{
+    QByteArray wire = data;
+    std::reverse(wire.begin(), wire.end());
+    return wire;
+}
+
+// A small valid PNG (Qt always ships the PNG codec).
+QByteArray motTinyPng()
+{
+    QImage img(8, 8, QImage::Format_RGB32);
+    img.fill(Qt::red);
+    QByteArray ba;
+    QBuffer buf(&ba);
+    buf.open(QIODevice::WriteOnly);
+    img.save(&buf, "PNG");
+    return ba;
+}
+
+}  // namespace
+
+void TestGuiDockLayout::testMotPadAdapterXpadPipeline()
+{
+    qRegisterMetaType<eti::mot::MOTObject>("eti::mot::MOTObject");
+
+    // Adapter unit test: synthetic MOT header+body X-PAD data groups (CI 12/13)
+    // must reassemble and fire objectComplete with the expected transport id and
+    // body bytes. The DGLI (CI 1) announces each standard data group's length.
+    DabPlusSubchannelParser parser;
+    eti::mot::MOTProtocol mot;
+    eti::mot::MotPadAdapter adapter(&mot);
+    QSignalSpy spy(&mot, &eti::mot::MOTProtocol::objectComplete);
+    QVERIFY(spy.isValid());
+    parser.onMotDataGroup = [&adapter](const QByteArray& dg) {
+        adapter.processDataGroup(0x2C61u, dg);
+    };
+
+    const uint16_t tid = 0x0123;
+    const QByteArray body(217, 'Z');
+    const QByteArray header = motStdHeaderCore(body.size(), 0x02, 0x01);
+
+    const auto feed = [&parser](const QByteArray& dg) {
+        const QList<QByteArray> wires = motOnWireDataGroup(dg);
+        for (const QByteArray& w : wires) {
+            const uint8_t fpad[2] = {0x20, 0x02};  // type 0, variable X-PAD, CI set
+            DlsAssembly a;
+            parser.processPad(reinterpret_cast<const uint8_t*>(w.constData()),
+                              static_cast<size_t>(w.size()), fpad, a);
+        }
+    };
+
+    feed(motStdDataGroup(3, tid, 0, true, header));
+    QCOMPARE(spy.count(), 0);  // header alone must not complete an object
+    feed(motStdDataGroup(4, tid, 0, true, body));
+
+    QCOMPARE(spy.count(), 1);
+    const QList<QVariant> args = spy.takeFirst();
+    QCOMPARE(args.at(0).toUInt(), static_cast<uint>(tid));
+    const eti::mot::MOTObject object = qvariant_cast<eti::mot::MOTObject>(args.at(1));
+    const QByteArray got(reinterpret_cast<const char*>(object.body.data()),
+                         static_cast<int>(object.body.size()));
+    QCOMPARE(got, body);
+
+    const eti::mot::MotPadAdapter::Statistics st = adapter.statistics();
+    QCOMPARE(st.dataGroups, static_cast<uint64_t>(2));
+    QCOMPARE(st.headerSegments, static_cast<uint64_t>(1));
+    QCOMPARE(st.bodySegments, static_cast<uint64_t>(1));
+    QCOMPARE(st.objectsCompleted, static_cast<uint64_t>(1));
+    QCOMPARE(st.objectsEmitted, static_cast<uint64_t>(1));
+}
+
+void TestGuiDockLayout::testMotXpadCiFlagZeroContinuation()
+{
+    // ci_flag==0 AU continuation: verify the tracked continuation length is the
+    // MOT sub-field length, not the whole announced X-PAD (which includes a
+    // co-resident DGLI), and that a group split across such AUs reassembles.
+    DabPlusSubchannelParser parser;
+    eti::mot::MOTProtocol mot;
+    eti::mot::MotPadAdapter adapter(&mot);
+    QSignalSpy spy(&mot, &eti::mot::MOTProtocol::objectComplete);
+    parser.onMotDataGroup = [&adapter](const QByteArray& dg) {
+        adapter.processDataGroup(0x2C61u, dg);
+    };
+
+    const uint16_t tid = 0x0123;
+    const QByteArray body(120, 'Q');
+    const QByteArray header = motStdHeaderCore(body.size(), 0x02, 0x01);
+    const QByteArray headerDg = motStdDataGroup(3, tid, 0, true, header);
+    const QByteArray bodyDg = motStdDataGroup(4, tid, 0, true, body);
+
+    const auto dgliFor = [](const QByteArray& dg) {
+        QByteArray dgli;
+        dgli.append(static_cast<char>((dg.size() >> 8) & 0x3F));
+        dgli.append(static_cast<char>(dg.size() & 0xFF));
+        const uint16_t c = static_cast<uint16_t>(~eti::crc16ccitt_false(
+            reinterpret_cast<const uint8_t*>(dgli.constData()), 2));
+        dgli.append(static_cast<char>((c >> 8) & 0xFF));
+        dgli.append(static_cast<char>(c & 0xFF));
+        return dgli;
+    };
+    const auto feedCi = [&parser](const QByteArray& wire) {
+        const uint8_t fpad[2] = {0x20, 0x02};  // type 0, variable X-PAD, CI set
+        DlsAssembly a;
+        parser.processPad(reinterpret_cast<const uint8_t*>(wire.constData()),
+                          static_cast<size_t>(wire.size()), fpad, a);
+    };
+    const auto feedCont = [&parser](const QByteArray& wire) {
+        const uint8_t fpad[2] = {0x20, 0x00};  // type 0, variable X-PAD, CI clear
+        DlsAssembly a;
+        parser.processPad(reinterpret_cast<const uint8_t*>(wire.constData()),
+                          static_cast<size_t>(wire.size()), fpad, a);
+    };
+
+    // AU1: DGLI (CI 1) + CI 12 start co-resident in one X-PAD (header DG).
+    feedCi(motOnWireMultiCi({{1, dgliFor(headerDg)}, {12, headerDg}}));
+    QCOMPARE(spy.count(), 0);
+
+    // AU2: DGLI + CI 12 carrying the first 48 bytes of the body DG. The tracked
+    // continuation length must be the CI-12 sub-field length (48), NOT the whole
+    // announced X-PAD (~2 CI + 4 DGLI + 48 = 54).
+    const QByteArray firstChunk = bodyDg.left(48);
+    feedCi(motOnWireMultiCi({{1, dgliFor(bodyDg)}, {12, firstChunk}}));
+    QCOMPARE(parser.motContinuationLen, static_cast<int>(firstChunk.size()));
+
+    // AU3/AU4: ci_flag==0 continuations carrying the remaining body DG bytes.
+    feedCont(motOnWireContinuation(bodyDg.mid(48, 48)));
+    QCOMPARE(spy.count(), 0);
+    feedCont(motOnWireContinuation(bodyDg.mid(96)));
+
+    QCOMPARE(spy.count(), 1);
+    const eti::mot::MOTObject object =
+        qvariant_cast<eti::mot::MOTObject>(spy.takeFirst().at(1));
+    const QByteArray got(reinterpret_cast<const char*>(object.body.data()),
+                         static_cast<int>(object.body.size()));
+    QCOMPARE(got, body);
+}
+
+void TestGuiDockLayout::testMotSlideshowPanelAndTabs()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // Dock title + inner tabs (option A).
+    auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
+    QVERIFY(m1);
+    ads::CDockWidget* np = m1->findDockWidget(QStringLiteral("tab1_NowPlaying"));
+    QVERIFY(np);
+    QCOMPARE(np->windowTitle(), QStringLiteral("Now Playing / Slideshow"));
+    QVERIFY(np->dockAreaWidget());
+    QVERIFY2(np->dockAreaWidget()->minimumHeight() >= 200,
+             qPrintable(QString("Now Playing dock must grow to >=200px, got %1")
+                            .arg(np->dockAreaWidget()->minimumHeight())));
+
+    QTabWidget* tabs = w.nowPlayingTabsForTest();
+    QVERIFY(tabs);
+    QCOMPARE(tabs->count(), 2);
+    QCOMPARE(tabs->tabText(0), QStringLiteral("DLS+ Text"));
+    QCOMPARE(tabs->tabText(1), QStringLiteral("Slideshow"));
+
+    // Documented initial slideshow state.
+    QCOMPARE(w.slideshowStatusForTest(), QStringLiteral("Waiting for slideshow…"));
+    QVERIFY(w.slideshowImageForTest().isNull());
+    QCOMPARE(w.motObjectsForTest(), 0);
+
+    // --- Progress state + completion through the real X-PAD 12/13 path -----
+    const QByteArray png = motTinyPng();
+    QVERIFY2(!png.isEmpty(), "test PNG must encode");
+    const uint16_t tid = 0x0201;
+    const QByteArray header = motStdHeaderCore(png.size(), 0x02, 0x03);  // image/PNG
+    const int cut = png.size() - 10;
+    QVERIFY(cut > 0);
+
+    // Header + first body segment (not last) -> live progress.
+    QList<QByteArray> wires = motOnWireDataGroup(motStdDataGroup(3, tid, 0, true, header));
+    wires += motOnWireDataGroup(motStdDataGroup(4, tid, 0, false, png.left(cut)));
+    QVERIFY(w.feedMotXpadsForTest(wires));
+    QVERIFY2(w.slideshowStatusForTest().contains(QStringLiteral("Receiving")),
+             qPrintable(QString("expected Receiving state, got: %1")
+                            .arg(w.slideshowStatusForTest())));
+    QCOMPARE(w.motImagesDecodedForTest(), 0);
+
+    // Final body segment -> decode + show.
+    QVERIFY(w.feedMotXpadsForTest(
+        motOnWireDataGroup(motStdDataGroup(4, tid, 1, true, png.mid(cut)))));
+
+    QCOMPARE(w.motObjectsForTest(), 1);
+    QCOMPARE(w.motImagesDecodedForTest(), 1);
+    QVERIFY(!w.slideshowImageForTest().isNull());
+    QVERIFY(w.slideshowImageForTest().width() > 0);
+    QVERIFY2(w.slideshowStatusForTest().contains(QStringLiteral("Showing slide")),
+             qPrintable(QString("expected Showing-slide state, got: %1")
+                            .arg(w.slideshowStatusForTest())));
+    QVERIFY2(w.slideshowInfoForTest().contains(QStringLiteral("TID")),
+             qPrintable(QString("info line must carry the transport id, got: %1")
+                            .arg(w.slideshowInfoForTest())));
+    // Bounded retention.
+    QVERIFY(w.motSlideHistorySizeForTest() <= 8);
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+void TestGuiDockLayout::testMotSlideshowRealFixture()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    const QString fixture = QStringLiteral("../../eti/bkk_20062022_141637.eti");
+    QVERIFY2(QFileInfo::exists(fixture),
+             qPrintable(QString("fixture missing: %1 (cwd=%2)")
+                            .arg(fixture, QDir::currentPath())));
+    w.autoLoadFile(fixture);
+    QCoreApplication::processEvents();
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0, 120000);
+
+    // The Bangkok capture really carries MOT SlideShow (X-PAD CI 12/13): the
+    // whole pipeline must have decoded at least one image, not just detected
+    // the transport.
+    qInfo() << "[MOT-TEST] real fixture objects:" << w.motObjectsForTest()
+            << "images:" << w.motImagesDecodedForTest()
+            << "DLS+ messages:" << w.dlsPlusMessageCountForTest();
+    QVERIFY2(w.motObjectsForTest() >= 1,
+             "the fixture carries MOT objects; the adapter must complete >= 1");
+    QVERIFY2(w.motImagesDecodedForTest() >= 1,
+             "at least one MOT body must decode to a QImage");
+    const QImage slide = w.slideshowImageForTest();
+    QVERIFY2(!slide.isNull(), "the slideshow image must be non-null after the load");
+    QVERIFY(slide.width() > 0 && slide.height() > 0);
+    QVERIFY2(w.motSlideHistorySizeForTest() <= 8,
+             "retained slideshow images must stay bounded");
+    QVERIFY2(w.slideshowStatusForTest().contains(QStringLiteral("Showing slide")),
+             qPrintable(QString("slideshow status after load: %1")
+                            .arg(w.slideshowStatusForTest())));
+
+    // DLS+ side must be unchanged by the MOT wave (the parser feeds both).
+    QVERIFY2(w.dlsPlusMessageCountForTest() > 0, "DLS+ labels must still decode");
 
     w.close();
     QCoreApplication::processEvents();

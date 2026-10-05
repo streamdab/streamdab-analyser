@@ -24,8 +24,71 @@
 #include <QSignalSpy>
 #include <QDebug>
 #include "../src/core/mot_protocol.hpp"
+#include "../src/core/mot_pad_adapter.hpp"
+#include "../src/core/crc16.hpp"
 
 using namespace eti::mot;
+
+// ============================================================================
+// Helpers: build standard EN 300 401 MOT MSC data groups (as carried in
+// DAB+ X-PAD CI 12/13), used by the MotPadAdapter tests below.
+// ============================================================================
+namespace {
+
+// 7-byte standard MOT header core (ETSI EN 301 234 §5.1): body size(28)
+// header size(13) content type(6) content subtype(9).
+QByteArray buildStandardMotHeaderCore(uint32_t bodySize, uint8_t contentType,
+                                      uint16_t contentSubType)
+{
+    QByteArray h(7, '\0');
+    auto* d = reinterpret_cast<uint8_t*>(h.data());
+    d[0] = static_cast<uint8_t>((bodySize >> 20) & 0xFF);
+    d[1] = static_cast<uint8_t>((bodySize >> 12) & 0xFF);
+    d[2] = static_cast<uint8_t>((bodySize >> 4) & 0xFF);
+    d[3] = static_cast<uint8_t>(((bodySize & 0x0F) << 4) | ((7u >> 9) & 0x0F));
+    d[4] = static_cast<uint8_t>((7u >> 1) & 0xFF);
+    d[5] = static_cast<uint8_t>(((7u & 0x01) << 7) |
+                                ((contentType & 0x3F) << 1) |
+                                ((contentSubType >> 8) & 0x01));
+    d[6] = static_cast<uint8_t>(contentSubType & 0xFF);
+    return h;
+}
+
+// Standard MOT MSC data group: 2-byte header (crc/segment/user-access/type) +
+// session header (last|seg, transport-id flag+len, transport id) +
+// segmentation header (segment size) + payload + ~CRC-16/CCITT-FALSE.
+QByteArray buildStandardMotDataGroup(uint8_t dgType, uint16_t transportId,
+                                     uint16_t segNumber, bool last,
+                                     const QByteArray& payload)
+{
+    QByteArray dg;
+    dg.append(static_cast<char>(0x40 | 0x20 | 0x10 | (dgType & 0x0F)));
+    dg.append(static_cast<char>(0x00));
+    dg.append(static_cast<char>((last ? 0x80 : 0x00) | ((segNumber >> 8) & 0x7F)));
+    dg.append(static_cast<char>(segNumber & 0xFF));
+    dg.append(static_cast<char>(0x10 | 0x02));  // transport id flag, len = 2
+    dg.append(static_cast<char>((transportId >> 8) & 0xFF));
+    dg.append(static_cast<char>(transportId & 0xFF));
+    dg.append(static_cast<char>((payload.size() >> 8) & 0x1F));
+    dg.append(static_cast<char>(payload.size() & 0xFF));
+    dg.append(payload);
+    const uint16_t crc = static_cast<uint16_t>(~eti::crc16ccitt_false(
+        reinterpret_cast<const uint8_t*>(dg.constData()), dg.size()));
+    dg.append(static_cast<char>((crc >> 8) & 0xFF));
+    dg.append(static_cast<char>(crc & 0xFF));
+    return dg;
+}
+
+QByteArray patternBody(int size, char seed)
+{
+    QByteArray body(size, '\0');
+    for (int i = 0; i < size; ++i) {
+        body[i] = static_cast<char>((seed + i) & 0xFF);
+    }
+    return body;
+}
+
+}  // namespace
 
 class TestMOTProtocol : public QObject
 {
@@ -95,6 +158,17 @@ private slots:
     // Statistics tests
     void testStatistics_Tracking();
     void testStatistics_Accuracy();
+
+    // MOT MSC data group adapter (X-PAD CI 12/13 transport) tests
+    void testMotPadAdapter_StandardHeaderCore();
+    void testMotPadAdapter_HeaderBodyObjectComplete();
+    void testMotPadAdapter_MultiSegmentBody();
+    void testMotPadAdapter_CrcRejected();
+    void testMotPadAdapter_ReframedLayout();
+    void testMotPadAdapter_ReframedIsValid();
+    void testMotPadAdapter_OversizeRejected();
+    void testMotPadAdapter_StaleEviction();
+    void testMotPadAdapter_CarouselReset();
 
 private:
     MOTProtocol* m_motParser;
@@ -631,10 +705,13 @@ void TestMOTProtocol::testTransportID_ValidRange()
 
 void TestMOTProtocol::testTransportID_InvalidRange()
 {
-    // Test invalid transport IDs (>1023)
-    QVERIFY(!m_motParser->validateTransportId(1024));
-    QVERIFY(!m_motParser->validateTransportId(2000));
-    QVERIFY(!m_motParser->validateTransportId(65535));
+    // The MOT transport id is a 16-bit field, so ids up to 0xFFFF are valid
+    // (real multiplexes use e.g. ~14000) and only >0xFFFF is out of range.
+    QVERIFY(m_motParser->validateTransportId(1024));
+    QVERIFY(m_motParser->validateTransportId(2000));
+    QVERIFY(m_motParser->validateTransportId(0xFFFF));
+    QVERIFY(!m_motParser->validateTransportId(0x10000));
+    QVERIFY(!m_motParser->validateTransportId(0x7FFFFFFF));
 }
 
 void TestMOTProtocol::testTransportID_MultipleObjects()
@@ -984,6 +1061,244 @@ std::vector<uint8_t> TestMOTProtocol::toVector(const QByteArray& data)
     }
     
     return vec;
+}
+
+// ============================================================================
+// MOT MSC data group adapter tests (X-PAD CI 12/13 transport path)
+// ============================================================================
+
+void TestMOTProtocol::testMotPadAdapter_StandardHeaderCore()
+{
+    const QByteArray body = patternBody(1234, 0x10);
+    const QByteArray header = buildStandardMotHeaderCore(body.size(), 0x02, 0x01);
+
+    uint32_t bodySize = 0;
+    uint16_t headerSize = 0;
+    uint8_t contentType = 0;
+    uint16_t subtype = 0;
+    QVERIFY(MotPadAdapter::parseStandardHeader(header, bodySize, headerSize, contentType, subtype));
+    QCOMPARE(bodySize, static_cast<uint32_t>(1234));
+    QCOMPARE(headerSize, static_cast<uint16_t>(7));
+    QCOMPARE(contentType, static_cast<uint8_t>(0x02));
+    QCOMPARE(subtype, static_cast<uint16_t>(0x01));
+
+    // Too-short header is rejected.
+    MOTHeader dummy;
+    uint32_t bs = 0; uint16_t hs = 0; uint8_t ct = 0; uint16_t st = 0;
+    QVERIFY(!MotPadAdapter::parseStandardHeader(QByteArray(6, '\0'), bs, hs, ct, st));
+}
+
+void TestMOTProtocol::testMotPadAdapter_HeaderBodyObjectComplete()
+{
+    MOTProtocol mot;
+    MotPadAdapter adapter(&mot);
+    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+    QVERIFY(spy.isValid());
+
+    const uint16_t transportId = 0x0123;
+    const QByteArray body = patternBody(300, 0x40);
+    const QByteArray header = buildStandardMotHeaderCore(body.size(), 0x02, 0x01);
+
+    // Header entity then body entity (each a single segment).
+    QVERIFY(adapter.processDataGroup(0x2C61,
+        buildStandardMotDataGroup(3, transportId, 0, true, header)));
+    QCOMPARE(spy.count(), 0);
+    QVERIFY(adapter.processDataGroup(0x2C61,
+        buildStandardMotDataGroup(4, transportId, 0, true, body)));
+
+    QCOMPARE(spy.count(), 1);
+    const QList<QVariant> args = spy.takeFirst();
+    QCOMPARE(args.at(0).toUInt(), static_cast<uint>(transportId));
+    const MOTObject object = qvariant_cast<MOTObject>(args.at(1));
+    QCOMPARE(object.transport_id, static_cast<uint32_t>(transportId));
+    const QByteArray got(reinterpret_cast<const char*>(object.body.data()),
+                         static_cast<int>(object.body.size()));
+    QCOMPARE(got, body);
+    QCOMPARE(static_cast<uint8_t>(object.header.content_type),
+             static_cast<uint8_t>(ContentType::IMAGE_JPEG));
+
+    const MotPadAdapter::Statistics stats = adapter.statistics();
+    QCOMPARE(stats.dataGroups, static_cast<uint64_t>(2));
+    QCOMPARE(stats.headerSegments, static_cast<uint64_t>(1));
+    QCOMPARE(stats.bodySegments, static_cast<uint64_t>(1));
+    QCOMPARE(stats.objectsCompleted, static_cast<uint64_t>(1));
+    QCOMPARE(stats.objectsEmitted, static_cast<uint64_t>(1));
+}
+
+void TestMOTProtocol::testMotPadAdapter_MultiSegmentBody()
+{
+    MOTProtocol mot;
+    MotPadAdapter adapter(&mot);
+    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+
+    const uint16_t transportId = 77;
+    const QByteArray body = patternBody(500, 0x20);
+    const QByteArray header = buildStandardMotHeaderCore(body.size(), 0x02, 0x01);
+
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(3, transportId, 0, true, header)));
+    // Body split into three segments, delivered out of order (2, 0, 1).
+    const QByteArray s0 = body.left(200);
+    const QByteArray s1 = body.mid(200, 150);
+    const QByteArray s2 = body.mid(350);
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, transportId, 2, true, s2)));
+    QCOMPARE(spy.count(), 0);
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, transportId, 0, false, s0)));
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, transportId, 1, false, s1)));
+
+    QCOMPARE(spy.count(), 1);
+    const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
+    const QByteArray got(reinterpret_cast<const char*>(object.body.data()),
+                         static_cast<int>(object.body.size()));
+    QCOMPARE(got, body);
+}
+
+void TestMOTProtocol::testMotPadAdapter_CrcRejected()
+{
+    MOTProtocol mot;
+    MotPadAdapter adapter(&mot);
+    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+
+    const QByteArray body = patternBody(64, 0x01);
+    const QByteArray header = buildStandardMotHeaderCore(body.size(), 0x02, 0x01);
+    QByteArray badHeaderDg = buildStandardMotDataGroup(3, 9, 0, true, header);
+    badHeaderDg[badHeaderDg.size() - 1] =
+        static_cast<char>(badHeaderDg[badHeaderDg.size() - 1] ^ 0xFF);  // corrupt CRC
+
+    QVERIFY(!adapter.processDataGroup(0, badHeaderDg));
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, 9, 0, true, body)));
+    QCOMPARE(spy.count(), 0);  // header never accepted -> no object
+
+    const MotPadAdapter::Statistics stats = adapter.statistics();
+    QCOMPARE(stats.crcErrors, static_cast<uint64_t>(1));
+}
+
+void TestMOTProtocol::testMotPadAdapter_ReframedLayout()
+{
+    // The adapter's re-framed data group must be parseable by MOTProtocol and
+    // expose core[0..6] immediately followed by the body.
+    const QByteArray body = patternBody(40, 0x55);
+    const QByteArray dg = MotPadAdapter::buildReframedDataGroup(0x2A, 0x02, body);
+    QVERIFY(dg.size() > body.size());
+
+    MOTProtocol mot;
+    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+    QVERIFY(mot.processMOTData(0, dg));
+    QCOMPARE(spy.count(), 1);
+    const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
+    const QByteArray got(reinterpret_cast<const char*>(object.body.data()),
+                         static_cast<int>(object.body.size()));
+    QCOMPARE(got, body);
+}
+
+void TestMOTProtocol::testMotPadAdapter_ReframedIsValid()
+{
+    // The re-framed object must satisfy MOTObject::isValid() (body size
+    // reconciled) and keep the full 16-bit transport id (>= 1024).
+    MOTProtocol mot;
+    MotPadAdapter adapter(&mot);
+    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+
+    const uint16_t transportId = 14496;  // real-capture-like 16-bit id
+    const QByteArray body = patternBody(20000, 0x33);  // > 8191: multi-segment
+    const QByteArray header = buildStandardMotHeaderCore(body.size(), 0x02, 0x03);
+
+    QVERIFY(adapter.processDataGroup(0x2C61,
+        buildStandardMotDataGroup(3, transportId, 0, true, header)));
+    // Split into 3 body segments (each <= the 13-bit segment size limit).
+    const int segLen = 7000;
+    for (int seg = 0, off = 0; off < body.size(); ++seg, off += segLen) {
+        const bool last = (off + segLen >= body.size());
+        QVERIFY(adapter.processDataGroup(0x2C61, buildStandardMotDataGroup(
+            4, transportId, static_cast<uint16_t>(seg), last, body.mid(off, segLen))));
+    }
+
+    QCOMPARE(spy.count(), 1);
+    const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
+    QVERIFY2(object.isValid(),
+             qPrintable(QString("re-framed object must be valid: body=%1 declared=%2 hdr=%3")
+                            .arg(object.body.size())
+                            .arg(object.header.body_size)
+                            .arg(object.header.header_size)));
+    QCOMPARE(object.transport_id, static_cast<uint32_t>(transportId));
+    QCOMPARE(static_cast<uint32_t>(object.header.body_size),
+             static_cast<uint32_t>(body.size()));
+    const QByteArray got(reinterpret_cast<const char*>(object.body.data()),
+                         static_cast<int>(object.body.size()));
+    QCOMPARE(got, body);
+}
+
+void TestMOTProtocol::testMotPadAdapter_OversizeRejected()
+{
+    MOTProtocol mot;
+    MotPadAdapter adapter(&mot);
+    MotPadAdapter::Limits limits;
+    limits.maxBodyBytes = 64;  // tiny cap for the boundary test
+    adapter.setLimits(limits);
+    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+
+    const QByteArray body = patternBody(200, 0x01);
+    const QByteArray header = buildStandardMotHeaderCore(body.size(), 0x02, 0x01);
+
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(3, 5, 0, true, header)));
+    // The 200-byte body segment must be rejected on the running counter,
+    // before it is buffered.
+    QVERIFY(!adapter.processDataGroup(0, buildStandardMotDataGroup(4, 5, 0, true, body)));
+    QCOMPARE(spy.count(), 0);
+    QVERIFY2(adapter.statistics().oversized >= 1, "oversize must be counted");
+}
+
+void TestMOTProtocol::testMotPadAdapter_StaleEviction()
+{
+    MOTProtocol mot;
+    MotPadAdapter adapter(&mot);
+    MotPadAdapter::Limits limits;
+    limits.maxBodyBytes = 1u << 20;
+    limits.maxAssemblies = 16;
+    limits.staleTicks = 3;
+    adapter.setLimits(limits);
+
+    // Incomplete object for tid 1, then advance the tick with rejected groups.
+    const QByteArray header = buildStandardMotHeaderCore(100, 0x02, 0x01);
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(3, 1, 0, true, header)));
+    for (int i = 0; i < 6; ++i) {
+        adapter.processDataGroup(0, QByteArray(1, '\0'));  // rejected, advances tick
+    }
+    // A new key triggers stale eviction of the idle tid-1 assembly.
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(3, 2, 0, true, header)));
+    QVERIFY2(adapter.statistics().staleEvictions >= 1,
+             "an idle incomplete assembly must be evicted");
+}
+
+void TestMOTProtocol::testMotPadAdapter_CarouselReset()
+{
+    MOTProtocol mot;
+    MotPadAdapter adapter(&mot);
+    QSignalSpy spy(&mot, &MOTProtocol::objectComplete);
+
+    const uint16_t tid = 9;
+    const QByteArray body1 = patternBody(120, 0x10);
+    const QByteArray body2 = patternBody(150, 0x60);
+
+    // Cycle 1: header + body seg 0/1, but never the last segment.
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(
+        3, tid, 0, true, buildStandardMotHeaderCore(body1.size(), 0x02, 0x01))));
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, tid, 0, false, body1.left(60))));
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, tid, 1, false, body1.mid(60))));
+    QCOMPARE(spy.count(), 0);
+
+    // Cycle 2 (new object version, same transport id): repeating segment 0
+    // resets the stale assembly, then the new body completes.
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(
+        3, tid, 0, true, buildStandardMotHeaderCore(body2.size(), 0x02, 0x01))));
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, tid, 0, false, body2.left(70))));
+    QVERIFY(adapter.processDataGroup(0, buildStandardMotDataGroup(4, tid, 1, true, body2.mid(70))));
+
+    QCOMPARE(spy.count(), 1);
+    const MOTObject object = qvariant_cast<MOTObject>(spy.takeFirst().at(1));
+    const QByteArray got(reinterpret_cast<const char*>(object.body.data()),
+                         static_cast<int>(object.body.size()));
+    QCOMPARE(got, body2);  // cycle-1 bytes must NOT have merged in
+    QVERIFY2(adapter.statistics().objResets >= 1, "the carousel restart must reset the assembly");
 }
 
 // ============================================================================

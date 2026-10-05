@@ -10,7 +10,7 @@
  * - Segment reassembly with duplicate detection
  * - Content type detection (JPEG, PNG, HTML, etc.)
  * - Header parameter extraction (name, trigger time, category, URL)
- * - Transport ID management (0-1023)
+ * - Transport ID management (0-65535)
  * - Object carousel tracking with versioning
  * - MSC Data Group parsing (ETSI EN 300 401 Section 5.3.3)
  * - CRC validation for data groups
@@ -287,7 +287,7 @@ struct SegmentBuffer {
  * - MOT header/directory parsing
  * - Segment reassembly with progress tracking
  * - Header parameter extraction
- * - Transport ID management (0-1023)
+ * - Transport ID management (0-65535)
  * - Object carousel tracking
  * - Timeout-based stale object cleanup
  * - Thread-safe operation
@@ -440,12 +440,15 @@ public:
     /**
      * @brief Validate transport ID range
      * @param transport_id Transport ID to validate
-     * @return true if valid (0-1023)
+     * @return true if valid (0-65535)
      *
-     * ETSI EN 301 234: Transport ID range is 0-1023
+     * The MOT transport id is a 16-bit field (ETSI EN 301 234 §6.2); real DAB
+     * multiplexes use the full range (e.g. the Bangkok capture carries ids in
+     * the 14000s). The earlier 0-1023 limit was too small and rejected every
+     * real object.
      */
     bool validateTransportId(uint32_t transport_id) const {
-        return transport_id <= 1023;
+        return transport_id <= 0xFFFF;
     }
 
     /**
@@ -591,8 +594,11 @@ private:
     // Statistics
     Statistics m_statistics;
 
-    // Mutex for thread-safe access
-    mutable QMutex m_mutex;
+    // Mutex for thread-safe access. Recursive because processMOTData() already
+    // holds the lock while calling getProgress()/clearObject()/cleanupStale
+    // Objects() (which lock again); a plain QMutex deadlocked the whole
+    // pipeline as soon as a complete object was reassembled.
+    mutable QRecursiveMutex m_mutex;
 
     // Stale object timeout (milliseconds)
     static constexpr uint32_t STALE_TIMEOUT_MS = 60000; // 60 seconds
