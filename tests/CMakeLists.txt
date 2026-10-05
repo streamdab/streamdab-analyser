@@ -265,18 +265,10 @@ add_test(NAME test_dls_plus_decoder COMMAND test_dls_plus_decoder)
 # PHASE 4 TESTS - ETI-over-IP Live Streaming (October 25, 2025)
 # ============================================================================
 
-# Test 1: Network Stream Receiver (4,000 lines pre-existing backend)
-#add_executable(test_network_stream_receiver
-#    test_network_stream_receiver.cpp
-#    ${CMAKE_CURRENT_SOURCE_DIR}/../src/network/network_stream_receiver.cpp
-#)
-#target_link_libraries(test_network_stream_receiver
-#    Qt6::Test
-#    Qt6::Core
-#    Qt6::Network
-#    pthread
-#)
-#add_test(NAME test_network_stream_receiver COMMAND test_network_stream_receiver)
+# Test 1: Network Stream Receiver — dead legacy suite removed (T22 review F5).
+# The disabled test called declared-but-undefined receiver methods
+# (get_error_messages/clear_error_messages/has_errors); deleted rather than
+# ported. Live coverage now lives in tests/test_network_stream_validation.cpp.
 
 # Test 2: Live ETI Frame Processing
 #add_executable(test_live_eti_processing
@@ -953,3 +945,22 @@ target_link_libraries(test_analyzer_settings
 )
 add_test(NAME test_analyzer_settings COMMAND test_analyzer_settings)
 set_tests_properties(test_analyzer_settings PROPERTIES TIMEOUT 30)
+
+# ============================================================================
+# T22 Network Stream Validation (URL validator + receiver hardening)
+# ============================================================================
+# The receiver is multicast-only: `validate_stream_url()` is the shared
+# pre-check (UI + receiver), and a non-multicast target must fail fast with
+# exactly one `error_occurred` and no retry loop (and no worker-thread throw).
+add_executable(test_network_stream_validation
+    test_network_stream_validation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/network_stream_receiver.cpp
+)
+target_link_libraries(test_network_stream_validation
+    Qt6::Test
+    Qt6::Core
+    Qt6::Network
+    pthread
+)
+add_test(NAME test_network_stream_validation COMMAND test_network_stream_validation)
+set_tests_properties(test_network_stream_validation PROPERTIES TIMEOUT 30)

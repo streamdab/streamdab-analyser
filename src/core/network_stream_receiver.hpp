@@ -34,6 +34,107 @@
 namespace eti {
 
 /**
+ * @brief Result of validating/parsing an ETI-over-IP stream URL.
+ *
+ * `address`/`port` are only meaningful when `valid == true`. On failure
+ * `error` carries a single, user-presentable reason.
+ */
+struct StreamUrlValidation {
+    bool valid{false};
+    QString address;             ///< IPv4 multicast address (valid only)
+    quint16 port{9200};          ///< 1..65535, defaults to 9200 when omitted
+    QString error;               ///< reason when `valid == false`
+};
+
+/**
+ * @brief Validate a multicast ETI-over-IP URL.
+ *
+ * The receiver is multicast-only, so accepted input is deliberately narrow:
+ *   - `udp://A.B.C.D[:port]`
+ *   - `A.B.C.D[:port]`
+ * where `A.B.C.D` is an IPv4 multicast address (224.0.0.0/4) and the optional
+ * port is 1..65535 (defaults to 9200). Host names (`localhost`), unicast/IPv6
+ * addresses, `tcp://` / `zmq+tcp://` schemes and malformed input are rejected
+ * with a descriptive `error`.
+ *
+ * This is a pure free function (no I/O) so both the UI and the receiver can
+ * call it before creating any worker thread.
+ */
+StreamUrlValidation validate_stream_url(const QString& url);
+
+/**
+ * @brief True when `address` is a valid IPv4 multicast address (224.0.0.0/4).
+ */
+bool is_valid_multicast_address(const QString& address);
+
+/**
+ * @brief Strict IPv4 + multicast canonicaliser.
+ *
+ * Unlike QHostAddress::setAddress (which accepts short/hex/octal forms such as
+ * `224.0.0` or `0xE0.0.0.1`), this requires a strict 4-octet dotted-decimal
+ * address (each octet 0-255, no leading zeros) inside 224.0.0.0/4. On success
+ * `canonicalOut` receives `QHostAddress(raw).toString()`.
+ */
+bool canonical_multicast_address(const QString& input, QString& canonicalOut);
+
+/**
+ * @brief Inter-frame arrival latency tracker.
+ *
+ * Tracks the interval between consecutive received ETI frames (a real,
+ * bounded latency proxy) instead of the old "now - stream start" uptime, which
+ * grew without bound and tripped the latency threshold on every healthy
+ * stream. The average is only considered valid after MIN_SAMPLES samples so
+ * quality checks never fire before data flows.
+ */
+class InterFrameLatencyTracker {
+public:
+    static constexpr size_t MIN_SAMPLES = 10;
+
+    void reset()
+    {
+        m_has_last = false;
+        m_count = 0;
+        m_sum_us = 0;
+        m_max_us = 0;
+    }
+
+    /**
+     * @brief Record a frame arrival. Returns true once a valid average exists.
+     */
+    bool addSample(std::chrono::steady_clock::time_point now)
+    {
+        bool validNow = false;
+        if (m_has_last) {
+            const int64_t interval_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                                            now - m_last).count();
+            if (interval_us >= 0) {
+                m_sum_us += interval_us;
+                if (interval_us > m_max_us) {
+                    m_max_us = interval_us;
+                }
+                ++m_count;
+                validNow = m_count >= MIN_SAMPLES;
+            }
+        }
+        m_last = now;
+        m_has_last = true;
+        return validNow;
+    }
+
+    bool valid() const { return m_count >= MIN_SAMPLES; }
+    size_t sampleCount() const { return m_count; }
+    int64_t averageUs() const { return m_count > 0 ? m_sum_us / static_cast<int64_t>(m_count) : 0; }
+    int64_t maxUs() const { return m_max_us; }
+
+private:
+    std::chrono::steady_clock::time_point m_last{};
+    bool m_has_last{false};
+    size_t m_count{0};
+    int64_t m_sum_us{0};
+    int64_t m_max_us{0};
+};
+
+/**
  * @brief Network stream configuration for ETI-over-IP reception
  */
 struct NetworkStreamConfig {
@@ -141,6 +242,22 @@ public:
     explicit NetworkStreamWorker(const NetworkStreamConfig& config, QObject* parent = nullptr);
     ~NetworkStreamWorker();
 
+    // --- Test seams (T22 review F1) ----------------------------------------
+    // Drive the fatal-socket-error path deterministically without real
+    // multicast hardware: force the "connected" state, then deliver a fatal
+    // socket error and observe the single connection_status_changed(false).
+    void forceConnectedForTest()
+    {
+        m_receiving = true;
+        m_connected = true;
+    }
+    void simulateFatalSocketErrorForTest()
+    {
+        handle_socket_error(QAbstractSocket::NetworkError);
+    }
+    bool isReceivingForTest() const { return m_receiving.load(); }
+    bool isConnectedForTest() const { return m_connected.load(); }
+
 public slots:
     void start_reception();
     void stop_reception();
@@ -159,14 +276,15 @@ private slots:
     void handle_datagram_ready();
 
 private:
-    void initialize_socket();
-    void join_multicast_group();
+    bool initialize_socket();
+    bool join_multicast_group();
     void leave_multicast_group();
     bool validate_eti_packet(const QByteArray& data) const;
     void update_frame_rate();
     void check_quality_thresholds();
     
     NetworkStreamConfig m_config;
+    QString m_last_error;  ///< last start/init failure (worker thread only)
     std::unique_ptr<QUdpSocket> m_socket;
     std::unique_ptr<QTimer> m_statistics_timer;
     NetworkStreamStatistics m_statistics;
@@ -182,6 +300,7 @@ private:
     
     std::chrono::steady_clock::time_point m_last_frame_time;
     std::vector<double> m_frame_rate_history;
+    InterFrameLatencyTracker m_latency;
     static constexpr size_t FRAME_RATE_HISTORY_SIZE = 100;
 };
 
@@ -244,10 +363,14 @@ public:
     QString get_current_interface() const;
 
     // Error handling
-    QStringList get_error_messages() const;
-    void clear_error_messages();
-    bool has_errors() const;
     QString get_last_error() const;
+
+    // --- Test seams (T22 review F1) ----------------------------------------
+    // Drive the receiver's connection-loss/reconnect policy without a live
+    // worker: force the "receiving" flag, then feed a connection-status event.
+    void setReceivingForTest(bool receiving) { m_receiving = receiving; }
+    void simulateConnectionLostForTest() { handle_connection_status(false); }
+    size_t reconnectionAttemptsForTest() const { return m_reconnection_attempts.load(); }
 
     // Callback registration for real-time processing
     using FrameCallback = std::function<void(const QByteArray&)>;

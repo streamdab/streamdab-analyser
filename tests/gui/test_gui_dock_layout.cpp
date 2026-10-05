@@ -93,6 +93,10 @@ private slots:
     // T20 review findings 1 + 2
     void testXpadOversizePadRejected();
     void testDabPlusServiceCacheRevision();
+    // T22 network-stream invalid-URL guard
+    void testNetworkStreamInvalidUrlGuard();
+    // T22 review F3a: post-connect stream errors are log-only
+    void testStreamErrorAfterConnectedIsLogOnly();
 
 private:
     // Removes every DABAnalyzerWindow QSettings key used by the app so each
@@ -1977,6 +1981,113 @@ void TestGuiDockLayout::testDabPlusServiceCacheRevision()
     QVERIFY2(w.nowPlayingStatusForTest().contains(QStringLiteral("RROne FM 101")),
              qPrintable(QString("panel line must show the real service label, got: %1")
                             .arg(w.nowPlayingStatusForTest())));
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// T22: an invalid stream URL must be rejected in the UI BEFORE the core is
+// touched — one warning, no receiver created, no connect attempt, no retry.
+// ============================================================================
+void TestGuiDockLayout::testNetworkStreamInvalidUrlGuard()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    const int warningsBefore = w.streamValidationWarningCountForTest();
+    const int attemptsBefore = w.streamConnectAttemptCountForTest();
+
+    // Every unsupported form must be rejected by the shared validator and
+    // must NOT reach receiver creation (the reported localhost loop).
+    const QStringList invalid = {
+        QStringLiteral("localhost"),
+        QStringLiteral("zmq+tcp://localhost:9201"),
+        QStringLiteral("tcp://192.168.1.100:9200"),
+        QStringLiteral("192.168.1.100:9200"),
+        QStringLiteral("udp://127.0.0.1:9200"),
+        QString(),
+        QStringLiteral("239.192.0.1:0"),
+        QStringLiteral("239.192.0.1:99999"),
+    };
+
+    for (const QString& url : invalid) {
+        QVERIFY2(!w.beginStreamConnectionForTest(url), qPrintable(url));
+        QCOMPARE(w.streamReceiverCountForTest(), 0);  // no receiver created
+    }
+
+    QCOMPARE(w.streamValidationWarningCountForTest(), warningsBefore + invalid.size());
+    QCOMPARE(w.streamConnectAttemptCountForTest(), attemptsBefore);  // no attempt
+
+    // The System Messages strip records the rejection (warning path), and the
+    // Connect button was never left disabled.
+    QVERIFY2(w.streamStatusTextForTest().contains(QStringLiteral("Disconnected")),
+             qPrintable(QString("status must stay Disconnected, got: %1")
+                            .arg(w.streamStatusTextForTest())));
+    QVERIFY2(w.streamConnectButtonEnabledForTest(),
+             "Connect must stay enabled after a rejected URL");
+
+    // Quick examples: the two supported multicast forms are selectable; the
+    // TCP/ZMQ documentation entries are DISABLED so they cannot be chosen.
+    QVERIFY(w.quickExampleComboForTest());
+    QComboBox* combo = w.quickExampleComboForTest();
+    QVERIFY(combo->count() >= 4);
+    QVERIFY(combo->model()->index(0, 0).flags().testFlag(Qt::ItemIsEnabled));
+    QVERIFY(combo->model()->index(1, 0).flags().testFlag(Qt::ItemIsEnabled));
+    QVERIFY2(!combo->model()->index(2, 0).flags().testFlag(Qt::ItemIsEnabled),
+             "tcp:// example must be disabled (not supported)");
+    QVERIFY2(!combo->model()->index(3, 0).flags().testFlag(Qt::ItemIsEnabled),
+             "zmq+tcp:// example must be disabled (not supported)");
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// T22 review F3a: once a session has connected, error_occurred (quality /
+// non-fatal messages) must be log-only — no status repaint, no button churn.
+// Before a confirmed connection the same handler still drives the failure UI.
+// ============================================================================
+void TestGuiDockLayout::testStreamErrorAfterConnectedIsLogOnly()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // --- Live session: error is log-only ---
+    w.setStreamEverConnectedForTest(true);
+    w.setStreamStatusTextForTest(QStringLiteral("SESSION-LIVE"));
+    w.setStreamButtonsEnabledForTest(/*connect*/ false, /*disconnect*/ true, /*record*/ true);
+
+    w.simulateStreamErrorForTest(
+        QStringLiteral("Latency above threshold: 101us > 100us"));
+    QCoreApplication::processEvents();
+
+    QCOMPARE(w.streamStatusTextForTest(), QStringLiteral("SESSION-LIVE"));
+    QVERIFY2(!w.streamConnectButtonEnabledForTest(),
+             "post-connect error must not re-enable Connect");
+    QVERIFY2(w.streamDisconnectButtonEnabledForTest(),
+             "post-connect error must not disable Disconnect");
+    QVERIFY2(w.streamRecordButtonEnabledForTest(),
+             "post-connect error must not disable Record");
+
+    // --- Still establishing: same handler drives the failure UI ---
+    w.setStreamEverConnectedForTest(false);
+    w.setStreamStatusTextForTest(QStringLiteral("Connecting..."));
+    w.setStreamButtonsEnabledForTest(/*connect*/ false, /*disconnect*/ true, /*record*/ false);
+
+    w.simulateStreamErrorForTest(QStringLiteral("Failed to bind to port 9200"));
+    QCoreApplication::processEvents();
+
+    QVERIFY(w.streamConnectButtonEnabledForTest());
+    QVERIFY(!w.streamDisconnectButtonEnabledForTest());
+    QVERIFY(!w.streamRecordButtonEnabledForTest());
+    QVERIFY2(w.streamStatusTextForTest().contains(QStringLiteral("Error")),
+             qPrintable(QString("pre-connect error must set the red Error status, got: %1")
+                            .arg(w.streamStatusTextForTest())));
 
     w.close();
     QCoreApplication::processEvents();

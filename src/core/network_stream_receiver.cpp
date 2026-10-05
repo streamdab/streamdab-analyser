@@ -17,6 +17,168 @@
 
 namespace eti {
 
+// ============================================================================
+// Stream URL validation (shared by the UI pre-check and the receiver)
+// ============================================================================
+namespace {
+
+// Strict 4-octet dotted-decimal IPv4 parser. Rejects short/hex/octal forms
+// (e.g. "224.0.0", "0xE0.0.0.1", "224.0.0.010") that QHostAddress accepts.
+bool parse_strict_ipv4(const QString& text, quint32& rawOut) {
+    const QStringList parts = text.split(QLatin1Char('.'));
+    if (parts.size() != 4) {
+        return false;
+    }
+    quint32 raw = 0;
+    for (const QString& part : parts) {
+        if (part.isEmpty() || part.size() > 3) {
+            return false;
+        }
+        for (const QChar c : part) {
+            if (!c.isDigit()) {
+                return false;  // digits only: rejects "+1", "0x..", spaces
+            }
+        }
+        if (part.size() > 1 && part.at(0) == QLatin1Char('0')) {
+            return false;  // no leading zeros ("010" must not become octal 8)
+        }
+        bool ok = false;
+        const int octet = part.toInt(&ok);
+        if (!ok || octet < 0 || octet > 255) {
+            return false;
+        }
+        raw = (raw << 8) | static_cast<quint32>(octet);
+    }
+    rawOut = raw;
+    return true;
+}
+
+}  // namespace
+
+bool canonical_multicast_address(const QString& input, QString& canonicalOut) {
+    quint32 raw = 0;
+    if (!parse_strict_ipv4(input, raw)) {
+        return false;
+    }
+    // 224.0.0.0/4 -> top nibble 0xE.
+    if ((raw & 0xF0000000u) != 0xE0000000u) {
+        return false;
+    }
+    canonicalOut = QHostAddress(raw).toString();
+    return true;
+}
+
+bool is_valid_multicast_address(const QString& address) {
+    QString canonical;
+    return canonical_multicast_address(address, canonical);
+}
+
+StreamUrlValidation validate_stream_url(const QString& rawUrl) {
+    StreamUrlValidation result;
+    const QString url = rawUrl.trimmed();
+    if (url.isEmpty()) {
+        result.error = QStringLiteral(
+            "Please enter a stream URL (e.g. udp://239.192.0.1:9200).");
+        return result;
+    }
+
+    // Optional scheme prefix: only udp:// reaches the multicast receiver.
+    QString hostPort = url;
+    const int schemeSep = url.indexOf(QStringLiteral("://"));
+    if (schemeSep >= 0) {
+        const QString scheme = url.left(schemeSep).toLower();
+        if (scheme != QLatin1String("udp")) {
+            result.error = QStringLiteral(
+                "Unsupported URL scheme '%1://'. Only UDP multicast is supported "
+                "(e.g. udp://239.192.0.1:9200).").arg(scheme);
+            return result;
+        }
+        hostPort = url.mid(schemeSep + 3);
+    } else if (url.contains(QLatin1Char('/'))) {
+        result.error = QStringLiteral(
+            "Malformed URL '%1'. Supported format: udp://239.192.0.1:9200 "
+            "or 239.192.0.1:9200.").arg(url);
+        return result;
+    }
+
+    // Split host[:port]. More than one colon means IPv6 or malformed input,
+    // which this IPv4-only receiver does not support.
+    QString host = hostPort;
+    QString portText;
+    const int colon = hostPort.lastIndexOf(QLatin1Char(':'));
+    if (colon >= 0) {
+        if (hostPort.indexOf(QLatin1Char(':')) != colon) {
+            result.error = QStringLiteral(
+                "IPv6 addresses are not supported by this receiver. Use an IPv4 "
+                "multicast address (e.g. udp://239.192.0.1:9200).");
+            return result;
+        }
+        host = hostPort.left(colon).trimmed();
+        portText = hostPort.mid(colon + 1).trimmed();
+        if (portText.isEmpty()) {
+            result.error = QStringLiteral(
+                "Missing port after ':' in '%1'. Use 1-65535 "
+                "(e.g. udp://239.192.0.1:9200).").arg(hostPort);
+            return result;
+        }
+    }
+
+    if (host.isEmpty()) {
+        result.error = QStringLiteral(
+            "Missing multicast address. Use an IPv4 multicast address in "
+            "224.0.0.0/4 (e.g. udp://239.192.0.1:9200).");
+        return result;
+    }
+
+    QString canonical;
+    if (!canonical_multicast_address(host, canonical)) {
+        result.error = QStringLiteral(
+            "'%1' is not a supported destination. This receiver is multicast-only: "
+            "use a 4-octet IPv4 multicast address in 224.0.0.0/4 "
+            "(e.g. udp://239.192.0.1:9200).").arg(host);
+        return result;
+    }
+
+    quint16 port = 9200;  // default ETI port
+    if (!portText.isEmpty()) {
+        // Strict digits-only port: rejects "+5", "0005", " 5" and "5.0".
+        if (portText.size() > 5) {
+            result.error = QStringLiteral(
+                "Invalid port '%1'. Use a number between 1 and 65535 "
+                "(default 9200).").arg(portText);
+            return result;
+        }
+        for (const QChar c : portText) {
+            if (!c.isDigit()) {
+                result.error = QStringLiteral(
+                    "Invalid port '%1'. Use digits only, between 1 and 65535 "
+                    "(default 9200).").arg(portText);
+                return result;
+            }
+        }
+        if (portText.size() > 1 && portText.at(0) == QLatin1Char('0')) {
+            result.error = QStringLiteral(
+                "Invalid port '%1'. Leading zeros are not allowed "
+                "(use e.g. '5', not '0005').").arg(portText);
+            return result;
+        }
+        bool ok = false;
+        const uint value = portText.toUInt(&ok);
+        if (!ok || value == 0 || value > 65535) {
+            result.error = QStringLiteral(
+                "Invalid port '%1'. Use a number between 1 and 65535 "
+                "(default 9200).").arg(portText);
+            return result;
+        }
+        port = static_cast<quint16>(value);
+    }
+
+    result.valid = true;
+    result.address = canonical;  // canonical 4-octet dotted-decimal
+    result.port = port;
+    return result;
+}
+
 // NetworkStreamWorker Implementation
 NetworkStreamWorker::NetworkStreamWorker(const NetworkStreamConfig& config, QObject* parent)
     : QObject(parent)
@@ -49,25 +211,42 @@ void NetworkStreamWorker::start_reception() {
         return; // Already receiving
     }
     
+    m_last_error.clear();
+    
+    // No exception may escape this worker slot: a throw across the Qt event
+    // loop / thread boundary terminates the process. The helpers below return
+    // bool and set m_last_error; this catch is belt-and-suspenders.
+    bool ok = false;
     try {
-        initialize_socket();
-        join_multicast_group();
-        
-        m_receiving = true;
-        m_connected = true;
-        m_statistics.reset();
-        m_statistics_timer->start();
-        
-        emit connection_status_changed(true);
-        qDebug() << "NetworkStreamWorker: Started reception on" 
-                 << m_config.multicast_address << ":" << m_config.port;
-                 
+        ok = initialize_socket() && join_multicast_group();
     } catch (const std::exception& e) {
+        m_last_error = QString("Failed to start reception: %1").arg(e.what());
+    } catch (...) {
+        m_last_error = QStringLiteral("Failed to start reception: unknown error");
+    }
+    
+    if (!ok) {
         m_receiving = false;
         m_connected = false;
-        emit error_occurred(QString("Failed to start reception: %1").arg(e.what()));
+        if (m_last_error.isEmpty()) {
+            m_last_error = QStringLiteral("Failed to start reception");
+        }
+        emit error_occurred(m_last_error);
         emit connection_status_changed(false);
+        return;
     }
+    
+    m_receiving = true;
+    m_connected = true;
+    m_statistics.reset();
+    m_frame_rate_history.clear();
+    m_latency.reset();
+    m_last_frame_time = std::chrono::steady_clock::now();
+    m_statistics_timer->start();
+    
+    emit connection_status_changed(true);
+    qDebug() << "NetworkStreamWorker: Started reception on" 
+             << m_config.multicast_address << ":" << m_config.port;
 }
 
 void NetworkStreamWorker::stop_reception() {
@@ -89,15 +268,21 @@ void NetworkStreamWorker::stop_reception() {
     qDebug() << "NetworkStreamWorker: Stopped reception";
 }
 
-void NetworkStreamWorker::initialize_socket() {
+bool NetworkStreamWorker::initialize_socket() {
+    if (!m_socket) {
+        m_last_error = QStringLiteral("Socket unavailable");
+        return false;
+    }
+    
     m_socket->setProxy(QNetworkProxy::NoProxy);
     
     // Bind to the multicast port
     if (!m_socket->bind(QHostAddress::AnyIPv4, m_config.port, 
                        QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
-        throw std::runtime_error(QString("Failed to bind to port %1: %2")
-                                .arg(m_config.port)
-                                .arg(m_socket->errorString()).toStdString());
+        m_last_error = QString("Failed to bind to port %1: %2")
+                           .arg(m_config.port)
+                           .arg(m_socket->errorString());
+        return false;
     }
     
     // Set socket buffer sizes for high-throughput
@@ -106,13 +291,17 @@ void NetworkStreamWorker::initialize_socket() {
     m_socket->setSocketOption(QAbstractSocket::SendBufferSizeSocketOption, buffer_size);
     
     qDebug() << "NetworkStreamWorker: Socket initialized on port" << m_config.port;
+    return true;
 }
 
-void NetworkStreamWorker::join_multicast_group() {
-    QHostAddress group_address(m_config.multicast_address);
-    if (!group_address.isMulticast()) {
-        throw std::runtime_error(QString("Invalid multicast address: %1")
-                                .arg(m_config.multicast_address).toStdString());
+bool NetworkStreamWorker::join_multicast_group() {
+    QHostAddress group_address;
+    if (!group_address.setAddress(m_config.multicast_address) ||
+        group_address.protocol() != QAbstractSocket::IPv4Protocol ||
+        !group_address.isMulticast()) {
+        m_last_error = QString("Invalid multicast address: %1")
+                           .arg(m_config.multicast_address);
+        return false;
     }
     
     // Find appropriate network interface
@@ -120,8 +309,9 @@ void NetworkStreamWorker::join_multicast_group() {
     if (!m_config.interface_name.isEmpty()) {
         interface = QNetworkInterface::interfaceFromName(m_config.interface_name);
         if (!interface.isValid()) {
-            throw std::runtime_error(QString("Network interface not found: %1")
-                                    .arg(m_config.interface_name).toStdString());
+            m_last_error = QString("Network interface not found: %1")
+                               .arg(m_config.interface_name);
+            return false;
         }
     } else {
         // Use first multicast-capable interface
@@ -137,17 +327,20 @@ void NetworkStreamWorker::join_multicast_group() {
     }
     
     if (!interface.isValid()) {
-        throw std::runtime_error("No suitable network interface found for multicast");
+        m_last_error = QStringLiteral("No suitable network interface found for multicast");
+        return false;
     }
     
     if (!m_socket->joinMulticastGroup(group_address, interface)) {
-        throw std::runtime_error(QString("Failed to join multicast group %1: %2")
-                                .arg(m_config.multicast_address)
-                                .arg(m_socket->errorString()).toStdString());
+        m_last_error = QString("Failed to join multicast group %1: %2")
+                           .arg(m_config.multicast_address)
+                           .arg(m_socket->errorString());
+        return false;
     }
     
     qDebug() << "NetworkStreamWorker: Joined multicast group" 
              << m_config.multicast_address << "on interface" << interface.name();
+    return true;
 }
 
 void NetworkStreamWorker::leave_multicast_group() {
@@ -295,15 +488,14 @@ void NetworkStreamWorker::handle_socket_error(QAbstractSocket::SocketError error
     
     emit error_occurred(QString("Socket error: %1").arg(error_string));
     
-    // Attempt automatic reconnection if enabled
-    if (m_config.auto_reconnect && m_receiving.load()) {
-        qDebug() << "NetworkStreamWorker: Attempting automatic reconnection due to socket error";
-        QTimer::singleShot(m_config.reconnect_delay.count(), this, [this]() {
-            if (m_receiving.load()) {
-                stop_reception();
-                start_reception();
-            }
-        });
+    // A socket error is FATAL to the current reception. Stop and report the
+    // connection as lost (exactly one connection_status_changed(false)) so the
+    // receiver — which solely owns the reconnect policy — can decide whether
+    // to retry. Fatal errors flow ONLY through here; quality/latency and
+    // invalid-frame errors are non-fatal and must never trigger a reconnect.
+    if (m_receiving.load()) {
+        qDebug() << "NetworkStreamWorker: Fatal socket error, stopping reception";
+        stop_reception();  // emits connection_status_changed(false) once
     }
 }
 
@@ -339,15 +531,15 @@ void NetworkStreamWorker::update_frame_rate() {
         
         m_statistics.current_frame_rate = instantaneous_rate;
         m_statistics.average_frame_rate = average_rate;
-        
-        // Update latency statistics
-        const auto receive_latency = std::chrono::duration_cast<std::chrono::microseconds>(
-            now - m_statistics.start_time).count();
-        m_statistics.average_latency_us = receive_latency;
-        
-        if (receive_latency > m_statistics.max_latency_us.load()) {
-            m_statistics.max_latency_us = receive_latency;
-        }
+    }
+    
+    // Real per-frame arrival latency (interval between consecutive frames), NOT
+    // "now - stream start" (which grew without bound and tripped the latency
+    // threshold on a healthy stream). Publish the average/max only once the
+    // tracker has enough samples, so quality checks never fire before data.
+    if (m_latency.addSample(now)) {
+        m_statistics.average_latency_us = m_latency.averageUs();
+        m_statistics.max_latency_us = m_latency.maxUs();
     }
     
     m_last_frame_time = now;
@@ -371,6 +563,14 @@ void NetworkStreamWorker::update_statistics() {
 }
 
 void NetworkStreamWorker::check_quality_thresholds() {
+    // Never emit quality errors before any data has flowed: a freshly started
+    // socket has a 0 frame rate / 0 latency and would otherwise emit
+    // "Frame rate below threshold" (and, pre-fix, "Latency above threshold")
+    // on a perfectly healthy idle stream.
+    if (m_statistics.frames_received.load() == 0) {
+        return;
+    }
+    
     // Check minimum frame rate
     if (m_statistics.average_frame_rate < m_config.min_frame_rate) {
         emit error_occurred(QString("Frame rate below threshold: %1 < %2")
@@ -385,11 +585,12 @@ void NetworkStreamWorker::check_quality_thresholds() {
                            .arg(m_config.max_frame_loss));
     }
     
-    // Check maximum latency
+    // Check maximum latency — only with a valid (>= MIN_SAMPLES) real
+    // inter-frame average.
     const auto max_latency_us = m_config.max_latency.count() * 1000;
-    if (m_statistics.average_latency_us > max_latency_us) {
+    if (m_latency.valid() && m_latency.averageUs() > max_latency_us) {
         emit error_occurred(QString("Latency above threshold: %1µs > %2µs")
-                           .arg(m_statistics.average_latency_us.load())
+                           .arg(m_latency.averageUs())
                            .arg(max_latency_us));
     }
 }
@@ -424,6 +625,23 @@ bool NetworkStreamReceiver::connect_to_stream(const QString& multicast_address, 
 }
 
 bool NetworkStreamReceiver::connect_with_config(const NetworkStreamConfig& config) {
+    // Pre-validate the target BEFORE creating a worker: this receiver is
+    // multicast-only, so a host name / unicast / TCP target must fail fast with
+    // exactly one error and no worker thread (and therefore no retry loop).
+    if (!is_valid_multicast_address(config.multicast_address)) {
+        const QString error = QString("Invalid multicast address: %1")
+                                  .arg(config.multicast_address);
+        {
+            QMutexLocker locker(&m_mutex);
+            m_error_messages.append(error);
+            while (m_error_messages.size() > MAX_ERROR_MESSAGES) {
+                m_error_messages.removeFirst();
+            }
+        }
+        emit error_occurred(error);
+        return false;
+    }
+    
     try {
         validate_config(config);
         m_config = config;
@@ -593,7 +811,14 @@ void NetworkStreamReceiver::initialize_worker_thread() {
     cleanup_worker_thread();
     
     m_worker_thread = std::make_unique<QThread>();
-    m_worker = std::make_unique<NetworkStreamWorker>(m_config);
+    
+    // The worker must never schedule its OWN retries: reconnection policy is
+    // owned solely by the receiver (attempt_reconnection). Disabling the
+    // worker-level retry here prevents the old worker+receiver double-retry
+    // and any tight loop on a failed start.
+    NetworkStreamConfig worker_config = m_config;
+    worker_config.auto_reconnect = false;
+    m_worker = std::make_unique<NetworkStreamWorker>(worker_config);
     
     m_worker->moveToThread(m_worker_thread.get());
     
@@ -721,7 +946,11 @@ void NetworkStreamReceiver::handle_worker_statistics(const eti::NetworkStreamSta
 void NetworkStreamReceiver::handle_connection_status(bool connected) {
     m_connected = connected;
     
-    if (!connected && m_config.auto_reconnect && m_receiving.load()) {
+    if (connected) {
+        // A confirmed connection resets the reconnection budget. Used to be
+        // reset on mere worker creation, which caused an unbounded retry loop.
+        m_reconnection_attempts = 0;
+    } else if (m_config.auto_reconnect && m_receiving.load()) {
         attempt_reconnection();
     }
     
@@ -745,13 +974,22 @@ void NetworkStreamReceiver::attempt_reconnection() {
     
     emit reconnection_attempted(static_cast<int>(attempt));
     
-    // Attempt to reconnect
+    // Attempt to reconnect. NOTE: the attempt counter is NOT reset here — a
+    // successful worker creation is not a successful connection; it is reset
+    // only once connection_status_changed(true) is observed.
     if (connect_with_config(m_config)) {
-        m_reconnection_attempts = 0;
         start_reception();
     } else {
         // Schedule next attempt
         m_reconnection_timer->start(static_cast<int>(m_config.reconnect_delay.count()));
+    }
+}
+
+void NetworkStreamReceiver::enable_automatic_reconnection(bool enabled, size_t max_attempts) {
+    QMutexLocker locker(&m_mutex);
+    m_config.auto_reconnect = enabled;
+    if (max_attempts > 0) {
+        m_config.max_reconnect_attempts = max_attempts;
     }
 }
 
@@ -826,7 +1064,10 @@ std::unique_ptr<NetworkStreamReceiver> NetworkStreamReceiverFactory::create_low_
 }
 
 QString NetworkStreamReceiver::get_last_error() const {
-    QMutexLocker locker(const_cast<QMutex*>(&m_queue_mutex));
+    // m_error_messages is written under m_mutex (handle_worker_error,
+    // connect_with_config, start_reception), so read it under the same lock.
+    // m_mutex is mutable, so no const_cast is needed here.
+    QMutexLocker locker(&m_mutex);
     if (!m_error_messages.empty()) {
         return m_error_messages.back();
     }

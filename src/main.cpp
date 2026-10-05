@@ -21,6 +21,7 @@
 #include <QTabWidget>
 #include <QTimer>
 #include <QComboBox>
+#include <QStandardItemModel>   // Quick-example combo: disable unsupported items
 #include <QSpinBox>
 #include <QPushButton>
 #include <QFrame>
@@ -876,6 +877,47 @@ public:
     QString nowPlayingStatusForTest() const
     {
         return m_lastUpdatedLabel ? m_lastUpdatedLabel->text() : QString();
+    }
+
+    // --- T22 network-stream connect hooks -----------------------------------
+    // Drive the full connect entry point without a modal dialog (offscreen
+    // tests). Returns true when a connection attempt was started; the rejected
+    // URL path returns false, shows no dialog and creates no receiver.
+    bool beginStreamConnectionForTest(const QString& url)
+    {
+        return beginStreamConnection(url, false);
+    }
+    int streamReceiverCountForTest() const { return m_networkReceiver ? 1 : 0; }
+    int streamValidationWarningCountForTest() const { return m_streamValidationWarnings; }
+    int streamConnectAttemptCountForTest() const { return m_connectAttemptCount; }
+    bool streamConnectButtonEnabledForTest() const { return m_connectBtn && m_connectBtn->isEnabled(); }
+    bool streamDisconnectButtonEnabledForTest() const { return m_disconnectBtn && m_disconnectBtn->isEnabled(); }
+    bool streamRecordButtonEnabledForTest() const { return m_recordBtn && m_recordBtn->isEnabled(); }
+    QComboBox* quickExampleComboForTest() const { return m_quickExampleCombo; }
+    QString streamStatusTextForTest() const
+    {
+        return m_streamStatus ? m_streamStatus->text() : QString();
+    }
+    // F3a: drive handleStreamError in the "already connected" state and inspect
+    // whether the status/buttons were mutated.
+    void setStreamEverConnectedForTest(bool v) { m_streamEverConnected = v; }
+    void setStreamStatusTextForTest(const QString& text)
+    {
+        if (m_streamStatus) m_streamStatus->setText(text);
+    }
+    void setStreamButtonsEnabledForTest(bool connect, bool disconnect, bool record)
+    {
+        if (m_connectBtn) m_connectBtn->setEnabled(connect);
+        if (m_disconnectBtn) m_disconnectBtn->setEnabled(disconnect);
+        if (m_recordBtn) m_recordBtn->setEnabled(record);
+    }
+    void simulateStreamErrorForTest(const QString& error)
+    {
+        // Never block an offscreen test on the modal failure dialog.
+        const bool saved = m_showStreamDialogs;
+        m_showStreamDialogs = false;
+        handleStreamError(error);
+        m_showStreamDialogs = saved;
     }
 
 private slots:
@@ -2034,16 +2076,16 @@ private slots:
     {
         if (!m_streamUrlEdit || index < 0) return;
         
-        // Update URL based on selected example
+        // Only the two multicast forms are supported by the receiver. Entries
+        // for tcp:// / zmq+tcp:// are shown (documented) but DISABLED in the
+        // combo, so they can never become the URL and trigger an invalid
+        // connect attempt. Handle them defensively all the same.
         switch (index) {
             case 0:
                 m_streamUrlEdit->setText("udp://239.192.0.1:9200");
                 break;
             case 1:
-                m_streamUrlEdit->setText("tcp://192.168.1.100:9200");
-                break;
-            case 2:
-                m_streamUrlEdit->setText("zmq+tcp://localhost:9201");
+                m_streamUrlEdit->setText("239.192.0.1:9200");
                 break;
             default:
                 break;
@@ -2052,40 +2094,47 @@ private slots:
     
     void onConnectClicked()
     {
-        if (!m_streamUrlEdit) return;
-        
-        QString url = m_streamUrlEdit->text().trimmed();
-        if (url.isEmpty()) {
-            QMessageBox::warning(this, "Invalid URL", "Please enter a stream URL");
-            return;
+        beginStreamConnection(m_streamUrlEdit ? m_streamUrlEdit->text() : QString(), true);
+    }
+    
+    // Shared connect entry point (T22). Returns true when a connection attempt
+    // was started, false when the URL was rejected before touching the core.
+    // `showDialogs` is false from GUI tests so no modal dialog blocks offscreen.
+    bool beginStreamConnection(const QString& rawUrl, bool showDialogs)
+    {
+        // F6: remembered so the ASYNC receiver error handler honours the same
+        // "no modal dialogs offscreen" contract as this entry point.
+        m_showStreamDialogs = showDialogs;
+
+        // 1) PRE-VALIDATE before any state change / receiver creation. This is
+        //    the loop-breaker: an unsupported URL (hostname, unicast, TCP/ZMQ)
+        //    never reaches the receiver, so nothing can re-trigger attempts.
+        const eti::StreamUrlValidation validation = eti::validate_stream_url(rawUrl);
+        if (!validation.valid) {
+            ++m_streamValidationWarnings;
+            if (m_systemMessages) {
+                m_systemMessages->append(QString("[STREAM] Invalid URL: %1")
+                                             .arg(validation.error));
+            }
+            if (showDialogs) {
+                QMessageBox::warning(
+                    this, tr("Cannot connect"),
+                    tr("%1\n\nSupported format: udp://239.192.0.1:9200\n"
+                       "(IPv4 multicast 224.0.0.0/4, port 1-65535; "
+                       "port defaults to 9200).").arg(validation.error));
+            }
+            // No state change, no receiver, no log loop.
+            return false;
         }
         
-        // Parse URL to extract address and port
-        // Format: multicast_address:port or tcp://host:port or zmq+tcp://host:port
-        QString address;
-        quint16 port = 9200;  // Default ETI port
+        const QString address = validation.address;
+        const quint16 port = validation.port;
         
-        if (url.contains("://")) {
-            // Protocol-prefixed URL (tcp://, zmq+tcp://, udp://)
-            QStringList parts = url.split("://");
-            if (parts.size() >= 2) {
-                QString hostPort = parts[1];
-                QStringList hostPortParts = hostPort.split(":");
-                address = hostPortParts[0];
-                if (hostPortParts.size() >= 2) {
-                    port = hostPortParts[1].toUShort();
-                }
-            }
-        } else {
-            // Simple address:port format
-            QStringList parts = url.split(":");
-            address = parts[0];
-            if (parts.size() >= 2) {
-                port = parts[1].toUShort();
-            }
-        }
+        m_streamEverConnected = false;
+        m_streamFailureDialogShown = false;
+        ++m_connectAttemptCount;
         
-        // Update UI state
+        // 2) Update UI state
         if (m_connectBtn) m_connectBtn->setEnabled(false);
         if (m_disconnectBtn) m_disconnectBtn->setEnabled(true);
         if (m_recordBtn) m_recordBtn->setEnabled(false);  // Disable until connected
@@ -2095,12 +2144,14 @@ private slots:
         
         m_systemMessages->append(QString("[STREAM] Connecting to %1:%2...").arg(address).arg(port));
         
-        // Create network receiver with configuration
+        // 3) Create network receiver. auto_reconnect is OFF for the initial
+        //    attempt; it is enabled only after a successful connection (see the
+        //    connection_status_changed(true) handler below).
         eti::NetworkStreamConfig config;
         config.multicast_address = address;
         config.port = port;
         config.buffer_size = 1000;
-        config.auto_reconnect = true;
+        config.auto_reconnect = false;
         config.max_reconnect_attempts = 10;
         
         m_networkReceiver = std::make_unique<eti::NetworkStreamReceiver>(config, this);
@@ -2112,6 +2163,8 @@ private slots:
         connect(m_networkReceiver.get(), &eti::NetworkStreamReceiver::connection_status_changed,
                 this, [this](bool connected) {
                     if (connected) {
+                        m_streamEverConnected = true;
+                        m_streamFailureDialogShown = false;
                         if (m_streamStatus) {
                             m_streamStatus->setText("<span style='color: #107C10;'>● Connected</span>");
                         }
@@ -2127,43 +2180,95 @@ private slots:
                         if (m_recordBtn) {
                             m_recordBtn->setEnabled(true);
                         }
+                        
+                        // Post-connect only: now that the connection is proven,
+                        // arm automatic reconnection for later dropouts.
+                        if (m_networkReceiver) {
+                            m_networkReceiver->enable_automatic_reconnection(true, 10);
+                        }
                     } else {
                         if (m_streamStatus) {
                             m_streamStatus->setText("<span style='color: #D32F2F;'>● Disconnected</span>");
                         }
-                        m_systemMessages->append("[STREAM] Connection lost");
+                        m_systemMessages->append(m_streamEverConnected
+                            ? "[STREAM] Connection lost"
+                            : "[STREAM] Connection failed to start");
                         
                         // Disable recording and stop any active recording
                         if (m_recordBtn) {
                             m_recordBtn->setEnabled(false);
                         }
                         stopRecording();
+                        
+                        // Re-arm Connect so the user can retry deliberately;
+                        // with auto_reconnect off there is no automatic loop.
+                        if (m_connectBtn) m_connectBtn->setEnabled(true);
+                        if (m_disconnectBtn) m_disconnectBtn->setEnabled(false);
                     }
                 });
         
         connect(m_networkReceiver.get(), &eti::NetworkStreamReceiver::error_occurred,
                 this, [this](const QString& error) {
-                    m_systemMessages->append(QString("[STREAM ERROR] %1").arg(error));
-                    if (m_streamStatus) {
-                        m_streamStatus->setText("<span style='color: #D32F2F;'>● Error</span>");
-                    }
-                    // Re-enable connect button on error
-                    if (m_connectBtn) m_connectBtn->setEnabled(true);
-                    if (m_disconnectBtn) m_disconnectBtn->setEnabled(false);
+                    handleStreamError(error);
                 });
         
-        // Attempt connection
+        // 4) Attempt connection
         if (m_networkReceiver->connect_to_stream(address, port)) {
             m_networkReceiver->start_reception();
+            return true;
         } else {
-            QString error = m_networkReceiver->get_last_error();
+            const QString error = m_networkReceiver->get_last_error();
             m_systemMessages->append(QString("[STREAM] Connection failed: %1").arg(error));
             if (m_streamStatus) {
                 m_streamStatus->setText("<span style='color: #D32F2F;'>● Failed</span>");
             }
-            // Re-enable connect button
+            // Re-enable connect button; no receiver/retry left running.
             if (m_connectBtn) m_connectBtn->setEnabled(true);
             if (m_disconnectBtn) m_disconnectBtn->setEnabled(false);
+            if (m_recordBtn) m_recordBtn->setEnabled(false);
+            if (showDialogs && !m_streamFailureDialogShown) {
+                m_streamFailureDialogShown = true;
+                QMessageBox::warning(this, tr("Cannot connect"),
+                    error.isEmpty() ? tr("Failed to start the network stream.") : error);
+            }
+            return false;
+        }
+    }
+    
+    // Receiver error handler (T22 review F3a/F6).
+    // Before a confirmed connection this drives the failure UI: red status,
+    // Connect re-arm, Disconnect/Record off, and one dialog per attempt (only
+    // when dialogs are enabled). AFTER a session has connected, errors are
+    // LOG-ONLY — per-second quality-threshold messages must not repaint the
+    // status or mutate buttons; the connection-status signal owns the UI then.
+    void handleStreamError(const QString& error)
+    {
+        if (m_systemMessages) {
+            m_systemMessages->append(QString("[STREAM ERROR] %1").arg(error));
+        }
+        
+        if (m_streamEverConnected) {
+            return;  // live session: log-only (quality / non-fatal details)
+        }
+        
+        if (m_streamStatus) {
+            m_streamStatus->setText("<span style='color: #D32F2F;'>● Error</span>");
+        }
+        // Re-enable connect button on error; no retry is pending.
+        if (m_connectBtn) m_connectBtn->setEnabled(true);
+        if (m_disconnectBtn) m_disconnectBtn->setEnabled(false);
+        if (m_recordBtn) m_recordBtn->setEnabled(false);
+        
+        if (m_showStreamDialogs && !m_streamFailureDialogShown) {
+            m_streamFailureDialogShown = true;
+            const QString detail =
+                (error.isEmpty() && m_networkReceiver)
+                    ? m_networkReceiver->get_last_error()
+                    : error;
+            QMessageBox::warning(this, tr("Cannot connect"),
+                detail.isEmpty()
+                    ? tr("Failed to start the network stream.")
+                    : detail);
         }
     }
     
@@ -5219,6 +5324,9 @@ private:
         m_streamUrlEdit = new QLineEdit();
         m_streamUrlEdit->setPlaceholderText("udp://239.192.0.1:9200");
         m_streamUrlEdit->setFont(QFont("Consolas", 9));
+        m_streamUrlEdit->setToolTip(
+            "Supported: udp://A.B.C.D:port or A.B.C.D:port\n"
+            "IPv4 multicast only (224.0.0.0/4), port 1-65535 (default 9200).");
         urlLayout->addWidget(urlLabel);
         urlLayout->addWidget(m_streamUrlEdit, 1);
         networkLayout->addLayout(urlLayout);
@@ -5228,10 +5336,23 @@ private:
         QLabel* examplesLabel = new QLabel("Quick Examples:");
         examplesLabel->setMinimumWidth(80);
         m_quickExampleCombo = new QComboBox();
-        m_quickExampleCombo->addItem("udp://239.192.0.1:9200 (DAB Ensemble Multicast)");
-        m_quickExampleCombo->addItem("tcp://192.168.1.100:9200 (TCP Direct)");
-        m_quickExampleCombo->addItem("zmq+tcp://localhost:9201 (ODR-DabMux ZMQ)");
+        m_quickExampleCombo->addItem("udp://239.192.0.1:9200 (multicast)");
+        m_quickExampleCombo->addItem("239.192.0.1:9200 (multicast, plain)");
+        // Documented-but-unsupported transports: kept visible for clarity, but
+        // DISABLED below so they can never become the URL / connect attempt.
+        m_quickExampleCombo->addItem("tcp://192.168.1.100:9200 (not supported)");
+        m_quickExampleCombo->addItem("zmq+tcp://localhost:9201 (not supported)");
         m_quickExampleCombo->setCurrentIndex(-1);  // No selection by default
+        m_quickExampleCombo->setToolTip(
+            "The receiver is UDP multicast only; TCP and ZMQ entries are shown "
+            "for reference but are not selectable.");
+        if (auto* model = qobject_cast<QStandardItemModel*>(m_quickExampleCombo->model())) {
+            for (int i = 2; i < m_quickExampleCombo->count(); ++i) {
+                if (QStandardItem* item = model->item(i)) {
+                    item->setEnabled(false);
+                }
+            }
+        }
         examplesLayout->addWidget(examplesLabel);
         examplesLayout->addWidget(m_quickExampleCombo, 1);
         networkLayout->addLayout(examplesLayout);
@@ -7918,6 +8039,12 @@ private:
     // Phase 4: Network stream receiver
     std::unique_ptr<eti::NetworkStreamReceiver> m_networkReceiver;
     std::chrono::steady_clock::time_point m_streamStartTime;
+    // T22 network-stream connect bookkeeping / test hooks.
+    int m_streamValidationWarnings{0};   // rejected URLs (pre-core)
+    int m_connectAttemptCount{0};        // accepted URLs that reached the core
+    bool m_streamEverConnected{false};   // gate for the failure popup vs. logs
+    bool m_streamFailureDialogShown{false};
+    bool m_showStreamDialogs{true};      // F6: consult in the async error handler
 
     // Phase 4 Week 3: Stream recording
     QFile m_recordingFile;
