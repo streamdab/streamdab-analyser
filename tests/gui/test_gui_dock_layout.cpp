@@ -16,8 +16,8 @@
  *   d) the Input Source toolbar sits at the TOP of the Tab-1 page with an
  *      expandable network row (visible only in Network Stream mode)
  *   e) QSettings persistence round-trip (closed dock stays closed; restored
- *      group structure matches the default layout) incl. layout_version=4
- *   f) stale v1/v2/v3 layout state (layout_version != 4) is discarded once so
+ *      group structure matches the default layout) incl. layout_version=5
+ *   f) stale v1/v2/v3/v4 layout state (layout_version != 5) is discarded once so
  *      the first run after the upgrade shows the new default layout
  *   g) auto-hide (pin) config sanity
  *   h) floating round-trip safety (float a dock, re-dock it, no crash)
@@ -108,6 +108,10 @@ private slots:
     void testMotXpadCiFlagZeroContinuation();
     void testMotSlideshowPanelAndTabs();
     void testMotSlideshowRealFixture();
+    // T29: Player transport controls + playback controller + default Player tab
+    void testPlayerPanelTransportControls();
+    void testPlaybackController();
+    void testPlayerActiveTabAfterVersionBump();
 
 private:
     // Removes every DABAnalyzerWindow QSettings key used by the app so each
@@ -647,7 +651,7 @@ void TestGuiDockLayout::testPersistenceRoundTrip()
     }
 
     const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 4);
+    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 5);
     QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab2")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab3")).isNull());
@@ -760,7 +764,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
     }
     {
         const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(check.value(versionKey).toInt(), 4);
+        QCOMPARE(check.value(versionKey).toInt(), 5);
         QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     }
 
@@ -817,14 +821,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(mBottom);
         QVERIFY(mBottom->findDockWidget(QStringLiteral("bottom_Messages")));
 
-        w2.close(); // writes layout version 4 again
+        w2.close(); // writes layout version 5 again
         QCoreApplication::processEvents();
     }
 
-    // 4) Version is 4 again; a third launch restores normally (v4 round-trip).
+    // 4) Version is 5 again; a third launch restores normally (v5 round-trip).
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 4);
+        QCOMPARE(s.value(versionKey).toInt(), 5);
     }
     {
         DABAnalyzerWindow w3;
@@ -835,16 +839,17 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(m1);
         ads::CDockWidget* np = m1->findDockWidget(hiddenDockName);
         QVERIFY(np);
-        QVERIFY(!np->isClosed());  // v4 state restored (Now Playing visible)
+        QVERIFY(!np->isClosed());  // v5 state restored (Now Playing visible)
 
         w3.close();
         QCoreApplication::processEvents();
     }
 
-    // 5) Real upgrade path: a stale v3 store (layout_version == 3, the MOT-
-    // Slideshow predecessor) must also be discarded once, not only v1. Produce a
-    // v3-tagged store whose saved layout differs (Now Playing hidden), then
-    // confirm the next launch shows the default redesign layout and re-saves v4.
+    // 5) Real upgrade path: a stale v4 store (layout_version == 4, the MOT-
+    // Slideshow predecessor before T27/T28/T29) must also be discarded once, not
+    // only v1. Produce a v4-tagged store whose saved layout differs (Now Playing
+    // hidden), then confirm the next launch shows the default redesign layout
+    // and re-saves v5.
     {
         DABAnalyzerWindow w;
         w.show();
@@ -855,14 +860,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(np);
         np->toggleView(false);
         QCoreApplication::processEvents();
-        w.close();  // writes layout_version 4 with Now Playing hidden
+        w.close();  // writes layout_version 5 with Now Playing hidden
         QCoreApplication::processEvents();
     }
     {
         QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 4);
+        QCOMPARE(s.value(versionKey).toInt(), 5);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
-        s.setValue(versionKey, 3);  // simulate the v3 -> v4 migration
+        s.setValue(versionKey, 4);  // simulate the v4 -> v5 migration
         s.sync();
     }
     {
@@ -874,14 +879,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         ads::CDockWidget* np = m1->findDockWidget(hiddenDockName);
         QVERIFY(np);
         QVERIFY2(!np->isClosed() && np->isVisible(),
-                 "stale v3 layout must be discarded: Now Playing visible in "
+                 "stale v4 layout must be discarded: Now Playing visible in "
                  "the default redesign layout");
-        w4.close();  // re-saves layout_version 4
+        w4.close();  // re-saves layout_version 5
         QCoreApplication::processEvents();
     }
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 4);
+        QCOMPARE(s.value(versionKey).toInt(), 5);
     }
 
     clearSettingsStore();
@@ -1152,9 +1157,28 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
     QVERIFY2(allGroupsLabelled, "every FIG group must show its instance count in ()");
     QVERIFY2(anyChildren, "FIG groups must contain instance children");
 
-    // The details tree must show the real element tree of the pre-selected
-    // instance (buildFIGInstanceTree pre-selects the first CHILD; the queued
-    // selection sync rebuilds the details panel).
+    // T28: the Tab-3 left dock now has inner tabs beside the FIG Instance List
+    // (existing tree, as-is): a Frame List (frames 1..N of the capture).
+    QTabWidget* tab3Tabs = w.tab3LeftTabsForTest();
+    QVERIFY2(tab3Tabs, "T28: Tab-3 left dock inner tabs must exist");
+    QCOMPARE(tab3Tabs->count(), 2);
+    QCOMPARE(tab3Tabs->tabText(0), QStringLiteral("FIG Instance List"));
+    QCOMPARE(tab3Tabs->tabText(1), QStringLiteral("Frame List"));
+    QCOMPARE(tab3Tabs->widget(0)->findChild<QTreeWidget*>(), figTree);
+
+    // T28: FIG groups are COLLAPSED by default (no expandAll, no forced child
+    // selection); the details pane shows a group summary until the user picks.
+    for (int i = 0; i < figTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* group = figTree->topLevelItem(i);
+        if (group->childCount() > 0) {
+            QVERIFY2(!group->isExpanded(),
+                     qPrintable(QString("FIG group must start collapsed: %1")
+                                    .arg(group->text(0))));
+        }
+    }
+
+    // T28: after load the details tree shows the first group's SUMMARY (no
+    // forced child pre-selection); the queued selection sync keeps it safe.
     QTreeWidget* figDetails = w.tab3FigItemDetailsTree();
     QVERIFY(figDetails);
     QTRY_VERIFY_WITH_TIMEOUT(figDetails->topLevelItemCount() > 0, 10000);
@@ -1172,6 +1196,42 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
         QTRY_VERIFY_WITH_TIMEOUT(figDetails->topLevelItemCount() > 0, 10000);
         QVERIFY2(figDetails->topLevelItem(0)->text(0).startsWith(QLatin1String("FIG ")),
                  "group selection must produce a safe FIG summary/details");
+    }
+
+    // T28: the Frame List shows 1..N frames; selecting a frame decodes that
+    // frame's FIGs into the right dock as FIG roots (type/ext/len/FIB/CRC)
+    // with the element builders nested underneath.
+    {
+        QListWidget* tab3Frames = w.tab3FrameListForTest();
+        QVERIFY(tab3Frames);
+        QCOMPARE(tab3Frames->count(), w.availableFrameCountForTest());
+        QVERIFY(tab3Frames->count() > 0);
+
+        // Pick a frame guaranteed to carry FIG 0/0 (read the recorded frame
+        // number of the FIG 0/0 group's first instance).
+        int fig00Frame = -1;
+        for (int i = 0; i < figTree->topLevelItemCount(); ++i) {
+            QTreeWidgetItem* group = figTree->topLevelItem(i);
+            if (group->text(0).startsWith(QLatin1String("FIG 0/0"))
+                && group->childCount() > 0) {
+                fig00Frame = group->child(0)->text(2).toInt();
+                break;
+            }
+        }
+        QVERIFY2(fig00Frame >= 1, "FIG 0/0 instance must carry a frame number");
+        w.selectTab3FrameForTest(fig00Frame - 1);
+        QCoreApplication::processEvents();
+        QTRY_VERIFY_WITH_TIMEOUT(figDetails->topLevelItemCount() > 0, 10000);
+        bool frameHasFigRoot = false, frameHasFig00 = false;
+        for (int i = 0; i < figDetails->topLevelItemCount(); ++i) {
+            const QString rootText = figDetails->topLevelItem(i)->text(0);
+            if (rootText.startsWith(QLatin1String("FIG "))) frameHasFigRoot = true;
+            if (rootText.startsWith(QLatin1String("FIG 0/0"))) frameHasFig00 = true;
+        }
+        QVERIFY2(frameHasFigRoot,
+                 "selecting a frame must populate the details tree with its FIGs");
+        QVERIFY2(frameHasFig00,
+                 "the selected frame must carry the ensemble FIG 0/0");
     }
 
     // --- Finding 3: a real FIG 1/1 details row must decode the wire order
@@ -2571,7 +2631,7 @@ void TestGuiDockLayout::testMotSlideshowPanelAndTabs()
     w.show();
     QCoreApplication::processEvents();
 
-    // Dock title + inner tabs (option A).
+    // Dock title + T27 left/right split (the option-A inner tabs are gone).
     auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
     QVERIFY(m1);
     ads::CDockWidget* np = m1->findDockWidget(QStringLiteral("tab1_NowPlaying"));
@@ -2582,11 +2642,30 @@ void TestGuiDockLayout::testMotSlideshowPanelAndTabs()
              qPrintable(QString("Now Playing dock must grow to >=200px, got %1")
                             .arg(np->dockAreaWidget()->minimumHeight())));
 
-    QTabWidget* tabs = w.nowPlayingTabsForTest();
-    QVERIFY(tabs);
-    QCOMPARE(tabs->count(), 2);
-    QCOMPARE(tabs->tabText(0), QStringLiteral("DLS+ Text"));
-    QCOMPARE(tabs->tabText(1), QStringLiteral("Slideshow"));
+    // T27: no inner tabs — the dock uses a left/right splitter holding the
+    // DLS+ text block and the slideshow panel, and the image area is a fixed
+    // 4:3 letterbox frame.
+    QVERIFY2(!w.findChild<QTabWidget*>(QStringLiteral("nowPlayingTabs")),
+             "T27: the Now Playing inner QTabWidget must be removed");
+    QSplitter* split = w.nowPlayingSplitterForTest();
+    QVERIFY(split);
+    QCOMPARE(split->orientation(), Qt::Horizontal);
+    QCOMPARE(split->count(), 2);
+    QCOMPARE(split->widget(0)->objectName(), QStringLiteral("dlsPanel"));
+    QCOMPARE(split->widget(1)->objectName(), QStringLiteral("slideshowPanel"));
+    QWidget* slideFrame = w.findChild<QWidget*>(QStringLiteral("slideshowFrame"));
+    QVERIFY2(slideFrame, "T27: the 4:3 slideshow frame must exist");
+    QVERIFY(slideFrame->minimumHeight() > 0);
+
+    // L7: default split is ~45/55 (within tolerance) and is user-draggable.
+    const QList<int> splitSizes = split->sizes();
+    QCOMPARE(splitSizes.size(), 2);
+    const int splitExtent = splitSizes[0] + splitSizes[1];
+    QVERIFY2(splitExtent > 0, "splitter must have a positive extent");
+    const double leftFraction = double(splitSizes[0]) / double(splitExtent);
+    QVERIFY2(leftFraction > 0.30 && leftFraction < 0.60,
+             qPrintable(QString("T27 splitter left fraction must be ~0.45, got %1")
+                            .arg(leftFraction)));
 
     // Documented initial slideshow state.
     QCOMPARE(w.slideshowStatusForTest(), QStringLiteral("Waiting for slideshow…"));
@@ -2702,6 +2781,195 @@ void TestGuiDockLayout::testMotSlideshowRealFixture()
 
     w.close();
     QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// T29: Player transport controls on the Player panel
+// ============================================================================
+void TestGuiDockLayout::testPlayerPanelTransportControls()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
+    QVERIFY(m1);
+    ads::CDockWidget* player = m1->findDockWidget(QStringLiteral("tab1_Player"));
+    QVERIFY(player);
+    QWidget* panel = player->widget();
+    QVERIFY(panel);
+
+    // All required transport controls exist on the Player panel.
+    QPushButton* play = panel->findChild<QPushButton*>(QStringLiteral("playButton"));
+    QVERIFY(play);
+    QVERIFY(panel->findChild<QPushButton*>(QStringLiteral("pauseButton")));
+    QVERIFY(panel->findChild<QPushButton*>(QStringLiteral("stopButton")));
+    QVERIFY(panel->findChild<QPushButton*>(QStringLiteral("resetButton")));
+    QVERIFY(panel->findChild<QPushButton*>(QStringLiteral("skipBackButton")));
+    QVERIFY(panel->findChild<QPushButton*>(QStringLiteral("skipForwardButton")));
+    QComboBox* speed = panel->findChild<QComboBox*>(QStringLiteral("playbackSpeedCombo"));
+    QVERIFY(speed);
+    QCOMPARE(speed->count(), 5);
+    QCOMPARE(speed->itemText(0), QStringLiteral("0.25×"));
+    QCOMPARE(speed->itemText(4), QStringLiteral("4×"));
+    QSlider* timeBar = panel->findChild<QSlider*>(QStringLiteral("playerTimeBar"));
+    QVERIFY2(timeBar, "T29: Player panel must expose a seek slider time bar");
+
+    // Before any file: controls disabled.
+    QVERIFY2(!play->isEnabled(),
+             "T29: transport controls must be disabled before a file is loaded");
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// T29: playback controller over the retained frame cache (headless)
+// ============================================================================
+void TestGuiDockLayout::testPlaybackController()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // Simulate a loaded 10-frame capture (no re-decode): enough for the
+    // playhead to advance and hit the end.
+    w.setFileLoadedForTest(true);
+    w.setTotalFramesForTest(10);
+    w.selectFrameForTest(0);
+    QCOMPARE(w.playbackFrameForTest(), 0);
+    QVERIFY(!w.isPlayingForTest());
+
+    // Play -> tick advances the frame.
+    w.playbackPlayForTest();
+    QVERIFY(w.isPlayingForTest());
+    QVERIFY2(w.isPlaybackTimerActiveForTest(), "L7: Play must start the timer");
+    w.playbackTickForTest();
+    QCOMPARE(w.playbackFrameForTest(), 1);
+    w.playbackTickForTest();
+    QCOMPARE(w.playbackFrameForTest(), 2);
+
+    // Pause holds the frame.
+    w.playbackPauseForTest();
+    QVERIFY(!w.isPlayingForTest());
+    w.playbackTickForTest();
+    QCOMPARE(w.playbackFrameForTest(), 2);
+
+    // L7: a slider value change (what wheel/keyboard/trough produce) seeks the
+    // playhead and stays in sync (no snap-back on the next update).
+    {
+        QSlider* bar = w.playerTimeBarForTest();
+        QVERIFY(bar);
+        bar->setValue(5);
+        QCOMPARE(w.playbackFrameForTest(), 5);
+        QCOMPARE(bar->value(), 5);
+        bar->setValue(100000);          // clamped by the slider range
+        QCOMPARE(w.playbackFrameForTest(), 9);
+        QCOMPARE(bar->value(), 9);
+    }
+
+    // Seek/clamp bounds.
+    w.playbackSeekForTest(-100);
+    QCOMPARE(w.playbackFrameForTest(), 0);
+    w.playbackSeekForTest(100000);
+    QCOMPARE(w.playbackFrameForTest(), 9);
+
+    // Stop resets to 0 and stops.
+    w.playbackPlayForTest();
+    w.playbackTickForTest();
+    QVERIFY(w.isPlayingForTest());
+    w.playbackStopForTest();
+    QCOMPARE(w.playbackFrameForTest(), 0);
+    QVERIFY(!w.isPlayingForTest());
+
+    // Speed changes the tick interval (24 ms base for 1x).
+    w.setPlaybackSpeedIndexForTest(0);   // 0.25x -> 96 ms
+    QCOMPARE(w.playbackIntervalForTest(), 96);
+    w.setPlaybackSpeedIndexForTest(2);   // 1x -> 24 ms
+    QCOMPARE(w.playbackIntervalForTest(), 24);
+    w.setPlaybackSpeedIndexForTest(4);   // 4x -> 6 ms
+    QCOMPARE(w.playbackIntervalForTest(), 6);
+    w.setPlaybackSpeedIndexForTest(2);
+
+    // Loop ON: reaching the end wraps to 0 and keeps playing.
+    w.setLoopForTest(true);
+    w.playbackSeekForTest(9);            // last frame
+    w.playbackPlayForTest();
+    w.playbackTickForTest();             // wraps
+    QCOMPARE(w.playbackFrameForTest(), 0);
+    QVERIFY(w.isPlayingForTest());
+
+    // Loop OFF: reaching the end stops at the last frame.
+    w.setLoopForTest(false);
+    w.playbackSeekForTest(8);
+    w.playbackPlayForTest();
+    w.playbackTickForTest();             // -> 9, still playing
+    QCOMPARE(w.playbackFrameForTest(), 9);
+    QVERIFY(w.isPlayingForTest());
+    w.playbackTickForTest();             // 10 >= 10 -> stop at 9
+    QCOMPARE(w.playbackFrameForTest(), 9);
+    QVERIFY(!w.isPlayingForTest());
+
+    // Seek while playing keeps playing; skip is clamped to the capture.
+    w.playbackSeekForTest(2);
+    w.playbackPlayForTest();
+    w.playbackSkipForTest(-1000000);
+    QCOMPARE(w.playbackFrameForTest(), 0);
+    QVERIFY(w.isPlayingForTest());
+    w.playbackSkipForTest(1000000);
+    QCOMPARE(w.playbackFrameForTest(), 9);
+    QVERIFY(w.isPlayingForTest());
+    w.playbackStopForTest();
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// T29: a stale v4 layout that restored the Decoder tab is discarded (4 -> 5)
+// ============================================================================
+void TestGuiDockLayout::testPlayerActiveTabAfterVersionBump()
+{
+    clearSettingsStore();
+    {
+        DABAnalyzerWindow w;
+        w.show();
+        QCoreApplication::processEvents();
+        auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
+        QVERIFY(m1);
+        ads::CDockWidget* player = m1->findDockWidget(QStringLiteral("tab1_Player"));
+        ads::CDockWidget* decoder = m1->findDockWidget(QStringLiteral("tab1_Decoder"));
+        QVERIFY(player && decoder);
+        QCOMPARE(player->dockAreaWidget(), decoder->dockAreaWidget());
+        // Simulate the stale user state: the Decoder tab is active.
+        player->dockAreaWidget()->setCurrentDockWidget(decoder);
+        QCoreApplication::processEvents();
+        w.close();  // saves layout_version 5 with Decoder active
+        QCoreApplication::processEvents();
+    }
+    {
+        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        s.setValue(QStringLiteral("docking/layout_version"), 4);  // stale v4
+        s.sync();
+    }
+    {
+        DABAnalyzerWindow w;
+        w.show();
+        QCoreApplication::processEvents();
+        auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
+        QVERIFY(m1);
+        ads::CDockWidget* player = m1->findDockWidget(QStringLiteral("tab1_Player"));
+        QVERIFY(player);
+        ads::CDockAreaWidget* area = player->dockAreaWidget();
+        QVERIFY(area);
+        QVERIFY(area->currentDockWidget());
+        QCOMPARE(area->currentDockWidget()->objectName(), QStringLiteral("tab1_Player"));
+        w.close();
+        QCoreApplication::processEvents();
+    }
+    clearSettingsStore();
 }
 
 QTEST_MAIN(TestGuiDockLayout)

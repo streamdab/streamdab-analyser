@@ -52,6 +52,12 @@ Living checklist for active work. Check off items when done (add commit ref).
 - [ ] **T24: ProcessedFrame hand-off follow-up** — `ProcessedFrame::sub_channels` duplicates the MSC bytes already in `msc_data` (~17 MB retained per 5001-frame session; reviewer-noted, non-blocking). Migrate to a `std::shared_ptr<const …>` hand-off (or drop `msc_data`) when the GPU/UI hand-off is next touched.
 - [ ] **T25: teardown crash follow-up** — discovered by the T20 cache test: a queued `servicesUpdated()` can fire against a torn-down `AdvancedFIGAnalyzer` during window close (latent crash). Fix by disconnecting/guarding the queued FIG signals in `~DABAnalyzerWindow` (or by making the analyzer's signal emits safe post-teardown).
 
+## v1.5.x — manual-test round 2 (2026-10-06)
+
+- [ ] **T27: Now Playing — splitter instead of inner tabs** — replace the inner `QTabWidget` (`DLS+ Text` · `Slideshow`) with a **left/right split** inside the same dock: left = DLS+ text, right = Slideshow with **4:3** image area (split need not be equal, e.g. 45/55). Keep dock title/states.
+- [ ] **T28: FIC-Extractor — FIG list collapsed + new Frame List tab** — groups default **collapsed** (no expandAll); add a **Frame List** tab beside "FIG Instance List" in the same left dock; selecting a frame decodes that frame and shows its FIGs/details in the right pane.
+- [ ] **T29: Player default tab + media controls** — Transport group must open on **Player** (stale layout state currently restores Decoder → layout version bump); add Play/Pause/Stop/Reset/Speed (slow/fast)/Skip + time-bar seek to the Player panel; make the **Loop playback** checkbox actually loop (playhead timer over the retained frame cache; 24 ms/frame default; detail panels throttled); post-load state = paused at frame 0.
+
 ## Later (see `docs/PHASE_E_PLAN.md`)
 
 - v1.4 — test closeout (fix `test_performance_fig019_parsing_speed` 7.6 µs vs 5 µs threshold and `test_fig10_basic_parsing` <50 µs flake (31–51 µs measured) → 100 % pass).

@@ -7,6 +7,13 @@
 > (`Now Playing (DLS+)` → `DLS+ Text` · `Slideshow`), dock height grown from 82 px to ≈200 px.
 > No new dock; registry stays at 25. Implementation follows the DLS+ findings close-out.
 >
+> **Update 2026-10-06 — T27: inner tabs → left/right split.** The inner `QTabWidget` was removed; the
+> Now Playing / Slideshow dock now hosts a draggable horizontal `QSplitter` (default 45/55) with the
+> DLS+ text block on the left and the MOT Slideshow on the right. The slideshow image lives in a fixed
+> **4:3 letterbox** frame, so the picture area stays 4:3 at any splitter size. All DLS+/MOT state and
+> decoding logic is unchanged; the dock keeps its ≈200 px minimum height. Tests assert the splitter +
+> its two child panels (`dlsPanel` / `slideshowPanel`) instead of the old inner tabs.
+>
 > **Implemented (2026-10-05):**
 > - `src/core/mot_pad_adapter.{hpp,cpp}` — parses standard EN 300 401 MOT MSC data groups
 >   (header entity + body entity, out-of-order/gap tolerant) and re-frames completed objects into
@@ -76,17 +83,21 @@
 
 Effort estimate: adapter + wiring + widget + tests ≈ one focused work package (comparable to the DLS+ wave); risk mainly in the PAD data-group framing (well-specified, verifiable against the fixture).
 
-## 3. UI placement options (choose one)
+## 3. UI placement options (choose one) — historical, superseded by T27
+
+> **Historical (2026-10-05).** Option **A** below was implemented with inner tabs and then **superseded by T27
+> (2026-10-06)**: the two inner tabs were replaced by a left/right `QSplitter` (DLS+ text | 4:3 letterboxed
+> MOT Slideshow). The table is retained as the decision record.
 
 | # | Option | Pros | Cons | Layout impact |
 |---|---|---|---|---|
-| **A** | **Inner tab in `Now Playing (DLS+)`** (user's suggestion): dock becomes "Now Playing / Slideshow" with 2 inner tabs (DLS+ text · Slideshow) | No new dock/area; media content stays together (text + image); dock count stays 25 | The dock is currently **compact (82 px fixed)** → must be grown (≥200 px) to be useful, which changes the mockup's "compact Now Playing" intent; small graphics | dock height 82 → ~200 px; `docking/layout_version` **v3 → v4** so the old 82 px geometry is re-applied |
+| **A** | **Inner tab in `Now Playing (DLS+)`** (user's suggestion; *superseded by T27's left/right split*): dock becomes "Now Playing / Slideshow" with 2 inner tabs (DLS+ text · Slideshow) | No new dock/area; media content stays together (text + image); dock count stays 25 | The dock is currently **compact (82 px fixed)** → must be grown (≥200 px) to be useful, which changes the mockup's "compact Now Playing" intent; small graphics | dock height 82 → ~200 px; `docking/layout_version` **v3 → v4** so the old 82 px geometry is re-applied |
 | **B** | **New tab in the center `Frame Analysis` group** (Navigator · Hex · ETSI · **Slideshow**) | Space is good; group already tabbed; no new area | Not media-related grouping (analysis tools); slideshow hidden behind an analysis tab | registry +1 dock (26); layout v2 unchanged |
 | **C** | **New standalone dock in the center column** (below Now Playing) | Dedicated, always visible; big image | Adds a new row to tab 1 (deviates from current mockup); registry +1; saved layouts → bump `layout_version` v3 | layout change (new area/row) |
 | **D** | **7th bottom-strip tab** (System Messages … Constellation · **Slideshow**) | Shared across all 3 tabs; doesn't disturb tab 1 | Strip is a fixed 28 px bar → must grow substantially to show an image; strip is for logs/stats semantically | strip height change |
 | **E** | **New tab in `Signal Analysis` group** (Ensemble · Subchannel · CU · **Slideshow**) | Space fine; group = "what the ensemble carries" — defensible semantically | Mixes signal-structure panels with media content | registry +1 |
 
-**Recommendation:** **A** if the priority is "no layout churn, media in one place" (grow the dock to ~200 px; inner tabs keep DLS+ text one click away) — this matches the user's instinct and keeps the 25-dock registry. **C** if a large, always-visible slideshow is wanted (accepting a new dock + layout v3). Option **B** is the middle ground if you prefer no height change to Now Playing.
+**Recommendation (historical, 2026-10-05):** **A** if the priority is "no layout churn, media in one place" (grow the dock to ~200 px; inner tabs keep DLS+ text one click away) — this matches the user's instinct and keeps the 25-dock registry. **C** if a large, always-visible slideshow is wanted (accepting a new dock + layout v3). Option **B** is the middle ground if you prefer no height change to Now Playing. **Superseded:** T27 later turned the option-A inner tabs into a left/right splitter.
 
 ## 4. Dependencies / sequencing note
 

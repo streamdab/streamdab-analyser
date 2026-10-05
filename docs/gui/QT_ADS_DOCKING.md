@@ -14,6 +14,8 @@ Code-style conventions live in `docs/Qt6_CPP20_Style_Guide.md`; this document is
 `docking/layout_version = 2`); earlier placeholder-panel experiment rejected (layout-preserving plan kept).
 2026-10-05 — v4 MOT Slideshow (option A): Now Playing grows to ≈200 px and hosts inner tabs
 (DLS+ Text · Slideshow); `docking/layout_version = 4`.
+2026-10-06 — T27: Now Playing inner tabs replaced by a draggable **left/right splitter** (DLS+ text |
+4:3 letterboxed MOT Slideshow); `nowPlayingTabs` is gone.
 
 ---
 
@@ -80,7 +82,8 @@ group is the default active tab.
 |                               |   ETI Frame Navigator     *  |   DAB Error Counter       *   |
 |                               |   Hex Viewer / ETSI Compl.   |   DAB Stream Statistics       |
 |                               | [Now Playing / Slideshow]    |                               |
-|                               |   (2 tabs: DLS+ · Slideshow) |                               |
+|                               |   (left/right split: DLS+ |   |                               |
+|                               |    Slideshow, 4:3 letterbox) |                               |
 +-------------------------------+-------------------------------+-------------------------------+
 |         ↑ inputToolbar (File/Network radios · path · Browse… · Load File) sits ABOVE this grid |
 +-------------------------------+-------------------------------+-------------------------------+
@@ -117,7 +120,7 @@ title is the original column name (`Left`/`Center`/`Right`) exactly as passed to
 | `tab1_CUUsage` | CU Usage | Signal Analysis (3 tabs) | Center |
 | `tab1_FrameNavigator` | ETI Frame Navigator | Frame Analysis (2 tabs) | Center |
 | `tab1_HexCompliance` | Hex Viewer / ETSI Compliance | Frame Analysis (2 tabs) | Center |
-| `tab1_NowPlaying` | Now Playing / Slideshow | — (standalone; inner tabs DLS+ Text · Slideshow, ≈200 px) | Center |
+| `tab1_NowPlaying` | Now Playing / Slideshow | — (standalone; left/right splitter DLS+ text | Slideshow 4:3 letterbox, ≈200 px) | Center |
 | `tab1_ETIOverview` | ETI Overview | Signal Info (3 tabs) | Right |
 | `tab1_Status` | Status | Signal Info (3 tabs) | Right |
 | `tab1_Timing` | Timing | Signal Info (3 tabs) | Right |
@@ -136,8 +139,35 @@ title is the original column name (`Left`/`Center`/`Right`) exactly as passed to
 
 | Dock objectName | Visible title | Column / area |
 |-----------------|---------------|---------------|
-| `tab3_Left` | FIG Instance List | Left |
+| `tab3_Left` | FIG Instance List | Left (inner tabs: FIG Instance List · **Frame List**) |
 | `tab3_Right` | FIG Item Details | Right |
+
+> **T28 — Tab-3 Frame List.** The `tab3_Left` dock hosts an inner `QTabWidget` (`tab3LeftTabs`) with the
+> existing FIG Instance List and a new **Frame List** (frames 1..N of the loaded capture). Selecting a
+> frame decodes that frame's FIGs into `tab3_Right` as FIG roots (type/ext/len/FIB/CRC markers) with the
+> existing per-FIG element builders nested underneath. FIG groups in the instance list are **collapsed by
+> default** and are no longer pre-selected; the details pane shows the first group's summary until the
+> user picks an instance.
+>
+> **Shared detail pane (L4).** The Frame List and the FIG-Instance selection both render into the single
+> `tab3_Right` tree (`m_tab3_figItemDetailsTree`), so they overwrite each other. During playback the
+> frame-driven rebuild is therefore skipped while the **Frame List** tab is not the active tab; a
+> user-driven Frame List selection always wins.
+
+### Tab 1 — Player transport (T29)
+
+The `tab1_Player` panel hosts a playback controller over the retained frame cache: **Play ▶ / Pause ⏸ /
+Stop ■ / Reset ⏮ / Skip ⏪ ⏩ ±10 s**, a **Speed** combo (0.25× · 0.5× · 1× · 2× · 4×), the
+**Loop playback** checkbox (now wired) and a **time bar** (`playerTimeBar`, the former
+`m_playerProgressBar` as a seek slider) with time + frame labels. The playhead is a `QTimer` at 24 ms per
+frame for 1× (DAB Mode I), scaled by the speed multiplier; it drives the existing frame-selection path
+(hex/ETI-compliance/overview + the Tab-3 frame details), throttling the expensive panels to ≈6.7 Hz
+while the clock/slider/frame counter/navigator highlight update every tick. Drag/wheel/keyboard/trough
+changes to the seek slider all seek (`valueChanged`); a drag uses the throttled path and one forced
+rebuild runs on release. The System Messages log is capped (`setMaximumBlockCount(5000)`) and per-tick
+hex/compliance log lines are suppressed while playing. The slideshow image rescales when the splitter or
+a floating dock resizes it. After a load the window starts at frame 0, **paused**; before any file the
+controls are disabled.
 
 ### Bottom strip — shared across tabs (6)
 
@@ -169,11 +199,13 @@ title is the original column name (`Left`/`Center`/`Right`) exactly as passed to
   window geometry in QSettings (`org = "StreamDAB-Analyzer"`, `app = "DABAnalyzer"`); on start,
   `restoreState()` restores it. Keys: `window/geometry`, `docking/layout_version`, `docking/tab1`,
   `docking/tab2`, `docking/tab3`, `docking/bottom`.
-  - `docking/layout_version = 4` is written on save. On restore, any saved version **≠ 4** (including a
+  - `docking/layout_version = 5` is written on save. On restore, any saved version **≠ 5** (including a
     missing key, i.e. first launch) causes the stored dock states to be **discarded once** — the redesigned
-    default layout is shown and version 4 is written again at the next close. `window/geometry` is kept.
+    default layout is shown and version 5 is written again at the next close. `window/geometry` is kept.
     This gives existing users exactly one reset after each layout upgrade (v3 → v4 grew the Now Playing /
-    Slideshow dock from 82 px to ≈200 px and added its inner tabs).
+    Slideshow dock from 82 px to ≈200 px; v4 → v5 replaced its inner tabs with the T27 left/right splitter,
+    added the T28 Frame List inner tabs to the Tab-3 left dock, and added the T29 Player transport
+    controls — v5 also discards the stale Transport group active tab so **Player** opens by default).
 - **First launch** — no saved state ⇒ each manager builds the default layout (§1), identical to the mockup
   (`docs/gui/StreamDAB-Analyzer UI Redesign.html`).
 
@@ -186,7 +218,8 @@ title is the original column name (`Left`/`Center`/`Right`) exactly as passed to
   `leftV {178, 320}` (Transport ≈ 178, System grows), `rightV {210, 240}` (Signal Info ≈ 210,
   Error & Statistics grows), `centerV {190, 150, 200}` (Signal Analysis ≈ 190, Frame Analysis flex,
   Now Playing / Slideshow ≈ 200) with `tab1_NowPlaying` area `setMinimumHeight(200)` (bottom of center;
-  option A — the dock hosts an inner `QTabWidget` with the DLS+ text and the MOT Slideshow image).
+  T27 — the dock hosts a **left/right `QSplitter`**: left = DLS+ text block, right = MOT Slideshow image in
+  a fixed **4:3 letterbox** frame; the splitter default is 45/55 and is user-draggable).
   The center column is rebuilt in our own vertical `CDockSplitter` (the Qt-ADS built one carries an empty
   bookkeeping "ghost" splitter; the clean column is swapped into the root).
 - Per-panel **vertical** proportions inside each group are set by the group tabs (one tab visible at a time).
