@@ -220,6 +220,7 @@ add_executable(test_mot_protocol
     test_mot_protocol.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/mot_protocol.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/mot_pad_adapter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
 )
 target_link_libraries(test_mot_protocol
     Qt6::Test

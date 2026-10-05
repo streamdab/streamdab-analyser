@@ -2294,6 +2294,37 @@ QByteArray motStdHeaderCore(uint32_t bodySize, uint8_t contentType, uint16_t sub
     return h;
 }
 
+// Standard MOT header entity: core + one or more text extension parameters.
+// Each parameter is encoded per EN 301 234 §6.2 Fig.22 with PLI=11 (7-/15-bit
+// DataFieldLength indicator) and a leading charset/Rfa byte (charset 0x0 =
+// EBU Latin, per §6.2.2.1.1 Fig.24), with the 13-bit header size updated.
+QByteArray motStdHeaderEntity(uint32_t bodySize, uint8_t contentType, uint16_t subType,
+                              const QList<QPair<uint8_t, QByteArray>>& textParams)
+{
+    QByteArray h = motStdHeaderCore(bodySize, contentType, subType);
+    for (const auto& p : textParams) {
+        QByteArray data;
+        data.append(static_cast<char>(0x00));  // charset 0x0 (EBU Latin) + Rfa 0x0
+        data.append(p.second);
+
+        h.append(static_cast<char>(0xC0 | (p.first & 0x3F)));  // PLI=11 + ParamId
+        const int n = data.size();
+        if (n < 0x80) {
+            h.append(static_cast<char>(n & 0x7F));
+        } else {
+            h.append(static_cast<char>(0x80 | ((n >> 8) & 0x7F)));
+            h.append(static_cast<char>(n & 0xFF));
+        }
+        h.append(data);
+    }
+    const uint16_t headerSize = static_cast<uint16_t>(h.size());
+    auto* d = reinterpret_cast<uint8_t*>(h.data());
+    d[3] = static_cast<uint8_t>((d[3] & 0xF0) | ((headerSize >> 9) & 0x0F));
+    d[4] = static_cast<uint8_t>((headerSize >> 1) & 0xFF);
+    d[5] = static_cast<uint8_t>((d[5] & 0x7F) | ((headerSize & 0x01) << 7));
+    return h;
+}
+
 // Standard MOT MSC data group (EN 300 401 §5.3.3): header + MOT session
 // header + segmentation header + payload + ~CRC-16/CCITT-FALSE.
 QByteArray motStdDataGroup(uint8_t dgType, uint16_t tid, uint16_t seg, bool last,
@@ -2566,7 +2597,9 @@ void TestGuiDockLayout::testMotSlideshowPanelAndTabs()
     const QByteArray png = motTinyPng();
     QVERIFY2(!png.isEmpty(), "test PNG must encode");
     const uint16_t tid = 0x0201;
-    const QByteArray header = motStdHeaderCore(png.size(), 0x02, 0x03);  // image/PNG
+    const QByteArray header = motStdHeaderEntity(
+        png.size(), 0x02, 0x03,
+        {{0x0C, QByteArray("panel-slide.png")}});  // image/PNG + content name
     const int cut = png.size() - 10;
     QVERIFY(cut > 0);
 
@@ -2593,6 +2626,13 @@ void TestGuiDockLayout::testMotSlideshowPanelAndTabs()
     QVERIFY2(w.slideshowInfoForTest().contains(QStringLiteral("TID")),
              qPrintable(QString("info line must carry the transport id, got: %1")
                             .arg(w.slideshowInfoForTest())));
+    // T26: the standard MOT header extension parameter (content name) must have
+    // survived the parse and be rendered in the info line (no reframing).
+    QVERIFY2(w.slideshowInfoForTest().contains(QStringLiteral("panel-slide.png")),
+             qPrintable(QString("info line must carry the restored content name, got: %1")
+                            .arg(w.slideshowInfoForTest())));
+    QCOMPARE(w.motHeaderParamsSeenForTest(), 1);
+    QCOMPARE(w.lastMotContentNameForTest(), QStringLiteral("panel-slide.png"));
     // Bounded retention.
     QVERIFY(w.motSlideHistorySizeForTest() <= 8);
 
@@ -2616,11 +2656,33 @@ void TestGuiDockLayout::testMotSlideshowRealFixture()
     QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0, 120000);
 
     // The Bangkok capture really carries MOT SlideShow (X-PAD CI 12/13): the
-    // whole pipeline must have decoded at least one image, not just detected
-    // the transport.
-    qInfo() << "[MOT-TEST] real fixture objects:" << w.motObjectsForTest()
-            << "images:" << w.motImagesDecodedForTest()
-            << "DLS+ messages:" << w.dlsPlusMessageCountForTest();
+    // whole pipeline must have decoded the documented number of objects/images.
+    const eti::mot::MotPadAdapter::Statistics ms = w.motAdapterStatisticsForTest();
+
+    // Fixture parity (T26): the standard-layout parser reproduces the
+    // re-framing-era counters exactly (2773 DGs = 112 header + 2661 body,
+    // 97 objects → 97 images, 0 CRC errors, 0 MOT errors).
+    QCOMPARE(static_cast<quint64>(ms.dataGroups), static_cast<quint64>(2773));
+    QCOMPARE(static_cast<quint64>(ms.crcErrors), static_cast<quint64>(0));
+    QCOMPARE(static_cast<quint64>(ms.headerSegments), static_cast<quint64>(112));
+    QCOMPARE(static_cast<quint64>(ms.bodySegments), static_cast<quint64>(2661));
+    QCOMPARE(static_cast<quint64>(ms.objectsCompleted), static_cast<quint64>(97));
+    QCOMPARE(static_cast<quint64>(ms.objectsEmitted), static_cast<quint64>(97));
+    QCOMPARE(w.motObjectsForTest(), 97);
+    QCOMPARE(w.motImagesDecodedForTest(), 97);
+    QCOMPARE(w.motErrorsForTest(), 0);  // zero MOT warnings/errors on the capture
+
+    // F2/T26: the Bangkok capture's MOT headers DO carry extension parameters
+    // (ContentName + TriggerTime, 22..43-byte headers). They must be recovered,
+    // not silently dropped by the old/incorrect PLI model.
+    QVERIFY2(w.motHeaderParamsSeenForTest() >= 1,
+             "the fixture MOT headers must expose extension parameters");
+    QVERIFY2(!w.lastMotContentNameForTest().isEmpty(),
+             "at least one fixture object must expose a non-empty content name");
+    QVERIFY2(w.lastMotContentNameForTest().endsWith(QStringLiteral(".jpg")),
+             qPrintable(QString("expected a JPEG filename, got: %1")
+                            .arg(w.lastMotContentNameForTest())));
+
     QVERIFY2(w.motObjectsForTest() >= 1,
              "the fixture carries MOT objects; the adapter must complete >= 1");
     QVERIFY2(w.motImagesDecodedForTest() >= 1,
@@ -2636,6 +2698,7 @@ void TestGuiDockLayout::testMotSlideshowRealFixture()
 
     // DLS+ side must be unchanged by the MOT wave (the parser feeds both).
     QVERIFY2(w.dlsPlusMessageCountForTest() > 0, "DLS+ labels must still decode");
+    QCOMPARE(w.dlsPlusMessageCountForTest(), 1114);  // unchanged by T26
 
     w.close();
     QCoreApplication::processEvents();
