@@ -69,6 +69,10 @@ void YAMLOutputGenerator::setETSICompliance(bool compliant, const QStringList& w
     m_data.etsi_warnings = warnings;
 }
 
+void YAMLOutputGenerator::setETSIComplianceReason(const QString& reason) {
+    m_data.etsi_reason = reason;
+}
+
 void YAMLOutputGenerator::setPerformanceMetrics(qint64 processing_time, double fps) {
     m_data.processing_time_ms = processing_time;
     m_data.frames_per_second = fps;
@@ -553,6 +557,11 @@ QString YAMLOutputGenerator::formatETSICompliance() const {
 
     out << "etsi_compliance:\n";
     out << "  overall_compliance: " << (m_data.etsi_compliant ? "true" : "false") << "\n";
+
+    // T39: the short reason (counter summary) that drove the verdict.
+    if (!m_data.etsi_reason.isEmpty()) {
+        out << "  reason: \"" << escapeYAMLString(m_data.etsi_reason) << "\"\n";
+    }
 
     // Warnings
     out << "  warnings:\n";

@@ -148,6 +148,10 @@ private slots:
     void fixture_defaultOutputProtectionTable();
     // T35 regression: full 32-bit data-service SID survives CLI discovery
     void fixture_dataServiceSid32();
+    // T39: ETSI compliance verdict semantics (protocol checks, not transport
+    // error frames) + an explainable NO failure case.
+    void fixture_complianceVerdict();
+    void synthetic_badFibComplianceNo();
 
 private:
     QString m_cliPath;
@@ -750,6 +754,95 @@ void TestCLIFigExtended::fixture_dataServiceSid32()
              "used_by_services must use the unified 'SId 0x...' form");
     QVERIFY2(!yaml.contains(QStringLiteral("SId_0x")),
              "the legacy 'SId_0x...' underscore form must be gone");
+}
+
+// ============================================================================
+// T39: ETSI compliance verdict = real protocol checks, not transport errors
+// ============================================================================
+
+void TestCLIFigExtended::fixture_complianceVerdict()
+{
+    // The Bangkok fixture carries 3 transport error frames but passes every
+    // FIC/FIB/FIG-level protocol check (0 FIB CRC failures, 0 erroneous FIGs,
+    // FIC decoded, 16 services / 1 ensemble). The verdict must therefore be YES
+    // with an explainable reason; the 3 error frames stay reported separately.
+    const QString outputPath = m_tmpDir->path() + "/compliance_fixture.yaml";
+    int exitCode = -1;
+    const QString stdoutText = runCli(QStringList()
+                                          << "--input" << m_fixturePath
+                                          << "--output" << outputPath,
+                                      &exitCode);
+    QCOMPARE(exitCode, 0);
+
+    QVERIFY2(stdoutText.contains(QStringLiteral("ETSI Compliant:  YES")),
+             qPrintable(QStringLiteral("expected YES verdict, got tail: %1")
+                            .arg(stdoutText.right(400))));
+    // Transport error frames are still reported separately (the fixture has 3).
+    QVERIFY2(stdoutText.contains(QRegularExpression(QStringLiteral("Errors:\\s+3\\b"))),
+             "transport error frames must remain reported separately");
+    // The short reason is printed and carries the protocol counters.
+    QVERIFY2(stdoutText.contains(QStringLiteral("ETSI Reason:")),
+             "a short ETSI verdict reason must be printed");
+    QVERIFY2(stdoutText.contains(QStringLiteral("FIB CRC failures=0")),
+             "the reason must carry the FIB CRC failure count");
+    QVERIFY2(stdoutText.contains(QStringLiteral("transport error frames=3")),
+             "the reason must mention the separate transport error-frame count");
+
+    // YAML verdict must agree with the console.
+    QFile file(outputPath);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QString yaml = QString::fromUtf8(file.readAll());
+    file.close();
+    QVERIFY2(yaml.contains(QStringLiteral("overall_compliance: true")),
+             "YAML overall_compliance must be true");
+    QVERIFY2(yaml.contains(QStringLiteral("reason:")),
+             "YAML must carry the verdict reason");
+    QVERIFY2(yaml.contains(QStringLiteral("FIB CRC failures=0")),
+             "YAML reason must carry the FIB CRC failure count");
+}
+
+void TestCLIFigExtended::synthetic_badFibComplianceNo()
+{
+    // A synthetic ETI-NI stream whose only non-padding FIB has a corrupted
+    // CRC. The strict FIB walk counts the failure and drops the FIG, so the
+    // protocol verdict must be NO with a reason that names the FIB CRC failure.
+    QByteArray frame = buildNiFrame(1, {fig00(0x2000), QByteArray(), QByteArray()});
+    QCOMPARE(frame.size(), ETI_FRAME_SIZE);
+    // Corrupt FIB 0's stored CRC (bytes 42..43 of the 96-byte FIC at offset 12)
+    // so it can never match the computed value.
+    frame[12 + 30] = static_cast<char>(static_cast<uint8_t>(frame[12 + 30]) ^ 0xAA);
+    frame[12 + 31] = static_cast<char>(static_cast<uint8_t>(frame[12 + 31]) ^ 0x55);
+
+    const QString etiPath = m_tmpDir->path() + "/bad_fib.eti";
+    {
+        QFile file(etiPath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(frame);
+        file.close();
+    }
+
+    const QString outputPath = m_tmpDir->path() + "/bad_fib.yaml";
+    int exitCode = -1;
+    const QString stdoutText = runCli(QStringList()
+                                          << "--input" << etiPath
+                                          << "--output" << outputPath,
+                                      &exitCode);
+    QCOMPARE(exitCode, 0);
+
+    QVERIFY2(stdoutText.contains(QStringLiteral("ETSI Compliant:  NO")),
+             qPrintable(QStringLiteral("expected NO verdict, got tail: %1")
+                            .arg(stdoutText.right(400))));
+    QVERIFY2(stdoutText.contains(QStringLiteral("FIB CRC failures=1")),
+             "the NO reason must name the FIB CRC failure count");
+
+    QFile file(outputPath);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QString yaml = QString::fromUtf8(file.readAll());
+    file.close();
+    QVERIFY2(yaml.contains(QStringLiteral("overall_compliance: false")),
+             "YAML overall_compliance must be false");
+    QVERIFY2(yaml.contains(QStringLiteral("FIB CRC failures=1")),
+             "YAML reason must name the FIB CRC failure count");
 }
 
 QTEST_MAIN(TestCLIFigExtended)

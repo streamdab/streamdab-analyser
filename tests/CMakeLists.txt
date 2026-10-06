@@ -700,7 +700,7 @@ if(CAN_RUN_GUI_TESTS)
     # Separate target (not an extension of test_gui_dock_layout) so the slow
     # fixture-driven dock suite does not grow: this suite drives float/re-dock,
     # auto-hide toggle, cross-area moves, tabify/untabify, persistence after a
-    # non-default arrangement and 28-dock reachability, all offscreen and
+    # non-default arrangement and 27-dock reachability, all offscreen and
     # fixture-free.
     add_executable(test_dock_interactions
         gui/test_dock_interactions.cpp
