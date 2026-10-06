@@ -23,6 +23,7 @@ set(CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyzer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_compliance_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dabplus_stream_validator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dabplus_superframe.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/mot_protocol.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/mot_pad_adapter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/epg_decoder.cpp

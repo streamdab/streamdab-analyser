@@ -31,31 +31,18 @@
 #include <vector>
 
 #include "core/dabplus_audio_decoder.hpp"
+#include "core/dabplus_superframe.hpp"
 #include "core/crc16.hpp"
 #include "core/enhanced_eti_processor_qt.h"  // ETIFrameParser
 
 using streamdab::audio::DabPlusAudioDecoder;
 using streamdab::audio::DabPlusFormat;
+// T38: build the crafted superframes with the SAME FireCode implementation the
+// decoder uses (the shared transport module), so this test exercises the
+// shared code path rather than a private copy.
+using streamdab::dabplus::firecodeCrc;
 
 namespace {
-
-// FireCode CRC-16 (poly 0x782F, init 0x0000) — mirrors the decoder's private
-// helper so a crafted superframe with a VALID FireCode can be built.
-uint16_t firecodeCrc(const uint8_t* buf, size_t size)
-{
-    uint16_t crc = 0x0000;
-    constexpr uint16_t genPoly = 0x782F;
-    for (size_t len = 0; len < size; ++len) {
-        for (int i = 0x80; i != 0; i >>= 1) {
-            crc = static_cast<uint16_t>((crc & 0x8000) ? ((crc << 1) ^ genPoly)
-                                                       : (crc << 1));
-            if (buf[len] & i) {
-                crc ^= genPoly;
-            }
-        }
-    }
-    return crc;
-}
 
 // One raw DAB+ Access Unit (payload + its 2-byte AU CRC).
 QByteArray makeAccessUnit(int payloadLen, char fill)

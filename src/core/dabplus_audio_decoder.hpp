@@ -7,11 +7,12 @@
  * by the GUI: it reuses the same MSC sub-channel slices the ETI processor
  * already extracts (ProcessedFrame::sub_channels) and applies the identical,
  * spec-correct DAB+ superframe split (FireCode -> 5-CIF 120 ms superframe ->
- * AU start offsets -> AU CRC) implemented for the DLS+ parser, but only the
- * audio payload is kept. Each CRC-valid Access Unit (raw AAC frame, including
- * its embedded Data Stream Element/PAD) can then be decoded sequentially with
- * libfaad2 (the AudioSpecificConfig construction follows ODR-Dab DABlin's
- * dabplus_decoder, cross-checked against ETSI TS 102 563).
+ * AU start offsets -> AU CRC) implemented once in the shared transport module
+ * `dabplus_superframe.{hpp,cpp}` (T38), but only the audio payload is kept.
+ * Each CRC-valid Access Unit (raw AAC frame, including its embedded Data Stream
+ * Element/PAD) can then be decoded sequentially with libfaad2 (the
+ * AudioSpecificConfig construction follows ODR-Dab DABlin's dabplus_decoder,
+ * cross-checked against ETSI TS 102 563).
  *
  * Design notes
  *  - Extraction and decoding are separate entry points so a caller can retain
@@ -35,6 +36,8 @@
 #include <functional>
 #include <memory>
 #include <vector>
+
+#include "dabplus_superframe.hpp"  // T38: shared superframe/AU/PAD transport layer
 
 #ifdef HAVE_FAAD2
 extern "C" {
@@ -150,15 +153,11 @@ signals:
     void formatChanged();
 
 private:
-    bool processSuperframe(const QByteArray& sf,
-                           const std::function<void(const QByteArray&)>& onAu,
-                           bool* syncedOut);
-    void setFormatFromByte(uint8_t audioParams, int bitrateKbps);
+    void setFormatFrom(const streamdab::dabplus::SuperframeResult& result);
     void setError(const QString& error);
 
-    // 5-CIF superframe accumulation.
-    QByteArray m_superframeBuffer;
-    int m_chunkLen = 0;
+    // Shared 5-CIF superframe accumulation + FireCode/AU/PAD transport (T38).
+    streamdab::dabplus::SuperframeAssembler m_superframe;
 
     DabPlusFormat m_format;
     uint8_t m_lastFormatByte = 0;
