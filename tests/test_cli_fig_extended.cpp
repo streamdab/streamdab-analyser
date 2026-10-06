@@ -146,6 +146,8 @@ private slots:
     void fixture_figsByType();
     void fixture_fibHex();
     void fixture_defaultOutputProtectionTable();
+    // T35 regression: full 32-bit data-service SID survives CLI discovery
+    void fixture_dataServiceSid32();
 
 private:
     QString m_cliPath;
@@ -685,6 +687,69 @@ void TestCLIFigExtended::fixture_defaultOutputProtectionTable()
     QVERIFY(yaml.contains("size: 24"));
     QVERIFY(yaml.contains("protection_form: \"EEP-3A\""));
     QVERIFY(yaml.contains("protection_level: 3"));
+}
+
+// ============================================================================
+// (k) T35 regression: the legitimate full 32-bit data service 0xF3200000
+// ============================================================================
+
+void TestCLIFigExtended::fixture_dataServiceSid32()
+{
+    const QString outputPath = m_tmpDir->path() + "/dataSids_k.yaml";
+    int exitCode = -1;
+    runCli(QStringList()
+               << "--input" << m_fixturePath
+               << "--output" << outputPath
+               << "--max-frames" << "200"
+               << "--quiet",
+           &exitCode);
+    QCOMPARE(exitCode, 0);
+
+    QFile file(outputPath);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QString yaml = QString::fromUtf8(file.readAll());
+    file.close();
+
+    // T35: CLI and GUI agree on the fixture's service count (16). Before the
+    // fix the CLI reported 15 because 0xF3200000 (SRef == 0) was filtered.
+    QCOMPARE(yaml.count("  - service_id:"), 16);
+
+    // Both data services surface with their FULL 32-bit SIDs (not truncated to
+    // 0x00000000 / 0x00000001).
+    const int idx0 = yaml.indexOf(QStringLiteral("service_id: 0xF3200000"));
+    const int idx1 = yaml.indexOf(QStringLiteral("service_id: 0xF3200001"));
+    QVERIFY2(idx0 >= 0, "the legitimate data service 0xF3200000 must not be dropped");
+    QVERIFY2(idx1 >= 0, "the data service 0xF3200001 must be present");
+    QVERIFY2(idx0 < idx1, "0xF3200000 must precede 0xF3200001 in the services list");
+
+    // Unlabelled data services label-fallback to the GUI's "SId 0x..." form.
+    QVERIFY2(yaml.contains("service_label: \"SId 0xF3200000\""),
+             "0xF3200000 must use the GUI's SId label fallback");
+    QVERIFY2(yaml.contains("service_label: \"SId 0xF3200001\""),
+             "0xF3200001 must use the GUI's SId label fallback");
+
+    // 0xF3200000 keeps its component mapping (SubCh 0); the block runs until
+    // the next service entry.
+    const QString data0Block = yaml.mid(idx0, idx1 - idx0);
+    QVERIFY2(data0Block.contains(QStringLiteral("components:")),
+             "0xF3200000 must keep its component list");
+    QVERIFY2(data0Block.contains(QStringLiteral("component_id: 0")),
+             "0xF3200000 must keep its component mapping (SubCh 0)");
+
+    // T35 review #9: the aggregate map is keyed on the full SID, so the two
+    // 32-bit data services (0xF3...) sort AFTER all 16-bit programme SIDs
+    // (order-only change vs the old head placement).
+    const int lastProgramme = yaml.lastIndexOf(QStringLiteral("service_id: 0x00002CBD"));
+    QVERIFY2(lastProgramme >= 0, "a late programme service (0x2CBD) must be present");
+    QVERIFY2(lastProgramme < idx0,
+             "the 32-bit data services must sort after the programme SIDs");
+
+    // T35 review #5: subchannel used_by_services uses the same unified
+    // "SId 0x..." form as the service_label fallback (space, not underscore).
+    QVERIFY2(yaml.contains(QStringLiteral("      - \"SId 0xF3200000\"")),
+             "used_by_services must use the unified 'SId 0x...' form");
+    QVERIFY2(!yaml.contains(QStringLiteral("SId_0x")),
+             "the legacy 'SId_0x...' underscore form must be gone");
 }
 
 QTEST_MAIN(TestCLIFigExtended)

@@ -279,7 +279,13 @@ QString YAMLOutputGenerator::formatServices() const {
         //   hex32  (default) -> 8 hex digits for data, 16-bit for programme
         //   ecc-sid          -> "ECC:CId:SRef" decomposition (e.g. F3:2:00001)
         //   hex16            -> lower 16 bits of the SId
+        // Data-vs-programme is inferred from `sid32`: data services set it,
+        // programme services leave it 0 (FIG 0/2 P/D) — keep in sync.
         const bool is_data = service.sid32 > 0xFFFF;
+        // Full identity (data: 32-bit `sid32`, programme: 16-bit id). Used by
+        // the unlabelled-service fallback below and by the subchannel mapping.
+        const quint32 fullSid = is_data ? service.sid32
+                                        : static_cast<quint32>(service.service_id);
         switch (m_data.settings.sid_display_mode) {
             case eti::SidDisplayMode::Hex32:
             default:
@@ -320,10 +326,15 @@ QString YAMLOutputGenerator::formatServices() const {
                 break;
         }
 
-        // Service label from FIG 1/1 (etisnoop-compatible key: service_label)
+        // Service label from FIG 1/1 (etisnoop-compatible key: service_label).
+        // Unlabelled services fall back to the GUI's "SId 0x..." identity so
+        // the two real data services (0xF3200000/0xF3200001) are eyeballable.
         QString service_label = QString::fromStdString(service.label);
         if (service_label.isEmpty()) {
-            service_label = "(no label)";
+            service_label = QStringLiteral("SId 0x")
+                            + QString("%1")
+                                  .arg(fullSid, is_data ? 8 : 4, 16, QLatin1Char('0'))
+                                  .toUpper();
         }
         out << "    service_label: \"" << escapeYAMLString(service_label) << "\"\n";
 
@@ -435,7 +446,20 @@ QString YAMLOutputGenerator::formatSubchannels() const {
                 if (component.sub_channel_id == subchannel.subchannel_id) {
                     QString service_label = QString::fromStdString(service.label);
                     if (service_label.isEmpty()) {
-                        service_label = QString("SId_0x%1").arg(service.service_id, 4, 16, QChar('0'));
+                        // F8/T35: unlabelled data services are identified by their
+                        // full 32-bit SId (e.g. 0xF3200000), not the truncated SRef.
+                        // Data-vs-programme is inferred from `sid32` (data services
+                        // set it; programme services leave it 0 — FIG 0/2 P/D; keep
+                        // in sync). Same "SId 0x..." form as the service_label
+                        // fallback and the GUI selector.
+                        const quint32 fullSid = (service.sid32 > 0xFFFFu)
+                                                    ? service.sid32
+                                                    : static_cast<quint32>(service.service_id);
+                        service_label = QStringLiteral("SId 0x")
+                                        + QString("%1")
+                                              .arg(fullSid, fullSid > 0xFFFFu ? 8 : 4, 16,
+                                                   QChar('0'))
+                                              .toUpper();
                     }
                     service_names.append(service_label);
                 }
