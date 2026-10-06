@@ -76,7 +76,6 @@
 #include "core/etsi_compliance_engine.hpp"
 #include "core/multi_stream_processor.hpp"
 #include "core/advanced_error_detection.hpp"
-#include "core/professional_logging_system.hpp"
 #include "core/dls_plus_decoder.hpp"  // Phase 3B: DLS+ decoder integration
 #include "core/mot_protocol.hpp"      // MOT SlideShow decoder (option A)
 #include "core/mot_pad_adapter.hpp"   // X-PAD CI 12/13 -> MOTProtocol adapter
@@ -780,8 +779,8 @@ public:
         // WORKING COMBINATION: Multi-stream + Error Detection (Logging causes file dialog freeze)
         m_multiStreamProcessor = std::make_unique<multistream::MultiStreamProcessor>();
         m_errorDetector = std::make_unique<error_detection::AdvancedErrorDetector>();
-        // IDENTIFIED PROBLEM: Professional Logging System causes file dialog freeze
-        // m_loggingSystem = std::make_unique<professional_logging::ProfessionalLoggingSystem>();
+        // T41: the legacy ProfessionalLoggingSystem was never constructed (it
+        // caused a file-dialog freeze); its UI (bottom_Messages) is removed.
 
         // Phase 3B: Initialize DLS+ decoder
         m_dlsPlusDecoder = new eti::dls_plus::DLSPlusDecoder(this);
@@ -895,6 +894,19 @@ public:
     void selectTab3FrameForTest(int row)
     {
         if (m_tab3_frameList) m_tab3_frameList->setCurrentRow(row);
+    }
+    // T42: Tab-3 right dock inner tabs + Hex Viewer.
+    QTabWidget* tab3RightTabsForTest() const { return m_tab3RightTabs; }
+    QTextEdit* tab3HexViewerForTest() const { return m_tab3_hexViewer; }
+    QString tab3HexViewerTextForTest() const
+    {
+        return m_tab3_hexViewer ? m_tab3_hexViewer->toPlainText() : QString();
+    }
+    // F1/F2 test hook: render a synthetic raw ETI frame into the Hex Viewer
+    // without loading a file (MID/NST geometry coverage).
+    void renderTab3HexForTest(const QByteArray& frameData, int frameNumber)
+    {
+        renderTab3HexForFrameData(frameData, frameNumber);
     }
     QTreeWidget* ficOverviewTree() const { return m_ficOverviewTree; }
     QTableWidget* errorCounterTable() const { return m_errorCounterTable; }
@@ -1413,6 +1425,10 @@ private slots:
         }
         m_ensembleTree->clear();
         m_hexViewer->clear();
+        // T42: clear the Tab-3 Hex Viewer for the new file.
+        if (m_tab3_hexViewer) {
+            m_tab3_hexViewer->clear();
+        }
         m_systemMessages->clear();
 
         // === PHASE 3: Update Player/Decoder status ===
@@ -2259,6 +2275,8 @@ private slots:
         
         // === PHASE 9: Update Tab 3 RIGHT panel ===
         buildFIGItemDetailsTree();
+        // T42: initial Hex Viewer state (nothing selected yet -> guard message).
+        updateTab3HexFromFigInstance();
         
         // Validate frame count
         if (totalFrames == 5001) {
@@ -3248,6 +3266,13 @@ private:
             if (isFrameListTabActive()) {
                 rebuildFrameFIGDetails(frameIndex);
             }
+            // F3: keep the sibling Hex Viewer in sync with the playhead. The
+            // FIG-instance selection can freely clobber the shared details tree,
+            // but the Hex Viewer is its own widget — always safe to refresh when
+            // the user is watching it or driving frames from the Frame List.
+            if (isFrameListTabActive() || isHexViewerTabActive()) {
+                updateTab3HexFromFrame(frameIndex);
+            }
         }
     }
 
@@ -3257,6 +3282,14 @@ private:
         if (!m_tab3LeftTabs || !m_tab3_frameList) return false;
         QWidget* page = m_tab3_frameList->parentWidget();
         return page && m_tab3LeftTabs->currentWidget() == page;
+    }
+
+    // F3: is the Tab-3 Hex Viewer the visible inner tab of the right dock?
+    bool isHexViewerTabActive() const
+    {
+        if (!m_tab3RightTabs || !m_tab3_hexViewer) return false;
+        QWidget* page = m_tab3_hexViewer->parentWidget();
+        return page && m_tab3RightTabs->currentWidget() == page;
     }
 
     void onPlaybackTick()
@@ -4375,337 +4408,6 @@ private:
             
             m_systemHealthScore->setText(QString("System Health: %1%").arg(health.overall_health_score, 0, 'f', 1));
             m_systemHealthScore->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }").arg(healthColor));
-        }
-    }
-    
-    // Professional Logging signal handlers
-    void onEnableLogging()
-    {
-        if (m_loggingSystem) {
-            // Configure logging for broadcast industry standards
-            professional_logging::LogOutputConfig config;
-            config.console_output = true;
-            config.file_output = true;
-            config.minimum_level = professional_logging::LogLevel::DEBUG;
-            m_loggingSystem->setOutputConfiguration(config);
-            
-            if (m_loggingStatus) {
-                m_loggingStatus->setText("Status: Active - Professional logging enabled");
-                m_loggingStatus->setStyleSheet("QLabel { color: green; font-weight: bold; }");
-            }
-            
-            m_loggingSystem->logInfo(professional_logging::LogCategory::SYSTEM, "MainWindow", "Professional logging system enabled");
-            
-            if (m_systemMessages) {
-                m_systemMessages->append("📝 Professional Logging System enabled");
-            }
-            
-            updateLoggingStats();
-        }
-    }
-    
-    void onDisableLogging()
-    {
-        if (m_loggingSystem) {
-            m_loggingSystem->logInfo(professional_logging::LogCategory::SYSTEM, "MainWindow", "Professional logging system being disabled");
-            
-            professional_logging::LogOutputConfig config;
-            config.console_output = false;
-            config.file_output = false;
-            m_loggingSystem->setOutputConfiguration(config);
-            
-            if (m_loggingStatus) {
-                m_loggingStatus->setText("Status: Disabled - Logging stopped");
-                m_loggingStatus->setStyleSheet("QLabel { color: red; font-weight: bold; }");
-            }
-            
-            if (m_systemMessages) {
-                m_systemMessages->append("🚫 Professional Logging System disabled");
-            }
-        }
-    }
-    
-    void onSetDebugLevel()
-    {
-        if (m_loggingSystem) {
-            m_loggingSystem->setMinimumLogLevel(professional_logging::LogLevel::DEBUG);
-            
-            if (m_loggingLevel) {
-                m_loggingLevel->setText("Level: DEBUG");
-            }
-            
-            m_loggingSystem->logInfo(professional_logging::LogCategory::SYSTEM, "MainWindow", "Log level set to DEBUG");
-            
-            if (m_systemMessages) {
-                m_systemMessages->append("🔍 Log level set to DEBUG - Detailed logging enabled");
-            }
-            
-            updateLoggingStats();
-        }
-    }
-    
-    void onSetInfoLevel()
-    {
-        if (m_loggingSystem) {
-            m_loggingSystem->setMinimumLogLevel(professional_logging::LogLevel::INFO);
-            
-            if (m_loggingLevel) {
-                m_loggingLevel->setText("Level: INFO");
-            }
-            
-            m_loggingSystem->logInfo(professional_logging::LogCategory::SYSTEM, "MainWindow", "Log level set to INFO");
-            
-            if (m_systemMessages) {
-                m_systemMessages->append("ℹ️ Log level set to INFO - Standard logging enabled");
-            }
-            
-            updateLoggingStats();
-        }
-    }
-    
-    void onExportLogs()
-    {
-        if (!m_loggingSystem) return;
-        
-        QString fileName = QFileDialog::getSaveFileName(this,
-            "Export Logs", 
-            QString("logs_export_%1.json").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss")),
-            "JSON Files (*.json);;All Files (*)");
-        
-        if (!fileName.isEmpty()) {
-            professional_logging::LogFilter filter; // Default filter (all logs)
-            
-            if (m_loggingSystem->exportLogsToJSON(fileName, filter)) {
-                m_loggingSystem->logInfo(professional_logging::LogCategory::FILE_IO, "MainWindow", 
-                                       QString("Logs exported to: %1").arg(fileName));
-                
-                if (m_systemMessages) {
-                    m_systemMessages->append(QString("💾 Logs exported to: %1").arg(fileName));
-                }
-            } else {
-                m_loggingSystem->logError(professional_logging::LogCategory::FILE_IO, "MainWindow", 
-                                        QString("Failed to export logs to: %1").arg(fileName));
-                
-                if (m_systemMessages) {
-                    m_systemMessages->append("❌ Failed to export logs");
-                }
-            }
-        }
-    }
-    
-    void onClearLogs()
-    {
-        if (m_loggingSystem) {
-            m_loggingSystem->logWarning(professional_logging::LogCategory::SYSTEM, "MainWindow", "Log buffer cleared by user");
-            
-            // Note: The actual clearing would need to be implemented in the logging system
-            // For now, we'll clear the UI view
-            if (m_logEntriesTree) {
-                m_logEntriesTree->clear();
-            }
-            
-            if (m_systemMessages) {
-                m_systemMessages->append("🧹 Log display cleared");
-            }
-            
-            updateLoggingStats();
-        }
-    }
-    
-    void onRotateLogs()
-    {
-        if (m_loggingSystem) {
-            m_loggingSystem->logInfo(professional_logging::LogCategory::SYSTEM, "MainWindow", "Manual log rotation requested");
-            m_loggingSystem->rotateLogFiles();
-            
-            if (m_systemMessages) {
-                m_systemMessages->append("🔄 Log files rotated");
-            }
-            
-            updateLoggingStats();
-        }
-    }
-    
-    void onRefreshLogs()
-    {
-        refreshLogDisplay();
-        
-        if (m_systemMessages) {
-            m_systemMessages->append("🔄 Log display refreshed");
-        }
-    }
-    
-    void onClearLogsView()
-    {
-        if (m_logEntriesTree) {
-            m_logEntriesTree->clear();
-        }
-        
-        if (m_systemMessages) {
-            m_systemMessages->append("🧹 Log view cleared");
-        }
-    }
-    
-    void onLogEntryAdded(const professional_logging::LogEntry& entry)
-    {
-        if (!m_logEntriesTree) return;
-        
-        // Apply current filters
-        QString levelFilter = m_logLevelFilter ? m_logLevelFilter->currentText() : "ALL";
-        QString categoryFilter = m_logCategoryFilter ? m_logCategoryFilter->currentText() : "ALL";
-        
-        // Check level filter
-        if (levelFilter != "ALL") {
-            QString entryLevelStr = QString::number(static_cast<int>(entry.level));
-            if (levelFilter != entryLevelStr) {
-                return; // Filtered out
-            }
-        }
-        
-        // Check category filter  
-        if (categoryFilter != "ALL") {
-            QString entryCategoryStr = QString::number(static_cast<int>(entry.category));
-            if (categoryFilter != entryCategoryStr) {
-                return; // Filtered out
-            }
-        }
-        
-        QTreeWidgetItem* item = new QTreeWidgetItem(m_logEntriesTree);
-        item->setText(0, entry.timestamp.toString("hh:mm:ss.zzz"));
-        
-        // Level with color coding
-        QString levelText;
-        QString levelColor;
-        switch (entry.level) {
-            case professional_logging::LogLevel::CRITICAL:
-            case professional_logging::LogLevel::EMERGENCY:
-                levelText = "CRITICAL";
-                levelColor = "#dc3545";
-                break;
-            case professional_logging::LogLevel::ERROR:
-                levelText = "ERROR";
-                levelColor = "#fd7e14";
-                break;
-            case professional_logging::LogLevel::WARNING:
-                levelText = "WARNING";
-                levelColor = "#ffc107";
-                break;
-            case professional_logging::LogLevel::INFO:
-                levelText = "INFO";
-                levelColor = "#17a2b8";
-                break;
-            case professional_logging::LogLevel::DEBUG:
-                levelText = "DEBUG";
-                levelColor = "#28a745";
-                break;
-            default:
-                levelText = "TRACE";
-                levelColor = "#6c757d";
-                break;
-        }
-        
-        item->setText(1, levelText);
-        item->setForeground(1, QColor(levelColor));
-        
-        // Category
-        QString categoryText;
-        switch (entry.category) {
-            case professional_logging::LogCategory::SYSTEM: categoryText = "SYSTEM"; break;
-            case professional_logging::LogCategory::ETI_PROCESSING: categoryText = "ETI_PROC"; break;
-            case professional_logging::LogCategory::SERVICE_DISCOVERY: categoryText = "SERVICE"; break;
-            case professional_logging::LogCategory::AUDIO_ANALYSIS: categoryText = "AUDIO"; break;
-            case professional_logging::LogCategory::NETWORK: categoryText = "NETWORK"; break;
-            case professional_logging::LogCategory::FILE_IO: categoryText = "FILE_IO"; break;
-            case professional_logging::LogCategory::USER_INTERFACE: categoryText = "UI"; break;
-            case professional_logging::LogCategory::ETSI_COMPLIANCE: categoryText = "ETSI"; break;
-            case professional_logging::LogCategory::ERROR_DETECTION: categoryText = "ERROR_DET"; break;
-            case professional_logging::LogCategory::PERFORMANCE: categoryText = "PERF"; break;
-            case professional_logging::LogCategory::SECURITY: categoryText = "SECURITY"; break;
-            case professional_logging::LogCategory::CONFIGURATION: categoryText = "CONFIG"; break;
-            default: categoryText = "UNKNOWN"; break;
-        }
-        item->setText(2, categoryText);
-        
-        // Component and message
-        item->setText(3, entry.component);
-        item->setText(4, entry.message);
-        
-        // Store entry ID for details lookup
-        item->setData(0, Qt::UserRole, QVariant::fromValue(entry.log_id));
-        
-        // Auto-scroll to latest entry
-        m_logEntriesTree->scrollToBottom();
-        
-        // Update log count
-        updateLoggingStats();
-    }
-    
-    void refreshLogDisplay()
-    {
-        if (!m_loggingSystem || !m_logEntriesTree) return;
-        
-        m_logEntriesTree->clear();
-        
-        // Get recent log entries
-        std::vector<professional_logging::LogEntry> entries = m_loggingSystem->getRecentEntries(500);
-        
-        for (const auto& entry : entries) {
-            onLogEntryAdded(entry);
-        }
-        
-        updateLoggingStats();
-    }
-    
-    void updateLoggingStats()
-    {
-        if (!m_loggingSystem) return;
-        
-        // Update session ID
-        if (m_sessionIdLabel) {
-            // Get session ID from logging system (would need to add getter method)
-            m_sessionIdLabel->setText("Session: Active");
-        }
-        
-        // Update log count
-        if (m_logCountLabel) {
-            uint64_t totalLogs = 0; // Would need to get from logging system
-            m_logCountLabel->setText(QString("Total Logs: %1").arg(totalLogs));
-        }
-        
-        // Update statistics display
-        if (m_loggingStatsDisplay) {
-            professional_logging::LogStatistics stats = m_loggingSystem->getLogStatistics();
-            
-            QString statsHtml = QString(
-                "<html><head><style>"
-                "body { font-family: 'Consolas', monospace; font-size: 9px; }"
-                ".header { background-color: #e6f3ff; padding: 4px; font-weight: bold; }"
-                ".stat { margin: 2px 0; padding: 2px; background-color: #f8f9fa; }"
-                "</style></head><body>"
-                "<div class='header'>Professional Logging Statistics</div>"
-                "<div class='stat'><strong>Total Entries:</strong> %1</div>"
-                "<div class='stat'><strong>Critical/Emergency:</strong> %2</div>"
-                "<div class='stat'><strong>Errors:</strong> %3</div>"
-                "<div class='stat'><strong>Warnings:</strong> %4</div>"
-                "<div class='stat'><strong>Info:</strong> %5</div>"
-                "<div class='stat'><strong>Debug/Trace:</strong> %6</div>"
-                "<div class='stat'><strong>Most Active Component:</strong> %7</div>"
-                "<div class='stat'><strong>Session Duration:</strong> %8</div>"
-                "</body></html>"
-            ).arg(stats.total_entries)
-             .arg(stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::CRITICAL)] + 
-                  stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::EMERGENCY)])
-             .arg(stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::ERROR)])
-             .arg(stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::WARNING)])
-             .arg(stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::INFO)])
-             .arg(stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::DEBUG)] + 
-                  stats.entries_by_level[static_cast<int>(professional_logging::LogLevel::TRACE)])
-             .arg(stats.most_active_component.isEmpty() ? "None" : stats.most_active_component)
-             .arg(stats.first_entry_time.isNull() ? "N/A" : 
-                  stats.first_entry_time.secsTo(QDateTime::currentDateTime()) > 0 ?
-                  QString("%1s").arg(stats.first_entry_time.secsTo(QDateTime::currentDateTime())) : "0s");
-            
-            m_loggingStatsDisplay->setHtml(statsHtml);
         }
     }
     
@@ -6958,6 +6660,151 @@ private:
     {
         if (row < 0) return;
         rebuildFrameFIGDetails(row);
+        updateTab3HexFromFrame(row);  // T42: mirror the frame into the Hex Viewer
+    }
+
+    // ========================================================================
+    // T42: Tab-3 right dock Hex Viewer (raw bytes of the current selection)
+    // ========================================================================
+    // Compact offset/hex/ASCII dump (16 bytes per line) as monospace plain text.
+    // Deliberately independent of HexViewerFormatter (which is ETI-frame aware
+    // and styles raw sections without a stylesheet) — this view must render
+    // both arbitrary FIG data bytes and frame regions.
+    static QString formatCompactHex(const QByteArray& data, quint32 startOffset,
+                                    const QString& title)
+    {
+        QString out;
+        out.reserve(data.size() * 4 + 64);
+        out += title;
+        out += QString("\n%1 bytes\n").arg(data.size());
+        constexpr int kPerLine = 16;
+        for (int i = 0; i < data.size(); i += kPerLine) {
+            out += QString("%1  ")
+                       .arg(startOffset + static_cast<quint32>(i), 6, 16, QChar('0'))
+                       .toUpper();
+            QString ascii;
+            ascii.reserve(kPerLine);
+            for (int j = 0; j < kPerLine; ++j) {
+                const int idx = i + j;
+                if (idx < data.size()) {
+                    const uint8_t b = static_cast<uint8_t>(data.at(idx));
+                    out += QString("%1 ").arg(b, 2, 16, QChar('0')).toUpper();
+                    ascii += (b >= 0x20 && b < 0x7F) ? QChar(b) : QChar('.');
+                } else {
+                    out += QStringLiteral("   ");
+                    ascii += QLatin1Char(' ');
+                }
+                if (j == kPerLine / 2 - 1) {
+                    out += QLatin1Char(' ');
+                }
+            }
+            out += QStringLiteral(" |") + ascii + QStringLiteral("|\n");
+        }
+        return out;
+    }
+
+    void showTab3HexMessage(const QString& message)
+    {
+        if (m_tab3_hexViewer) {
+            m_tab3_hexViewer->setPlainText(message);
+        }
+    }
+
+    // FIG Instance List selection -> the selected instance's raw bytes (the
+    // analyzer collector's `raw`) with a FIG t/e/length/FIB/CRC header.
+    void updateTab3HexFromFigInstance()
+    {
+        if (!m_tab3_hexViewer) return;
+        if (!m_fileLoaded || !m_figAnalyzer) {
+            showTab3HexMessage(
+                "No capture loaded. Select a FIG instance or a frame after loading an ETI file.");
+            return;
+        }
+        int index = -1;
+        if (m_tab3_figInstanceTree && m_tab3_figInstanceTree->currentItem()) {
+            index = m_tab3_figInstanceTree->currentItem()->data(0, Qt::UserRole).toInt();
+        }
+        const QVector<AdvancedFIGAnalyzer::FigInstance>& instances =
+            m_figAnalyzer->figInstances();
+        if (index < 0 || index >= instances.size()) {
+            showTab3HexMessage(
+                "No FIG instance selected. Pick an instance under a FIG group to view its raw bytes.");
+            return;
+        }
+        const AdvancedFIGAnalyzer::FigInstance& inst = instances.at(index);
+        const QString header = QString(
+            "FIG %1/%2  |  length=%3 bytes  |  FIB %4  |  %5  |  frame %6")
+            .arg(inst.type)
+            .arg(inst.ext)
+            .arg(inst.length)
+            .arg(inst.fibIdx)
+            .arg(inst.crcOk ? QStringLiteral("CRC OK") : QStringLiteral("CRC FAIL"))
+            .arg(inst.frame);
+        m_tab3_hexViewer->setPlainText(formatCompactHex(inst.raw, 0, header));
+    }
+
+    // Render one raw ETI frame's FIC/FIB region into the Hex Viewer. Shared by
+    // the Frame List path and the synthetic-frame test hook. FIC starts at
+    // 12 + 4*NST per EN 300 799; the FIC length is Mode-Identity dependent
+    // (96 bytes / 3 FIBs, 128 bytes / 4 FIBs for Mode III).
+    void renderTab3HexForFrameData(const QByteArray& frameData, int frameNumber)
+    {
+        if (!m_tab3_hexViewer || frameData.isEmpty()) return;
+        const uint8_t f = frameData.size() > 5
+                              ? static_cast<uint8_t>(frameData.at(5))
+                              : static_cast<uint8_t>(0);
+        const bool ficf = (f & 0x80) != 0;
+        const int nstField = (f & 0x7F);
+        // F2: mirror ModernETIFrameParser's nst_offset_1 legacy correction
+        // (settings_.nst_offset_1 && nst < MAX_SUBCHANNEL_COUNT -> nst + 1).
+        const int nst =
+            (m_analyzerSettings.nst_offset_1
+             && nstField < static_cast<int>(eti::MAX_SUBCHANNEL_COUNT))
+                ? nstField + 1
+                : nstField;
+        const int ficOffset = 12 + 4 * nst;
+        // F1: FIC length is Mode-Identity dependent (ETSI EN 300 799 §5.2):
+        // 128 bytes / 4 FIBs for Mode III (MID==3), 96 bytes / 3 FIBs otherwise.
+        // LIDATA is at bytes 4..7, so MID is bits 4-3 of byte 6 (data[2] >> 3).
+        const uint8_t mid = frameData.size() > 6
+                                ? static_cast<uint8_t>(
+                                      (static_cast<uint8_t>(frameData.at(6)) & 0x18) >> 3)
+                                : static_cast<uint8_t>(0);
+        const int ficLen = (mid == 3) ? static_cast<int>(eti::ETI_FIC_MAX_SIZE)
+                                      : static_cast<int>(eti::ETI_FIC_MIN_SIZE);
+        QByteArray shown = frameData;
+        quint32 shownOffset = 0;
+        QString header;
+        if (ficf && ficOffset >= 0 && ficOffset + ficLen <= frameData.size()) {
+            shown = frameData.mid(ficOffset, ficLen);
+            shownOffset = static_cast<quint32>(ficOffset);
+            header = QString("Frame %1  |  FIC/FIB region  |  offset 0x%2  |  %3 bytes (%4 FIBs)")
+                         .arg(frameNumber)
+                         .arg(QString("%1").arg(ficOffset, 4, 16, QChar('0')).toUpper())
+                         .arg(ficLen)
+                         .arg(ficLen / static_cast<int>(eti::ETI_FIC_FIB_SIZE));
+        } else {
+            header = QString("Frame %1  |  full ETI frame  |  6144 bytes")
+                         .arg(frameNumber);
+        }
+        m_tab3_hexViewer->setPlainText(formatCompactHex(shown, shownOffset, header));
+    }
+
+    // Frame List selection -> that frame's retained raw bytes (FIC/FIB region).
+    void updateTab3HexFromFrame(int frameIndex)
+    {
+        if (!m_tab3_hexViewer) return;
+        if (!m_fileLoaded || frameIndex < 0) {
+            showTab3HexMessage(
+                "No capture loaded. Select a FIG instance or a frame after loading an ETI file.");
+            return;
+        }
+        const QByteArray frameData = getETIFrameData(frameIndex);
+        if (frameData.isEmpty()) {
+            showTab3HexMessage("No frame data available for the selected frame.");
+            return;
+        }
+        renderTab3HexForFrameData(frameData, frameIndex + 1);
     }
 
     void updateTimingTable() {
@@ -7044,8 +6891,9 @@ private:
         // Shared bottom docking area (window-level, consistent across all tabs).
         // Replaces the old sharedBottomPanel QTabWidget: a window-level CDockManager
         // pinned at the bottom of the mainVerticalSplitter, whose Bottom dock area
-        // hosts the 6 tabbed bottom docks (System Messages / Performance / Error
-        // Detection / Logging / Constellation / Messages).
+        // hosts the 7 tabbed bottom docks (System Messages / Performance /
+        // Real-Time Chart / Error Detection / ETSI Compliance / Logging /
+        // Constellation).
         QWidget* bottomHost = new QWidget();
         QVBoxLayout* bottomLayout = new QVBoxLayout(bottomHost);
         bottomLayout->setContentsMargins(0, 0, 0, 0);
@@ -7056,12 +6904,13 @@ private:
         buildSharedBottomDocks();
         mainVerticalSplitter->addWidget(bottomHost);
 
-        // T30.1: the shared strip is a quick status read, not a workspace. Cap
-        // its height so it cannot grow beyond ~120 px (≈5 monospace lines plus
-        // the dock tab bar); the System Messages QTextEdit stays scrollable with
-        // ~3-5 visible lines. Initial split ≈ 89% workspace / 11% strip.
-        bottomHost->setMaximumHeight(120);
-        mainVerticalSplitter->setSizes({880, 110});
+        // T30.1/T40: the shared strip starts at ~120 px (≈5 monospace lines plus
+        // the dock tab bar) — expressed as a splitter SIZE, not a hard cap, so
+        // the user can drag it larger. The old setMaximumHeight(120) is gone; a
+        // sane minimum keeps the dock tab bar + one line usable. Initial split
+        // ≈ 88% workspace / 12% strip.
+        bottomHost->setMinimumHeight(60);
+        mainVerticalSplitter->setSizes({880, 120});
 
         // Manual-test finding 1: matching tab touch for the Qt-ADS dock tab
         // bars (appends to the ADS default stylesheet; see helper).
@@ -7112,12 +6961,14 @@ private:
         return dock;
     }
 
-    // Wave B: the window-level strip is capped at 120 px. The adopted heavy
-    // panels (Performance / Real-Time Chart / ETSI Compliance / Constellation)
-    // have a much larger content minimum, so each is wrapped in a frameless,
-    // resizable QScrollArea. The strip therefore keeps its 120 px cap for the
-    // light tabs (System Messages, Error Detection, Logging, Messages) while
-    // the heavy tabs stay fully usable via scrollbars (no floating needed).
+    // Wave B/T40: the window-level strip STARTS at ≈120 px but is no longer
+    // hard-capped (T40 removed setMaximumHeight(120); the default is a splitter
+    // size, min 60 px). The adopted heavy panels (Performance / Real-Time Chart /
+    // ETSI Compliance / Constellation) have a much larger content minimum, so
+    // each is wrapped in a frameless, resizable QScrollArea: at the small
+    // default the light tabs (System Messages / Error Detection / Logging) are
+    // compact while the heavy tabs stay fully usable via scrollbars, and the
+    // whole strip can now be dragged larger.
     static QWidget* wrapHeavyPanel(QWidget* content)
     {
         QScrollArea* area = new QScrollArea();
@@ -7419,7 +7270,7 @@ private:
 
         // LEFT Column (UI redesign Steps B/C) — each section becomes one dock:
         // Player + Decoder form the Transport group; System stays standalone.
-        // Messages moved to the shared bottom strip (bottom_Messages).
+        // (T41: the legacy Messages panel was removed, not relocated.)
         
         // 1. Player Panel (Item #1) - 20%
         QGroupBox* playerPanel = createPlayerPanel();
@@ -8165,7 +8016,13 @@ private:
         layout->setContentsMargins(2, 2, 2, 2);
         layout->setSpacing(4);
 
-        // FIG Item Details Tree (4 columns, 5 levels) - 100%
+        // T42: the right dock now hosts TWO inner tabs, mirroring the Tab-3
+        // left dock's inner-tab pattern: the original FIG Item Details tree and
+        // a new raw-bytes Hex Viewer "next to" it.
+        m_tab3RightTabs = new QTabWidget();
+        m_tab3RightTabs->setObjectName(QStringLiteral("tab3RightTabs"));
+
+        // Tab 1: FIG Item Details Tree (4 columns, 5 levels).
         QGroupBox* figItemDetailsGroup = new QGroupBox("FIG Item Details");
         QVBoxLayout* figItemDetailsLayout = new QVBoxLayout(figItemDetailsGroup);
         
@@ -8184,8 +8041,23 @@ private:
             // Information column stretches
         }
         figItemDetailsLayout->addWidget(m_tab3_figItemDetailsTree);
-        
-        layout->addWidget(figItemDetailsGroup);
+        m_tab3RightTabs->addTab(figItemDetailsGroup, tr("FIG Item Details"));
+
+        // Tab 2 (T42): Hex Viewer — raw bytes of the current FIG Instance List
+        // selection or Frame List selection, with an offset/hex/ASCII layout.
+        QGroupBox* hexGroup = new QGroupBox("Hex Viewer");
+        QVBoxLayout* hexLayout = new QVBoxLayout(hexGroup);
+        m_tab3_hexViewer = new QTextEdit();
+        m_tab3_hexViewer->setObjectName(QStringLiteral("tab3HexViewer"));
+        m_tab3_hexViewer->setReadOnly(true);
+        m_tab3_hexViewer->setLineWrapMode(QTextEdit::NoWrap);
+        m_tab3_hexViewer->setFont(QFont("Consolas", 9));
+        m_tab3_hexViewer->setPlaceholderText(
+            "Select a FIG instance or a frame to view its raw bytes...");
+        hexLayout->addWidget(m_tab3_hexViewer);
+        m_tab3RightTabs->addTab(hexGroup, tr("Hex Viewer"));
+
+        layout->addWidget(m_tab3RightTabs);
 
         return panel;
     }
@@ -8285,38 +8157,11 @@ private:
         return widget;
     }
 
-    QGroupBox* createLoggingPanel()
-    {
-        QGroupBox* widget = new QGroupBox("Messages");
-        QVBoxLayout* layout = new QVBoxLayout(widget);
-
-        QGroupBox* statusGroup = new QGroupBox("Logging System Status");
-        QHBoxLayout* statusLayout = new QHBoxLayout(statusGroup);
-        m_loggingStatus = new QLabel("Status: Active");
-        m_loggingLevel = new QLabel("Level: INFO");
-        m_logCountLabel = new QLabel("Entries: 0");
-        statusLayout->addWidget(m_loggingStatus);
-        statusLayout->addWidget(m_loggingLevel);
-        statusLayout->addWidget(m_logCountLabel);
-        statusLayout->addStretch();
-        layout->addWidget(statusGroup);
-
-        QGroupBox* entriesGroup = new QGroupBox("Recent Log Entries");
-        QVBoxLayout* entriesLayout = new QVBoxLayout(entriesGroup);
-        m_logEntriesTree = new QTreeWidget();
-        m_logEntriesTree->setHeaderLabels({"Timestamp", "Level", "Category", "Message"});
-        entriesLayout->addWidget(m_logEntriesTree);
-        layout->addWidget(entriesGroup);
-
-        QGroupBox* statsGroup = new QGroupBox("Logging Statistics");
-        QVBoxLayout* statsLayout = new QVBoxLayout(statsGroup);
-        m_loggingStatsDisplay = new QTextEdit();
-        m_loggingStatsDisplay->setReadOnly(true);
-        statsLayout->addWidget(m_loggingStatsDisplay);
-        layout->addWidget(statsGroup);
-
-        return widget;
-    }
+    // T41: the legacy `Messages` strip panel (createLoggingPanel()) was removed.
+    // Its content was a static, empty log-entry tree + logging-statistics
+    // placeholder backed by the disabled ProfessionalLoggingSystem
+    // (m_loggingSystem is intentionally never constructed) — fully redundant
+    // with the live "System Messages" plain-text log.
 
     // ========================================================================
     // SHARED BOTTOM DOCK AREA (CONSISTENT ACROSS ALL TABS, WINDOW-LEVEL)
@@ -8328,9 +8173,10 @@ private:
         }
 
         // The bottom tabs become TABBED CDockWidgets hosted by the window-level
-        // bottom CDockManager. Wave B order (8 tabs):
+        // bottom CDockManager. Wave B order (7 tabs; T41 removed the redundant
+        // legacy Messages tab):
         //   System Messages / Performance / Real-Time Chart / Error Detection /
-        //   ETSI Compliance / Logging / Constellation / Messages.
+        //   ETSI Compliance / Logging / Constellation.
 
         // Tab 1: System Messages
         if (!m_systemMessages) {
@@ -8408,13 +8254,9 @@ private:
             wrapHeavyPanel(createConstellationTab()));
         m_bottomDockManager->addDockWidgetTabToArea(d5, d1->dockAreaWidget());
 
-        // Tab 8: Messages (UI redesign Step C) — moved from the Tab-1 left
-        // column; wraps the SAME createLoggingPanel() widget/members. Being a
-        // window-level strip dock it is automatically shared by all 3 tabs.
-        ads::CDockWidget* d6 = makeDock(m_bottomDockManager,
-            QStringLiteral("bottom_Messages"), QStringLiteral("Messages"),
-            createLoggingPanel());
-        m_bottomDockManager->addDockWidgetTabToArea(d6, d1->dockAreaWidget());
+        // T41: the redundant `bottom_Messages` (legacy logging panel) dock was
+        // removed — see createLoggingPanel()'s removal note above. The strip now
+        // has 7 tabs; "System Messages" is the live log.
 
         // Default active tab of the bottom strip: System Messages (first dock).
         d1->dockAreaWidget()->setCurrentDockWidget(d1);
@@ -8510,7 +8352,7 @@ private:
         QWidget* widget = new QWidget();
         QVBoxLayout* layout = new QVBoxLayout(widget);
         
-        QLabel* summaryLabel = new QLabel("Logging Summary (See Advanced Features → Professional Logging for full logs)");
+        QLabel* summaryLabel = new QLabel("Logging Summary (see the live System Messages tab in the shared bottom strip)");
         summaryLabel->setStyleSheet("font-style: italic; color: #666;");
         layout->addWidget(summaryLabel);
         
@@ -9428,127 +9270,6 @@ private:
         return errorDetectionTab;
     }
 
-    QWidget* createLoggingTab()
-    {
-        QWidget* loggingTab = new QWidget();
-        QVBoxLayout* layout = new QVBoxLayout(loggingTab);
-        
-        // Logging controls section
-        QGroupBox* controlsGroup = new QGroupBox("Professional Logging Controls");
-        QHBoxLayout* controlsLayout = new QHBoxLayout(controlsGroup);
-        
-        // Logging control buttons
-        QPushButton* enableLoggingBtn = new QPushButton("Enable Logging");
-        QPushButton* disableLoggingBtn = new QPushButton("Disable Logging");
-        QPushButton* setDebugLevelBtn = new QPushButton("Debug Level");
-        QPushButton* setInfoLevelBtn = new QPushButton("Info Level");
-        QPushButton* exportLogsBtn = new QPushButton("Export Logs");
-        QPushButton* clearLogsBtn = new QPushButton("Clear Logs");
-        QPushButton* rotateLogsBtn = new QPushButton("Rotate Logs");
-        
-        enableLoggingBtn->setCheckable(true);
-        enableLoggingBtn->setChecked(true); // Start enabled
-        
-        controlsLayout->addWidget(enableLoggingBtn);
-        controlsLayout->addWidget(disableLoggingBtn);
-        controlsLayout->addWidget(setDebugLevelBtn);
-        controlsLayout->addWidget(setInfoLevelBtn);
-        controlsLayout->addWidget(exportLogsBtn);
-        controlsLayout->addWidget(clearLogsBtn);
-        controlsLayout->addWidget(rotateLogsBtn);
-        controlsLayout->addStretch();
-        
-        layout->addWidget(controlsGroup);
-        
-        // Logging status section
-        QGroupBox* statusGroup = new QGroupBox("Logging System Status");
-        QHBoxLayout* statusLayout = new QHBoxLayout(statusGroup);
-        
-        m_loggingStatus = new QLabel("Status: Active - Professional logging enabled");
-        m_loggingStatus->setStyleSheet("QLabel { color: green; font-weight: bold; }");
-        m_loggingLevel = new QLabel("Level: DEBUG");
-        m_logCountLabel = new QLabel("Total Logs: 0");
-        m_sessionIdLabel = new QLabel("Session: Loading...");
-        
-        statusLayout->addWidget(m_loggingStatus);
-        statusLayout->addWidget(m_loggingLevel);
-        statusLayout->addWidget(m_logCountLabel);
-        statusLayout->addWidget(m_sessionIdLabel);
-        statusLayout->addStretch();
-        
-        layout->addWidget(statusGroup);
-        
-        // Log entries display
-        QGroupBox* logsGroup = new QGroupBox("Recent Log Entries");
-        QVBoxLayout* logsLayout = new QVBoxLayout(logsGroup);
-        
-        // Log filter controls
-        QHBoxLayout* filterLayout = new QHBoxLayout();
-        
-        QLabel* levelFilterLabel = new QLabel("Level:");
-        m_logLevelFilter = new QComboBox();
-        m_logLevelFilter->addItems({"ALL", "TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "EMERGENCY"});
-        m_logLevelFilter->setCurrentText("DEBUG");
-        
-        QLabel* categoryFilterLabel = new QLabel("Category:");
-        m_logCategoryFilter = new QComboBox();
-        m_logCategoryFilter->addItems({"ALL", "SYSTEM", "ETI_PROC", "SERVICE", "AUDIO", "NETWORK", "FILE_IO", "UI", "ETSI", "ERROR_DET", "PERF", "SECURITY", "CONFIG"});
-        
-        QPushButton* refreshLogsBtn = new QPushButton("Refresh");
-        QPushButton* clearViewBtn = new QPushButton("Clear View");
-        
-        filterLayout->addWidget(levelFilterLabel);
-        filterLayout->addWidget(m_logLevelFilter);
-        filterLayout->addWidget(categoryFilterLabel);
-        filterLayout->addWidget(m_logCategoryFilter);
-        filterLayout->addWidget(refreshLogsBtn);
-        filterLayout->addWidget(clearViewBtn);
-        filterLayout->addStretch();
-        
-        logsLayout->addLayout(filterLayout);
-        
-        // Log entries tree
-        m_logEntriesTree = new QTreeWidget();
-        m_logEntriesTree->setHeaderLabels({"Time", "Level", "Category", "Component", "Message"});
-        m_logEntriesTree->setAlternatingRowColors(true);
-        m_logEntriesTree->setSortingEnabled(true);
-        m_logEntriesTree->header()->setStretchLastSection(false);
-        m_logEntriesTree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-        m_logEntriesTree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-        m_logEntriesTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-        m_logEntriesTree->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-        m_logEntriesTree->header()->setSectionResizeMode(4, QHeaderView::Stretch);
-        
-        logsLayout->addWidget(m_logEntriesTree);
-        
-        layout->addWidget(logsGroup);
-        
-        // Log statistics section
-        QGroupBox* statsGroup = new QGroupBox("Logging Statistics");
-        QVBoxLayout* statsLayout = new QVBoxLayout(statsGroup);
-        
-        m_loggingStatsDisplay = new QTextEdit();
-        m_loggingStatsDisplay->setFont(QFont("Consolas", 9));
-        m_loggingStatsDisplay->setPlaceholderText("Logging statistics will appear here...");
-        m_loggingStatsDisplay->setMaximumHeight(120);
-        statsLayout->addWidget(m_loggingStatsDisplay);
-        
-        layout->addWidget(statsGroup);
-        
-        // Connect logging button signals
-        connect(enableLoggingBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onEnableLogging);
-        connect(disableLoggingBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onDisableLogging);
-        connect(setDebugLevelBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onSetDebugLevel);
-        connect(setInfoLevelBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onSetInfoLevel);
-        connect(exportLogsBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onExportLogs);
-        connect(clearLogsBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onClearLogs);
-        connect(rotateLogsBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onRotateLogs);
-        connect(refreshLogsBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onRefreshLogs);
-        connect(clearViewBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onClearLogsView);
-        
-        return loggingTab;
-    }
-
     void setupMenuBar()
     {
         QMenuBar* menuBar = this->menuBar();
@@ -9654,15 +9375,6 @@ private:
             }
         }
         
-        // IDENTIFIED PROBLEM: Professional Logging signals cause file dialog freeze
-        // QTimer::singleShot(2000, this, [this]() {
-        //     if (m_loggingSystem) {
-        //         connect(m_loggingSystem.get(), &professional_logging::ProfessionalLoggingSystem::logEntryAdded,
-        //                 this, &DABAnalyzerWindow::onLogEntryAdded, Qt::QueuedConnection);
-        //         qDebug() << "Professional logging signals connected after delay";
-        //     }
-        // });
-        
         // UI signals
         connect(m_frameList, &QListWidget::currentRowChanged,
                 this, &DABAnalyzerWindow::onFrameSelectionChanged);
@@ -9700,6 +9412,9 @@ private:
                         if (!selectedItems.isEmpty()) {
                             // Rebuild details tree for selected FIG
                             buildFIGItemDetailsTree();
+                            // T42: mirror the selected instance's raw bytes into
+                            // the right dock's Hex Viewer inner tab.
+                            updateTab3HexFromFigInstance();
                             qDebug() << "[PHASE 10] FIG instance selected, details updated";
                         }
                     }, Qt::QueuedConnection);
@@ -10423,7 +10138,6 @@ private:
     std::unique_ptr<etsi::ETSIComplianceEngine> m_etsiComplianceEngine;
     std::unique_ptr<multistream::MultiStreamProcessor> m_multiStreamProcessor;
     std::unique_ptr<error_detection::AdvancedErrorDetector> m_errorDetector;
-    std::unique_ptr<professional_logging::ProfessionalLoggingSystem> m_loggingSystem;
 
     // User-selected analyzer decode options (option-variant matrix rows 1-14).
     // Loaded once at startup from QSettings (org StreamDAB-Analyzer / app
@@ -10453,15 +10167,11 @@ private:
     QTreeWidget* m_errorHistoryTree = nullptr;
     QTextEdit* m_errorPatternsDisplay = nullptr;
     
-    // Professional Logging UI components
-    QLabel* m_loggingStatus = nullptr;
-    QLabel* m_loggingLevel = nullptr;
-    QLabel* m_logCountLabel = nullptr;
-    QLabel* m_sessionIdLabel = nullptr;
-    QComboBox* m_logLevelFilter = nullptr;
-    QComboBox* m_logCategoryFilter = nullptr;
-    QTreeWidget* m_logEntriesTree = nullptr;
-    QTextEdit* m_loggingStatsDisplay = nullptr;
+    // T41: legacy Professional Logging UI members (m_loggingStatus/Level/
+    // CountLabel, m_sessionIdLabel, m_logLevelFilter/CategoryFilter,
+    // m_logEntriesTree, m_loggingStatsDisplay) were removed with the redundant
+    // `bottom_Messages` dock; the backing ProfessionalLoggingSystem was never
+    // constructed. "System Messages" is the live log.
     QLabel* m_frameDetails = nullptr;  // Frame details display (Tab 1 LEFT panel)
     QTableWidget* m_etiExplorerDetails = nullptr;  // NEW: ETI Explorer Details table (Tab 1)
     QTableWidget* m_subchannelTable = nullptr;  // NEW: Subchannel Organization table (Tab 1 Center Panel)
@@ -10569,6 +10279,9 @@ private:
     
     // RIGHT Panel widgets
     QTreeWidget* m_tab3_figItemDetailsTree = nullptr;  // 4 columns: Property, Size, Value, Information
+    // T42: Tab-3 right dock inner tabs (FIG Item Details · Hex Viewer).
+    QTabWidget* m_tab3RightTabs = nullptr;
+    QTextEdit* m_tab3_hexViewer = nullptr;  // raw bytes of the current selection
     
     // Performance Dashboard widgets (Wave B: the legacy thin-tab labels
     // m_fpsLabel/m_memoryLabel/m_frameRateLabel/m_processingTimeLabel/
@@ -10836,8 +10549,11 @@ private:
     // Bumped 6 -> 7 (T34): the Tab-1 LEFT "Transport" group gained a third tab
     // ("Audio"); a saved v6 state would restore the group with only
     // Player|Decoder and hide the new Audio tab. v7 discards stale v6 state once.
-    // Any saved version != 7 is discarded once on restore.
-    static constexpr int DOCKING_LAYOUT_VERSION = 7;
+    // Bumped 7 -> 8 (T41): the shared bottom strip dropped the redundant legacy
+    // "Messages" tab (8 -> 7 tabs) and the Tab-3 right dock gained the T42
+    // "Hex Viewer" inner tab; a saved v7 state would restore the old strip/dock.
+    // Any saved version != 8 is discarded once on restore.
+    static constexpr int DOCKING_LAYOUT_VERSION = 8;
     
     // Phase 1: Processing counters
     int m_processedFrames{0};

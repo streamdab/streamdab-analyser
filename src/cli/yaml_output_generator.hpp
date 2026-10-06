@@ -224,6 +224,18 @@ public:
     void setETSICompliance(bool compliant, const QStringList& warnings);
 
     /**
+     * @brief Set the short ETSI-compliance verdict reason (T39).
+     *
+     * The counter summary that drove the verdict (FIB CRC failures, erroneous
+     * FIGs, FIBs walked, ensembles/services, transport error frames). Emitted
+     * as the `reason:` field of the `etsi_compliance:` YAML section so a NO is
+     * explainable. Optional; an empty string omits the field.
+     *
+     * @param reason Human-readable verdict reason
+     */
+    void setETSIComplianceReason(const QString& reason);
+
+    /**
      * @brief Set performance metrics
      * @param processing_time Total processing time in milliseconds
      * @param fps Frames processed per second
@@ -341,6 +353,7 @@ private:
         QMap<QString, int> fig_counts;
 
         bool etsi_compliant{true};
+        QString etsi_reason;
         QStringList etsi_warnings;
 
         qint64 processing_time_ms{0};

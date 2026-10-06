@@ -1306,10 +1306,65 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
     }
     result.fib_hex_lines = fibHexLines;
 
-    // ETSI compliance
-    result.etsiCompliant = (errorFrames == 0);
-    if (errorFrames > 0) {
-        result.complianceWarnings << QString("%1 frames failed parsing").arg(errorFrames);
+    // ETSI compliance (T39). This headless path's own protocol summary of the
+    // FIC/FIB/FIG decode (it is not a mirror of the GUI engine, whose input is
+    // synthetic self-consistent data), rather than "zero transport error frames":
+    //   * every walked FIB passed its CRC-16 (no fib_crc_failures),
+    //   * no FIG header was skipped for a length/padding anomaly
+    //     (no erroneous_figs),
+    //   * a FIC was decoded — either the strict walk visited FIBs OR FIG blocks
+    //     were recovered (Raw mode / auto-fallback walk no FIBs but still decode
+    //     the CRC-less FIC dump; F6), and
+    //   * the ensemble/service decode is intact (at least one ensemble and one
+    //     service recovered),
+    //   * when strict_frame_crc is enabled (row 11), no EOH gap CRC failures.
+    // Transport error frames (mux-level) are a separate, legitimate condition
+    // on an otherwise protocol-conformant multiplex; they stay reported via
+    // errorFrames / statistics and the FIC health counters.
+    const bool strictFrameCrcEnabled = m_settings.strict_frame_crc;
+    const bool fibCrcClean = (fibCrcFailures == 0);
+    const bool figsClean = (erroneousFigs == 0);
+    const bool ficDecoded = (totalFibs > 0) || !figInventory.isEmpty();
+    const bool decodeIntact =
+        !discovered_ensembles.empty() && !discovered_services.empty();
+    const bool frameCrcClean =
+        !strictFrameCrcEnabled || (result.frame_crc_failures == 0);
+    result.etsiCompliant =
+        fibCrcClean && figsClean && ficDecoded && decodeIntact && frameCrcClean;
+
+    result.complianceReason = QString(
+        "FIB CRC failures=%1, erroneous FIGs=%2, FIBs walked=%3, "
+        "FIG types decoded=%4, ensembles=%5, services=%6, "
+        "transport error frames=%7 (separate), "
+        "strict frame CRC failures=%8 (strict_frame_crc=%9)")
+        .arg(fibCrcFailures)
+        .arg(erroneousFigs)
+        .arg(totalFibs)
+        .arg(figInventory.size())
+        .arg(discovered_ensembles.size())
+        .arg(discovered_services.size())
+        .arg(errorFrames)
+        .arg(result.frame_crc_failures)
+        .arg(strictFrameCrcEnabled ? QStringLiteral("on") : QStringLiteral("off"));
+
+    // A NO must be explainable: name the failed protocol checks in the warnings.
+    if (!result.etsiCompliant) {
+        if (fibCrcFailures > 0) {
+            result.complianceWarnings << QString("%1 FIB CRC failures").arg(fibCrcFailures);
+        }
+        if (erroneousFigs > 0) {
+            result.complianceWarnings << QString("%1 erroneous FIGs").arg(erroneousFigs);
+        }
+        if (!ficDecoded) {
+            result.complianceWarnings << "No FIC decoded (no FIBs walked, no FIG blocks)";
+        }
+        if (!decodeIntact) {
+            result.complianceWarnings << "Ensemble/service decode incomplete";
+        }
+        if (!frameCrcClean) {
+            result.complianceWarnings
+                << QString("%1 strict frame CRC failures").arg(result.frame_crc_failures);
+        }
     }
     if (discovered_services.isEmpty()) {
         result.complianceWarnings << "No services discovered (unusual for valid ETI)";
@@ -1475,6 +1530,10 @@ QString HeadlessETIProcessor::generate_yaml_output(const ProcessingResult& resul
 
     yaml += "etsiCompliance:\n";
     yaml += QString("  etsiCompliant: %1\n").arg(result.etsiCompliant ? "true" : "false");
+    if (!result.complianceReason.isEmpty()) {
+        // F12: escape embedded quotes/backslashes like the YAML writers.
+        yaml += QString("  reason: \"%1\"\n").arg(escapeTraceValue(result.complianceReason));
+    }
     if (!result.complianceWarnings.isEmpty()) {
         yaml += "  warnings:\n";
         for (const QString& warning : result.complianceWarnings) {
@@ -1520,6 +1579,9 @@ QString HeadlessETIProcessor::generate_json_output(const ProcessingResult& resul
 
     QJsonObject compliance;
     compliance["etsiCompliant"] = result.etsiCompliant;
+    if (!result.complianceReason.isEmpty()) {
+        compliance["reason"] = result.complianceReason;
+    }
     json["etsiCompliance"] = compliance;
 
     QJsonDocument doc(json);

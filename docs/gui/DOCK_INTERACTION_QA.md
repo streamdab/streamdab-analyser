@@ -16,20 +16,20 @@ cd build && ctest -R "test_dock_interactions|test_gui_dock_layout" --output-on-f
 
 ## 1. What the automated suite covers
 
-Each test drives the real `DABAnalyzerWindow` (28 docks, 4 `CDockManager`s) through the Qt-ADS API
+Each test drives the real `DABAnalyzerWindow` (27 docks, 4 `CDockManager`s) through the Qt-ADS API
 and asserts the resulting state. No fixture load; headless (offscreen) only.
 
 | # | Test | Interaction driven | Asserted |
 |---|------|--------------------|----------|
 | 1 | `testFloatAndRedockTab1` | `setFloating()` on `tab1_CUUsage` (tabbed group), then re-dock into the **original** area | floating container → docked again, visible, area tab count restored, still in `dockWidgetsMap` |
-| 2 | `testFloatAndRedockBottom` | same on `bottom_Performance` (8-tab strip) | idem for the bottom manager |
+| 2 | `testFloatAndRedockBottom` | same on `bottom_Performance` (7-tab strip) | idem for the bottom manager |
 | 3 | `testAutoHideToggleTab1` | `setAutoHide(true)` then `setAutoHide(false)` on `tab1_NowPlaying` | auto-hide container + side-bar rail tab exist; after un-pin: container/rail gone, docked, visible, no lost dock |
 | 4 | `testAutoHideToggleBottom` | idem on `bottom_Logging` | idem for the bottom manager |
 | 5 | `testMoveAcrossAreasTab1` | `addDockWidget(Right/Left, tab1_System)` | leaves its original column, new area, then leaves the moved area on the way back; never closed |
-| 6 | `testMoveAcrossAreasBottom` | `addDockWidget(Center/Bottom, bottom_Messages)` | new single-dock area, then re-docked at the bottom; never closed |
+| 6 | `testMoveAcrossAreasBottom` | `addDockWidget(Center/Bottom, bottom_Constellation)` | new single-dock area, then re-docked at the bottom; never closed |
 | 7 | `testTabifyAndUntabify` | `addDockWidgetTabToArea(NowPlaying → System area)` then move out | one area with 2 tabs → two areas with 1 tab each |
-| 8 | `testPersistenceAfterInteractions` | float `bottom_Logging` + move `bottom_Messages` out + tabify `bottom_ErrorDetection` into it, `close()`, reopen | floating restored; tab grouping (2 tabs) restored; shared strip retains its remaining 5 tabs; separate areas |
-| 9 | `testAllDocksReachableAfterInteractionsAndRestart` | float + auto-hide + move + tabify, close, reopen | all 28 docks findable by objectName; every dock `toggleView(false/true)` works; 28 docks still registered (no lost dock) |
+| 8 | `testPersistenceAfterInteractions` | float `bottom_Logging` + move `bottom_Constellation` out + tabify `bottom_ErrorDetection` into it, `close()`, reopen | floating restored; tab grouping (2 tabs) restored; shared strip retains its remaining 4 tabs; separate areas |
+| 9 | `testAllDocksReachableAfterInteractionsAndRestart` | float + auto-hide + move + tabify, close, reopen | all 27 docks findable by objectName; every dock `toggleView(false/true)` works; 27 docks still registered (no lost dock) |
 
 Settings isolation: `QStandardPaths::setTestModeEnabled(true)` + per-test clearing of
 `window/geometry`, `docking/layout_version`, `docking/tab1|tab2|tab3|bottom`.
@@ -39,7 +39,7 @@ Settings isolation: `QStandardPaths::setTestModeEnabled(true)` + per-test cleari
 ## 2. Manual checklist (headless CI cannot exercise these)
 
 Run the app with a real display: `./build/StreamDABAnalyzer`. Tick every box on the shipping layout
-(28 docks, `DOCKING_LAYOUT_VERSION = 7`).
+(27 docks, `DOCKING_LAYOUT_VERSION = 8`).
 
 **Drag & drop**
 - [ ] Drag a dock by its tab/title bar within the same area → it reorders / becomes current.
@@ -62,7 +62,7 @@ Run the app with a real display: `./build/StreamDABAnalyzer`. Tick every box on 
 
 **Resize / splitters**
 - [ ] Drag the vertical/horizontal splitters between columns and between stacked areas → both sides resize, no minimum-size thrash.
-- [ ] Drag the bottom strip's top splitter → strip resizes within its 120 px cap; System Messages stays scrollable.
+- [ ] Drag the bottom strip's top splitter → strip resizes freely (≥60 px, no 120 px cap); System Messages stays scrollable. (The strip's size is not persisted across restarts — only the workspace/dock layout is.)
 - [ ] Drag the Now Playing inner splitter → DLS+ text vs 4:3 slideshow ratio changes.
 
 **Multi-monitor / DPI**

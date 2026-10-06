@@ -73,7 +73,10 @@ set(SOURCES
     src/core/etsi_registered_tables.cpp
     src/core/multi_stream_processor.cpp
     src/core/advanced_error_detection.cpp
-    src/core/professional_logging_system.cpp
+    # T41/F11: professional_logging_system.cpp is no longer referenced by any
+    # translation unit (the legacy Messages UI was removed). List-ed only here
+    # before; nothing in src/ or tests/ includes professional_logging_system.hpp.
+    # Files kept for reference/history; not compiled.
     src/core/hex_viewer_formatter.cpp
     src/core/dabplus_stream_validator.cpp
     # T38: shared DAB+ superframe/AU/PAD transport (main.cpp + audio decoder).

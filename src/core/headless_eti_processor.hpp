@@ -97,8 +97,15 @@ public:
         // Only counted when the setting is enabled; decode stays independent.
         quint64 frame_crc_failures = 0;
 
-        // ETSI compliance
+        // ETSI compliance. T39: `etsiCompliant` reflects the FIC/FIB/FIG
+        // protocol validation actually performed on this path (no FIB CRC
+        // failures, no erroneous FIGs, a decoded FIC and intact ensemble/service
+        // decode) — NOT the transport error-frame count, which is reported
+        // separately (errorFrames / fic_health). `complianceReason` always
+        // carries the short count summary that drove the verdict so a NO is
+        // explainable.
         bool etsiCompliant = true;
+        QString complianceReason;
         QStringList complianceWarnings;
         QStringList complianceErrors;
     };

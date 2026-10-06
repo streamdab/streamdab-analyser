@@ -4,21 +4,21 @@
  *
  * UI redesign (v2) validation:
  *   a) exactly 4 CDockManagers (one per tab + one window-level bottom dock area)
- *   b) exactly 28 dock widgets with the expected objectNames
- *      (14 tab1 + 3 tab2 + 2 tab3 + 6 bottom; -tab1_InputSource -> toolbar,
- *       -tab1_Messages -> bottom_Messages strip tab)
+ *   b) exactly 27 dock widgets with the expected objectNames
+ *      (15 tab1 + 3 tab2 + 2 tab3 + 7 bottom; -tab1_InputSource -> toolbar;
+ *       T41 removed the redundant legacy bottom_Messages tab)
  *   c) default first-launch placement: TABBED GROUPS on Tab 1 —
  *      Transport (Player|Decoder) / System left; Signal Analysis
  *      (Ensemble|Subchannel|CUUsage) / Frame Analysis (Navigator|HexCompliance) /
  *      Now Playing center; Signal Info (Overview|Status|Timing) /
- *      Error&Stats (ErrorCounter|StreamStats) right; 6 tabbed docks in the
+ *      Error&Stats (ErrorCounter|StreamStats) right; 7 tabbed docks in the
  *      bottom manager
  *   d) the Input Source toolbar sits at the TOP of the Tab-1 page with an
  *      expandable network row (visible only in Network Stream mode)
  *   e) QSettings persistence round-trip (closed dock stays closed; restored
- *      group structure matches the default layout) incl. layout_version=7
- *   f) stale v1/v2/v3/v4/v5 layout state (layout_version != 7) is discarded once
- *      so the first run after the upgrade shows the new default layout
+ *      group structure matches the default layout) incl. layout_version=8
+ *   f) stale v1/v2/v3/v4/v5/v6/v7 layout state (layout_version != 8) is
+ *      discarded once so the first run after the upgrade shows the new default
  *   g) auto-hide (pin) config sanity
  *   h) floating round-trip safety (float a dock, re-dock it, no crash)
  *   i) default ACTIVE tab per tabbed group on a fresh launch (first dock of
@@ -74,10 +74,10 @@ private slots:
     void initTestCase();
     void cleanupTestCase();
     void testFourDockManagers();
-    void test28DocksWithExpectedNames();
+    void testDocksWithExpectedNames();
     void testDefaultGroupedPlacement();
     void testDefaultActiveTabs();
-    void testBottomEightDocks();
+    void testBottomStripDocks();
     // Wave B: adopted src/gui widgets + File/Help menu entries
     void testAdoptedWidgetsAndExportRealFixture();
     void testAboutAndSettingsDialogs();
@@ -127,6 +127,12 @@ private slots:
     void testRetainedSlideEviction();
     // T34: Audio tab in the Transport group + enabled state / level meters
     void testAudioTabControls();
+    // T42: Tab-3 right dock Hex Viewer (FIG instance + frame selections)
+    void testTab3HexViewer();
+    // T41: the redundant legacy Messages strip tab is gone (7 bottom tabs)
+    void testMessagesTabRemoved();
+    // T40: bottom strip has no hard maximum-height cap (resizable)
+    void testBottomStripResizable();
 
 private:
     // Removes every DABAnalyzerWindow QSettings key used by the app so each
@@ -256,7 +262,7 @@ void TestGuiDockLayout::testFourDockManagers()
     QCoreApplication::processEvents();
 }
 
-void TestGuiDockLayout::test28DocksWithExpectedNames()
+void TestGuiDockLayout::testDocksWithExpectedNames()
 {
     clearSettingsStore();
     DABAnalyzerWindow w;
@@ -270,8 +276,8 @@ void TestGuiDockLayout::test28DocksWithExpectedNames()
     }
 
     const QSet<QString> expected = {
-        // Tab 1 (14) - UI redesign: tab1_InputSource removed (toolbar),
-        // tab1_Messages removed (bottom strip), CU Usage grouped in center.
+        // Tab 1 (15) - UI redesign: tab1_InputSource removed (toolbar),
+        // tab1_Messages removed, T34 added tab1_Audio; CU Usage grouped in center.
         QStringLiteral("tab1_Player"), QStringLiteral("tab1_Decoder"),
         QStringLiteral("tab1_Audio"),
         QStringLiteral("tab1_System"),
@@ -287,15 +293,16 @@ void TestGuiDockLayout::test28DocksWithExpectedNames()
         QStringLiteral("tab2_Right"),
         // Tab 3 (2)
         QStringLiteral("tab3_Left"), QStringLiteral("tab3_Right"),
-        // Shared bottom (8) - Wave B adds Real-Time Chart + ETSI Compliance.
+        // Shared bottom (7) - Wave B adds Real-Time Chart + ETSI Compliance;
+        // T41 removed the redundant legacy Messages tab.
         QStringLiteral("bottom_SystemMessages"), QStringLiteral("bottom_Performance"),
         QStringLiteral("bottom_RealTimeChart"),
         QStringLiteral("bottom_ErrorDetection"), QStringLiteral("bottom_EtsiCompliance"),
         QStringLiteral("bottom_Logging"),
-        QStringLiteral("bottom_Constellation"), QStringLiteral("bottom_Messages"),
+        QStringLiteral("bottom_Constellation"),
     };
 
-    QCOMPARE(all.size(), expected.size());  // 28 docks (T34 added tab1_Audio)
+    QCOMPARE(all.size(), expected.size());  // 27 docks (T41 dropped bottom_Messages)
     QCOMPARE(all, expected);
 
     w.close();
@@ -470,13 +477,13 @@ void TestGuiDockLayout::testDefaultActiveTabs()
     // Error & Statistics group
     verifyGroupActive(QStringLiteral("tab1_ErrorCounter"), QStringLiteral("tab1_ErrorCounter"));
 
-    // Bottom strip: 8 tabbed docks with System Messages active on launch.
+    // Bottom strip: 7 tabbed docks with System Messages active on launch.
     auto* mBottom = w.findChild<ads::CDockManager*>("bottomDockManager");
     QVERIFY(mBottom);
     ads::CDockAreaWidget* bottomArea =
         mBottom->findDockWidget(QStringLiteral("bottom_SystemMessages"))->dockAreaWidget();
     QVERIFY(bottomArea);
-    QCOMPARE(bottomArea->dockWidgetsCount(), 8);
+    QCOMPARE(bottomArea->dockWidgetsCount(), 7);
     ads::CDockWidget* bottomCurrent = bottomArea->currentDockWidget();
     QVERIFY(bottomCurrent);
     QCOMPARE(bottomCurrent->objectName(), QStringLiteral("bottom_SystemMessages"));
@@ -485,7 +492,7 @@ void TestGuiDockLayout::testDefaultActiveTabs()
     QCoreApplication::processEvents();
 }
 
-void TestGuiDockLayout::testBottomEightDocks()
+void TestGuiDockLayout::testBottomStripDocks()
 {
     clearSettingsStore();
     DABAnalyzerWindow w;
@@ -495,23 +502,32 @@ void TestGuiDockLayout::testBottomEightDocks()
     auto* mBottom = w.findChild<ads::CDockManager*>("bottomDockManager");
     QVERIFY(mBottom);
 
-    // T30.1: the shared strip host is capped at ~120 px so the strip shows
-    // about five text lines and cannot grow into the workspace.
+    // T40: the shared strip starts at ~120 px expressed as a SPLITTER SIZE with
+    // a sane 60 px minimum and NO hard maximum-height cap, so the user can drag
+    // it larger. (The old setMaximumHeight(120) is gone.)
     QWidget* stripHost = mBottom->parentWidget();
     QVERIFY(stripHost);
-    QCOMPARE(stripHost->maximumHeight(), 120);
+    QCOMPARE(stripHost->minimumHeight(), 60);
+    QCOMPARE(stripHost->maximumHeight(), QWIDGETSIZE_MAX);  // no cap
+    auto* vSplit = qobject_cast<QSplitter*>(stripHost->parentWidget());
+    QVERIFY2(vSplit, "the strip host must live in the main vertical splitter");
+    QVERIFY(vSplit->sizes().size() >= 2);
+    const int defaultStrip = vSplit->sizes().at(vSplit->sizes().size() - 1);
+    QVERIFY2(defaultStrip >= 100 && defaultStrip <= 140,
+             qPrintable(QString("default strip size must be ~120 px, got %1")
+                            .arg(defaultStrip)));
 
     const QSet<QString> bottomNames = {
         QStringLiteral("bottom_SystemMessages"), QStringLiteral("bottom_Performance"),
         QStringLiteral("bottom_RealTimeChart"),
         QStringLiteral("bottom_ErrorDetection"), QStringLiteral("bottom_EtsiCompliance"),
         QStringLiteral("bottom_Logging"),
-        QStringLiteral("bottom_Constellation"), QStringLiteral("bottom_Messages")};
+        QStringLiteral("bottom_Constellation")};
     const QSet<QString> actual = dockNames(mBottom);
     QCOMPARE(actual, bottomNames);
-    QCOMPARE(actual.size(), 8);
+    QCOMPARE(actual.size(), 7);
 
-    // The 8 bottom docks are TABBED into a single shared dock area. Note: a
+    // The 7 bottom docks are TABBED into a single shared dock area. Note: a
     // restoreState() may leave a ghost area pending deleteLater, so derive the
     // areas from the docks themselves instead of findChildren().
     ads::CDockAreaWidget* sharedArea = nullptr;
@@ -526,20 +542,21 @@ void TestGuiDockLayout::testBottomEightDocks()
         }
     }
     QVERIFY(sharedArea);
-    QCOMPARE(sharedArea->dockWidgetsCount(), 8);
+    QCOMPARE(sharedArea->dockWidgetsCount(), 7);
 
-    // Wave B: exact tab ORDER + titles as required by the placement spec.
+    // Wave B: exact tab ORDER + titles as required by the placement spec (T41
+    // removed the trailing "Messages" tab).
     {
         const QStringList expectedOrder = {
             QStringLiteral("bottom_SystemMessages"), QStringLiteral("bottom_Performance"),
             QStringLiteral("bottom_RealTimeChart"), QStringLiteral("bottom_ErrorDetection"),
             QStringLiteral("bottom_EtsiCompliance"), QStringLiteral("bottom_Logging"),
-            QStringLiteral("bottom_Constellation"), QStringLiteral("bottom_Messages")};
+            QStringLiteral("bottom_Constellation")};
         const QStringList expectedTitles = {
             QStringLiteral("System Messages"), QStringLiteral("Performance"),
             QStringLiteral("Real-Time Chart"), QStringLiteral("Error Detection"),
             QStringLiteral("ETSI Compliance"), QStringLiteral("Logging"),
-            QStringLiteral("Constellation"), QStringLiteral("Messages")};
+            QStringLiteral("Constellation")};
         const QList<ads::CDockWidget*> tabs = sharedArea->dockWidgets();
         QCOMPARE(tabs.size(), expectedOrder.size());
         QStringList actualOrder;
@@ -569,12 +586,12 @@ void TestGuiDockLayout::testBottomEightDocks()
                  qPrintable(name + QStringLiteral(" scroll area must be frameless")));
         QWidget* inner = area->widget();
         QVERIFY2(inner, qPrintable(name + QStringLiteral(" scroll area must host content")));
-        // Content must be taller than the 120 px strip cap, otherwise the tab
-        // would be clipped with nothing to scroll.
+        // Content must be taller than the default strip height (~120 px),
+        // otherwise the tab would be clipped with nothing to scroll.
         const int contentMin = qMax(inner->minimumSize().height(),
                                     inner->minimumSizeHint().height());
         QVERIFY2(contentMin > 120,
-                 qPrintable(QString("%1 content min height %2 must exceed the 120 px cap")
+                 qPrintable(QString("%1 content min height %2 must exceed the default strip height")
                                 .arg(name).arg(contentMin)));
     }
 
@@ -763,7 +780,7 @@ void TestGuiDockLayout::testPersistenceRoundTrip()
     }
 
     const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 7);
+    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 8);
     QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab2")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab3")).isNull());
@@ -845,7 +862,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
 {
     // Stale v1 settings (layout_version 1 + a saved layout with Now Playing
     // closed) must be DISCARDED once: the next launch shows the new default
-    // layout (Now Playing visible, groups intact) and re-saves version 7.
+    // layout (Now Playing visible, groups intact) and re-saves version 8.
     QStandardPaths::setTestModeEnabled(true);
     clearSettingsStore();
 
@@ -877,7 +894,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
     }
     {
         const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(check.value(versionKey).toInt(), 7);
+        QCOMPARE(check.value(versionKey).toInt(), 8);
         QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     }
 
@@ -933,16 +950,20 @@ void TestGuiDockLayout::testLayoutVersionReset()
 
         auto* mBottom = w2.findChild<ads::CDockManager*>("bottomDockManager");
         QVERIFY(mBottom);
-        QVERIFY(mBottom->findDockWidget(QStringLiteral("bottom_Messages")));
+        QVERIFY2(mBottom->findDockWidget(QStringLiteral("bottom_SystemMessages")),
+                 "default bottom strip must be present");
+        // T41: the redundant legacy Messages tab is gone from the default strip.
+        QVERIFY2(!mBottom->findDockWidget(QStringLiteral("bottom_Messages")),
+                 "bottom_Messages must not exist in the default layout");
 
-        w2.close(); // writes layout version 7 again
+        w2.close(); // writes layout version 8 again
         QCoreApplication::processEvents();
     }
 
-    // 4) Version is 6 again; a third launch restores normally (v6 round-trip).
+    // 4) Version is 8 again; a third launch restores normally (v8 round-trip).
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 7);
+        QCOMPARE(s.value(versionKey).toInt(), 8);
     }
     {
         DABAnalyzerWindow w3;
@@ -953,7 +974,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(m1);
         ads::CDockWidget* np = m1->findDockWidget(hiddenDockName);
         QVERIFY(np);
-        QVERIFY(!np->isClosed());  // v6 state restored (Now Playing visible)
+        QVERIFY(!np->isClosed());  // v8 state restored (Now Playing visible)
 
         w3.close();
         QCoreApplication::processEvents();
@@ -963,7 +984,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
     // predecessor before the T36 center-order fix) must also be discarded once,
     // not only v1. Produce a v5-tagged store whose saved layout differs (Now
     // Playing hidden), then confirm the next launch shows the default redesign
-    // layout and re-saves v6.
+    // layout and re-saves v8.
     {
         DABAnalyzerWindow w;
         w.show();
@@ -974,14 +995,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(np);
         np->toggleView(false);
         QCoreApplication::processEvents();
-        w.close();  // writes layout_version 7 with Now Playing hidden
+        w.close();  // writes layout_version 8 with Now Playing hidden
         QCoreApplication::processEvents();
     }
     {
         QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 7);
+        QCOMPARE(s.value(versionKey).toInt(), 8);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
-        s.setValue(versionKey, 5);  // simulate the v5 -> v6 migration
+        s.setValue(versionKey, 5);  // simulate the v5 -> v8 migration
         s.sync();
     }
     {
@@ -995,12 +1016,12 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY2(!np->isClosed() && np->isVisible(),
                  "stale v5 layout must be discarded: Now Playing visible in "
                  "the default redesign layout");
-        w4.close();  // re-saves layout_version 7
+        w4.close();  // re-saves layout_version 8
         QCoreApplication::processEvents();
     }
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 7);
+        QCOMPARE(s.value(versionKey).toInt(), 8);
     }
 
     clearSettingsStore();
@@ -3259,7 +3280,7 @@ void TestGuiDockLayout::testPlayerActiveTabAfterVersionBump()
         // Simulate the stale user state: the Decoder tab is active.
         player->dockAreaWidget()->setCurrentDockWidget(decoder);
         QCoreApplication::processEvents();
-        w.close();  // saves layout_version 7 with Decoder active
+        w.close();  // saves layout_version 8 with Decoder active
         QCoreApplication::processEvents();
     }
     {
@@ -3287,7 +3308,7 @@ void TestGuiDockLayout::testPlayerActiveTabAfterVersionBump()
 
 // ============================================================================
 // T36: a saved v5 state with the OLD Tab-1 center order + old active tabs is
-// discarded once (the current bump is 6 -> 7); after the reset the center order and every group's
+// discarded once (the current bump is 7 -> 8); after the reset the center order and every group's
 // default active dock are the corrected ones.
 // ============================================================================
 void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
@@ -3351,7 +3372,7 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
     }
     {
         QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 7);
+        QCOMPARE(s.value(versionKey).toInt(), 8);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
         s.setValue(versionKey, 5);  // simulate a stale v5 store
         s.sync();
@@ -3393,12 +3414,12 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
         QCOMPARE(frameAnalysisArea->currentDockWidget()->objectName(),
                  QStringLiteral("tab1_FrameNavigator"));
 
-        w.close();  // re-saves version 7
+        w.close();  // re-saves version 8
         QCoreApplication::processEvents();
     }
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 7);
+        QCOMPARE(s.value(versionKey).toInt(), 8);
     }
 
     clearSettingsStore();
@@ -4150,6 +4171,198 @@ void TestGuiDockLayout::testAudioTabControls()
 
     w.close();
     QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// T41: the redundant legacy Messages strip tab is gone.
+// ============================================================================
+void TestGuiDockLayout::testMessagesTabRemoved()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // The legacy bottom_Messages dock must not exist in any manager (default
+    // layout) — it was a static/empty panel backed by the disabled
+    // ProfessionalLoggingSystem, redundant with "System Messages".
+    for (ads::CDockManager* m : w.findChildren<ads::CDockManager*>()) {
+        QVERIFY2(!m->findDockWidget(QStringLiteral("bottom_Messages")),
+                 "bottom_Messages must not exist (T41 removed it)");
+    }
+
+    // The live System Messages log is still present and is the first bottom tab.
+    auto* mBottom = w.findChild<ads::CDockManager*>("bottomDockManager");
+    QVERIFY(mBottom);
+    ads::CDockWidget* sys = mBottom->findDockWidget(QStringLiteral("bottom_SystemMessages"));
+    QVERIFY2(sys, "System Messages must remain the live bottom log");
+    QCOMPARE(sys->dockAreaWidget()->dockWidgetsCount(), 7);
+
+    // Saving persists the new layout version (8), so existing users reset once.
+    w.close();
+    QCoreApplication::processEvents();
+    const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+    QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 8);
+    clearSettingsStore();
+}
+
+// ============================================================================
+// T40: the bottom strip has no hard maximum-height cap (user-resizable).
+// ============================================================================
+void TestGuiDockLayout::testBottomStripResizable()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    auto* mBottom = w.findChild<ads::CDockManager*>("bottomDockManager");
+    QVERIFY(mBottom);
+    QWidget* stripHost = mBottom->parentWidget();
+    QVERIFY(stripHost);
+
+    // No hard cap; sane minimum only.
+    QCOMPARE(stripHost->maximumHeight(), QWIDGETSIZE_MAX);
+    QCOMPARE(stripHost->minimumHeight(), 60);
+
+    // The user can drag the strip ABOVE the old 120 px hard cap.
+    auto* vSplit = qobject_cast<QSplitter*>(stripHost->parentWidget());
+    QVERIFY(vSplit);
+    QVERIFY2(vSplit->sizes().size() >= 2, "vertical splitter must hold the strip");
+    vSplit->setSizes({400, 400});
+    QCoreApplication::processEvents();
+    QVERIFY2(stripHost->height() > 120,
+             qPrintable(QString("strip must be resizable above 120 px, got %1")
+                            .arg(stripHost->height())));
+
+    w.close();
+    QCoreApplication::processEvents();
+    clearSettingsStore();
+}
+
+// ============================================================================
+// T42: Tab-3 right dock Hex Viewer (FIG instance + frame selections)
+// ============================================================================
+void TestGuiDockLayout::testTab3HexViewer()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // Right-dock inner tabs exist and are labelled consistently with the left
+    // dock (FIG Item Details · Hex Viewer).
+    QTabWidget* rightTabs = w.tab3RightTabsForTest();
+    QVERIFY2(rightTabs, "T42: Tab-3 right dock inner tabs must exist");
+    QCOMPARE(rightTabs->count(), 2);
+    QCOMPARE(rightTabs->tabText(0), QStringLiteral("FIG Item Details"));
+    QCOMPARE(rightTabs->tabText(1), QStringLiteral("Hex Viewer"));
+    QVERIFY2(w.tab3HexViewerForTest(), "T42: the Hex Viewer widget must exist");
+
+    // No capture yet -> safe empty state (no crash, no stale bytes).
+    QVERIFY2(w.tab3HexViewerTextForTest().isEmpty(),
+             "hex viewer must start empty before any capture is loaded");
+
+    const QString fixture = QStringLiteral("../../eti/bkk_20062022_141637.eti");
+    QVERIFY2(QFileInfo::exists(fixture),
+             qPrintable(QString("fixture missing: %1 (cwd=%2)")
+                            .arg(fixture, QDir::currentPath())));
+    w.autoLoadFile(fixture);
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0, 120000);
+
+    // After load with no selection: a guard message, not stale bytes.
+    QTRY_VERIFY_WITH_TIMEOUT(
+        w.tab3HexViewerTextForTest().contains(QStringLiteral("No FIG instance selected")),
+        10000);
+
+    // FIG Instance List selection -> the instance's raw bytes + FIG header.
+    QTreeWidget* figTree = w.tab3FigInstanceTree();
+    QVERIFY(figTree);
+    QTreeWidgetItem* instanceChild = nullptr;
+    for (int i = 0; i < figTree->topLevelItemCount() && !instanceChild; ++i) {
+        QTreeWidgetItem* group = figTree->topLevelItem(i);
+        if (group->childCount() > 0) {
+            instanceChild = group->child(0);
+        }
+    }
+    QVERIFY2(instanceChild, "the fixture must expose at least one FIG instance");
+    figTree->setCurrentItem(instanceChild);
+    QCoreApplication::processEvents();
+    QTRY_VERIFY_WITH_TIMEOUT(
+        w.tab3HexViewerTextForTest().contains(QStringLiteral("FIG "))
+            && w.tab3HexViewerTextForTest().contains(QStringLiteral("bytes")),
+        10000);
+    const QString figHex = w.tab3HexViewerTextForTest();
+    QVERIFY2(figHex.contains(QStringLiteral("CRC")),
+             "the FIG hex header must carry the FIB CRC status");
+    QVERIFY2(figHex.contains(QStringLiteral(" |")), "hex dump must have an ASCII column");
+
+    // Frame List selection -> that frame's FIC/FIB region (retained data).
+    w.selectTab3FrameForTest(0);
+    QCoreApplication::processEvents();
+    QTRY_VERIFY_WITH_TIMEOUT(
+        w.tab3HexViewerTextForTest().contains(QStringLiteral("Frame 1")),
+        10000);
+    const QString frameHex = w.tab3HexViewerTextForTest();
+    QVERIFY2(frameHex.contains(QStringLiteral("FIC/FIB region")),
+             qPrintable(QStringLiteral("frame hex must label the FIC/FIB region; got: %1")
+                            .arg(frameHex.left(160))));
+    QVERIFY2(frameHex.contains(QStringLiteral(" |")), "frame hex dump must have an ASCII column");
+
+    // --- F1/F2: Mode-Identity-dependent FIC geometry, via a synthetic frame
+    // (no file load) so the test is not fixture-labelled only. ---------------
+    auto makeSyntheticNiFrame = [](uint8_t mid, int nst) {
+        QByteArray f(6144, '\0');
+        f[0] = static_cast<char>(0xFF);
+        f[1] = static_cast<char>(0xF8);  // ETI-NI(LI-A) sync
+        f[4] = static_cast<char>(0x00);  // FCT
+        f[5] = static_cast<char>(0x80 | (nst & 0x7F));  // FICF=1, NST
+        f[6] = static_cast<char>((mid & 0x03) << 3);    // MID at bits 4-3
+        return f;
+    };
+
+    // Mode I (MID=1): 96 bytes / 3 FIBs, FIC at 12 + 4*0 = 12. Put known bytes
+    // right at the FIC start and cross-check the address+bytes (not label-only).
+    {
+        QByteArray f = makeSyntheticNiFrame(1, 0);
+        f[12] = static_cast<char>(0xAB);
+        f[13] = static_cast<char>(0xCD);
+        w.renderTab3HexForTest(f, 1);
+        QCoreApplication::processEvents();
+        const QString t = w.tab3HexViewerTextForTest();
+        QVERIFY2(t.contains(QStringLiteral("FIC/FIB region")),
+                 qPrintable(QStringLiteral("Mode-I hex missing FIC label: %1").arg(t.left(120))));
+        QVERIFY2(t.contains(QStringLiteral("offset 0x000C")),
+                 qPrintable(QStringLiteral("Mode-I FIC offset must be 0x000C: %1").arg(t.left(120))));
+        QVERIFY2(t.contains(QStringLiteral("96 bytes (3 FIBs)")),
+                 qPrintable(QStringLiteral("Mode-I must show 96 bytes / 3 FIBs: %1").arg(t.left(120))));
+        QVERIFY2(t.contains(QStringLiteral("00000C  AB CD")),
+                 qPrintable(QStringLiteral("Mode-I byte/offset cross-check failed: %1")
+                                .arg(t.section(QLatin1Char('\n'), 2, 2))));
+    }
+
+    // Mode III (MID=3): 128 bytes / 4 FIBs; marker at the last byte proves the
+    // 128-byte window (offset 12 + 127 = 139 = 0x8B).
+    {
+        QByteArray f = makeSyntheticNiFrame(3, 0);
+        f[12] = static_cast<char>(0xAB);
+        f[12 + 127] = static_cast<char>(0xEF);
+        w.renderTab3HexForTest(f, 2);
+        QCoreApplication::processEvents();
+        const QString t = w.tab3HexViewerTextForTest();
+        QVERIFY2(t.contains(QStringLiteral("offset 0x000C")),
+                 qPrintable(QStringLiteral("Mode-III FIC offset must be 0x000C: %1").arg(t.left(120))));
+        QVERIFY2(t.contains(QStringLiteral("128 bytes (4 FIBs)")),
+                 qPrintable(QStringLiteral("Mode-III must show 128 bytes / 4 FIBs: %1").arg(t.left(120))));
+        // The 4th-FIB tail byte (offset 139) is only inside a 128-byte window.
+        QVERIFY2(t.contains(QStringLiteral("EF")),
+                 qPrintable(QStringLiteral("Mode-III must include byte 139 (EF): %1")
+                                .arg(t.right(160))));
+    }
+
+    w.close();
+    QCoreApplication::processEvents();
+    clearSettingsStore();
 }
 
 QTEST_MAIN(TestGuiDockLayout)

@@ -102,6 +102,12 @@ namespace {
             std::cout << "Verbose Frames:  " << result.frame_analyses.size() << "\n";
         }
         std::cout << "ETSI Compliant:  " << (result.etsiCompliant ? "YES" : "NO") << "\n";
+        // T39: always print the short reason (the protocol counters that drove
+        // the verdict) so a NO is explainable. Transport error frames are
+        // reported separately in the "Errors:" line above and here.
+        if (!result.complianceReason.isEmpty()) {
+            std::cout << "ETSI Reason:     " << result.complianceReason.toStdString() << "\n";
+        }
         std::cout << "========================================\n\n";
     }
 }
@@ -306,6 +312,7 @@ int cli_main(int argc, char** argv) {
             result.etsiCompliant,
             result.complianceWarnings
         );
+        yamlGenerator.setETSIComplianceReason(result.complianceReason);
 
         // Set performance metrics
         yamlGenerator.setPerformanceMetrics(processingTimeMs, result.averageFPS);

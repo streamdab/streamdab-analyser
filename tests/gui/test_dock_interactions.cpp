@@ -20,7 +20,7 @@
  *   5. Persistence after interactions: a non-default arrangement (one dock
  *      floated + one moved + one detached from its group) is saved on close()
  *      and restored by a second window (floating + area membership).
- *   6. Reachability: after all interactions + a restart every one of the 28
+ *   6. Reachability: after all interactions + a restart every one of the 27
  *      docks is still findable by objectName and toggleable (toggleView
  *      true/false) with no crash and no lost dock.
  *
@@ -75,12 +75,12 @@ private slots:
     void testAllDocksReachableAfterInteractionsAndRestart();
 
 private:
-    // The full expected dock inventory (28). Kept in sync with
-    // test_gui_dock_layout.cpp::test28DocksWithExpectedNames.
+    // The full expected dock inventory (27). Kept in sync with
+    // test_gui_dock_layout.cpp::testDocksWithExpectedNames.
     static QStringList expectedDockNames()
     {
         return {
-            // Tab 1 (14)
+            // Tab 1 (15)
             QStringLiteral("tab1_Player"), QStringLiteral("tab1_Decoder"),
             QStringLiteral("tab1_Audio"), QStringLiteral("tab1_System"),
             QStringLiteral("tab1_EnsembleExplorer"), QStringLiteral("tab1_SubchannelOrg"),
@@ -95,12 +95,12 @@ private:
             QStringLiteral("tab2_Right"),
             // Tab 3 (2)
             QStringLiteral("tab3_Left"), QStringLiteral("tab3_Right"),
-            // Shared bottom (8)
+            // Shared bottom (7; T41 removed the redundant legacy Messages tab)
             QStringLiteral("bottom_SystemMessages"), QStringLiteral("bottom_Performance"),
             QStringLiteral("bottom_RealTimeChart"),
             QStringLiteral("bottom_ErrorDetection"), QStringLiteral("bottom_EtsiCompliance"),
             QStringLiteral("bottom_Logging"),
-            QStringLiteral("bottom_Constellation"), QStringLiteral("bottom_Messages"),
+            QStringLiteral("bottom_Constellation"),
         };
     }
 
@@ -257,7 +257,7 @@ void TestDockInteractions::testFloatAndRedockBottom()
     ads::CDockAreaWidget* originalArea = dock->dockAreaWidget();
     QVERIFY(originalArea);
     const int originalCount = originalArea->dockWidgetsCount();
-    QVERIFY(originalCount >= 8);  // 8-tab shared bottom strip
+    QVERIFY(originalCount >= 7);  // 7-tab shared bottom strip (T41) 
 
     dock->setFloating();
     pump();
@@ -427,19 +427,19 @@ void TestDockInteractions::testMoveAcrossAreasBottom()
 
     auto* mBottom = w.findChild<ads::CDockManager*>("bottomDockManager");
     QVERIFY(mBottom);
-    ads::CDockWidget* dock = mBottom->findDockWidget(QStringLiteral("bottom_Messages"));
+    ads::CDockWidget* dock = mBottom->findDockWidget(QStringLiteral("bottom_Constellation"));
     QVERIFY(dock);
 
     ads::CDockAreaWidget* originalArea = dock->dockAreaWidget();
     QVERIFY(originalArea);
-    QVERIFY(originalArea->dockWidgetsCount() >= 8);
+    QVERIFY(originalArea->dockWidgetsCount() >= 7);
 
     // Move out of the shared bottom strip into a center area.
     mBottom->addDockWidget(ads::CenterDockWidgetArea, dock, nullptr);
     pump();
     ads::CDockAreaWidget* centerArea = dock->dockAreaWidget();
     QVERIFY2(centerArea && centerArea != originalArea,
-             "Messages must have moved to a new area");
+             "Constellation must have moved to a new area");
     QCOMPARE(centerArea->dockWidgetsCount(), 1);
     QVERIFY(!dock->isClosed());
 
@@ -447,9 +447,9 @@ void TestDockInteractions::testMoveAcrossAreasBottom()
     mBottom->addDockWidget(ads::BottomDockWidgetArea, dock, nullptr);
     pump();
     QVERIFY2(dock->dockAreaWidget() != nullptr,
-             "Messages must be re-docked at the bottom");
-    QVERIFY2(!dock->isClosed(), "Messages must survive the round trip");
-    QCOMPARE(mBottom->findDockWidget(QStringLiteral("bottom_Messages")), dock);
+             "Constellation must be re-docked at the bottom");
+    QVERIFY2(!dock->isClosed(), "Constellation must survive the round trip");
+    QCOMPARE(mBottom->findDockWidget(QStringLiteral("bottom_Constellation")), dock);
 
     w.close();
     pump();
@@ -508,13 +508,13 @@ void TestDockInteractions::testPersistenceAfterInteractions()
 {
     // A non-default arrangement in the window-level BOTTOM manager (simple
     // single-root container, deterministic interactively):
-    //   - bottom_Logging       floated
-    //   - bottom_Messages      moved out of the 8-tab strip into its own area
-    //   - bottom_ErrorDetection  tabified together with Messages
+    //   - bottom_Logging        floated
+    //   - bottom_Constellation  moved out of the 7-tab strip into its own area
+    //   - bottom_ErrorDetection tabified together with Constellation
     // After a close()/restart the floating + tab grouping + strip membership
     // must all come back.
     const QString loggingName = QStringLiteral("bottom_Logging");
-    const QString messagesName = QStringLiteral("bottom_Messages");
+    const QString movedName = QStringLiteral("bottom_Constellation");
     const QString errorDetName = QStringLiteral("bottom_ErrorDetection");
     const QString sysMsgName = QStringLiteral("bottom_SystemMessages");
 
@@ -527,29 +527,29 @@ void TestDockInteractions::testPersistenceAfterInteractions()
         QVERIFY(mBottom);
 
         ads::CDockWidget* logging = mBottom->findDockWidget(loggingName);
-        ads::CDockWidget* messages = mBottom->findDockWidget(messagesName);
+        ads::CDockWidget* moved = mBottom->findDockWidget(movedName);
         ads::CDockWidget* errorDet = mBottom->findDockWidget(errorDetName);
-        QVERIFY(logging && messages && errorDet);
-        ads::CDockAreaWidget* strip = messages->dockAreaWidget();
+        QVERIFY(logging && moved && errorDet);
+        ads::CDockAreaWidget* strip = moved->dockAreaWidget();
         QVERIFY(strip);
-        QVERIFY(strip->dockWidgetsCount() >= 8);
+        QVERIFY(strip->dockWidgetsCount() >= 7);
 
         // Float one tab.
         logging->setFloating();
         // Move one tab out into its own center area.
-        mBottom->addDockWidget(ads::CenterDockWidgetArea, messages, nullptr);
+        mBottom->addDockWidget(ads::CenterDockWidgetArea, moved, nullptr);
         // Tabify another tab into that new area.
-        ads::CDockAreaWidget* newArea = messages->dockAreaWidget();
+        ads::CDockAreaWidget* newArea = moved->dockAreaWidget();
         QVERIFY(newArea && newArea != strip);
         mBottom->addDockWidgetTabToArea(errorDet, newArea);
         pump();
 
         QVERIFY2(logging->isInFloatingContainer(),
                  "bottom Logging must float before saving");
-        QCOMPARE(messages->dockAreaWidget(), newArea);
+        QCOMPARE(moved->dockAreaWidget(), newArea);
         QCOMPARE(errorDet->dockAreaWidget(), newArea);
         QCOMPARE(newArea->dockWidgetsCount(), 2);
-        QCOMPARE(strip->dockWidgetsCount(), 5);  // 8 - Logging - Messages - ErrorDetection
+        QCOMPARE(strip->dockWidgetsCount(), 4);  // 7 - Logging - Constellation - ErrorDetection
 
         w.close();  // closeEvent() -> saveDockingState()
         pump();
@@ -557,7 +557,7 @@ void TestDockInteractions::testPersistenceAfterInteractions()
 
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 7);
+        QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 8);
         QVERIFY(!s.value(QStringLiteral("docking/bottom")).isNull());
     }
 
@@ -570,26 +570,26 @@ void TestDockInteractions::testPersistenceAfterInteractions()
         QVERIFY(mBottom);
 
         ads::CDockWidget* logging = mBottom->findDockWidget(loggingName);
-        ads::CDockWidget* messages = mBottom->findDockWidget(messagesName);
+        ads::CDockWidget* moved = mBottom->findDockWidget(movedName);
         ads::CDockWidget* errorDet = mBottom->findDockWidget(errorDetName);
         ads::CDockWidget* sysMsg = mBottom->findDockWidget(sysMsgName);
-        QVERIFY(logging && messages && errorDet && sysMsg);
+        QVERIFY(logging && moved && errorDet && sysMsg);
 
         // Floating arrangement restored.
         QVERIFY2(logging->isInFloatingContainer(),
                  "floating arrangement must be restored after a restart");
 
-        // Tab grouping restored: Messages + Error Detection share an area again.
-        QVERIFY(messages->dockAreaWidget());
-        QCOMPARE(errorDet->dockAreaWidget(), messages->dockAreaWidget());
-        QCOMPARE(messages->dockAreaWidget()->dockWidgetsCount(), 2);
+        // Tab grouping restored: Constellation + Error Detection share an area.
+        QVERIFY(moved->dockAreaWidget());
+        QCOMPARE(errorDet->dockAreaWidget(), moved->dockAreaWidget());
+        QCOMPARE(moved->dockAreaWidget()->dockWidgetsCount(), 2);
 
         // The moved pair is out of the shared strip; the strip keeps its
-        // remaining 5 tabs (incl. System Messages).
+        // remaining 4 tabs (incl. System Messages).
         QVERIFY(sysMsg->dockAreaWidget());
-        QVERIFY2(sysMsg->dockAreaWidget() != messages->dockAreaWidget(),
+        QVERIFY2(sysMsg->dockAreaWidget() != moved->dockAreaWidget(),
                  "the shared strip must remain separate from the moved area");
-        QCOMPARE(sysMsg->dockAreaWidget()->dockWidgetsCount(), 5);
+        QCOMPARE(sysMsg->dockAreaWidget()->dockWidgetsCount(), 4);
 
         w2.close();
         pump();
@@ -602,7 +602,7 @@ void TestDockInteractions::testPersistenceAfterInteractions()
 void TestDockInteractions::testAllDocksReachableAfterInteractionsAndRestart()
 {
     const QStringList expected = expectedDockNames();
-    QCOMPARE(expected.size(), 28);
+    QCOMPARE(expected.size(), 27);
 
     // Window 1: shake the layout with one of each interaction.
     {
@@ -626,14 +626,14 @@ void TestDockInteractions::testAllDocksReachableAfterInteractionsAndRestart()
         QVERIFY(moveDock);
         m1->addDockWidget(ads::RightDockWidgetArea, moveDock, nullptr);
 
-        ads::CDockWidget* tabDock = mBottom->findDockWidget(QStringLiteral("bottom_Messages"));
+        ads::CDockWidget* tabDock = mBottom->findDockWidget(QStringLiteral("bottom_Constellation"));
         ads::CDockWidget* host = mBottom->findDockWidget(QStringLiteral("bottom_Logging"));
         QVERIFY(tabDock && host);
         mBottom->addDockWidgetTabToArea(tabDock, host->dockAreaWidget());
         pump();
 
         // No dock was lost while interacting.
-        QCOMPARE(totalDockCount(w), 28);
+        QCOMPARE(totalDockCount(w), 27);
         QSet<QString> live = dockNames(m1) + dockNames(mBottom)
                            + dockNames(w.findChild<ads::CDockManager*>("tab2DockManager"))
                            + dockNames(w.findChild<ads::CDockManager*>("tab3DockManager"));
@@ -687,8 +687,8 @@ void TestDockInteractions::testAllDocksReachableAfterInteractionsAndRestart()
             QVERIFY2(!d->isClosed(), qPrintable(QString("toggleView(true) failed: %1").arg(name)));
         }
 
-        // Still 28 docks; none silently dropped.
-        QCOMPARE(totalDockCount(w2), 28);
+        // Still 27 docks; none silently dropped.
+        QCOMPARE(totalDockCount(w2), 27);
 
         w2.close();
         pump();

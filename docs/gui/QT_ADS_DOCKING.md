@@ -16,6 +16,9 @@ Code-style conventions live in `docs/Qt6_CPP20_Style_Guide.md`; this document is
 (DLS+ Text · Slideshow); `docking/layout_version = 4`.
 2026-10-06 — T27: Now Playing inner tabs replaced by a draggable **left/right splitter** (DLS+ text |
 4:3 letterboxed MOT Slideshow); `nowPlayingTabs` is gone.
+2026-10-07 — T40/T41/T42: bottom strip no longer hard-capped (default ≈120 px, resizable); the redundant
+legacy **Messages** tab removed (8 → 7 strip tabs); Tab-3 right dock gained a **Hex Viewer** inner tab;
+`docking/layout_version = 8`.
 
 ---
 
@@ -25,10 +28,10 @@ Four independent `ads::CDockManager` instances:
 
 | # | Manager | Host | Docks | QSettings key |
 |---|---------|------|-------|---------------|
-| 1 | tab1 manager | Tab "📡 DAB Ensemble & ETI Analysis" | 14 | `docking/tab1` |
+| 1 | tab1 manager | Tab "📡 DAB Ensemble & ETI Analysis" | 15 | `docking/tab1` |
 | 2 | tab2 manager | Tab "🔬 FIC-Analyzer" | 3 | `docking/tab2` |
 | 3 | tab3 manager | Tab "📊 FIC-Extractor" | 2 | `docking/tab3` |
-| 4 | bottom manager | Window-level bottom strip (shared across tabs) | 6 | `docking/bottom` |
+| 4 | bottom manager | Window-level bottom strip (shared across tabs) | 7 | `docking/bottom` |
 
 The top `QTabWidget` keeps its 3 original tabs. Each **tab page owns its own `CDockManager`**, so every tab
 can be floated/rearranged independently and its state persists separately. The bottom strip is a
@@ -51,15 +54,17 @@ above its dock manager (see §1.1).
 |  |                                                              |  |
 |  |  Tab 1 page (QVBoxLayout):                                  |  |
 |  |   ├─ inputToolbar (compact Input Source bar, top)           |  |
-|  |   └─ CDockManager #1: 3 grouped columns, 14 docks           |  |
+|  |   └─ CDockManager #1: 3 grouped columns, 15 docks           |  |
 |  |  Tab 2 → CDockManager #2: left/center/right, 3 docks        |  |
 |  |  Tab 3 → CDockManager #3: left/right, 2 docks               |  |
+|  |    left inner tabs: FIG Instance List | Frame List           |  |
+|  |    right inner tabs: FIG Item Details | Hex Viewer (T42)    |  |
 |  +--------------------------------------------------------------+  |
 |  +--------------------------------------------------------------+  |
-|  | Bottom strip — window-level CDockManager #4   (~30% height) |  |
-|  | 6 tabbed CDockWidgets, SHARED across all tabs:              |  |
-|  |  System Messages | Performance | Error Detection |          |  |
-|  |  Logging | Constellation | Messages                        |  |
+|  | Bottom strip — window-level CDockManager #4 (~120 px start) |  |
+|  | 7 tabbed CDockWidgets, SHARED across all tabs:              |  |
+|  |  System Messages | Performance | Real-Time Chart |          |  |
+|  |  Error Detection | ETSI Compliance | Logging | Constellation |  |
 |  +--------------------------------------------------------------+  |
 +--------------------------------------------------------------------+
 ```
@@ -91,29 +96,31 @@ group is the default active tab.
 
 * `*` = default active tab of its group.
 * CU Usage moved from the right column into the center Signal Analysis group.
-* Messages dock removed from the left column → bottom strip (`bottom_Messages`).
+* Messages dock removed from the left column → bottom strip (T41 later removed the whole tab).
 * Input Source dock removed → toolbar (`inputToolbar`) at the top of the Tab-1 page; its network row
   (stream URL / quick examples / Connect / Disconnect / Record / stream stats) expands only in
   "Network Stream" mode (slots `onSourceTypeChanged` etc. unchanged).
 
 ### 1.2 Bottom strip (shared across all tabs)
 
-Window-level CDockManager with ONE tabbed dock area holding the 6 strip docks — all shared by every tab
-(per the redesign xlsx matrix ✔ ✔ ✔).
+Window-level CDockManager with ONE tabbed dock area holding the 7 strip docks — all shared by every tab
+(per the redesign xlsx matrix ✔ ✔ ✔). T41 removed the redundant legacy **Messages** tab (a static,
+empty logging panel backed by the never-constructed `ProfessionalLoggingSystem`), so the strip is now 7.
 
-## 2. Panel registry (all 25 docks)
+## 2. Panel registry (all 27 docks)
 
 Dock `objectName` is used for QSettings persistence and auto-hide identity; the visible title reproduces the
 original panel label where one existed. For tab 2/3 panels (which bundled several `QGroupBox`es), the visible
 title is the original column name (`Left`/`Center`/`Right`) exactly as passed to `ads::CDockWidget` in
 `src/main.cpp` — not a content label. The Input Source is **not** a dock anymore (toolbar, §1.1).
 
-### Tab 1 — 📡 DAB Ensemble & ETI Analysis (14, grouped)
+### Tab 1 — 📡 DAB Ensemble & ETI Analysis (15, grouped)
 
 | Dock objectName | Visible title | Group (dock area) | Column |
 |-----------------|---------------|-------------------|--------|
-| `tab1_Player` | Player | Transport (2 tabs) | Left |
-| `tab1_Decoder` | Decoder | Transport (2 tabs) | Left |
+| `tab1_Player` | Player | Transport (3 tabs) | Left |
+| `tab1_Decoder` | Decoder | Transport (3 tabs) | Left |
+| `tab1_Audio` | Audio | Transport (3 tabs) | Left |
 | `tab1_System` | System | — (standalone) | Left |
 | `tab1_EnsembleExplorer` | DAB Ensemble Explorer | Signal Analysis (3 tabs) | Center |
 | `tab1_SubchannelOrg` | Subchannel Organization | Signal Analysis (3 tabs) | Center |
@@ -140,7 +147,7 @@ title is the original column name (`Left`/`Center`/`Right`) exactly as passed to
 | Dock objectName | Visible title | Column / area |
 |-----------------|---------------|---------------|
 | `tab3_Left` | FIG Instance List | Left (inner tabs: FIG Instance List · **Frame List**) |
-| `tab3_Right` | FIG Item Details | Right |
+| `tab3_Right` | FIG Item Details | Right (inner tabs: FIG Item Details · **Hex Viewer** — T42) |
 
 > **T28 — Tab-3 Frame List.** The `tab3_Left` dock hosts an inner `QTabWidget` (`tab3LeftTabs`) with the
 > existing FIG Instance List and a new **Frame List** (frames 1..N of the loaded capture). Selecting a
@@ -153,6 +160,13 @@ title is the original column name (`Left`/`Center`/`Right`) exactly as passed to
 > `tab3_Right` tree (`m_tab3_figItemDetailsTree`), so they overwrite each other. During playback the
 > frame-driven rebuild is therefore skipped while the **Frame List** tab is not the active tab; a
 > user-driven Frame List selection always wins.
+>
+> **T42 Hex Viewer.** The `tab3_Right` dock now hosts inner tabs (`tab3RightTabs`): the existing FIG Item
+> Details tree and a new **Hex Viewer** (`tab3HexViewer`). The Hex Viewer mirrors the current selection:
+> a FIG Instance List child → the collector instance's `raw` bytes with a `FIG t/e · length · FIB · CRC`
+> header; a Frame List row → that frame's retained bytes, preferring the **FIC/FIB region** (offset
+> `12 + 4·NST`, 96 bytes / 3 FIBs) and falling back to the full frame. No-selection / no-file states show
+> a guard message. It is a separate widget, so the shared-tree "two writers" limitation is unchanged.
 
 ### Tab 1 — Player transport (T29)
 
@@ -169,16 +183,25 @@ hex/compliance log lines are suppressed while playing. The slideshow image resca
 a floating dock resizes it. After a load the window starts at frame 0, **paused**; before any file the
 controls are disabled.
 
-### Bottom strip — shared across tabs (6)
+### Bottom strip — shared across tabs (7)
+
+> **T40** removed the old hard `setMaximumHeight(120)` cap. The strip still *starts* at ≈120 px (now
+> expressed as the splitter size `{880, 120}`) with a 60 px minimum, so the user can drag it larger.
 
 | Dock objectName | Visible title | Area |
 |-----------------|---------------|------|
-| `bottom_SystemMessages` | System Messages | Bottom strip |
+| `bottom_SystemMessages` | System Messages | Bottom strip (live plain-text log) |
 | `bottom_Performance` | Performance | Bottom strip |
+| `bottom_RealTimeChart` | Real-Time Chart | Bottom strip |
 | `bottom_ErrorDetection` | Error Detection | Bottom strip |
+| `bottom_EtsiCompliance` | ETSI Compliance | Bottom strip |
 | `bottom_Logging` | Logging | Bottom strip |
 | `bottom_Constellation` | Constellation | Bottom strip |
-| `bottom_Messages` | Messages | Bottom strip (moved from Tab-1 left column; wraps the same `createLoggingPanel()` widget) |
+
+> **T41** removed the redundant `bottom_Messages` tab (the legacy logging panel) — it was fully redundant
+> with `bottom_SystemMessages`, whose `QTextEdit` is the live log. Its members and the already-unreachable
+> `createLoggingTab()` were removed with it. `DOCKING_LAYOUT_VERSION` was bumped **7 → 8** so existing
+> users reset once to the 7-tab default.
 
 ## 3. User-facing behavior
 
@@ -199,13 +222,15 @@ controls are disabled.
   window geometry in QSettings (`org = "StreamDAB-Analyzer"`, `app = "DABAnalyzer"`); on start,
   `restoreState()` restores it. Keys: `window/geometry`, `docking/layout_version`, `docking/tab1`,
   `docking/tab2`, `docking/tab3`, `docking/bottom`.
-  - `docking/layout_version = 6` is written on save. On restore, any saved version **≠ 6** (including a
+  - `docking/layout_version = 8` is written on save. On restore, any saved version **≠ 8** (including a
     missing key, i.e. first launch) causes the stored dock states to be **discarded once** — the redesigned
-    default layout is shown and version 5 is written again at the next close. `window/geometry` is kept.
+    default layout is shown and version 8 is written again at the next close. `window/geometry` is kept.
     This gives existing users exactly one reset after each layout upgrade (v3 → v4 grew the Now Playing /
     Slideshow dock from 82 px to ≈200 px; v4 → v5 replaced its inner tabs with the T27 left/right splitter,
     added the T28 Frame List inner tabs to the Tab-3 left dock, and added the T29 Player transport
-    controls — v5 also discards the stale Transport group active tab so **Player** opens by default).
+    controls — v5 also discards the stale Transport group active tab so **Player** opens by default;
+    v6 → v7 added the T34 Audio tab; v7 → v8 (T41/T42) removed the redundant Messages strip tab and added
+    the Tab-3 right-dock Hex Viewer inner tab).
 - **First launch** — no saved state ⇒ each manager builds the default layout (§1), identical to the mockup
   (`docs/gui/StreamDAB-Analyzer UI Redesign.html`).
 
