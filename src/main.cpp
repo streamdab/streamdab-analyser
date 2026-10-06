@@ -1277,6 +1277,30 @@ public:
         m_showStreamDialogs = saved;
     }
 
+    // T43: drive the EXACT slot the receiver's frame_received signal targets,
+    // so a live-stream regression test can feed real 6144-byte ETI frames on a
+    // fresh window (no file loaded) without multicast traffic.
+    void feedNetworkFrameForTest(const QByteArray& frame) { onNetworkFrameReceived(frame); }
+    // T43/F1: the GUI raw-frame cache must stay clean on the live path.
+    int networkFrameCacheSizeForTest() const
+    {
+        QMutexLocker locker(&m_frameCacheMutex);
+        return static_cast<int>(m_frameDataCache.size());
+    }
+    // F2: the System Messages strip text (to assert the live-switch notice).
+    QString systemMessagesTextForTest() const
+    {
+        return m_systemMessages ? m_systemMessages->toPlainText() : QString();
+    }
+    void simulateConnectionEstablishedForTest()
+    {
+        if (m_networkReceiver) {
+            m_networkReceiver->simulateConnectionEstablishedForTest();
+        }
+    }
+    void disconnectStreamForTest() { onDisconnectClicked(); }
+    bool streamEverConnectedForTest() const { return m_streamEverConnected; }
+
     // T23 test hooks: the ⚙ button + the UDP settings dialog it opens.
     QToolButton* udpSettingsButtonForTest() const { return m_udpSettingsBtn; }
     // Build (without exec'ing) the UDP Streaming Settings dialog. Caller owns it.
@@ -1312,11 +1336,26 @@ private slots:
         }
     }
 
-    void loadETIFile(const QString& filePath)
+    // === Shared "new capture" reset =========================================
+    // Both a file load and a live-network connect start a fresh capture. This
+    // drops every piece of per-capture derived state so the two paths can never
+    // merge: DLS+/Now Playing, MOT slideshow, per-service media timelines +
+    // retained slides, the DAB+ sub-channel/service cache, the FIG analyzer,
+    // audio capture, the service selector, the adopted panels, playback, the
+    // raw-frame caches and the associated capture UI.
+    //
+    // Returns true when a previous capture (file or live) was actually present
+    // and discarded, so the caller can tell the user.
+    //
+    // Deliberately NOT included (callers own them, they differ per path):
+    //   * the parse-loop guard (m_processing / frame-list enable / scope guard)
+    //   * the System Messages log (load clears it; live keeps its stream log)
+    //   * the "Loading"/"Initializing" status text
+    bool resetCaptureState()
     {
-        qDebug() << "[PHASE 3] Loading ETI file:" << filePath;
+        const bool hadCapture =
+            m_fileLoaded || (m_etiProcessor && m_etiProcessor->getTotalFrames() > 0);
 
-        // === Clear previous state ===
         m_fileLoaded = false;
         m_totalFrames = 0;
         m_currentFrameIndex = 0;
@@ -1324,24 +1363,8 @@ private slots:
             m_exportAction->setEnabled(false);  // re-armed by onProcessingComplete()
         }
 
-        // Manual-test finding 2: the ETI file is parsed synchronously inside
-        // processETIFile() while nested processEvents() calls keep the UI
-        // alive. Mark the parse loop as running and disable the frame list so
-        // a click in the ETI Frame Navigator cannot reach not-yet-valid frame
-        // data (the navigator-click segfault).
-        m_processing = true;
-        m_frameNotReadyNotified = false;
-        if (m_frameList) {
-            m_frameList->setEnabled(false);
-        }
-        // Finding 8: always re-arm the navigation guard when this function
-        // returns, whatever path it takes (success, early failure, exception).
-        // onProcessingComplete() also re-arms on the queued signal path.
-        [[maybe_unused]] auto navigationGuard =
-            qScopeGuard([this]() { rearmNavigation(); });
-
         // Refinement A: reset the Now Playing (DLS+) state + per-subchannel
-        // DAB+ PAD parsers per load.
+        // DAB+ PAD parsers per capture.
         m_dlsPlusMessages = 0;
         m_dlsLabelsSeen.clear();
         m_dlsPlusPadCalls = 0;
@@ -1376,7 +1399,7 @@ private slots:
         // services are known; clear stale items + selection and disable it.
         resetServiceSelectorForLoad();
         // Wave B: reset the adopted PerformanceDashboard / Real-Time Chart /
-        // ETSI Compliance Monitor / Constellation panels for the new file.
+        // ETSI Compliance Monitor / Constellation panels for the new capture.
         resetAdoptedPanels();
         // T29: stop the playhead + disable the transport while parsing.
         stopPlaybackForLoad();
@@ -1396,39 +1419,68 @@ private slots:
         m_lastDecodedSlide = QImage();
         resetSlideshowPanel();
         // Finding 6: clear the decoder's change-detection history so a second
-        // load cannot suppress its first label (identical to the previous
+        // capture cannot suppress its first label (identical to the previous
         // capture's last values).
         if (m_dlsPlusDecoder) {
             m_dlsPlusDecoder->resetHistory();
         }
 
-        // === Clear previous-file decode state in the FIG analyzer ===
+        // === Clear previous-capture decode state in the FIG analyzer ===
         // (Tab 3 instances/FIG counters/FIB-CRC counts must not accumulate
-        // across files) and re-apply the user's decode options.
+        // across captures) and re-apply the user's decode options.
         if (m_figAnalyzer) {
             m_figAnalyzer->reset();
             m_figAnalyzer->setAnalyzerSettings(m_analyzerSettings);
         }
 
-        // === PHASE 3 AGENT 4: Clear frame cache ===
+        // === Clear the raw-frame caches ===
+        // m_frameDataCache backs the GUI hex viewer; m_frameCache backs the
+        // worker/reader path. Both are capture-scoped.
+        {
+            QMutexLocker locker(&m_frameCacheMutex);
+            m_frameDataCache.clear();
+        }
         m_frameCache.clear();
         m_cacheHits = 0;
         m_cacheMisses = 0;
+
+        // === Reset the capture UI ===
+        if (m_frameList) m_frameList->clear();
+        // T28: reset the Frame List with the new capture.
+        if (m_tab3_frameList) m_tab3_frameList->clear();
+        if (m_ensembleTree) m_ensembleTree->clear();
+        if (m_hexViewer) m_hexViewer->clear();
+        // T42: clear the Tab-3 Hex Viewer for the new capture.
+        if (m_tab3_hexViewer) m_tab3_hexViewer->clear();
+
+        return hadCapture;
+    }
+
+    void loadETIFile(const QString& filePath)
+    {
+        qDebug() << "[PHASE 3] Loading ETI file:" << filePath;
+
+        // === Clear previous capture state (shared with live-mode entry) ===
+        resetCaptureState();
+
+        // Manual-test finding 2: the ETI file is parsed synchronously inside
+        // processETIFile() while nested processEvents() calls keep the UI
+        // alive. Mark the parse loop as running and disable the frame list so
+        // a click in the ETI Frame Navigator cannot reach not-yet-valid frame
+        // data (the navigator-click segfault).
+        m_processing = true;
+        m_frameNotReadyNotified = false;
+        if (m_frameList) {
+            m_frameList->setEnabled(false);
+        }
+        // Finding 8: always re-arm the navigation guard when this function
+        // returns, whatever path it takes (success, early failure, exception).
+        // onProcessingComplete() also re-arms on the queued signal path.
+        [[maybe_unused]] auto navigationGuard =
+            qScopeGuard([this]() { rearmNavigation(); });
+
         qDebug() << "[PHASE 3 AGENT 4] Frame cache cleared for new file";
 
-
-        // === Reset UI ===
-        m_frameList->clear();
-        // T28: reset the Frame List with the new capture.
-        if (m_tab3_frameList) {
-            m_tab3_frameList->clear();
-        }
-        m_ensembleTree->clear();
-        m_hexViewer->clear();
-        // T42: clear the Tab-3 Hex Viewer for the new file.
-        if (m_tab3_hexViewer) {
-            m_tab3_hexViewer->clear();
-        }
         m_systemMessages->clear();
 
         // === PHASE 3: Update Player/Decoder status ===
@@ -1534,9 +1586,17 @@ private slots:
         // getRawFrameData() is 0-based; ProcessedFrame::frame_number is 1-based,
         // so the cache is keyed by the real 0-based frame index (matching the
         // hex-viewer lookup in displayFrameHexData()).
+        //
+        // File-backed only: m_fileLoaded covers a completed load; m_processing
+        // covers the synchronous load loop itself (m_fileLoaded is only set by
+        // the queued onProcessingComplete()). A LIVE capture has neither set —
+        // beginLiveMode() also drops the processor's file_data_/total_frames_ —
+        // so the file lookup is skipped and we never log the per-frame
+        // "getRawFrameData: Invalid frame index" warning or pollute the cache.
         QByteArray frameData;
         const int rawIndex = static_cast<int>(frame.frame_number) - 1;
-        if (m_etiProcessor && rawIndex >= 0) {
+        const bool fileBackedCapture = m_fileLoaded || m_processing;
+        if (m_etiProcessor && rawIndex >= 0 && fileBackedCapture) {
             frameData = m_etiProcessor->getRawFrameData(rawIndex);
         }
         
@@ -3773,6 +3833,24 @@ private:
     {
         beginStreamConnection(m_streamUrlEdit ? m_streamUrlEdit->text() : QString(), true);
     }
+
+    // Enter "live stream" mode: switch to a fresh capture exactly like a file
+    // load (shared resetCaptureState()) and additionally drop the ETI
+    // processor's file-backed state, so live frames can never continue from a
+    // previously loaded file (frame numbering / raw-frame lookups).
+    void beginLiveMode()
+    {
+        const bool hadPreviousCapture = resetCaptureState();
+        if (m_etiProcessor) {
+            m_etiProcessor->resetStatistics();  // drops file_data_/total_frames_
+        }
+        m_processedFrames = 0;
+        m_frameUpdateCounter = 0;
+        if (hadPreviousCapture && m_systemMessages) {
+            m_systemMessages->append(
+                "[STREAM] switched to live mode; previous capture state cleared");
+        }
+    }
     
     // Shared connect entry point (T22). Returns true when a connection attempt
     // was started, false when the URL was rejected before touching the core.
@@ -3831,6 +3909,17 @@ private:
         config.auto_reconnect = false;
         config.max_reconnect_attempts = 10;
         
+        // T43: tear down any previous receiver FIRST and sever its signals.
+        // Otherwise its destructor emits connection_status_changed(false)
+        // synchronously into this window and clobbers the "Connecting..."
+        // button state set just above (Connect was re-enabled mid-attempt).
+        if (m_networkReceiver) {
+            m_networkReceiver->disconnect(this);
+            m_networkReceiver->stop_reception();
+            m_networkReceiver->disconnect_from_stream();
+            m_networkReceiver.reset();
+        }
+
         m_networkReceiver = std::make_unique<eti::NetworkStreamReceiver>(config, this);
         
         // Connect signals
@@ -3847,15 +3936,17 @@ private:
                         }
                         m_streamStartTime = std::chrono::steady_clock::now();
                         m_systemMessages->append("[STREAM] Connected successfully");
+
+                        // T43: a confirmed connection is authoritative — assert
+                        // the full button state (a stale failure/loss event must
+                        // never leave Connect enabled mid-session).
+                        if (m_connectBtn) m_connectBtn->setEnabled(false);
+                        if (m_disconnectBtn) m_disconnectBtn->setEnabled(true);
+                        if (m_recordBtn) m_recordBtn->setEnabled(true);
                         
                         // Start statistics timer
                         if (m_statsTimer) {
                             m_statsTimer->start(1000);  // Update every 1 second
-                        }
-                        
-                        // Enable recording button
-                        if (m_recordBtn) {
-                            m_recordBtn->setEnabled(true);
                         }
                         
                         // Post-connect only: now that the connection is proven,
@@ -3891,6 +3982,9 @@ private:
         
         // 4) Attempt connection
         if (m_networkReceiver->connect_to_stream(address, port)) {
+            // Live mode before the first datagram: no file-derived state may
+            // leak into the stream, and the live path must be self-sufficient.
+            beginLiveMode();
             m_networkReceiver->start_reception();
             return true;
         } else {

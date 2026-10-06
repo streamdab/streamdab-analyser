@@ -53,10 +53,47 @@
 #include <QVBoxLayout>
 #include <QBuffer>
 #include <QImage>
+#include <QFile>
+#include <QDir>
+#include <QFileInfo>
+#include <QUdpSocket>
+#include <QHostAddress>
 #include <functional>
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
+
+// F1 regression helper: count the exact per-frame warning the stale-file guard
+// would emit. A global chained message handler is fine for a single test (the
+// GUI is single-threaded apart from the receiver worker).
+namespace {
+int g_invalidIndexWarnings = 0;
+QtMessageHandler g_prevMessageHandler = nullptr;
+
+void countInvalidIndexWarnings(QtMsgType type, const QMessageLogContext& context,
+                               const QString& msg)
+{
+    if (msg.contains(QStringLiteral("getRawFrameData: Invalid frame index"))) {
+        ++g_invalidIndexWarnings;
+    }
+    if (g_prevMessageHandler) {
+        g_prevMessageHandler(type, context, msg);
+    }
+}
+
+// F6: an ephemeral local UDP port for the test receiver, so the suite does not
+// fight over the production default 9200 under `ctest -j`.
+quint16 acquireFreeUdpPort()
+{
+    QUdpSocket probe;
+    if (!probe.bind(QHostAddress::LocalHost, 0)) {
+        return 0;
+    }
+    const quint16 port = probe.localPort();
+    probe.close();
+    return port;
+}
+}  // namespace
 
 #include "DockManager.h"
 #include "DockWidget.h"
@@ -133,6 +170,14 @@ private slots:
     void testMessagesTabRemoved();
     // T40: bottom strip has no hard maximum-height cap (resizable)
     void testBottomStripResizable();
+    // T43: live network-frame path on a fresh window (no file loaded) must not
+    // crash, and the Connect/Disconnect/Record transitions must be correct.
+    void testNetworkLiveFramePathNoCrash();
+    void testNetworkLiveReceptionRealSocket();
+    void testNetworkStreamButtonStates();
+    // F1 (network review): file load -> live connect must not leave the live
+    // path reading a stale file (no invalid-index warnings / cache pollution).
+    void testNetworkLiveAfterFileLoadNoStaleFileState();
 
 private:
     // Removes every DABAnalyzerWindow QSettings key used by the app so each
@@ -4359,6 +4404,299 @@ void TestGuiDockLayout::testTab3HexViewer()
                  qPrintable(QStringLiteral("Mode-III must include byte 139 (EF): %1")
                                 .arg(t.right(160))));
     }
+
+    w.close();
+    QCoreApplication::processEvents();
+    clearSettingsStore();
+}
+
+// ============================================================================
+// T43: live network-frame path. The receiver drives onNetworkFrameReceived()
+// with 6144-byte ETI frames; on a FRESH window (no file ever loaded) that path
+// must process real frames without dereferencing file-only state. Regression:
+// udp:// connect crashed the moment multicast frames arrived.
+// ============================================================================
+void TestGuiDockLayout::testNetworkLiveFramePathNoCrash()
+{
+    clearSettingsStore();
+    const QString fixture = QStringLiteral("../../eti/bkk_20062022_141637.eti");
+    QVERIFY2(QFileInfo::exists(fixture),
+             qPrintable(QString("fixture missing: %1 (cwd=%2)")
+                            .arg(fixture, QDir::currentPath())));
+
+    QFile f(fixture);
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    // Feed real frames through the exact receiver-entry slot. Enough frames to
+    // complete several DAB+ superframes and DLS+ label assemblies; kept modest
+    // so the app's decoded-FIG diagnostics stay well under the test message cap.
+    const int kFrameCount = 40;
+    const QByteArray frames = f.read(6144 * kFrameCount);
+    f.close();
+    QCOMPARE(frames.size(), 6144 * kFrameCount);
+
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    QVERIFY2(!w.isFileLoaded(),
+             "the live path must be exercised without a loaded capture file");
+
+    for (int i = 0; i < kFrameCount; ++i) {
+        w.feedNetworkFrameForTest(frames.mid(i * 6144, 6144));
+        // Drain queued FIG/service callbacks exactly as the live event loop
+        // would between network datagrams.
+        if (i % 10 == 0) {
+            QCoreApplication::processEvents();
+        }
+    }
+    QCoreApplication::processEvents();
+
+    // Reaching here proves no crash; the direct path must process every frame
+    // fed (real ETI-LI frames skip frame CRC, so all 40 are accepted).
+    QVERIFY2(w.processorFrameCountForTest() >= static_cast<uint64_t>(kFrameCount),
+             qPrintable(QString("direct live path processed only %1 of %2 frames")
+                            .arg(w.processorFrameCountForTest())
+                            .arg(kFrameCount)));
+
+    w.close();
+    QCoreApplication::processEvents();
+    clearSettingsStore();
+}
+
+// ============================================================================
+// T43: same live path, but driven through the REAL receiver worker thread by
+// sending 6144-byte ETI datagrams to the bound socket. This catches
+// worker-thread/GUI-thread interaction crashes that a direct slot call cannot.
+// ============================================================================
+void TestGuiDockLayout::testNetworkLiveReceptionRealSocket()
+{
+    clearSettingsStore();
+    const QString fixture = QStringLiteral("../../eti/bkk_20062022_141637.eti");
+    QVERIFY2(QFileInfo::exists(fixture),
+             qPrintable(QString("fixture missing: %1 (cwd=%2)")
+                            .arg(fixture, QDir::currentPath())));
+    QFile f(fixture);
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const int kFrameCount = 60;
+    const QByteArray frames = f.read(6144 * kFrameCount);
+    f.close();
+    QCOMPARE(frames.size(), 6144 * kFrameCount);
+
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+    QVERIFY(!w.isFileLoaded());
+
+    // F6: ephemeral local port (not the production default 9200) so parallel
+    // ctest runs cannot collide.
+    const quint16 port = acquireFreeUdpPort();
+    QVERIFY2(port != 0, "could not acquire a free UDP port for the test receiver");
+    QVERIFY(w.beginStreamConnectionForTest(
+        QStringLiteral("udp://239.192.0.1:%1").arg(port)));
+    // Wait until the worker has actually bound + joined before sending; UDP
+    // does not retransmit, so datagrams sent earlier are lost.
+    QTRY_VERIFY_WITH_TIMEOUT(w.streamEverConnectedForTest(), 5000);
+    // The worker binds AnyIPv4:<port>; loopback unicast reaches it.
+    QUdpSocket sender;
+    const QHostAddress target = QHostAddress::LocalHost;
+    int sent = 0;
+    for (int i = 0; i < kFrameCount; ++i) {
+        if (sender.writeDatagram(frames.mid(i * 6144, 6144), target, port) == 6144) {
+            ++sent;
+        }
+        QTest::qWait(2);
+        QCoreApplication::processEvents();
+    }
+    QVERIFY2(sent > 0, "sender must have written at least one datagram");
+    // Let the worker deliver and the GUI process the queued frames.
+    for (int i = 0; i < 300 && w.processorFrameCountForTest() < 20; ++i) {
+        QTest::qWait(10);
+        QCoreApplication::processEvents();
+    }
+
+    QVERIFY2(w.processorFrameCountForTest() >= 3,
+             qPrintable(QString("real receiver processed only %1 frames")
+                            .arg(w.processorFrameCountForTest())));
+
+    // The receiver's statistics timer fires 1 s after reception starts and its
+    // worker->GUI `statistics_updated` signal crosses a queued connection. That
+    // tick is exactly where the reported crash occurred, so wait past it (still
+    // pumping the event loop) — no crash proves the fix.
+    for (int i = 0; i < 150; ++i) {
+        QTest::qWait(10);
+        QCoreApplication::processEvents();
+    }
+
+    w.disconnectStreamForTest();
+    QCoreApplication::processEvents();
+    w.close();
+    QCoreApplication::processEvents();
+    clearSettingsStore();
+}
+
+// ============================================================================
+// T43: Connect/Disconnect/Record button transitions. The state must be set
+// synchronously in beginStreamConnection() (before any async receiver work),
+// a confirmed connection enables Record, a pre-connect failure re-arms Connect,
+// and Disconnect returns to the idle state.
+// ============================================================================
+void TestGuiDockLayout::testNetworkStreamButtonStates()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // --- Idle -------------------------------------------------------------
+    QVERIFY2(w.streamConnectButtonEnabledForTest(), "idle: Connect enabled");
+    QVERIFY2(!w.streamDisconnectButtonEnabledForTest(), "idle: Disconnect disabled");
+    QVERIFY2(!w.streamRecordButtonEnabledForTest(), "idle: Record disabled");
+
+    // --- Connect attempt: state changes BEFORE any async work ------------
+    const quint16 attemptPort = acquireFreeUdpPort();
+    QVERIFY2(attemptPort != 0, "could not acquire a free UDP port");
+    QVERIFY(w.beginStreamConnectionForTest(
+        QStringLiteral("udp://239.192.0.1:%1").arg(attemptPort)));
+    // Assert synchronously: no processEvents() in between, so this is the
+    // state set by beginStreamConnection() itself, not a later signal.
+    QVERIFY2(!w.streamConnectButtonEnabledForTest(),
+             "attempt: Connect must be disabled synchronously");
+    QVERIFY2(w.streamDisconnectButtonEnabledForTest(),
+             "attempt: Disconnect must be enabled synchronously");
+    QVERIFY2(!w.streamRecordButtonEnabledForTest(),
+             "attempt: Record stays disabled until the connection is confirmed");
+
+    // F5: tear the real receiver down BEFORE simulating a failure. Otherwise
+    // its async connection_status_changed(true) can land during
+    // processEvents() and overwrite the failure UI (timing-dependent).
+    w.disconnectStreamForTest();
+    QCoreApplication::processEvents();
+
+    // --- Failure before a confirmed connection re-arms Connect -----------
+    w.simulateStreamErrorForTest(QStringLiteral("Failed to bind to port 9200"));
+    QCoreApplication::processEvents();
+    QVERIFY2(w.streamConnectButtonEnabledForTest(), "failure: Connect re-armed");
+    QVERIFY2(!w.streamDisconnectButtonEnabledForTest(), "failure: Disconnect off");
+    QVERIFY2(!w.streamRecordButtonEnabledForTest(), "failure: Record off");
+    QVERIFY2(w.streamStatusTextForTest().contains(QStringLiteral("Error")),
+             qPrintable(QString("failure: red Error status expected, got: %1")
+                            .arg(w.streamStatusTextForTest())));
+
+    // --- New attempt, then a confirmed connection enables Record ---------
+    const quint16 confirmPort = acquireFreeUdpPort();
+    QVERIFY2(confirmPort != 0, "could not acquire a free UDP port");
+    QVERIFY(w.beginStreamConnectionForTest(
+        QStringLiteral("udp://239.192.0.1:%1").arg(confirmPort)));
+    QVERIFY2(!w.streamConnectButtonEnabledForTest(), "attempt 2: Connect disabled");
+    QVERIFY2(w.streamDisconnectButtonEnabledForTest(), "attempt 2: Disconnect enabled");
+    QVERIFY2(!w.streamRecordButtonEnabledForTest(), "attempt 2: Record disabled");
+
+    // Let the real worker settle (success OR failure) so no status event is
+    // still pending when the confirmed state is asserted below.
+    for (int i = 0; i < 50 && !w.streamEverConnectedForTest(); ++i) {
+        QTest::qWait(10);
+        QCoreApplication::processEvents();
+    }
+    w.simulateConnectionEstablishedForTest();
+    QCoreApplication::processEvents();
+    QVERIFY2(w.streamEverConnectedForTest(), "confirmed connect must set EverConnected");
+    QVERIFY2(!w.streamConnectButtonEnabledForTest(), "confirmed: Connect stays disabled");
+    QVERIFY2(w.streamDisconnectButtonEnabledForTest(), "confirmed: Disconnect enabled");
+    QVERIFY2(w.streamRecordButtonEnabledForTest(),
+             "confirmed: Record must be enabled");
+
+    // --- Disconnect returns to idle --------------------------------------
+    w.disconnectStreamForTest();
+    QCoreApplication::processEvents();
+    QVERIFY2(w.streamConnectButtonEnabledForTest(), "disconnect: Connect enabled");
+    QVERIFY2(!w.streamDisconnectButtonEnabledForTest(), "disconnect: Disconnect off");
+    QVERIFY2(!w.streamRecordButtonEnabledForTest(), "disconnect: Record off");
+    QVERIFY2(w.streamStatusTextForTest().contains(QStringLiteral("Disconnected")),
+             qPrintable(QString("disconnect: status must read Disconnected, got: %1")
+                            .arg(w.streamStatusTextForTest())));
+
+    w.close();
+    QCoreApplication::processEvents();
+    clearSettingsStore();
+}
+
+// ============================================================================
+// F1 (network review): load a real capture, then switch to live mode through
+// the Connect entry point. The live frames must NOT continue from the loaded
+// file's frame numbering/raw-frame data: beginLiveMode() drops the file state
+// and onFrameProcessed() must skip the file-backed raw-frame lookup, so the
+// per-frame "getRawFrameData: Invalid frame index" warning is never logged and
+// the raw-frame cache stays clean.
+// ============================================================================
+void TestGuiDockLayout::testNetworkLiveAfterFileLoadNoStaleFileState()
+{
+    clearSettingsStore();
+    const QString fixture = QStringLiteral("../../eti/bkk_20062022_141637.eti");
+    QVERIFY2(QFileInfo::exists(fixture),
+             qPrintable(QString("fixture missing: %1 (cwd=%2)")
+                            .arg(fixture, QDir::currentPath())));
+
+    // Real file load: the full Bangkok fixture (the exact capture the review
+    // refers to). Live frames are read from the same file separately.
+    const int kLiveFrames = 30;
+    QByteArray liveFrames;
+    {
+        QFile src(fixture);
+        QVERIFY(src.open(QIODevice::ReadOnly));
+        liveFrames = src.read(6144 * kLiveFrames);
+        src.close();
+        QCOMPARE(liveFrames.size(), 6144 * kLiveFrames);
+    }
+
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    w.autoLoadFile(fixture);
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded(), 120000);
+    QVERIFY2(w.processorFrameCountForTest() > 0,
+             "the file load must have processed frames");
+    const uint64_t framesAfterFile = w.processorFrameCountForTest();
+
+    // Switch to live mode through the real Connect entry point.
+    const quint16 port = acquireFreeUdpPort();
+    QVERIFY2(port != 0, "could not acquire a free UDP port");
+    QVERIFY(w.beginStreamConnectionForTest(
+        QStringLiteral("udp://239.192.0.1:%1").arg(port)));
+    QVERIFY2(!w.isFileLoaded(), "live mode must clear the file-loaded flag");
+    QVERIFY2(w.systemMessagesTextForTest().contains(
+                 QStringLiteral("switched to live mode; previous capture state cleared")),
+             "file->live switch must surface the capture-cleared notice (F2)");
+    // The switch resets the processor: live frame numbering restarts at 0.
+    QVERIFY2(w.processorFrameCountForTest() < framesAfterFile,
+             "beginLiveMode() must reset the ETI processor counters");
+
+    // Stop the (idle) test receiver; the live frames are driven directly.
+    w.disconnectStreamForTest();
+    QCoreApplication::processEvents();
+
+    // A file-derived cache must not survive the switch.
+    QCOMPARE(w.networkFrameCacheSizeForTest(), 0);
+
+    // Feed live frames; the file-backed lookup must be skipped entirely.
+    g_invalidIndexWarnings = 0;
+    g_prevMessageHandler = qInstallMessageHandler(countInvalidIndexWarnings);
+    for (int i = 0; i < kLiveFrames; ++i) {
+        w.feedNetworkFrameForTest(liveFrames.mid(i * 6144, 6144));
+        if (i % 10 == 0) {
+            QCoreApplication::processEvents();
+        }
+    }
+    QCoreApplication::processEvents();
+    qInstallMessageHandler(g_prevMessageHandler);
+    g_prevMessageHandler = nullptr;
+
+    QCOMPARE(g_invalidIndexWarnings, 0);
+    QCOMPARE(w.networkFrameCacheSizeForTest(), 0);  // not polluted
+    QVERIFY2(w.processorFrameCountForTest() >= static_cast<uint64_t>(kLiveFrames),
+             qPrintable(QString("live path processed only %1 of %2 frames after file load")
+                            .arg(w.processorFrameCountForTest())
+                            .arg(kLiveFrames)));
 
     w.close();
     QCoreApplication::processEvents();

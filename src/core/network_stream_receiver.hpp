@@ -196,6 +196,52 @@ struct NetworkStreamStatistics {
     
     std::chrono::steady_clock::time_point start_time;
     std::chrono::steady_clock::time_point last_update;
+
+    // Default-constructible + copyable VALUE type. The atomics make the
+    // implicit copy operations deleted, but the worker->GUI `statistics_updated`
+    // signal crosses a queued (cross-thread) connection, which REQUIRES a
+    // copyable metatype. Without these, Qt delivers a null reference to
+    // handle_worker_statistics() and the app segfaults on the first statistics
+    // tick after reception starts. Copying loads each atomic (a consistent
+    // per-field snapshot) — thread-safe because it never mutates the source.
+    NetworkStreamStatistics() = default;
+    NetworkStreamStatistics(const NetworkStreamStatistics& other)
+        : frames_received(other.frames_received.load())
+        , frames_processed(other.frames_processed.load())
+        , frames_dropped(other.frames_dropped.load())
+        , bytes_received(other.bytes_received.load())
+        , network_errors(other.network_errors.load())
+        , buffer_overflows(other.buffer_overflows.load())
+        , buffer_underflows(other.buffer_underflows.load())
+        , current_frame_rate(other.current_frame_rate.load())
+        , average_frame_rate(other.average_frame_rate.load())
+        , frame_loss_rate(other.frame_loss_rate.load())
+        , average_latency_us(other.average_latency_us.load())
+        , max_latency_us(other.max_latency_us.load())
+        , start_time(other.start_time)
+        , last_update(other.last_update)
+    {}
+    NetworkStreamStatistics& operator=(const NetworkStreamStatistics& other)
+    {
+        if (this == &other) {
+            return *this;
+        }
+        frames_received.store(other.frames_received.load());
+        frames_processed.store(other.frames_processed.load());
+        frames_dropped.store(other.frames_dropped.load());
+        bytes_received.store(other.bytes_received.load());
+        network_errors.store(other.network_errors.load());
+        buffer_overflows.store(other.buffer_overflows.load());
+        buffer_underflows.store(other.buffer_underflows.load());
+        current_frame_rate.store(other.current_frame_rate.load());
+        average_frame_rate.store(other.average_frame_rate.load());
+        frame_loss_rate.store(other.frame_loss_rate.load());
+        average_latency_us.store(other.average_latency_us.load());
+        max_latency_us.store(other.max_latency_us.load());
+        start_time = other.start_time;
+        last_update = other.last_update;
+        return *this;
+    }
     
     void reset() {
         frames_received = 0;
@@ -370,6 +416,9 @@ public:
     // worker: force the "receiving" flag, then feed a connection-status event.
     void setReceivingForTest(bool receiving) { m_receiving = receiving; }
     void simulateConnectionLostForTest() { handle_connection_status(false); }
+    // T43: drive the confirmed-connection transition (and the GUI button state
+    // it owns) without real multicast traffic.
+    void simulateConnectionEstablishedForTest() { handle_connection_status(true); }
     size_t reconnectionAttemptsForTest() const { return m_reconnection_attempts.load(); }
 
     // Callback registration for real-time processing
@@ -482,5 +531,12 @@ public:
 };
 
 } // namespace eti
+
+// Queued (cross-thread) signal transports for the receiver: these MUST be
+// registered metatypes or Qt delivers a null reference and the GUI segfaults.
+// NetworkStreamStatistics is now a copyable snapshot value type (above).
+Q_DECLARE_METATYPE(eti::NetworkStreamStatistics)
+Q_DECLARE_METATYPE(eti::NetworkPacket)
+Q_DECLARE_METATYPE(eti::NetworkStreamStatisticsSnapshot)
 
 #endif // NETWORK_STREAM_RECEIVER_H
