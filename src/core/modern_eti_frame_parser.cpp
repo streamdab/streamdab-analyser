@@ -1153,9 +1153,11 @@ void ModernETIFrameParser::processFIG02_ServiceOrg(const eti::FigBlock& fig, FIG
                                    (static_cast<uint32_t>(fig.data[offset + 1]) << 16) |
                                    (static_cast<uint32_t>(fig.data[offset + 2]) << 8) |
                                    static_cast<uint32_t>(fig.data[offset + 3]);
-            // Keep the FULL 32-bit SId (ECC | CId/SRef-high | SRef) so the
-            // output matches etisnoop (e.g. 0xF3200001); service_id carries
-            // the 16-bit SRef for internal keying (F8).
+            // Keep the FULL 32-bit SId (ECC | CId/SRef-high | SRef) in `sid32`
+            // so the output matches etisnoop (e.g. 0xF3200001) and validation
+            // can accept a legitimate SRef==0 (0xF3200000). `service_id` keeps
+            // the 16-bit SRef for internal keying (F8); T35 fixed the CLI drop of
+            // 0xF3200000 by validating/keying on `sid32` wherever it is set.
             service.sid32 = sid32;
             service.service_id = static_cast<uint16_t>(sid32 & 0xFFFF);
             service.extended_country_code = fig.data[offset];                    // ECC byte

@@ -734,6 +734,16 @@ struct DabService {
     uint16_t character_flag{0};        // Character definition field (mask)
 
     bool validate_service_id() const {
+        // Data services (PD=1) carry a full 32-bit SId in `sid32`
+        // ([ECC][CId|SRef-hi][SRef]); their low 16 bits (SRef) may legitimately
+        // be 0x0000 (e.g. 0xF3200000), so validate the full value there instead
+        // of the truncated 16-bit SRef. Programme services keep the historical
+        // 16-bit rule (0x0000/0xFFFF invalid).
+        // Data-vs-programme is inferred from `sid32` (data services set it;
+        // programme services leave it 0) — keep in sync with FIG 0/2 P/D.
+        if (sid32 != 0) {
+            return sid32 != 0xFFFFFFFFu;
+        }
         return service_id != 0x0000 && service_id != 0xFFFF;
     }
 

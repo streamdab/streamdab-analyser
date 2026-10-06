@@ -715,10 +715,14 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
                                 if (service.components.empty()) {
                                     continue;
                                 }
-                                state.services.insert(service.service_id);
-                                if (service.sid32 > 0xFFFF) {
-                                    state.services.insert(service.sid32);
-                                }
+                                // F8/T35: use the full SID as the identity (data
+                                // services: 32-bit `sid32`; programme: 16-bit id).
+                                // Data-vs-programme is inferred from `sid32` (data
+                                // services set it, programme leave it 0 — FIG 0/2
+                                // P/D); keep in sync.
+                                state.services.insert(service.sid32 > 0xFFFFu
+                                                          ? service.sid32
+                                                          : static_cast<uint32_t>(service.service_id));
                             }
                             // Sub-channels from FIG 0/1 plus the STC-carrying
                             // sub-channels of the frame.
@@ -1018,14 +1022,29 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
 
                         for (const auto& service : figResult.discovered_services) {
                             if (service.validate_service_id()) {
-                                uint32_t sid = service.service_id;
+                                // F8/T35: key the aggregate on the service's FULL
+                                // identity. Data services (PD=1) carry a 32-bit SId
+                                // in `sid32`; keying on the truncated 16-bit SRef
+                                // both dropped SRef==0 (0xF3200000) and could collide
+                                // it with programme SId 0x0000. Data-vs-programme is
+                                // inferred from `sid32` (data services set it,
+                                // programme leave it 0 — FIG 0/2 P/D); keep in sync.
+                                // NOTE: the map is a QMap<uint32_t, ...>, so the key
+                                // also defines the emitted order — full 32-bit data
+                                // SIDs (0xF3...) now sort AFTER the 16-bit programme
+                                // SIDs instead of at the head. That order change is
+                                // intentional (it matches ascending full SID; the GUI
+                                // list is keyed the same way).
+                                const uint32_t sid = (service.sid32 > 0xFFFFu)
+                                                         ? service.sid32
+                                                         : static_cast<uint32_t>(service.service_id);
                                 if (!discovered_services.contains(sid)) {
                                     eti::DabService stored_service = service;
                                     if (stored_service.extended_country_code == 0 && service_fallback_ecc != 0) {
                                         stored_service.extended_country_code = service_fallback_ecc;
                                     }
                                     discovered_services[sid] = stored_service;
-                                    qCInfo(etiMain) << "Discovered service:" << QString("0x%1").arg(sid, 4, 16, QChar('0'))
+                                    qCInfo(etiMain) << "Discovered service:" << QString("0x%1").arg(sid, 8, 16, QChar('0'))
                                                    << "Label:" << QString::fromStdString(service.label);
                                 } else {
                                     // Merge label, country info and components
@@ -1187,9 +1206,17 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
     // Populate service information
     result.servicesFound = discovered_services.size();
     for (const auto& service : discovered_services) {
+        // F8/T35: identify a service by its full SID (data services use the
+        // 32-bit `sid32`; programme services use the 16-bit `service_id`).
+        // Data-vs-programme is inferred from `sid32` (data services set it,
+        // programme leave it 0 — FIG 0/2 P/D); keep in sync.
+        const quint32 fullSid = (service.sid32 > 0xFFFFu)
+                                    ? service.sid32
+                                    : static_cast<quint32>(service.service_id);
         QString service_name = QString::fromStdString(service.label);
         if (service_name.isEmpty()) {
-            service_name = QString("Service 0x%1").arg(service.service_id, 4, 16, QChar('0'));
+            service_name = QString("Service 0x%1")
+                               .arg(fullSid, fullSid > 0xFFFFu ? 8 : 4, 16, QChar('0'));
         }
         result.serviceNames << service_name;
 
@@ -1212,8 +1239,9 @@ HeadlessETIProcessor::ProcessingResult HeadlessETIProcessor::process_file(const 
             service_type = "Data Service";
         }
 
-        // Emit service discovered signal
-        emit service_discovered(service.service_id, service_name, service_type);
+        // Emit service discovered signal (full SID so data services surface
+        // their 32-bit identity, e.g. 0xF3200000).
+        emit service_discovered(fullSid, service_name, service_type);
     }
     // AGENT 45 FIX: Convert SubChannelInfo to Fig01SubchannelInfo for YAML output
     for (const auto& subchannel : discovered_subchannels) {

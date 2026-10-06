@@ -4,7 +4,7 @@
  *        `fic_health:` YAML sections (docs/fixes/CLI_FIG_COVERAGE.md).
  *
  * Validates on the REAL Bangkok fixture (eti/bkk_20062022_141637.eti,
- * ensemble 0x2000 "Bangkok DAB+", 15 services, 16 subchannels EEP-3A):
+ * ensemble 0x2000 "Bangkok DAB+", 16 services, 16 subchannels EEP-3A):
  *   (a) --fig-trace emits a parseable per-frame FIG instance trace with
  *       readable values (FIG 0/0 ensemble id, FIG 1/0 + 1/1 labels);
  *   (b) the `figs:` inventory lists the 6 core FIGs with crc_failures 0;
@@ -403,11 +403,12 @@ void TestCLIFigTrace::defaultOutput_keepsBaselineFields()
     const QString yaml = QString::fromUtf8(file.readAll());
     file.close();
 
-    // Baseline fields: ensemble 0x2000 "Bangkok DAB+", 15 services,
+    // Baseline fields: ensemble 0x2000 "Bangkok DAB+", 16 services (14 DAB+
+    // audio + 2 data services incl. the full 32-bit SID 0xF3200000),
     // 16 subchannels EEP-3A, FIG statistics section.
     QVERIFY(yaml.contains("ensemble_id: 0x2000"));
     QVERIFY(yaml.contains("ensemble_label: \"Bangkok DAB+\""));
-    QCOMPARE(yaml.count("  - service_id:"), 15);
+    QCOMPARE(yaml.count("  - service_id:"), 16);
     QCOMPARE(yaml.count("  - subchannel_id:"), 16);
     QVERIFY(yaml.contains("protection_form: \"EEP-3A\""));
     QVERIFY(yaml.contains("fig_statistics:"));
