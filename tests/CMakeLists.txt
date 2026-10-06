@@ -656,17 +656,17 @@ if(CAN_RUN_GUI_TESTS)
     # Compiles the REAL application sources so the actual DABAnalyzerWindow
     # (src/main.cpp via GUI_TEST_MODE, main() excluded) can be validated:
     #   4 CDockManagers, 26 docks, 3-column Tab 1, persistence round-trip.
-    set(DOCK_TEST_SOURCES
-        gui/test_gui_dock_layout.cpp
-    )
-    # Everything the app links, minus src/main.cpp (included by the test file).
+    # Everything the app links, minus src/main.cpp (included by each test file).
     # ${SOURCES} etc. hold paths relative to the top-level source dir.
+    set(APP_UNDER_TEST_SOURCES)
     foreach(src ${SOURCES} ${EDI_SOURCES} ${CLI_SOURCES})
         if(NOT src STREQUAL "src/main.cpp")
-            list(APPEND DOCK_TEST_SOURCES ${CMAKE_SOURCE_DIR}/${src})
+            list(APPEND APP_UNDER_TEST_SOURCES ${CMAKE_SOURCE_DIR}/${src})
         endif()
     endforeach()
-    add_executable(test_gui_dock_layout ${DOCK_TEST_SOURCES})
+    add_executable(test_gui_dock_layout
+        gui/test_gui_dock_layout.cpp
+        ${APP_UNDER_TEST_SOURCES})
     target_link_libraries(test_gui_dock_layout
         Qt6::Test
         Qt6::Core
@@ -696,11 +696,44 @@ if(CAN_RUN_GUI_TESTS)
         TIMEOUT 240
     )
 
+    # Test 6: Qt-ADS Dock Interaction QA (v1.3 GUI migration, T4)
+    # Separate target (not an extension of test_gui_dock_layout) so the slow
+    # fixture-driven dock suite does not grow: this suite drives float/re-dock,
+    # auto-hide toggle, cross-area moves, tabify/untabify, persistence after a
+    # non-default arrangement and 28-dock reachability, all offscreen and
+    # fixture-free.
+    add_executable(test_dock_interactions
+        gui/test_dock_interactions.cpp
+        ${APP_UNDER_TEST_SOURCES})
+    target_link_libraries(test_dock_interactions
+        Qt6::Test
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
+        qtadvanceddocking-qt6
+        ${ZMQ_LIBRARIES}
+        ${T34_AUDIO_LIBS}
+        pthread
+    )
+    target_compile_definitions(test_dock_interactions PRIVATE GUI_TEST_MODE ${T34_AUDIO_DEFINES})
+    target_include_directories(test_dock_interactions PRIVATE ${T34_AUDIO_INCLUDES})
+    # Same main.moc contract as test_gui_dock_layout (see above).
+    add_dependencies(test_dock_interactions DABAnalyzer_Enhanced_FilteringBuild)
+    target_include_directories(test_dock_interactions PRIVATE
+        ${CMAKE_BINARY_DIR}/DABAnalyzer_Enhanced_FilteringBuild_autogen/include)
+    add_test(NAME test_dock_interactions
+             COMMAND test_dock_interactions)
+    set_tests_properties(test_dock_interactions PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 240
+    )
+
     message(STATUS "  ✓ test_gui_stream_info_panel (10 widget tests)")
     message(STATUS "  ✓ test_gui_service_discovery_panel (13 widget tests)")
     message(STATUS "  ✓ test_gui_fig_type_display_panel (15 widget tests)")
     message(STATUS "  ✓ test_gui_main_window (16 integration tests)")
     message(STATUS "  ✓ test_gui_dock_layout (7 dock layout tests)")
+    message(STATUS "  ✓ test_dock_interactions (9 dock interaction tests)")
 
 else()
     message(STATUS "  Skipping GUI tests (no display environment)")
