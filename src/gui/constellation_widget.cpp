@@ -124,6 +124,13 @@ bool ConstellationWidget::initialize()
     }
 }
 
+int ConstellationWidget::constellationPointCount() const
+{
+    // GUI-thread only accessor (see the m_dataMutex note in the header): the
+    // 16 ms update timer and every reader run on the Qt main thread.
+    return m_constellationPoints.size();
+}
+
 void ConstellationWidget::setupRealTimeTimer()
 {
     m_updateTimer = new QTimer(this);

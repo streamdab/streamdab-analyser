@@ -65,6 +65,16 @@ set(SOURCES
     src/core/dab_service_discovery_engine.cpp
     src/core/fig_parser.cpp
     src/utils/logger.cpp
+    # Adopted src/gui widgets (Wave B). Each was a stale pre-v1.3 generation
+    # file, fixed minimally to compile against the current src/core and driven
+    # by DABAnalyzerWindow adapters (no fake data).
+    src/gui/constellation_widget.cpp
+    src/gui/about_dialog.cpp
+    src/gui/performance_dashboard.cpp
+    src/gui/real_time_chart_widget.cpp
+    src/gui/settings_dialog.cpp
+    src/gui/etsi_compliance_monitor.cpp
+    src/gui/professional_export_manager.cpp
 )
 
 # EDI Protocol sources (ETSI TS 102 693)

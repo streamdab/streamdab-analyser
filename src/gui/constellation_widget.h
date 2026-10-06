@@ -148,6 +148,18 @@ public:
     void stopRealTimeUpdates();
 
     /**
+     * @brief Check if the widget completed initialize()
+     * @return true once the update timer + initial data are set up
+     */
+    bool isInitialized() const { return m_isInitialized; }
+
+    /**
+     * @brief Number of constellation points currently held
+     * @return Point count (>0 once synthetic data has been generated)
+     */
+    int constellationPointCount() const;
+
+    /**
      * @brief Get current signal quality
      * @return Signal quality percentage (0-100)
      */
@@ -368,6 +380,9 @@ private:
 
     // Real-time update system
     QTimer *m_updateTimer;
+    // GUI-thread only: the render/update timer, paint and data mutation all
+    // run on the Qt main thread; the guard is non-mutable (no const method
+    // locks it).
     QMutex m_dataMutex;
 
     // Signal data

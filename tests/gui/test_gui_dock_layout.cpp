@@ -16,9 +16,9 @@
  *   d) the Input Source toolbar sits at the TOP of the Tab-1 page with an
  *      expandable network row (visible only in Network Stream mode)
  *   e) QSettings persistence round-trip (closed dock stays closed; restored
- *      group structure matches the default layout) incl. layout_version=5
- *   f) stale v1/v2/v3/v4 layout state (layout_version != 5) is discarded once so
- *      the first run after the upgrade shows the new default layout
+ *      group structure matches the default layout) incl. layout_version=6
+ *   f) stale v1/v2/v3/v4/v5 layout state (layout_version != 6) is discarded once
+ *      so the first run after the upgrade shows the new default layout
  *   g) auto-hide (pin) config sanity
  *   h) floating round-trip safety (float a dock, re-dock it, no crash)
  *   i) default ACTIVE tab per tabbed group on a fresh launch (first dock of
@@ -47,6 +47,9 @@
 #include <QRadioButton>
 #include <QPushButton>
 #include <QLineEdit>
+#include <QSpinBox>
+#include <QAction>
+#include <QScrollArea>
 #include <QVBoxLayout>
 #include <QBuffer>
 #include <QImage>
@@ -71,10 +74,13 @@ private slots:
     void initTestCase();
     void cleanupTestCase();
     void testFourDockManagers();
-    void test25DocksWithExpectedNames();
+    void test27DocksWithExpectedNames();
     void testDefaultGroupedPlacement();
     void testDefaultActiveTabs();
-    void testBottomSixDocks();
+    void testBottomEightDocks();
+    // Wave B: adopted src/gui widgets + File/Help menu entries
+    void testAdoptedWidgetsAndExportRealFixture();
+    void testAboutAndSettingsDialogs();
     void testInputToolbar();
     // T23: Input menu removed; ⚙ opens the UDP settings dialog
     void testUdpSettingsGearOpensDialog();
@@ -113,6 +119,8 @@ private slots:
     void testPlayerPanelTransportControls();
     void testPlaybackController();
     void testPlayerActiveTabAfterVersionBump();
+    // T36: stale v5 center order/active tabs discarded (5 -> 6)
+    void testT36CenterOrderAfterVersionBump();
     // T32: Player service selector + per-service media pipeline
     void testPlayerServiceSelector();
     // T32 review #4: retained-slide eviction (tiny cap, cross-service)
@@ -213,6 +221,11 @@ void TestGuiDockLayout::initTestCase()
     // store ("StreamDAB-Analyzer","DABAnalyzer"). Redirect it to Qt's test-mode
     // location so the real user config is never touched, and start empty.
     QStandardPaths::setTestModeEnabled(true);
+    // Wave B: SettingsDialog uses a default QSettings, which resolves org/app
+    // from QCoreApplication. Match the app so the round-trip test hits the
+    // same test-mode store.
+    QCoreApplication::setOrganizationName(QStringLiteral("StreamDAB-Analyzer"));
+    QCoreApplication::setApplicationName(QStringLiteral("DABAnalyzer"));
     QSettings(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer")).clear();
 }
 
@@ -241,7 +254,7 @@ void TestGuiDockLayout::testFourDockManagers()
     QCoreApplication::processEvents();
 }
 
-void TestGuiDockLayout::test25DocksWithExpectedNames()
+void TestGuiDockLayout::test27DocksWithExpectedNames()
 {
     clearSettingsStore();
     DABAnalyzerWindow w;
@@ -271,13 +284,15 @@ void TestGuiDockLayout::test25DocksWithExpectedNames()
         QStringLiteral("tab2_Right"),
         // Tab 3 (2)
         QStringLiteral("tab3_Left"), QStringLiteral("tab3_Right"),
-        // Shared bottom (6) - incl. bottom_Messages (moved from Tab 1)
+        // Shared bottom (8) - Wave B adds Real-Time Chart + ETSI Compliance.
         QStringLiteral("bottom_SystemMessages"), QStringLiteral("bottom_Performance"),
-        QStringLiteral("bottom_ErrorDetection"), QStringLiteral("bottom_Logging"),
+        QStringLiteral("bottom_RealTimeChart"),
+        QStringLiteral("bottom_ErrorDetection"), QStringLiteral("bottom_EtsiCompliance"),
+        QStringLiteral("bottom_Logging"),
         QStringLiteral("bottom_Constellation"), QStringLiteral("bottom_Messages"),
     };
 
-    QCOMPARE(all.size(), expected.size());  // 25 docks
+    QCOMPARE(all.size(), expected.size());  // 27 docks
     QCOMPARE(all, expected);
 
     w.close();
@@ -451,13 +466,13 @@ void TestGuiDockLayout::testDefaultActiveTabs()
     // Error & Statistics group
     verifyGroupActive(QStringLiteral("tab1_ErrorCounter"), QStringLiteral("tab1_ErrorCounter"));
 
-    // Bottom strip: 6 tabbed docks with System Messages active on launch.
+    // Bottom strip: 8 tabbed docks with System Messages active on launch.
     auto* mBottom = w.findChild<ads::CDockManager*>("bottomDockManager");
     QVERIFY(mBottom);
     ads::CDockAreaWidget* bottomArea =
         mBottom->findDockWidget(QStringLiteral("bottom_SystemMessages"))->dockAreaWidget();
     QVERIFY(bottomArea);
-    QCOMPARE(bottomArea->dockWidgetsCount(), 6);
+    QCOMPARE(bottomArea->dockWidgetsCount(), 8);
     ads::CDockWidget* bottomCurrent = bottomArea->currentDockWidget();
     QVERIFY(bottomCurrent);
     QCOMPARE(bottomCurrent->objectName(), QStringLiteral("bottom_SystemMessages"));
@@ -466,7 +481,7 @@ void TestGuiDockLayout::testDefaultActiveTabs()
     QCoreApplication::processEvents();
 }
 
-void TestGuiDockLayout::testBottomSixDocks()
+void TestGuiDockLayout::testBottomEightDocks()
 {
     clearSettingsStore();
     DABAnalyzerWindow w;
@@ -484,13 +499,15 @@ void TestGuiDockLayout::testBottomSixDocks()
 
     const QSet<QString> bottomNames = {
         QStringLiteral("bottom_SystemMessages"), QStringLiteral("bottom_Performance"),
-        QStringLiteral("bottom_ErrorDetection"), QStringLiteral("bottom_Logging"),
+        QStringLiteral("bottom_RealTimeChart"),
+        QStringLiteral("bottom_ErrorDetection"), QStringLiteral("bottom_EtsiCompliance"),
+        QStringLiteral("bottom_Logging"),
         QStringLiteral("bottom_Constellation"), QStringLiteral("bottom_Messages")};
     const QSet<QString> actual = dockNames(mBottom);
     QCOMPARE(actual, bottomNames);
-    QCOMPARE(actual.size(), 6);
+    QCOMPARE(actual.size(), 8);
 
-    // The 6 bottom docks are TABBED into a single shared dock area. Note: a
+    // The 8 bottom docks are TABBED into a single shared dock area. Note: a
     // restoreState() may leave a ghost area pending deleteLater, so derive the
     // areas from the docks themselves instead of findChildren().
     ads::CDockAreaWidget* sharedArea = nullptr;
@@ -505,7 +522,74 @@ void TestGuiDockLayout::testBottomSixDocks()
         }
     }
     QVERIFY(sharedArea);
-    QCOMPARE(sharedArea->dockWidgetsCount(), 6);
+    QCOMPARE(sharedArea->dockWidgetsCount(), 8);
+
+    // Wave B: exact tab ORDER + titles as required by the placement spec.
+    {
+        const QStringList expectedOrder = {
+            QStringLiteral("bottom_SystemMessages"), QStringLiteral("bottom_Performance"),
+            QStringLiteral("bottom_RealTimeChart"), QStringLiteral("bottom_ErrorDetection"),
+            QStringLiteral("bottom_EtsiCompliance"), QStringLiteral("bottom_Logging"),
+            QStringLiteral("bottom_Constellation"), QStringLiteral("bottom_Messages")};
+        const QStringList expectedTitles = {
+            QStringLiteral("System Messages"), QStringLiteral("Performance"),
+            QStringLiteral("Real-Time Chart"), QStringLiteral("Error Detection"),
+            QStringLiteral("ETSI Compliance"), QStringLiteral("Logging"),
+            QStringLiteral("Constellation"), QStringLiteral("Messages")};
+        const QList<ads::CDockWidget*> tabs = sharedArea->dockWidgets();
+        QCOMPARE(tabs.size(), expectedOrder.size());
+        QStringList actualOrder;
+        QStringList actualTitles;
+        for (ads::CDockWidget* d : tabs) {
+            actualOrder << d->objectName();
+            actualTitles << d->windowTitle();
+        }
+        QCOMPARE(actualOrder, expectedOrder);
+        QCOMPARE(actualTitles, expectedTitles);
+    }
+
+    // Wave B: the four heavy adopted tabs are wrapped in frameless, resizable
+    // QScrollAreas so the 120 px strip cap keeps the light tabs compact while
+    // the heavy tabs stay usable (scrollable) instead of being clipped.
+    const QStringList heavyNames = {
+        QStringLiteral("bottom_Performance"), QStringLiteral("bottom_RealTimeChart"),
+        QStringLiteral("bottom_EtsiCompliance"), QStringLiteral("bottom_Constellation")};
+    for (const QString& name : heavyNames) {
+        ads::CDockWidget* dock = mBottom->findDockWidget(name);
+        QVERIFY2(dock, qPrintable(name));
+        auto* area = qobject_cast<QScrollArea*>(dock->widget());
+        QVERIFY2(area, qPrintable(name + QStringLiteral(" must be wrapped in a QScrollArea")));
+        QVERIFY2(area->widgetResizable(),
+                 qPrintable(name + QStringLiteral(" scroll area must be widgetResizable")));
+        QVERIFY2(area->frameShape() == QFrame::NoFrame,
+                 qPrintable(name + QStringLiteral(" scroll area must be frameless")));
+        QWidget* inner = area->widget();
+        QVERIFY2(inner, qPrintable(name + QStringLiteral(" scroll area must host content")));
+        // Content must be taller than the 120 px strip cap, otherwise the tab
+        // would be clipped with nothing to scroll.
+        const int contentMin = qMax(inner->minimumSize().height(),
+                                    inner->minimumSizeHint().height());
+        QVERIFY2(contentMin > 120,
+                 qPrintable(QString("%1 content min height %2 must exceed the 120 px cap")
+                                .arg(name).arg(contentMin)));
+    }
+
+    // The Performance tab hosts the adopted PerformanceDashboard (not labels).
+    auto* perfScroll = qobject_cast<QScrollArea*>(
+        mBottom->findDockWidget(QStringLiteral("bottom_Performance"))->widget());
+    QVERIFY(perfScroll);
+    QVERIFY2(qobject_cast<PerformanceDashboard*>(perfScroll->widget()),
+             "Performance tab must host a PerformanceDashboard");
+
+    // The Constellation tab is no longer the dashed placeholder — it hosts the
+    // real ConstellationWidget (inside the honestly-labelled banner + scroll).
+    auto* constScroll = qobject_cast<QScrollArea*>(
+        mBottom->findDockWidget(QStringLiteral("bottom_Constellation"))->widget());
+    QVERIFY(constScroll);
+    QVERIFY2(constScroll->widget()->findChild<ConstellationWidget*>(),
+             "Constellation tab must host a ConstellationWidget");
+    QVERIFY2(w.constellationWidgetForTest(),
+             "the window must own the adopted ConstellationWidget");
 
     w.close();
     QCoreApplication::processEvents();
@@ -675,7 +759,7 @@ void TestGuiDockLayout::testPersistenceRoundTrip()
     }
 
     const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 5);
+    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 6);
     QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab2")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab3")).isNull());
@@ -756,7 +840,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
 {
     // Stale v1 settings (layout_version 1 + a saved layout with Now Playing
     // closed) must be DISCARDED once: the next launch shows the new default
-    // layout (Now Playing visible, groups intact) and re-saves version 2.
+    // layout (Now Playing visible, groups intact) and re-saves version 6.
     QStandardPaths::setTestModeEnabled(true);
     clearSettingsStore();
 
@@ -788,7 +872,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
     }
     {
         const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(check.value(versionKey).toInt(), 5);
+        QCOMPARE(check.value(versionKey).toInt(), 6);
         QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     }
 
@@ -845,14 +929,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(mBottom);
         QVERIFY(mBottom->findDockWidget(QStringLiteral("bottom_Messages")));
 
-        w2.close(); // writes layout version 5 again
+        w2.close(); // writes layout version 6 again
         QCoreApplication::processEvents();
     }
 
-    // 4) Version is 5 again; a third launch restores normally (v5 round-trip).
+    // 4) Version is 6 again; a third launch restores normally (v6 round-trip).
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 5);
+        QCOMPARE(s.value(versionKey).toInt(), 6);
     }
     {
         DABAnalyzerWindow w3;
@@ -863,17 +947,17 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(m1);
         ads::CDockWidget* np = m1->findDockWidget(hiddenDockName);
         QVERIFY(np);
-        QVERIFY(!np->isClosed());  // v5 state restored (Now Playing visible)
+        QVERIFY(!np->isClosed());  // v6 state restored (Now Playing visible)
 
         w3.close();
         QCoreApplication::processEvents();
     }
 
-    // 5) Real upgrade path: a stale v4 store (layout_version == 4, the MOT-
-    // Slideshow predecessor before T27/T28/T29) must also be discarded once, not
-    // only v1. Produce a v4-tagged store whose saved layout differs (Now Playing
-    // hidden), then confirm the next launch shows the default redesign layout
-    // and re-saves v5.
+    // 5) Real upgrade path: a stale v5 store (layout_version == 5, the T30.5
+    // predecessor before the T36 center-order fix) must also be discarded once,
+    // not only v1. Produce a v5-tagged store whose saved layout differs (Now
+    // Playing hidden), then confirm the next launch shows the default redesign
+    // layout and re-saves v6.
     {
         DABAnalyzerWindow w;
         w.show();
@@ -884,14 +968,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(np);
         np->toggleView(false);
         QCoreApplication::processEvents();
-        w.close();  // writes layout_version 5 with Now Playing hidden
+        w.close();  // writes layout_version 6 with Now Playing hidden
         QCoreApplication::processEvents();
     }
     {
         QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 5);
+        QCOMPARE(s.value(versionKey).toInt(), 6);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
-        s.setValue(versionKey, 4);  // simulate the v4 -> v5 migration
+        s.setValue(versionKey, 5);  // simulate the v5 -> v6 migration
         s.sync();
     }
     {
@@ -903,14 +987,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         ads::CDockWidget* np = m1->findDockWidget(hiddenDockName);
         QVERIFY(np);
         QVERIFY2(!np->isClosed() && np->isVisible(),
-                 "stale v4 layout must be discarded: Now Playing visible in "
+                 "stale v5 layout must be discarded: Now Playing visible in "
                  "the default redesign layout");
-        w4.close();  // re-saves layout_version 5
+        w4.close();  // re-saves layout_version 6
         QCoreApplication::processEvents();
     }
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 5);
+        QCOMPARE(s.value(versionKey).toInt(), 6);
     }
 
     clearSettingsStore();
@@ -3150,7 +3234,8 @@ void TestGuiDockLayout::testPlaybackController()
 }
 
 // ============================================================================
-// T29: a stale v4 layout that restored the Decoder tab is discarded (4 -> 5)
+// T29: a stale (previous-version) layout that restored the Decoder tab is
+// discarded across the version bump (now 5 -> 6)
 // ============================================================================
 void TestGuiDockLayout::testPlayerActiveTabAfterVersionBump()
 {
@@ -3168,12 +3253,12 @@ void TestGuiDockLayout::testPlayerActiveTabAfterVersionBump()
         // Simulate the stale user state: the Decoder tab is active.
         player->dockAreaWidget()->setCurrentDockWidget(decoder);
         QCoreApplication::processEvents();
-        w.close();  // saves layout_version 5 with Decoder active
+        w.close();  // saves layout_version 6 with Decoder active
         QCoreApplication::processEvents();
     }
     {
         QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        s.setValue(QStringLiteral("docking/layout_version"), 4);  // stale v4
+        s.setValue(QStringLiteral("docking/layout_version"), 5);  // stale v5
         s.sync();
     }
     {
@@ -3191,6 +3276,125 @@ void TestGuiDockLayout::testPlayerActiveTabAfterVersionBump()
         w.close();
         QCoreApplication::processEvents();
     }
+    clearSettingsStore();
+}
+
+// ============================================================================
+// T36: a saved v5 state with the OLD Tab-1 center order + old active tabs is
+// discarded once (5 -> 6); after the reset the center order and every group's
+// default active dock are the corrected ones.
+// ============================================================================
+void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
+{
+    QStandardPaths::setTestModeEnabled(true);
+    clearSettingsStore();
+    const QString versionKey = QStringLiteral("docking/layout_version");
+
+    // 1) Fresh launch: build the NEW default, then MUTATE the center column
+    //    back to the REAL pre-T30/v5 order (Signal Analysis, Frame Analysis,
+    //    Now Playing) and select the old active tabs (CU Usage, Hex/ETSI
+    //    Compliance), and persist that arrangement with the current version.
+    //    Reference old order: 1512f53 `centerDocks = {EnsembleExplorer…,
+    //    FrameNavigator…, NowPlaying}` (Now Playing was the bottom entry).
+    {
+        DABAnalyzerWindow w;
+        w.show();
+        QCoreApplication::processEvents();
+        auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
+        QVERIFY(m1);
+
+        ads::CDockWidget* np = m1->findDockWidget(QStringLiteral("tab1_NowPlaying"));
+        ads::CDockWidget* ens = m1->findDockWidget(QStringLiteral("tab1_EnsembleExplorer"));
+        ads::CDockWidget* cu = m1->findDockWidget(QStringLiteral("tab1_CUUsage"));
+        ads::CDockWidget* nav = m1->findDockWidget(QStringLiteral("tab1_FrameNavigator"));
+        ads::CDockWidget* hex = m1->findDockWidget(QStringLiteral("tab1_HexCompliance"));
+        QVERIFY(np && ens && cu && nav && hex);
+
+        // Old active tabs: Signal Analysis on CU Usage, Frame Analysis on
+        // Hex/ETSI Compliance.
+        ens->dockAreaWidget()->setCurrentDockWidget(cu);
+        nav->dockAreaWidget()->setCurrentDockWidget(hex);
+
+        // Old center order: Signal Analysis (top), Frame Analysis, Now Playing
+        // (bottom). The new default is [Now Playing, Signal Analysis, Frame
+        // Analysis], so moving Now Playing to the bottom reconstructs the real
+        // pre-T30/v5 permutation.
+        QSplitter* root = rootOfDock(m1, m1->findDockWidget("tab1_Player"));
+        QVERIFY(root);
+        auto* centerCol = qobject_cast<QSplitter*>(root->widget(1));
+        QVERIFY(centerCol);
+        QCOMPARE(centerCol->count(), 3);
+        QWidget* npArea = np->dockAreaWidget();
+        QWidget* saArea = ens->dockAreaWidget();
+        QWidget* faArea = nav->dockAreaWidget();
+        QCOMPARE(centerCol->widget(0), npArea);
+        centerCol->addWidget(npArea);         // Now Playing -> bottom
+        QCoreApplication::processEvents();
+
+        // Confirm the OLD order was applied before saving.
+        QCOMPARE(centerCol->widget(0), saArea);
+        QCOMPARE(centerCol->widget(1), faArea);
+        QCOMPARE(centerCol->widget(2), npArea);
+        QCOMPARE(ens->dockAreaWidget()->currentDockWidget()->objectName(),
+                 QStringLiteral("tab1_CUUsage"));
+        QCOMPARE(nav->dockAreaWidget()->currentDockWidget()->objectName(),
+                 QStringLiteral("tab1_HexCompliance"));
+
+        w.close();  // persists the old-order layout with the current version
+        QCoreApplication::processEvents();
+    }
+    {
+        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        QCOMPARE(s.value(versionKey).toInt(), 6);
+        QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
+        s.setValue(versionKey, 5);  // simulate a stale v5 store
+        s.sync();
+    }
+
+    // 2) Relaunch: the stale v5 state must be discarded; the center order and
+    //    each group's default active dock are the corrected defaults.
+    {
+        DABAnalyzerWindow w;
+        w.show();
+        QCoreApplication::processEvents();
+        auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
+        QVERIFY(m1);
+
+        QSplitter* root = rootOfDock(m1, m1->findDockWidget("tab1_Player"));
+        QVERIFY(root);
+        auto* centerCol = qobject_cast<QSplitter*>(root->widget(1));
+        QVERIFY2(centerCol && centerCol->orientation() == Qt::Vertical,
+                 "center column must be a vertical stack");
+        QCOMPARE(centerCol->count(), 3);
+
+        ads::CDockAreaWidget* nowPlayingArea =
+            m1->findDockWidget(QStringLiteral("tab1_NowPlaying"))->dockAreaWidget();
+        ads::CDockAreaWidget* signalAnalysisArea =
+            m1->findDockWidget(QStringLiteral("tab1_EnsembleExplorer"))->dockAreaWidget();
+        ads::CDockAreaWidget* frameAnalysisArea =
+            m1->findDockWidget(QStringLiteral("tab1_FrameNavigator"))->dockAreaWidget();
+        QVERIFY(nowPlayingArea && signalAnalysisArea && frameAnalysisArea);
+
+        // T30.5/T36 center order: Now Playing -> Signal Analysis -> Frame Analysis.
+        QCOMPARE(centerCol->widget(0), static_cast<QWidget*>(nowPlayingArea));
+        QCOMPARE(centerCol->widget(1), static_cast<QWidget*>(signalAnalysisArea));
+        QCOMPARE(centerCol->widget(2), static_cast<QWidget*>(frameAnalysisArea));
+
+        // Default active dock of each group (the stale CU Usage / Hex/ETSI
+        // Compliance selections must be gone).
+        QCOMPARE(signalAnalysisArea->currentDockWidget()->objectName(),
+                 QStringLiteral("tab1_EnsembleExplorer"));
+        QCOMPARE(frameAnalysisArea->currentDockWidget()->objectName(),
+                 QStringLiteral("tab1_FrameNavigator"));
+
+        w.close();  // re-saves version 6
+        QCoreApplication::processEvents();
+    }
+    {
+        const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        QCOMPARE(s.value(versionKey).toInt(), 6);
+    }
+
     clearSettingsStore();
 }
 
@@ -3227,11 +3431,9 @@ void TestGuiDockLayout::testPlayerServiceSelector()
 
     // --- Selector populated with all decoded services, enabled. ---
     // The GUI analyzer exposes the fixture's services 1:1: 14 DAB+ audio plus
-    // 2 data services (0xF3200000 and 0xF3200001). The CLI's separate headless
-    // discovery reports only one data service because validate_service_id()
-    // inspects the 16-bit service_id (SRef) and ModernETIFrameParser stores
-    // `sid32 & 0xFFFF`, so 0xF3200000 is FILTERED there — NOT deduped. The GUI
-    // selector must keep the real 16th service.
+    // 2 data services (0xF3200000 and 0xF3200001). T35 fixed the CLI's separate
+    // headless discovery to key/validate on the full 32-bit SID, so CLI and GUI
+    // now agree (16) — this test pins the GUI's 16-service selector.
     QVERIFY2(combo->isEnabled(), "T32: selector must be enabled after a load");
     const QList<quint32> ids = w.serviceSelectorIdsForTest();
     std::fprintf(stderr, "[T32-TEST] selector items=%d (analyzer services=%d)\n",
@@ -3595,6 +3797,258 @@ void TestGuiDockLayout::testRetainedSlideEviction()
 
     w.close();
     QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// Wave B: adopted src/gui widgets are compiled in, fed real data, and exposed
+// through the File / Help menus. This test loads the real fixture once and
+// asserts the dashboard/chart/ETSI/constellation feed plus a real export.
+// ============================================================================
+void TestGuiDockLayout::testAdoptedWidgetsAndExportRealFixture()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // --- Menu entries: File -> Settings.../Export..., Help -> About ---
+    QMenuBar* menuBar = w.menuBar();
+    QVERIFY(menuBar);
+    QAction* settingsAction = nullptr;
+    QAction* exportAction = nullptr;
+    QAction* aboutAction = nullptr;
+    for (QAction* top : menuBar->actions()) {
+        if (top->text() == QLatin1String("File") && top->menu()) {
+            for (QAction* a : top->menu()->actions()) {
+                if (a->text() == QLatin1String("Settings...")) settingsAction = a;
+                if (a->text() == QLatin1String("Export...")) exportAction = a;
+            }
+        } else if (top->text() == QLatin1String("Help") && top->menu()) {
+            for (QAction* a : top->menu()->actions()) {
+                if (a->text() == QLatin1String("About")) aboutAction = a;
+            }
+        }
+    }
+    QVERIFY2(settingsAction, "File -> Settings... must exist");
+    QVERIFY2(exportAction, "File -> Export... must exist");
+    QVERIFY2(aboutAction, "Help -> About must exist");
+    QVERIFY(settingsAction->isEnabled());
+    QVERIFY(!exportAction->isEnabled());  // disabled until a capture is loaded
+    QCOMPARE(exportAction, w.exportActionForTest());
+
+    // --- Load the real Bangkok fixture ---
+    const QString fixture = QStringLiteral("../../eti/bkk_20062022_141637.eti");
+    QVERIFY2(QFileInfo::exists(fixture),
+             qPrintable(QString("fixture missing: %1 (cwd=%2)")
+                            .arg(fixture, QDir::currentPath())));
+    w.autoLoadFile(fixture);
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0,
+                             120000);
+    QVERIFY2(exportAction->isEnabled(), "Export must be enabled after load");
+
+    // --- Performance Dashboard / Real-Time Chart fed by the 1 s sampler ---
+    // The load runs synchronously with nested event processing, so an early
+    // sample can be taken mid-load. Require one sample AFTER completion before
+    // asserting the frame total.
+    const int samplesAtLoad = w.realTimeChartSamplesForTest();
+    QTRY_VERIFY_WITH_TIMEOUT(w.realTimeChartSamplesForTest() > samplesAtLoad, 10000);
+    PerformanceDashboard* dash = w.performanceDashboardForTest();
+    QVERIFY(dash);
+    const PerformanceStats stats = dash->getCurrentStats();
+    // Real expectation, not a tautology: the sampler reports exactly the
+    // processor's decoded-frame counter and a plausible process RSS.
+    QCOMPARE(stats.frameCount, w.processorFrameCountForTest());
+    QVERIFY2(stats.frameCount > 0, "dashboard must receive the real frame count");
+    QVERIFY2(stats.memoryUsage > 0.0, "dashboard must receive real RSS");
+    QVERIFY2(stats.memoryUsage < 8192.0,
+             qPrintable(QString("RSS implausible: %1 MB").arg(stats.memoryUsage)));
+    QVERIFY2(stats.frameRate >= 0.0, "dashboard FPS must be non-negative");
+
+    RealTimeChartWidget* chart = w.realTimeChartForTest();
+    QVERIFY(chart);
+    QVERIFY(chart->isRealTimeActive());
+    QVERIFY2(w.realTimeChartSamplesForTest() >= 1, "chart must receive samples");
+
+    // --- Constellation: initialize() ran and generated non-empty data ---
+    ConstellationWidget* constellation = w.constellationWidgetForTest();
+    QVERIFY(constellation);
+    QVERIFY2(constellation->isInitialized(),
+             "ConstellationWidget::initialize() must have run");
+    QVERIFY2(constellation->constellationPointCount() > 0,
+             "constellation must hold generated data (not a blank tab)");
+
+    // --- ETSI Compliance Monitor: REAL signals only, clean fixture => 0 ---
+    ETSIComplianceMonitor* etsi = w.etsiMonitorForTest();
+    QVERIFY(etsi);
+    const ComplianceStatistics etsiStats = etsi->getCurrentStatistics();
+    QCOMPARE(etsiStats.totalViolations, 0);
+    QCOMPARE(etsiStats.overallScore, 100.0);
+    // No fabricated "for demonstration" rows anywhere in the violations tree.
+    QTreeWidget* etsiTree = etsi->findChild<QTreeWidget*>(QStringLiteral("ViolationsTree"));
+    QVERIFY(etsiTree);
+    QCOMPARE(etsiTree->topLevelItemCount(), 0);
+    for (int i = 0; i < etsiTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* item = etsiTree->topLevelItem(i);
+        for (int c = 0; c < item->columnCount(); ++c) {
+            QVERIFY2(!item->text(c).contains(QStringLiteral("for demonstration"),
+                                             Qt::CaseInsensitive),
+                     qPrintable(QString("synthetic violation leaked: %1").arg(item->text(c))));
+        }
+    }
+
+    std::fprintf(stderr,
+                 "[WAVE-B] etsi_violations=%d etsi_score=%.1f constellation_init=%d "
+                 "constellation_points=%d dashboard_frames=%llu rss_mb=%.1f\n",
+                 etsiStats.totalViolations, etsiStats.overallScore,
+                 constellation->isInitialized() ? 1 : 0,
+                 constellation->constellationPointCount(),
+                 static_cast<unsigned long long>(stats.frameCount),
+                 stats.memoryUsage);
+
+    // --- Export the live analysis (CSV) through the adopted writer ---
+    const QString out = QDir::tempPath() + QStringLiteral("/streamdab_waveb_export.csv");
+    QFile::remove(out);
+    ExportConfiguration config;
+    config.format = ExportFormat::CSV;
+    config.outputDirectory = QDir::tempPath();
+    config.fileName = out;
+    config.template_ = ExportTemplate::ServiceInventory;
+    w.applyExportDataForTest(config);
+
+    ExportWorker worker(config);
+    QSignalSpy completedSpy(&worker, &ExportWorker::exportCompleted);
+    worker.startExport();
+    QVERIFY2(completedSpy.count() >= 1, "export worker must signal completion");
+
+    QVERIFY2(QFileInfo::exists(out), "export must produce a file");
+    QFile f(out);
+    QVERIFY2(f.open(QIODevice::ReadOnly), "exported file must be readable");
+    const QByteArray content = f.readAll();
+    f.close();
+    QVERIFY2(!content.isEmpty(), "exported content must be non-empty");
+    const QString text = QString::fromUtf8(content);
+    QVERIFY2(text.contains(QStringLiteral("Service Label")),
+             qPrintable(QString("CSV header missing; got: %1").arg(text.left(120))));
+    QVERIFY2(text.toUpper().contains(QStringLiteral("RRONE FM 101")),
+             "export must contain the real decoded service label");
+    QFile::remove(out);
+
+    // --- Export field escaping: commas / quotes / newlines must not corrupt ---
+    {
+        const QString tricky = QStringLiteral("Radio, \"Best\" 101\nLine1\nLine2");
+        auto runEscape = [&tricky](ExportFormat format, const QString& path) -> QString {
+            ExportConfiguration esc;
+            esc.format = format;
+            esc.outputDirectory = QDir::tempPath();
+            esc.fileName = path;
+            QVariantList columns;
+            {
+                QVariantMap c;
+                c.insert(QStringLiteral("key"), QStringLiteral("label"));
+                c.insert(QStringLiteral("header"), QStringLiteral("Service Label"));
+                columns.append(c);
+            }
+            QVariantList records;
+            {
+                QVariantMap r;
+                r.insert(QStringLiteral("label"), tricky);
+                records.append(r);
+            }
+            esc.customSettings.insert(QStringLiteral("columns"), columns);
+            esc.customSettings.insert(QStringLiteral("records"), records);
+            QFile::remove(path);
+            ExportWorker worker2(esc);
+            worker2.startExport();
+            QFile ef(path);
+            if (!ef.open(QIODevice::ReadOnly)) {
+                return QString();
+            }
+            const QString content = QString::fromUtf8(ef.readAll());
+            ef.close();
+            QFile::remove(path);
+            return content;
+        };
+
+        const QString csv = runEscape(ExportFormat::CSV,
+            QDir::tempPath() + QStringLiteral("/streamdab_waveb_escape.csv"));
+        // RFC-4180: comma/quote/newline field is quoted, embedded quotes doubled.
+        QVERIFY2(csv.contains(
+                     QStringLiteral("\"Radio, \"\"Best\"\" 101\nLine1\nLine2\"")),
+                 qPrintable(QString("CSV escaping wrong; got: %1").arg(csv)));
+
+        const QString html = runEscape(ExportFormat::HTML,
+            QDir::tempPath() + QStringLiteral("/streamdab_waveb_escape.html"));
+        QVERIFY2(html.contains(QStringLiteral("&quot;Best&quot;")),
+                 "HTML export must escape quotes");
+        QVERIFY2(!html.contains(QStringLiteral("<td>Radio, \"Best\"")),
+                 "HTML export must not emit raw quotes in cells");
+
+        const QString yaml = runEscape(ExportFormat::YAML,
+            QDir::tempPath() + QStringLiteral("/streamdab_waveb_escape.yaml"));
+        QVERIFY2(yaml.contains(QStringLiteral("\\\"Best\\\"")),
+                 "YAML export must escape embedded quotes");
+        QVERIFY2(yaml.contains(QStringLiteral("Line1\\nLine2")),
+                 "YAML export must escape newlines");
+    }
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// Wave B: dialog construction + the Settings dialog round-trips a real
+// AnalyzerSettings value through the "analyzer/" QSettings group.
+void TestGuiDockLayout::testAboutAndSettingsDialogs()
+{
+    // AboutDialog constructs (constructed, not exec'd — no modal loop).
+    {
+        AboutDialog dlg;
+        QVERIFY(dlg.findChild<QTabWidget*>());
+        QVERIFY(!AboutDialog::getVersionString().isEmpty());
+    }
+
+    clearSettingsStore();
+    {
+        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        s.remove(QStringLiteral("analyzer"));
+        s.sync();
+    }
+
+    const int target = 6;  // Thai TIS-620 (EXPLICIT setting, valid 0..6)
+    {
+        SettingsDialog dlg;
+        auto* spin = dlg.findChild<QSpinBox*>(QStringLiteral("settingsForceCharset"));
+        QVERIFY2(spin, "analyzer force-charset control must be reachable");
+        spin->setValue(target);
+        dlg.saveSettings();
+    }
+
+    {
+        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        eti::AnalyzerSettings roundTripped = eti::AnalyzerSettings::defaults();
+        roundTripped.loadFromQSettings(s);
+        QCOMPARE(roundTripped.force_charset, target);
+    }
+
+    {
+        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        s.remove(QStringLiteral("analyzer"));
+        s.sync();
+    }
+
+    // I6: changing the export format regenerates the file extension.
+    {
+        ExportConfigurationDialog dlg;
+        auto* nameEdit = dlg.findChild<QLineEdit*>(QStringLiteral("exportFileNameEdit"));
+        auto* formatCombo = dlg.findChild<QComboBox*>(QStringLiteral("exportFormatCombo"));
+        QVERIFY2(nameEdit && formatCombo, "export dialog widgets must be reachable");
+        nameEdit->setText(QStringLiteral("report.csv"));
+        const int jsonIndex = formatCombo->findData(static_cast<int>(ExportFormat::JSON));
+        QVERIFY2(jsonIndex >= 0, "JSON must be offered");
+        formatCombo->setCurrentIndex(jsonIndex);
+        QVERIFY2(nameEdit->text().endsWith(QStringLiteral(".json")),
+                 qPrintable(QString("format change must rebuild the extension, got: %1")
+                                .arg(nameEdit->text())));
+    }
 }
 
 QTEST_MAIN(TestGuiDockLayout)

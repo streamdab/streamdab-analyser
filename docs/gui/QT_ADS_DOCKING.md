@@ -199,7 +199,7 @@ controls are disabled.
   window geometry in QSettings (`org = "StreamDAB-Analyzer"`, `app = "DABAnalyzer"`); on start,
   `restoreState()` restores it. Keys: `window/geometry`, `docking/layout_version`, `docking/tab1`,
   `docking/tab2`, `docking/tab3`, `docking/bottom`.
-  - `docking/layout_version = 5` is written on save. On restore, any saved version **≠ 5** (including a
+  - `docking/layout_version = 6` is written on save. On restore, any saved version **≠ 6** (including a
     missing key, i.e. first launch) causes the stored dock states to be **discarded once** — the redesigned
     default layout is shown and version 5 is written again at the next close. `window/geometry` is kept.
     This gives existing users exactly one reset after each layout upgrade (v3 → v4 grew the Now Playing /
@@ -216,7 +216,7 @@ controls are disabled.
 - Tab-1 vertical group heights (Qt-ADS 4.5.0 has no public API for per-dock vertical stretch; splitter
   sizes are **approximations** — residual differences are documented/expected):
   `leftV {178, 320}` (Transport ≈ 178, System grows), `rightV {210, 240}` (Signal Info ≈ 210,
-  Error & Statistics grows), `centerV {190, 150, 200}` (Signal Analysis ≈ 190, Frame Analysis flex,
+  Error & Statistics grows), `centerV {200, 190, 150}` (Signal Analysis ≈ 190, Frame Analysis flex,
   Now Playing / Slideshow ≈ 200) with `tab1_NowPlaying` area `setMinimumHeight(200)` (bottom of center;
   T27 — the dock hosts a **left/right `QSplitter`**: left = DLS+ text block, right = MOT Slideshow image in
   a fixed **4:3 letterbox** frame; the splitter default is 45/55 and is user-draggable).

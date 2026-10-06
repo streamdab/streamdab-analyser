@@ -341,6 +341,7 @@ void SettingsDialog::createAnalyzerTab()
     QFormLayout *charsetLayout = qobject_cast<QFormLayout*>(charsetGroup->layout());
 
     m_forceCharsetSpin = new QSpinBox();
+    m_forceCharsetSpin->setObjectName(QStringLiteral("settingsForceCharset"));
     m_forceCharsetSpin->setRange(-1, 6);
     m_forceCharsetSpin->setSpecialValueText(tr("-1 = Follow stream (default)"));
     m_forceCharsetSpin->setToolTip(tr(

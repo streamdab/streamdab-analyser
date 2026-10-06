@@ -9,7 +9,7 @@ MCI/SI tree+lists; FIC-XTractor = bit-level FIC parse, chronological or by-FIG-t
 readable value translation: text/date/frequency/coordinates, FIB-hex with marked FIG, error icons
 [erroneous FIG / FIB CRC / MCI reconfiguration])
 **Ground truth data:** CLI YAML on `eti/bkk_20062022_141637.eti` — ensemble 0x2000 "Bangkok DAB+", ECC 0xF3,
-15 services (14 labelled, e.g. 0x2C61 "RROne FM 101", 0x250F "LTM FM 95", 0x2500 "NBTCtest"...),
+16 services (14 labelled, e.g. 0x2C61 "RROne FM 101", 0x250F "LTM FM 95", 0x2500 "NBTCtest"...),
 16 subchannels EEP 3-A (24/12/3 CU), FIB CRCs 100 %, tail TIST, frame CRC counters.
 
 ## Audit matrix — Tab 1 (DAB Ensemble ETI Analysis)
@@ -21,7 +21,7 @@ Legend: ✅ real data wired & verified · ⚠️ real data wired, needs live ver
 | **Transport: Player** | `updatePlayerPanelStatus` :2385 | processor state | Status Playing/Stopped, file name, Time, Frame x/5001, progress | ⚠️ verify values after load |
 | **Transport: Decoder** | `updateDecoderPanelStatus` :2410 | processor | Status, Type (ETI-NI), Time, Frames 5001 | ⚠️ verify |
 | **System** (FIC Overview/Control) | `buildFICOverviewTree` :2516 | m_figAnalyzer | FIG/FIB counts, ensemble info rows | ⚠️ verify populates (used to be tree of "Property/Value/Data/Status") |
-| **Signal Analysis: Ensemble Explorer** | `buildEnsembleTree` :2105 + `updateEnsembleTree` :5332 (real) **vs** `updateEnsembleExplorerForFrame` :518 (**SIMULATES** — clears+writes fake "Frame N FIC Data") | m_figAnalyzer (getCurrentEnsemble/getDiscoveredServices) | Tree: ensemble 0x2000 "Bangkok DAB+" + 15 services w/ labels | ❌ **dual writer: real + simulator; frame-selection path overwrites with fake data → FIX** |
+| **Signal Analysis: Ensemble Explorer** | `buildEnsembleTree` :2105 + `updateEnsembleTree` :5332 (real) **vs** `updateEnsembleExplorerForFrame` :518 (**SIMULATES** — clears+writes fake "Frame N FIC Data") | m_figAnalyzer (getCurrentEnsemble/getDiscoveredServices) | Tree: ensemble 0x2000 "Bangkok DAB+" + 16 services w/ labels | ❌ **dual writer: real + simulator; frame-selection path overwrites with fake data → FIX** |
 | **Signal Analysis: Subchannel Org** | `updateSubchannelTable` :2204 | m_figAnalyzer getAllSubChannels | 16 rows EEP 3-A, size/bitrate/SAD | ⚠️ verify |
 | **Signal Analysis: CU Usage** | `updateCUUsage` :2265 | m_figAnalyzer | bars per subchannel, used/total CU, uses-percent | ⚠️ verify |
 | **Frame Analysis: ETI Frame Navigator** | nav list build (frame list populating slot — see :489 loop) | frame metadata | 5001 entries, sync/err markers | ⚠️ verify |
