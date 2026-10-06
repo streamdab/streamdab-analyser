@@ -26,6 +26,25 @@
 #include <QThread>
 #include <QMutexLocker>
 
+namespace {
+
+// T20: a live ETI stream delivers up to ~250 frames/second; per-frame/per-
+// subchannel diagnostic logs flood the console. Keep the first few frames
+// (startup diagnostics) and then log every 250th occurrence per call site.
+//
+// Thread-safety (F9): each `static` counter below is a per-call-site local and
+// is intentionally NOT synchronised. That is safe only because this processor
+// is driven from a single (GUI) thread: processETIFile()/processLiveFrame()
+// run on the owning thread, and the worker only hands frames over via queued
+// signals. If this class is ever driven from multiple threads, promote these
+// counters to std::atomic<uint64_t> members.
+inline bool shouldLogFrameDiagnostic(unsigned long long counter)
+{
+    return counter <= 30 || (counter % 250) == 0;
+}
+
+}  // namespace
+
 // CRITICAL-007: CRC-16 lookup table for CCITT polynomial
 const uint16_t EnhancedETIProcessorQt::CRC16_TABLE[256] = {
     0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7,
@@ -130,10 +149,13 @@ bool ETIFrameParser::parseFrame(const QByteArray& frame_data, ETIFrameData& resu
     result.is_valid = true;
     m_frames_valid++;
 
-    qDebug() << "ETIFrameParser: Successfully parsed frame" << m_frames_parsed
-             << "- FCT:" << result.header.frame_counter
-             << "NST:" << result.header.nst
-             << "FICF:" << result.header.ficf;
+    static unsigned long long s_parsedLogCount = 0;
+    if (shouldLogFrameDiagnostic(++s_parsedLogCount)) {
+        qDebug() << "ETIFrameParser: Successfully parsed frame" << m_frames_parsed
+                 << "- FCT:" << result.header.frame_counter
+                 << "NST:" << result.header.nst
+                 << "FICF:" << result.header.ficf;
+    }
 
     return true;
 }
@@ -264,8 +286,11 @@ QByteArray ETIFrameParser::extractFIC(const uint8_t* data, bool ficf_flag, uint8
 
     const uint8_t* fic_start = data + FIC_OFFSET;
 
-    qDebug() << "ETIFrameParser::extractFIC: offset=" << FIC_OFFSET
-             << "NST=" << nst << "FIC size=" << FIC_SIZE;
+    static unsigned long long s_ficLogCount = 0;
+    if (shouldLogFrameDiagnostic(++s_ficLogCount)) {
+        qDebug() << "ETIFrameParser::extractFIC: offset=" << FIC_OFFSET
+                 << "NST=" << nst << "FIC size=" << FIC_SIZE;
+    }
 
     return QByteArray(reinterpret_cast<const char*>(fic_start), FIC_SIZE);
 }
@@ -319,10 +344,13 @@ std::vector<SubChannelData> ETIFrameParser::extractMSC(const uint8_t* data, uint
     size_t stream_info_offset = 8;
     size_t msc_offset = HEADER_SIZE + STREAM_INFO_SIZE + FIC_SIZE;
 
-    qDebug() << "ETIFrameParser::extractMSC: NST=" << nst
-             << "FICF=" << ficf_flag
-             << "stream_info_offset=" << stream_info_offset
-             << "msc_offset=" << msc_offset;
+    static unsigned long long s_mscHeaderLogCount = 0;
+    if (shouldLogFrameDiagnostic(++s_mscHeaderLogCount)) {
+        qDebug() << "ETIFrameParser::extractMSC: NST=" << nst
+                 << "FICF=" << ficf_flag
+                 << "stream_info_offset=" << stream_info_offset
+                 << "msc_offset=" << msc_offset;
+    }
 
     // Parse stream info for each sub-channel
     for (uint8_t i = 0; i < nst; ++i) {
@@ -367,10 +395,13 @@ std::vector<SubChannelData> ETIFrameParser::extractMSC(const uint8_t* data, uint
         sub_channels.push_back(sc);
         stream_info_offset += 4;
 
-        qDebug() << "ETIFrameParser::extractMSC: Sub-channel" << i << "-"
-                 << "ID:" << sc.sub_channel_id
-                 << "Start:" << sc.start_address
-                 << "Size:" << sc.size_in_bytes << "bytes";
+        static unsigned long long s_mscChannelLogCount = 0;
+        if (shouldLogFrameDiagnostic(++s_mscChannelLogCount)) {
+            qDebug() << "ETIFrameParser::extractMSC: Sub-channel" << i << "-"
+                     << "ID:" << sc.sub_channel_id
+                     << "Start:" << sc.start_address
+                     << "Size:" << sc.size_in_bytes << "bytes";
+        }
     }
 
     return sub_channels;
@@ -426,7 +457,10 @@ bool ETIHeader::isValid() const
         // ETI-LI uses time-interleaved transmission with Pattern A/B alternating
         // Header field validation is more relaxed for ETI-LI format
         // The NST and other fields may encode different information in ETI-LI
-        qDebug() << "ETIHeader::isValid(): ETI-LI frame detected, using relaxed validation";
+        static unsigned long long s_liHeaderLogCount = 0;
+        if (shouldLogFrameDiagnostic(++s_liHeaderLogCount)) {
+            qDebug() << "ETIHeader::isValid(): ETI-LI frame detected, using relaxed validation";
+        }
         return true;  // Accept ETI-LI frames with relaxed validation
     }
 
@@ -560,7 +594,10 @@ bool EnhancedETIProcessorQt::validateFrameCRC(const QByteArray& frameData) const
     if (is_eti_li) {
         // For ETI-LI, skip CRC validation or use alternative validation
         // The file uses 0x5555 padding instead of CRC
-        qDebug() << "ETI-LI frame detected - skipping CRC validation (format-specific)";
+        static unsigned long long s_liCrcLogCount = 0;
+        if (shouldLogFrameDiagnostic(++s_liCrcLogCount)) {
+            qDebug() << "ETI-LI frame detected - skipping CRC validation (format-specific)";
+        }
         return true;  // Accept ETI-LI frames without strict CRC check
     }
 
@@ -810,8 +847,12 @@ bool EnhancedETIProcessorQt::processEtiFrame(const QByteArray& frameData)
         return false;
     }
 
-    // Log parsed frame information
-    qDebug() << "Frame" << (frame_count_ + 1) << "parsed:" << parsed_frame.header.toString();
+    // Log parsed frame information (throttled: a live 250 fps stream must not
+    // flood the console with one line per frame — T20 no-spam rule).
+    const uint64_t parsedFrame = frame_count_ + 1;
+    if (parsedFrame <= 30 || parsedFrame % 250 == 0) {
+        qDebug() << "Frame" << parsedFrame << "parsed:" << parsed_frame.header.toString();
+    }
 
     // Process FIC if present (will be used by FIG analyzer - Agent 3's work)
     if (!parsed_frame.fic_data.isEmpty()) {
@@ -909,7 +950,8 @@ void EnhancedETIProcessorQt::processFicData(const QByteArray& ficData)
 {
     if (ficData.size() < 32) return;
 
-    qDebug() << "EnhancedETIProcessorQt::processFicData:" << ficData.size() << "bytes";
+    // (per-frame log removed: FIC frames arrive at the stream rate and the
+    // frame-level log above is already throttled — T20 no-spam rule.)
 
     // The full FIC (96/128 bytes) is a sequence of FIBs; each FIB is 32 bytes:
     // a 30-byte FIG area plus a 2-byte CRC-16. Parse FIGs within each FIB's
@@ -1044,7 +1086,10 @@ bool EnhancedETIProcessorQt::processLiveFrame(const QByteArray& frameData)
         // Frame successfully processed - signals emitted by processEtiFrame:
         // - frameProcessed(ProcessedFrame)
         // - figDiscovered(FIGInfo) via processFicData
-        qDebug() << "[LIVE] Frame" << frame_count_ << "processed successfully";
+        // Throttled: one line per 250 live frames, not per frame (T20).
+        if (frame_count_ % 250 == 0) {
+            qDebug() << "[LIVE] Frame" << frame_count_ << "processed successfully";
+        }
     }
     
     return success;

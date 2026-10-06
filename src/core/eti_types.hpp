@@ -88,7 +88,12 @@ constexpr size_t MAX_FIG_LENGTH = 29;                      // Maximum FIG data l
 constexpr size_t FIG_HEADER_SIZE = 1;                      // bytes
 
 // Sync pattern for ETI frames (ETSI EN 300 799)
+// The Enhanced ETI processor accepts all three standard sync words; the
+// receiver's packet validator must accept the same set so an ETI-LI-over-IP
+// stream (e.g. the real Bangkok capture) is not rejected as "invalid".
 constexpr std::array<uint8_t, 4> ETI_SYNC_PATTERN = {0x49, 0x93, 0x1E, 0x03};
+constexpr std::array<uint8_t, 4> ETI_SYNC_LI_A   = {0xFF, 0xF8, 0xC5, 0x49};
+constexpr std::array<uint8_t, 4> ETI_SYNC_LI_B   = {0xFF, 0x07, 0x3A, 0xB6};
 
 /**
  * @brief ETI Format Types

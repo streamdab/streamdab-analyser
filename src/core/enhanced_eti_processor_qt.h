@@ -237,6 +237,16 @@ public:
      */
     bool processLiveFrame(const QByteArray& frameData);
 
+    /**
+     * @brief Drop all file-backed/counter state for a fresh capture.
+     *
+     * Clears the loaded file bytes, total/frame counters and stored frames so a
+     * later capture (e.g. a live network stream after a file load) starts from
+     * zero and cannot continue numbering/reading a stale file. Safe to call at
+     * any time on the owning (GUI) thread.
+     */
+    void resetStatistics();
+
 public slots:
     void processNextFrame();
 
@@ -259,7 +269,6 @@ private:
     bool processEtiFrame(const QByteArray& frameData);
     void processFicData(const QByteArray& ficData);
     void processAllFramesImmediate();  // Phase 1.4: Fast batch processing
-    void resetStatistics();
     void storeFrame(const ProcessedFrame& frame);  // Frame storage with FIFO cleanup
 
     // CRITICAL-007: CRC validation methods

@@ -505,9 +505,20 @@ bool NetworkStreamWorker::validate_eti_packet(const QByteArray& data) const {
         return false;
     }
     
-    // Validate ETI sync pattern
+    // Validate ETI sync pattern. All three standard ETI sync words are valid
+    // on the wire (ETI-NI plus ETI-LI patterns A and B); the core parser
+    // auto-detects which one it is.
+    //
+    // F8 assumption: the receiver accepts the ETI-LI sync words so an
+    // ETI-LI-over-IP stream is not dropped. Genuine ETSI EN 300 799 LI framing
+    // is accepted at this gate but is then parsed with the NI/ODR frame layout
+    // by the downstream processor; that is correct for the current captures
+    // (which use the LI sync word with ODR framing) and is intentionally left
+    // unchanged here — no LI-specific de-framing is implemented.
     const uint8_t* packet_data = reinterpret_cast<const uint8_t*>(data.constData());
-    return std::memcmp(packet_data, ETI_SYNC_PATTERN.data(), 4) == 0;
+    return std::memcmp(packet_data, ETI_SYNC_PATTERN.data(), 4) == 0
+           || std::memcmp(packet_data, ETI_SYNC_LI_A.data(), 4) == 0
+           || std::memcmp(packet_data, ETI_SYNC_LI_B.data(), 4) == 0;
 }
 
 void NetworkStreamWorker::update_frame_rate() {
@@ -600,6 +611,8 @@ NetworkStreamReceiver::NetworkStreamReceiver(QObject* parent)
     : QObject(parent)
     , m_reconnection_timer(std::make_unique<QTimer>(this))
 {
+    qRegisterMetaType<eti::NetworkStreamStatistics>("eti::NetworkStreamStatistics");
+    qRegisterMetaType<eti::NetworkPacket>("eti::NetworkPacket");
     setup_reconnection_timer();
 }
 
@@ -608,6 +621,8 @@ NetworkStreamReceiver::NetworkStreamReceiver(const NetworkStreamConfig& config, 
     , m_config(config)
     , m_reconnection_timer(std::make_unique<QTimer>(this))
 {
+    qRegisterMetaType<eti::NetworkStreamStatistics>("eti::NetworkStreamStatistics");
+    qRegisterMetaType<eti::NetworkPacket>("eti::NetworkPacket");
     validate_config(config);
     setup_reconnection_timer();
 }
@@ -915,21 +930,10 @@ void NetworkStreamReceiver::handle_worker_error(const QString& error) {
 void NetworkStreamReceiver::handle_worker_statistics(const eti::NetworkStreamStatistics& stats) {
     {
         QMutexLocker locker(&m_mutex);
-        // Manually assign atomic values since operator= is deleted
-        m_current_statistics.frames_received = stats.frames_received.load();
-        m_current_statistics.frames_processed = stats.frames_processed.load();
-        m_current_statistics.frames_dropped = stats.frames_dropped.load();
-        m_current_statistics.bytes_received = stats.bytes_received.load();
-        m_current_statistics.network_errors = stats.network_errors.load();
-        m_current_statistics.buffer_overflows = stats.buffer_overflows.load();
-        m_current_statistics.buffer_underflows = stats.buffer_underflows.load();
-        m_current_statistics.current_frame_rate = stats.current_frame_rate.load();
-        m_current_statistics.average_frame_rate = stats.average_frame_rate.load();
-        m_current_statistics.frame_loss_rate = stats.frame_loss_rate.load();
-        m_current_statistics.average_latency_us = stats.average_latency_us.load();
-        m_current_statistics.max_latency_us = stats.max_latency_us.load();
-        m_current_statistics.start_time = stats.start_time;
-        m_current_statistics.last_update = stats.last_update;
+        // Snapshot copy (NetworkStreamStatistics now has a copy-assignment that
+        // loads each atomic) — a consistent per-field view of the worker's
+        // counters under the lock.
+        m_current_statistics = stats;
     }
     
     // Check quality violations

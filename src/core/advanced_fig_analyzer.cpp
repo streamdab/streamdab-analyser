@@ -43,6 +43,19 @@ uint8_t figExtensionOf(uint8_t figType, uint8_t data0)
 // Maximum legal FIG data length (EN 300 401; eti_types.hpp MAX_FIG_LENGTH).
 // Longer FIGs are out-of-spec and are skipped by the CLI parse_fig_area.
 constexpr size_t kMaxFigDataLength = 29;
+
+// T20: a live stream re-parses the rotating FIC continuously, so per-FIG
+// diagnostics would flood the console (hundreds of lines/second). Keep the
+// first 30 occurrences (startup diagnostics) and every 250th per call site.
+//
+// Thread-safety (F9): the `static` counters at each call site are local and
+// unsynchronised. Safe only because AdvancedFIGAnalyzer is driven from a
+// single (GUI) thread; if that ever changes, promote them to
+// std::atomic<uint64_t> members.
+inline bool shouldLogFigDiagnostic(unsigned long long counter)
+{
+    return counter <= 30 || (counter % 250) == 0;
+}
 }  // namespace
 
 // ============================================================================
@@ -675,11 +688,14 @@ void AdvancedFIGAnalyzer::processFIG0_1(const QByteArray& data)
             info.protection_level = (b2 >> 2) & 0x03;  // 0-based on wire (etisnoop parity)
             info.sub_channel_size = static_cast<uint16_t>(((b2 & 0x03) << 8) | bytes[offset + 3]);
 
-            qDebug() << "FIG 0/1: SubCh" << info.sub_channel_id
-                     << "EEP" << (info.option == 0 ? "A" : "B")
-                     << "Level" << info.protection_level
-                     << "Size" << info.sub_channel_size << "CU"
-                     << "Start addr" << info.start_address;
+            static unsigned long long s_fig01LongLogCount = 0;
+            if (shouldLogFigDiagnostic(++s_fig01LongLogCount)) {
+                qDebug() << "FIG 0/1: SubCh" << info.sub_channel_id
+                         << "EEP" << (info.option == 0 ? "A" : "B")
+                         << "Level" << info.protection_level
+                         << "Size" << info.sub_channel_size << "CU"
+                         << "Start addr" << info.start_address;
+            }
 
             offset += 4;  // Long form is 4 bytes
 
@@ -693,10 +709,13 @@ void AdvancedFIGAnalyzer::processFIG0_1(const QByteArray& data)
             info.protection_level = 0;
             info.sub_channel_size = 0;  // derived from the UEP table, not encoded
 
-            qDebug() << "FIG 0/1: SubCh" << info.sub_channel_id
-                     << "UEP Table switch" << info.table_switch
-                     << "Table index" << info.table_index
-                     << "Start addr" << info.start_address;
+            static unsigned long long s_fig01ShortLogCount = 0;
+            if (shouldLogFigDiagnostic(++s_fig01ShortLogCount)) {
+                qDebug() << "FIG 0/1: SubCh" << info.sub_channel_id
+                         << "UEP Table switch" << info.table_switch
+                         << "Table index" << info.table_index
+                         << "Start addr" << info.start_address;
+            }
 
             offset += 3;  // Short form is 3 bytes
         }
@@ -817,9 +836,12 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
         dab_service.service_type = 1;  // Default to data, will be updated based on components
         dab_service.is_dab_plus = false;  // Will be set by component analysis
 
-        qDebug() << "FIG 0/2: Storing service" << Qt::hex << Qt::showbase << service_id
-                 << "type=" << (is_programme ? "Programme" : "Data")
-                 << "components=" << num_components;
+        static unsigned long long s_storeServiceLogCount = 0;
+        if (shouldLogFigDiagnostic(++s_storeServiceLogCount)) {
+            qDebug() << "FIG 0/2: Storing service" << Qt::hex << Qt::showbase << service_id
+                     << "type=" << (is_programme ? "Programme" : "Data")
+                     << "components=" << num_components;
+        }
 
         // Parse service components: exactly 2 bytes each (etisnoop fig0_2.cpp
         // consumes 2 bytes per component for every TMId — the SCId/packet
@@ -847,11 +869,14 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
                 dab_service.is_dab_plus = true;
             }
 
-            qDebug() << "  Component" << i << ":"
-                     << "SubCh" << component.sub_channel_id
-                     << (component.is_primary ? "Primary" : "Secondary")
-                     << "TMId" << component.transport_mode
-                     << "Type" << Qt::hex << component.service_component_type;
+            static unsigned long long s_componentLogCount = 0;
+            if (shouldLogFigDiagnostic(++s_componentLogCount)) {
+                qDebug() << "  Component" << i << ":"
+                         << "SubCh" << component.sub_channel_id
+                         << (component.is_primary ? "Primary" : "Secondary")
+                         << "TMId" << component.transport_mode
+                         << "Type" << Qt::hex << component.service_component_type;
+            }
 
             offset += 2;
 
@@ -917,7 +942,10 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
     }
 
     if (services_found > 0) {
-        qInfo() << "FIG 0/2: Stored" << services_found << "services in map";
+        static unsigned long long s_storeServicesLogCount = 0;
+        if (shouldLogFigDiagnostic(++s_storeServicesLogCount)) {
+            qInfo() << "FIG 0/2: Stored" << services_found << "services in map";
+        }
         bumpServiceRevision();  // service/components changed
         emit servicesUpdated();
     }

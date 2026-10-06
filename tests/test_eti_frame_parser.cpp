@@ -438,7 +438,7 @@ void TestETIFrameParser::testCorruptedData()
 void TestETIFrameParser::testEmptyFile()
 {
     QFile emptyFile("/tmp/test_empty.eti");
-    emptyFile.open(QIODevice::WriteOnly);
+    QVERIFY(emptyFile.open(QIODevice::WriteOnly));
     emptyFile.close();
 
     QVERIFY(emptyFile.exists());
