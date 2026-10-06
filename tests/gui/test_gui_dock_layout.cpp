@@ -40,6 +40,8 @@
 #include <QtTest/QtTest>
 #include <QStandardPaths>
 #include <QSettings>
+#include "utils/logger.h"  // Advanced settings tab drives Logger level
+#include "utils/app_settings.hpp"
 #include <QTabWidget>
 #include <QSplitter>
 #include <QGroupBox>
@@ -118,6 +120,8 @@ private slots:
     // Wave B: adopted src/gui widgets + File/Help menu entries
     void testAdoptedWidgetsAndExportRealFixture();
     void testAboutAndSettingsDialogs();
+    // Settings audit (v1.3): live apply of the wired settings + removed options
+    void testSettingsWiringIntegration();
     void testInputToolbar();
     // T23: Input menu removed; ⚙ opens the UDP settings dialog
     void testUdpSettingsGearOpensDialog();
@@ -4701,6 +4705,111 @@ void TestGuiDockLayout::testNetworkLiveAfterFileLoadNoStaleFileState()
     w.close();
     QCoreApplication::processEvents();
     clearSettingsStore();
+}
+
+// ============================================================================
+// Settings audit (v1.3): every wired setting changes the object it drives and
+// persists; every removed option has no widget and its key is never read.
+// ============================================================================
+void TestGuiDockLayout::testSettingsWiringIntegration()
+{
+    QSettings store(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+    store.clear();
+    store.setValue(QStringLiteral("general/confirmExit"), false);
+    store.setValue(QStringLiteral("analysis/updateRate"), 5);       // 200 ms sampler
+    store.setValue(QStringLiteral("analysis/bufferSize"), 5000);    // receiver frames
+    store.setValue(QStringLiteral("advanced/logLevel"), 3);         // Debug
+    store.setValue(QStringLiteral("audio/device"), QStringLiteral("__nonexistent__"));
+    store.setValue(QStringLiteral("audio/muted"), true);
+    store.setValue(QStringLiteral("audio/volume"), 40);
+    store.sync();
+
+    // Do not leak the Debug level into the remaining dock tests.
+    const Logger::LogLevel originalLogLevel = Logger::instance().getLogLevel();
+
+    {
+        DABAnalyzerWindow w;
+        w.show();
+        QCoreApplication::processEvents();
+
+        // Startup applies the persisted settings to the live objects.
+        QCOMPARE(w.confirmExitOnCloseForTest(), false);
+        QCOMPARE(w.dashboardSampleIntervalForTest(), 200);
+        QCOMPARE(w.networkBufferFramesForTest(), 5000);
+        QCOMPARE(static_cast<int>(Logger::instance().getLogLevel()), 0);  // Logger::Debug
+
+        // The Audio-tab widgets mirror the persisted state (same state as the
+        // Settings dialog; no second disagreeing copy). Locate them via the
+        // dock manager like testAudioTabControls (Qt-ADS content widgets are
+        // not reachable with a plain window-level findChild).
+        auto* m1 = w.findChild<ads::CDockManager*>(QStringLiteral("tab1DockManager"));
+        QVERIFY2(m1, "Tab-1 dock manager must exist");
+        ads::CDockWidget* audioDock = m1->findDockWidget(QStringLiteral("tab1_Audio"));
+        QVERIFY2(audioDock, "Audio dock must exist");
+        QWidget* panel = audioDock->widget();
+        QVERIFY2(panel, "Audio dock must have content");
+        QCheckBox* mute = panel->findChild<QCheckBox*>(QStringLiteral("audioMuteCheck"));
+        QSlider* volume = panel->findChild<QSlider*>(QStringLiteral("audioVolumeSlider"));
+        QLabel* volumeLabel = panel->findChild<QLabel*>(QStringLiteral("audioVolumeLabel"));
+        QVERIFY2(mute && volume && volumeLabel, "Audio-tab control widgets must exist");
+        QCOMPARE(mute->isChecked(), true);
+        QCOMPARE(volume->value(), 40);
+        QCOMPARE(volumeLabel->text(), QStringLiteral("40%"));  // label not stale at 100%
+        // Documented fallback: a device id that is not in the enumerated list
+        // still reaches the controller (applied verbatim), while the combo
+        // keeps a listed entry (it must NOT be forced to a non-listed value).
+        QVERIFY2(w.audioDeviceComboForTest(),
+                 "Audio-tab device combo must exist (enumerated backend)");
+        QCOMPARE(w.audioDeviceComboForTest()->findData(QStringLiteral("__nonexistent__")), -1);
+        QCOMPARE(w.audioOutputDeviceForTest(), QStringLiteral("__nonexistent__"));
+
+        // Real connect: the tuned buffer reaches the RECEIVER's config AND the
+        // worker's snapshot (connect_with_config carries it; the old
+        // connect_to_stream() path would have reset it to the default 1000).
+        const quint16 port = acquireFreeUdpPort();
+        QVERIFY2(port != 0, "could not acquire a free UDP port");
+        QVERIFY(w.beginStreamConnectionForTest(
+            QStringLiteral("udp://239.192.0.1:%1").arg(port)));
+        QTRY_VERIFY_WITH_TIMEOUT(w.streamEverConnectedForTest(), 5000);
+        QCOMPARE(w.networkReceiverBufferForTest(), static_cast<size_t>(5000));
+        QCOMPARE(w.networkReceiverWorkerBufferForTest(), static_cast<size_t>(5000));
+        w.disconnectStreamForTest();
+        QCoreApplication::processEvents();
+
+        // File -> Exit style close must tear down cleanly (headless: no modal).
+        w.requestExitForTest();
+        QCoreApplication::processEvents();
+    }
+    // Restore the Logger level for the remaining dock tests.
+    Logger::instance().setLogLevel(originalLogLevel);
+
+    // The Settings dialog constructed against the same store shows the values.
+    {
+        SettingsDialog dlg;
+        QCOMPARE(dlg.getUpdateRate(), 5);
+        QCOMPARE(dlg.getBufferSize(), 5000);
+        QCOMPARE(dlg.logLevelIndex(), 3);
+        QVERIFY(dlg.isAudioMuted());
+        QCOMPARE(dlg.audioVolume(), 40);
+
+        // REMOVEd widgets are absent; WIREd widgets are present.
+        QVERIFY2(!dlg.findChild<QWidget*>(QStringLiteral("settingsTheme")),
+                 "theme control was removed with no styling backend");
+        QVERIFY2(!dlg.findChild<QWidget*>(QStringLiteral("settingsMemoryLimit")),
+                 "memory-limit control was removed with no enforcement");
+        QVERIFY2(!dlg.findChild<QWidget*>(QStringLiteral("settingsProxyHost")),
+                 "proxy controls were removed with no proxy path");
+        QVERIFY2(dlg.findChild<QSpinBox*>(QStringLiteral("settingsUpdateRate")),
+                 "update-rate control must exist (wired to the sampler)");
+        QVERIFY2(dlg.findChild<QComboBox*>(QStringLiteral("settingsLogLevel")),
+                 "log-level control must exist (wired to Logger)");
+    }
+
+    store.clear();
+    store.sync();
+    clearSettingsStore();
+    QCOMPARE(static_cast<int>(Logger::instance().getLogLevel()),
+             static_cast<int>(originalLogLevel));
 }
 
 QTEST_MAIN(TestGuiDockLayout)

@@ -652,6 +652,27 @@ if(CAN_RUN_GUI_TESTS)
         TIMEOUT 30
     )
 
+    # Test 4.5: Settings dialog wiring (v1.3 settings audit)
+    add_executable(test_settings_dialog
+        gui/test_settings_dialog.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/settings_dialog.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
+    )
+    target_link_libraries(test_settings_dialog
+        Qt6::Core Qt6::Widgets
+        GTest::GTest GTest::Main
+        pthread
+    )
+    add_test(NAME test_settings_dialog COMMAND test_settings_dialog)
+    set_tests_properties(test_settings_dialog PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 30
+        # Shares the test-mode QSettings store with the window suites; serialise
+        # them so a parallel ctest -j cannot wipe a store another test is using.
+        RESOURCE_LOCK settings_store
+    )
+
     # Test 5: Qt-ADS Docking Layout (v1.3 GUI migration, October 2026)
     # Compiles the REAL application sources so the actual DABAnalyzerWindow
     # (src/main.cpp via GUI_TEST_MODE, main() excluded) can be validated:
@@ -694,6 +715,9 @@ if(CAN_RUN_GUI_TESTS)
         # test and the MOT Slideshow real-fixture test) need extra headroom on
         # slow CI hosts.
         TIMEOUT 240
+        # Shares the test-mode QSettings store with test_settings_dialog /
+        # test_dock_interactions; serialise (see test_settings_dialog).
+        RESOURCE_LOCK settings_store
     )
 
     # Test 6: Qt-ADS Dock Interaction QA (v1.3 GUI migration, T4)
@@ -726,6 +750,8 @@ if(CAN_RUN_GUI_TESTS)
     set_tests_properties(test_dock_interactions PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         TIMEOUT 240
+        # Shares the test-mode QSettings store; serialise (see above).
+        RESOURCE_LOCK settings_store
     )
 
     message(STATUS "  ✓ test_gui_stream_info_panel (10 widget tests)")

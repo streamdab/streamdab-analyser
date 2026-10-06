@@ -303,6 +303,10 @@ public:
     }
     bool isReceivingForTest() const { return m_receiving.load(); }
     bool isConnectedForTest() const { return m_connected.load(); }
+    /// The frame-buffer size the worker snapshots at construction. Diagnostic /
+    /// test read: the worker's config is written once at construction and never
+    /// mutated afterwards, so this is race-free.
+    size_t buffer_size_for_test() const { return m_config.buffer_size; }
 
 public slots:
     void start_reception();
@@ -388,12 +392,6 @@ public:
     void pause_reception();
     void resume_reception();
 
-    // Data access
-    bool has_pending_frames() const;
-    std::vector<QByteArray> get_pending_frames();
-    std::vector<NetworkPacket> get_pending_packets();
-    size_t get_available_frame_count() const;
-
     // Statistics and monitoring
     NetworkStreamStatisticsSnapshot get_statistics() const;
     double get_current_frame_rate() const;
@@ -402,11 +400,6 @@ public:
     std::chrono::microseconds get_average_latency() const;
     std::chrono::microseconds get_max_latency() const;
     bool is_quality_acceptable() const;
-
-    // Network interface management
-    QStringList get_available_interfaces() const;
-    bool set_network_interface(const QString& interface_name);
-    QString get_current_interface() const;
 
     // Error handling
     QString get_last_error() const;
@@ -420,6 +413,12 @@ public:
     // it owns) without real multicast traffic.
     void simulateConnectionEstablishedForTest() { handle_connection_status(true); }
     size_t reconnectionAttemptsForTest() const { return m_reconnection_attempts.load(); }
+    /// The frame-buffer size the live worker was constructed with (0 when no
+    /// worker exists). See NetworkStreamWorker::buffer_size_for_test().
+    size_t worker_buffer_size_for_test() const
+    {
+        return m_worker ? m_worker->buffer_size_for_test() : 0;
+    }
 
     // Callback registration for real-time processing
     using FrameCallback = std::function<void(const QByteArray&)>;
@@ -434,9 +433,6 @@ public:
 
     // Advanced features
     void enable_automatic_reconnection(bool enabled, size_t max_attempts = 10);
-    void set_reconnection_delay(std::chrono::milliseconds delay);
-    void enable_quality_monitoring(bool enabled);
-    void enable_flow_control(bool enabled);
 
 signals:
     void frame_received(const QByteArray& frameData);

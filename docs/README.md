@@ -21,7 +21,7 @@
 | `releases/` | Live status: validation, test status, CLI build, verbose mode | 6 |
 | `gui/` | Qt-ADS docking architecture + usage (v1.3 GUI migration) | 1 |
 | `archive/` | Historical docs: all superseded plans, snapshots, consumed patches | 111 |
-| `docs/` root | Live specs, guides, style, session docs, v1.3 task list | 20 |
+| `docs/` root | Live specs, guides, style, session docs, v1.3 task list | 21 |
 
 ## Start here
 
@@ -30,6 +30,7 @@
   `eti-ni/ETI_NI_PARSER_COMPLETE.md`
 - **Test status:** `releases/TEST_STATUS_REPORT.md` (97.7% pass, 34.4% coverage)
 - **Instructions:** `../AGENTS.md` (build/test commands, workflow, repo rules)
+- **Configuration:** `CONFIGURATION.md` (store location per platform, key groups, reset/export, removed options)
 - **v1.3 spec:** GUI migration to Qt-ADS — task list [`TASK_LIST.md`](TASK_LIST.md), design
   [`gui/QT_ADS_DOCKING.md`](gui/QT_ADS_DOCKING.md), plan `PHASE_E_PLAN.md` v1.3 section
 

@@ -7,334 +7,191 @@
 #include <QTabWidget>
 #include <QGroupBox>
 #include <QLabel>
-#include <QLineEdit>
 #include <QSpinBox>
-#include <QDoubleSpinBox>
 #include <QComboBox>
 #include <QCheckBox>
-#include <QRadioButton>
-#include <QButtonGroup>
 #include <QSlider>
 #include <QPushButton>
 #include <QDialogButtonBox>
-#include <QFileDialog>
-#include <QColorDialog>
-#include <QFontDialog>
 #include <QSettings>
-#include <QFont>
-#include <QColor>
 #include <QString>
 #include <QStringList>
 #include "../core/analyzer_settings.hpp"
 
 /**
  * @class SettingsDialog
- * @brief Professional settings configuration dialog for ETI Stream Analyzer
- * 
- * This dialog provides comprehensive configuration options for the ETI Stream
- * Analyzer application with professional broadcast industry settings including:
- * - General application preferences
- * - Analysis and processing parameters
- * - Display and visualization settings
- * - Audio monitoring configuration
- * - Network and stream settings
- * - Performance optimization options
- * - Professional broadcast workflow settings
+ * @brief Application settings dialog.
+ *
+ * v1.3 settings audit: every control either drives real behaviour or was
+ * removed. The dialog persists to the application's explicit QSettings scope
+ * (see src/utils/app_settings.hpp / docs/CONFIGURATION.md) and is the SAME
+ * state the application reads:
+ *   - General   : confirm-exit (closeEvent) + config-file location (read-only)
+ *   - Analysis  : dashboard sampler update rate (Hz) + network receiver buffer
+ *   - Audio     : output device / mute / volume (shared with the T34 Audio tab)
+ *   - Advanced  : log level (Logger)
+ *   - Analyzer  : analyzer/decode options (already wired, unchanged)
+ *
+ * Controls with no backend were deleted: theme, auto-save + interval,
+ * display colours/font, real-time processing, hardware acceleration,
+ * proxy server, memory limit and process priority. See docs/CONFIGURATION.md
+ * for the rationale and the removed-key list.
  */
 class SettingsDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    /**
-     * @brief Settings category enumeration
-     */
     enum class SettingsCategory {
         General = 0,
         Analysis,
-        Display,
         Audio,
-        Network,
-        Performance,
-        Advanced
+        Advanced,
+        Analyzer
     };
 
-    /**
-     * @brief Constructor
-     * @param parent Parent widget
-     */
     explicit SettingsDialog(QWidget *parent = nullptr);
-
-    /**
-     * @brief Destructor
-     */
     ~SettingsDialog();
 
-    /**
-     * @brief Initialize the settings dialog
-     * @return true if successful
-     */
+    /** @brief Load current settings into the widgets (called by the ctor). */
     bool initialize();
 
-    /**
-     * @brief Load settings from configuration
-     */
+    /** @brief Load settings from the application QSettings scope. */
     void loadSettings();
 
-    /**
-     * @brief Save settings to configuration
-     */
+    /** @brief Persist the widgets to the application QSettings scope. */
     void saveSettings();
 
-    /**
-     * @brief Reset settings to defaults
-     */
+    /** @brief Reset the widgets to their parity-preserving defaults. */
     void resetToDefaults();
 
-    /**
-     * @brief Get current update rate setting
-     * @return Update rate in FPS
-     */
+    /** @brief Dashboard sampler rate in Hz (1..10). */
     int getUpdateRate() const;
 
-    /**
-     * @brief Get current buffer size setting
-     * @return Buffer size in frames
-     */
+    /** @brief Network receiver frame-buffer size in frames (10..10000). */
     int getBufferSize() const;
 
-    /**
-     * @brief Get current memory limit setting
-     * @return Memory limit in MB
-     */
-    int getMemoryLimit() const;
+    /** @brief True when the window should ask before closing. */
+    bool isConfirmExitEnabled() const;
+
+    /** @brief Log-level combo index (0=Error, 1=Warning, 2=Info, 3=Debug). */
+    int logLevelIndex() const;
 
     /**
-     * @brief Check if real-time processing is enabled
-     * @return true if real-time processing enabled
+     * @brief Populate the Audio tab from the live T34 backend state.
+     *
+     * deviceNames/deviceIds are parallel lists in combo order (display text /
+     * backend device name). The dialog and the Audio tab therefore show and
+     * edit the SAME state; no second, disagreeing copy exists.
      */
-    bool isRealTimeProcessingEnabled() const;
+    void setAudioOptions(const QStringList& deviceNames,
+                         const QStringList& deviceIds,
+                         const QString& currentDeviceId,
+                         bool muted,
+                         int volume);
+
+    /** @brief Selected backend output-device name (empty = backend default). */
+    QString audioOutputDevice() const;
+    /** @brief True when audio output is muted. */
+    bool isAudioMuted() const;
+    /** @brief Output volume 0..100. */
+    int audioVolume() const;
 
     /**
-     * @brief Check if hardware acceleration is enabled
-     * @return true if hardware acceleration enabled
+     * @brief Map the log-level combo index to Logger::LogLevel's integer value.
+     *
+     * Kept as a plain int so this header does not depend on utils/logger.h.
+     * 0(Error)->3, 1(Warning)->2, 2(Info)->1, 3(Debug)->0.
      */
-    bool isHardwareAccelerationEnabled() const;
+    static int loggerLevelForIndex(int index);
 
 signals:
-    /**
-     * @brief Emitted when settings are changed and accepted
-     */
+    /** @brief Emitted after settings are saved (OK or Apply). */
     void settingsChanged();
-
-    /**
-     * @brief Emitted when specific setting category changes
-     * @param category Changed category
-     */
+    /** @brief Emitted when the Analyzer / Decode options change. */
+    void analyzerSettingsChanged();
+    /** @brief Emitted when a specific category changes (reserved). */
     void categoryChanged(SettingsCategory category);
 
-    /**
-     * @brief Emitted when the Analyzer / Decode options change and are applied.
-     *
-     * Consumers (analyzer decode paths) should re-read the settings from
-     * QSettings; at minimum they are honored on the next file load.
-     */
-    void analyzerSettingsChanged();
-
 protected:
-    /**
-     * @brief Handle accept button click
-     */
     void accept() override;
-
-    /**
-     * @brief Handle reject button click
-     */
     void reject() override;
 
 private slots:
-    /**
-     * @brief Handle apply button click
-     */
     void handleApply();
-
-    /**
-     * @brief Handle reset button click
-     */
-    void handleReset();
-
-    /**
-     * @brief Handle defaults button click
-     */
     void handleDefaults();
 
-    /**
-     * @brief Handle file path browse button
-     */
-    void handleBrowseFilePath();
-
-    /**
-     * @brief Handle color selection button
-     */
-    void handleColorSelection();
-
-    /**
-     * @brief Handle font selection button
-     */
-    void handleFontSelection();
-
-    /**
-     * @brief Handle settings validation
-     */
-    void handleSettingsValidation();
-
 private:
-    /**
-     * @brief Create the user interface
-     */
     void createUI();
-
-    /**
-     * @brief Create individual tabs
-     */
     void createGeneralTab();
     void createAnalysisTab();
-    void createDisplayTab();
     void createAudioTab();
-    void createNetworkTab();
-    void createPerformanceTab();
     void createAdvancedTab();
     void createAnalyzerTab();
 
-    /**
-     * @brief Initialize combo boxes with values
-     */
-    void initializeComboBoxes();
-
-    /**
-     * @brief Update UI controls with current settings
-     */
-    void updateUI();
-
-    /**
-     * @brief Update color button appearance
-     */
-    void updateColorButtons();
-
-    /**
-     * @brief Validate settings values
-     * @return true if all settings are valid
-     */
-    bool validateSettings();
-
-    /**
-     * @brief Get default settings values
-     * @return Default settings map
-     */
-    QVariantMap getDefaultSettings() const;
-
     // UI components
-    QTabWidget *m_tabWidget;
-    QDialogButtonBox *m_buttonBox;
-    
+    QTabWidget *m_tabWidget = nullptr;
+    QDialogButtonBox *m_buttonBox = nullptr;
+
     // General tab
-    QWidget *m_generalTab;
-    QGroupBox *m_appearanceGroup;
-    QGroupBox *m_behaviorGroup;
-    QComboBox *m_themeCombo;
-    QCheckBox *m_autoSaveCheck;
-    QCheckBox *m_confirmExitCheck;
-    QSpinBox *m_autoSaveIntervalSpin;
-    
+    QWidget *m_generalTab = nullptr;
+    QCheckBox *m_confirmExitCheck = nullptr;
+    QLabel *m_configPathLabel = nullptr;
+
     // Analysis tab
-    QWidget *m_analysisTab;
-    QGroupBox *m_performanceGroup;
-    QGroupBox *m_thresholdGroup;
-    QSpinBox *m_updateRateSpin;
-    QSpinBox *m_bufferSizeSpin;
-    QCheckBox *m_realTimeCheck;
-    QCheckBox *m_hardwareAccelCheck;
-    
-    // Display tab
-    QWidget *m_displayTab;
-    QGroupBox *m_colorsGroup;
-    QGroupBox *m_fontsGroup;
-    QPushButton *m_backgroundColorButton;
-    QPushButton *m_gridColorButton;
-    QPushButton *m_textColorButton;
-    QPushButton *m_fontButton;
-    
-    // Audio tab
-    QWidget *m_audioTab;
-    QGroupBox *m_audioDeviceGroup;
-    QGroupBox *m_levelGroup;
-    QComboBox *m_audioDeviceCombo;
-    QSlider *m_volumeSlider;
-    QCheckBox *m_audioMonitorCheck;
-    
-    // Network tab
-    QWidget *m_networkTab;
-    QGroupBox *m_connectionGroup;
-    QLineEdit *m_proxyHostEdit;
-    QSpinBox *m_proxyPortSpin;
-    QCheckBox *m_useProxyCheck;
-    
-    // Performance tab
-    QWidget *m_performanceTab;
-    QGroupBox *m_memoryGroup;
-    QSpinBox *m_memoryLimitSpin;
-    QComboBox *m_priorityCombo;
-    
+    QWidget *m_analysisTab = nullptr;
+    QSpinBox *m_updateRateSpin = nullptr;
+    QSpinBox *m_bufferSizeSpin = nullptr;
+
+    // Audio tab (mirrors the T34 Audio tab / controller state)
+    QWidget *m_audioTab = nullptr;
+    QComboBox *m_audioDeviceCombo = nullptr;
+    QCheckBox *m_audioMuteCheck = nullptr;
+    QSlider *m_audioVolumeSlider = nullptr;
+    QLabel *m_audioVolumeLabel = nullptr;
+
     // Advanced tab
-    QWidget *m_advancedTab;
-    QGroupBox *m_debugGroup;
-    QCheckBox *m_debugModeCheck;
-    QComboBox *m_logLevelCombo;
+    QWidget *m_advancedTab = nullptr;
+    QComboBox *m_logLevelCombo = nullptr;
 
     // Analyzer / Decode options tab (option-variant matrix rows 1-14)
-    QWidget *m_analyzerTab;
+    QWidget *m_analyzerTab = nullptr;
     // Row A (charset)
-    QSpinBox *m_forceCharsetSpin;
-    QComboBox *m_charsetFallbackCombo;
+    QSpinBox *m_forceCharsetSpin = nullptr;
+    QComboBox *m_charsetFallbackCombo = nullptr;
     // Row B (ETI format)
-    QComboBox *m_etiModeCombo;
+    QComboBox *m_etiModeCombo = nullptr;
     // Row C (NST legacy correction)
-    QCheckBox *m_nstOffset1Check;
+    QCheckBox *m_nstOffset1Check = nullptr;
     // Row D/E (FIC framework + FIB CRC)
-    QComboBox *m_ficModeCombo;
-    QCheckBox *m_fibIgnoreCrcCheck;
+    QComboBox *m_ficModeCombo = nullptr;
+    QCheckBox *m_fibIgnoreCrcCheck = nullptr;
     // Row F/G (ECC override + per-service deep parse)
-    QSpinBox *m_eccOverrideSpin;
-    QCheckBox *m_serviceEccDeepParseCheck;
+    QSpinBox *m_eccOverrideSpin = nullptr;
+    QCheckBox *m_serviceEccDeepParseCheck = nullptr;
     // Row H (label source + short label)
-    QComboBox *m_labelSourceCombo;
-    QCheckBox *m_showShortLabelsCheck;
+    QComboBox *m_labelSourceCombo = nullptr;
+    QCheckBox *m_showShortLabelsCheck = nullptr;
     // Row I (timestamp source)
-    QComboBox *m_timestampSourceCombo;
+    QComboBox *m_timestampSourceCombo = nullptr;
     // Row J (strict frame CRC)
-    QCheckBox *m_strictFrameCrcCheck;
+    QCheckBox *m_strictFrameCrcCheck = nullptr;
     // Row K (SId display)
-    QComboBox *m_sidDisplayCombo;
-
-    // Custom members for business logic
-    QColor m_backgroundColor;
-    QColor m_gridColor;
-    QColor m_textColor;
-    QFont m_displayFont;
+    QComboBox *m_sidDisplayCombo = nullptr;
 
     // Settings state
-    bool m_settingsLoaded;
-    bool m_settingsChanged;
-    QSettings *m_settings;
+    bool m_settingsLoaded = false;
+    QSettings *m_settings = nullptr;
+
+    // Last-selected audio device (used when the device list is (re)populated).
+    QString m_audioDeviceId;
 
     // Constants
-    static constexpr int MIN_UPDATE_RATE = 1;
-    static constexpr int MAX_UPDATE_RATE = 120;
-    static constexpr int DEFAULT_UPDATE_RATE = 60;
+    static constexpr int MIN_UPDATE_RATE = 1;          // Hz (1 Hz == the old
+    static constexpr int MAX_UPDATE_RATE = 10;         // 1 s sampler cadence)
+    static constexpr int DEFAULT_UPDATE_RATE = 1;
     static constexpr int MIN_BUFFER_SIZE = 10;
     static constexpr int MAX_BUFFER_SIZE = 10000;
     static constexpr int DEFAULT_BUFFER_SIZE = 1000;
-    static constexpr int MIN_MEMORY_LIMIT = 50;
-    static constexpr int MAX_MEMORY_LIMIT = 2048;
-    static constexpr int DEFAULT_MEMORY_LIMIT = 150;
+    static constexpr int DEFAULT_AUDIO_VOLUME = 100;
 };

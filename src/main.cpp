@@ -97,6 +97,8 @@
 #include "gui/settings_dialog.h"
 #include "gui/etsi_compliance_monitor.h"
 #include "gui/professional_export_manager.h"
+#include "utils/app_settings.hpp"  // explicit QSettings scope (org/app)
+#include "utils/logger.h"          // Logger level (Advanced settings tab)
 
 #include <QFile>       // /proc/self/{stat,statm} sampling for the dashboard
 #if defined(Q_OS_LINUX)
@@ -859,6 +861,11 @@ public:
                 this, &DABAnalyzerWindow::updateDashboardSamples);
         m_perfTimer.start();
         m_perfSampleTimer->start();
+
+        // Apply persisted application settings (Settings dialog scope) to the
+        // live objects: confirm-exit, sampler rate, network buffer, log level
+        // and the shared T34 audio state.
+        applyPersistedAppSettings();
 
         // EMERGENCY: ALL CUSTOM THEMING DISABLED FOR TEXT VISIBILITY
         // applyTheme();
@@ -3470,7 +3477,36 @@ public:
         s.info = tag;
         appendRetainedSlide(serviceId, std::move(s));
     }
+    // Settings audit: drive the live apply path without opening the modal
+    // dialog (which would block an offscreen test).
+    void applyPersistedAppSettingsForTest() { applyPersistedAppSettings(); }
+    void applyAudioSettingsForTest(const QString& device, bool muted, int volume)
+    {
+        applyAudioSettings(device, muted, volume);
+    }
+    void requestExitForTest() { requestExit(); }
 #endif
+    // Settings audit: read-only observation hooks.
+    bool confirmExitOnCloseForTest() const { return m_confirmExitOnClose; }
+    int networkBufferFramesForTest() const { return m_networkBufferFrames; }
+    int dashboardSampleIntervalForTest() const
+    {
+        return m_perfSampleTimer ? m_perfSampleTimer->interval() : -1;
+    }
+    QString audioOutputDeviceForTest() const
+    {
+        return m_audioController ? m_audioController->outputDevice() : QString();
+    }
+    // Settings audit: buffer actually applied to the live receiver / its worker
+    // (not just the member) — verifies the connect_with_config() path.
+    size_t networkReceiverBufferForTest() const
+    {
+        return m_networkReceiver ? m_networkReceiver->get_config().buffer_size : 0;
+    }
+    size_t networkReceiverWorkerBufferForTest() const
+    {
+        return m_networkReceiver ? m_networkReceiver->worker_buffer_size_for_test() : 0;
+    }
     bool isPlayingForTest() const { return m_playbackPlaying; }
     int playbackFrameForTest() const { return m_playbackFrame; }
     bool isLoopForTest() const { return isLoopEnabled(); }
@@ -3905,7 +3941,7 @@ private:
         eti::NetworkStreamConfig config;
         config.multicast_address = address;
         config.port = port;
-        config.buffer_size = 1000;
+        config.buffer_size = static_cast<size_t>(m_networkBufferFrames);
         config.auto_reconnect = false;
         config.max_reconnect_attempts = 10;
         
@@ -3980,8 +4016,11 @@ private:
                     handleStreamError(error);
                 });
         
-        // 4) Attempt connection
-        if (m_networkReceiver->connect_to_stream(address, port)) {
+        // 4) Attempt connection. connect_with_config() (not the default-config
+        //    connect_to_stream()) so the config above — including the tuned
+        //    buffer size from the Settings dialog — is honored; a fresh default
+        //    config would silently reset buffer_size to 1000.
+        if (m_networkReceiver->connect_with_config(config)) {
             // Live mode before the first datagram: no file-derived state may
             // leak into the stream, and the live path must be self-sufficient.
             beginLiveMode();
@@ -4988,19 +5027,44 @@ private:
         dlg.exec();
     }
 
-    // File -> Settings: edits the real AnalyzerSettings (QSettings group
-    // "analyzer/"); accepted changes are reloaded and applied to the analyzer.
+    // File -> Settings: edits the live application settings. Every control is
+    // wired to real behaviour (confirm-exit, sampler rate, network buffer, log
+    // level, shared T34 audio) plus the AnalyzerSettings decode options.
+    // "Apply"/"OK" persist to the app QSettings scope and apply immediately
+    // where possible; analyzer decode options take full effect on next load.
     void showSettingsDialog()
     {
         SettingsDialog dlg(this);
-        if (dlg.exec() == QDialog::Accepted) {
+
+        // Feed the dialog the SAME T34 audio state as the Transport Audio tab.
+        QStringList deviceNames;
+        QStringList deviceIds;
+        const QList<streamdab::audio::AudioOutputSink::DeviceInfo> devices =
+            streamdab::audio::AudioOutputSink::enumerateOutputDevices();
+        for (const streamdab::audio::AudioOutputSink::DeviceInfo& info : devices) {
+            deviceNames.append(info.description);
+            deviceIds.append(info.name);
+        }
+        dlg.setAudioOptions(deviceNames, deviceIds,
+                            m_audioController ? m_audioController->outputDevice() : QString(),
+                            m_audioMuteCheck ? m_audioMuteCheck->isChecked() : false,
+                            m_audioVolumeSlider ? m_audioVolumeSlider->value() : 100);
+
+        // Apply immediately on "Apply" as well as "OK" (both emit
+        // settingsChanged after saveSettings()).
+        connect(&dlg, &SettingsDialog::settingsChanged, this, [this]() {
+            applyPersistedAppSettings();
             m_analyzerSettings.loadFromQSettings();
             if (m_figAnalyzer) {
                 m_figAnalyzer->setAnalyzerSettings(m_analyzerSettings);
             }
+        });
+
+        if (dlg.exec() == QDialog::Accepted) {
             statusBar()->showMessage(
-                tr("Analyzer settings saved — FIG analyzer updated now; "
-                   "full effect on the next file load."), 5000);
+                tr("Settings saved — applied now (exit confirmation, update rate, "
+                   "network buffer, log level, audio). Analyzer decode options take "
+                   "full effect on the next file load."), 6000);
         }
     }
 
@@ -5031,9 +5095,147 @@ private:
         m_exportManager->startExport(config);
     }
 
+    // ========================================================================
+    // Settings application (v1.3 settings audit)
+    // ========================================================================
+
+    /// True for headless test/automation platforms: never show modal dialogs.
+    static bool isHeadlessPlatform()
+    {
+        const QString platform = QApplication::platformName();
+        return platform == QLatin1String("offscreen") ||
+               platform == QLatin1String("minimal");
+    }
+
+    /// Read the application QSettings scope and apply every live setting.
+    void applyPersistedAppSettings()
+    {
+        const QSettings s(streamdab::app_settings::organization(),
+                          streamdab::app_settings::application());
+
+        // General: exit confirmation.
+        m_confirmExitOnClose = s.value(QStringLiteral("general/confirmExit"), true).toBool();
+
+        // Analysis: dashboard sampler rate (Hz) + network receiver buffer.
+        const int hz = qBound(1, s.value(QStringLiteral("analysis/updateRate"), 1).toInt(), 10);
+        if (m_perfSampleTimer) {
+            m_perfSampleTimer->setInterval(1000 / hz);
+        }
+        m_networkBufferFrames =
+            qBound(10, s.value(QStringLiteral("analysis/bufferSize"), 1000).toInt(), 10000);
+        if (m_networkReceiver) {
+            m_networkReceiver->set_buffer_size(static_cast<size_t>(m_networkBufferFrames));
+        }
+
+        // Advanced: logger level.
+        const int levelIndex =
+            qBound(0, s.value(QStringLiteral("advanced/logLevel"), 2).toInt(), 3);
+        Logger::instance().setLogLevel(static_cast<Logger::LogLevel>(
+            SettingsDialog::loggerLevelForIndex(levelIndex)));
+
+        // Audio: shared with the T34 Audio tab / controller.
+        applyAudioSettings(s.value(QStringLiteral("audio/device"), QString()).toString(),
+                           s.value(QStringLiteral("audio/muted"), false).toBool(),
+                           qBound(0, s.value(QStringLiteral("audio/volume"), 100).toInt(), 100));
+    }
+
+    /// Apply one audio state to BOTH the controller and the Audio-tab widgets.
+    void applyAudioSettings(const QString& device, bool muted, int volume)
+    {
+        if (m_audioController) {
+            if (!device.isEmpty()) {
+                m_audioController->setOutputDevice(device);
+            }
+            m_audioController->setMuted(muted);
+            m_audioController->setVolume(volume / 100.0);
+        }
+        // Mirror into the Transport group's Audio tab (same state, no duplicate
+        // that can disagree). Signal blockers prevent feedback loops.
+        if (m_audioDeviceCombo) {
+            const int index = m_audioDeviceCombo->findData(device);
+            if (index >= 0 && index != m_audioDeviceCombo->currentIndex()) {
+                const QSignalBlocker blocker(m_audioDeviceCombo);
+                m_audioDeviceCombo->setCurrentIndex(index);
+            }
+        }
+        if (m_audioMuteCheck) {
+            const QSignalBlocker blocker(m_audioMuteCheck);
+            m_audioMuteCheck->setChecked(muted);
+        }
+        if (m_audioVolumeSlider) {
+            const QSignalBlocker blocker(m_audioVolumeSlider);
+            m_audioVolumeSlider->setValue(volume);
+        }
+        // The valueChanged->label connection is suppressed by the blocker above,
+        // so update the "%" label explicitly (the slider bar and the text must
+        // not disagree).
+        if (m_audioVolumeLabel) {
+            m_audioVolumeLabel->setText(QStringLiteral("%1%").arg(volume));
+        }
+    }
+
+    /// Persist the Audio-tab state so the Settings dialog re-opens in sync.
+    /// Values are written to a long-lived QSettings instance (in-memory cache,
+    /// immediately visible to other QSettings instances in this process) and
+    /// the disk flush (sync) is DEBOUNCED with a 300 ms single-shot timer so
+    /// dragging the volume slider does not sync() per step.
+    void persistAudioSettings()
+    {
+        if (!m_appSettings) {
+            m_appSettings = streamdab::app_settings::create(this);
+        }
+        if (m_audioDeviceCombo) {
+            m_appSettings->setValue(QStringLiteral("audio/device"),
+                                    m_audioDeviceCombo->currentData().toString());
+        }
+        if (m_audioMuteCheck) {
+            m_appSettings->setValue(QStringLiteral("audio/muted"),
+                                    m_audioMuteCheck->isChecked());
+        }
+        if (m_audioVolumeSlider) {
+            m_appSettings->setValue(QStringLiteral("audio/volume"),
+                                    m_audioVolumeSlider->value());
+        }
+        if (!m_audioSettingsSyncTimer) {
+            m_audioSettingsSyncTimer = new QTimer(this);
+            m_audioSettingsSyncTimer->setSingleShot(true);
+            m_audioSettingsSyncTimer->setInterval(300);
+            connect(m_audioSettingsSyncTimer, &QTimer::timeout, this, [this]() {
+                if (m_appSettings) {
+                    m_appSettings->sync();
+                }
+            });
+        }
+        m_audioSettingsSyncTimer->start();
+    }
+
+    /// File -> Exit: mark an interactive close so the confirmation applies.
+    void requestExit()
+    {
+        m_userCloseRequested = true;
+        close();
+    }
+
 protected:
     void closeEvent(QCloseEvent* event) override
     {
+        // Settings: opt-in exit confirmation. Only interactive closes (window
+        // X / File -> Exit) prompt; programmatic close() calls in tests and
+        // teardown never do. Headless (offscreen/minimal) runs never prompt.
+        if (m_confirmExitOnClose && !m_closing && !isHeadlessPlatform() &&
+            (event->spontaneous() || m_userCloseRequested)) {
+            const QMessageBox::StandardButton answer = QMessageBox::question(
+                this, tr("Exit StreamDAB Analyzer"),
+                tr("Close StreamDAB Analyzer and discard the current session?"),
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+            if (answer != QMessageBox::Yes) {
+                m_userCloseRequested = false;
+                event->ignore();
+                return;
+            }
+        }
+        m_userCloseRequested = false;
+
         // v1.3: persist docking/window state BEFORE any component teardown
         saveDockingState();
 
@@ -8361,7 +8563,8 @@ private:
     // ========================================================================
     void restoreDockingState()
     {
-        const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        const QSettings s(streamdab::app_settings::organization(),
+                          streamdab::app_settings::application());
 
         const QByteArray geometry = s.value(QStringLiteral("window/geometry")).toByteArray();
         if (!geometry.isEmpty() && !restoreGeometry(geometry)) {
@@ -8407,7 +8610,8 @@ private:
 
     void saveDockingState()
     {
-        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        QSettings s(streamdab::app_settings::organization(),
+                    streamdab::app_settings::application());
         s.setValue(QStringLiteral("docking/layout_version"), DOCKING_LAYOUT_VERSION);
         s.setValue(QStringLiteral("window/geometry"), saveGeometry());
         if (m_tab1DockManager) {
@@ -8910,6 +9114,7 @@ private:
                 return;
             }
             m_audioController->setOutputDevice(m_audioDeviceCombo->itemData(index).toString());
+            persistAudioSettings();
         });
 
         // Row 3: mute + volume.
@@ -8932,6 +9137,7 @@ private:
             if (m_audioController) {
                 m_audioController->setMuted(muted);
             }
+            persistAudioSettings();
         });
         connect(m_audioVolumeSlider, &QSlider::valueChanged, this, [this](int value) {
             if (m_audioVolumeLabel) {
@@ -8940,6 +9146,7 @@ private:
             if (m_audioController) {
                 m_audioController->setVolume(value / 100.0);
             }
+            persistAudioSettings();
         });
 
         // Row 4/5: real L/R peak level meters (0 when silent/stopped/no device).
@@ -9387,7 +9594,7 @@ private:
 
         fileMenu->addSeparator();
         QAction* exitAction = fileMenu->addAction("Exit");
-        connect(exitAction, &QAction::triggered, this, &QWidget::close);
+        connect(exitAction, &QAction::triggered, this, &DABAnalyzerWindow::requestExit);
         
         // T23 (option A): the Input menu is gone. Input mode is owned solely by
         // the File/Network radios + Connect/Disconnect/Record in the input
@@ -10538,6 +10745,14 @@ private:
     // slots delivered during teardown must degrade gracefully and must never
     // pop a modal dialog (would block/hang an offscreen teardown).
     bool m_closing{false};
+
+    // === Settings audit (v1.3): live settings state ===
+    bool m_confirmExitOnClose{true};   // general/confirmExit
+    bool m_userCloseRequested{false};  // File -> Exit marks an interactive close
+    int m_networkBufferFrames{1000};   // analysis/bufferSize (receiver frames)
+    // Long-lived settings handle + debounced disk flush for the Audio tab.
+    QSettings* m_appSettings{nullptr};
+    QTimer* m_audioSettingsSyncTimer{nullptr};
 
     // Phase 4 Week 3: Stream recording
     QFile m_recordingFile;
