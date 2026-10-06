@@ -15,6 +15,38 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZMQ REQUIRED libzmq)
 include_directories(${ZMQ_INCLUDE_DIRS})
 
+# ============================================================================
+# T34: audio decode/output dependencies.
+#   - libfaad2: DAB+ HE-AAC decode (no faad.pc is installed on this host, so
+#     locate the header/library directly).
+#   - ALSA: playback sink (the project deliberately avoids Qt Multimedia).
+# Both are OPTIONAL: the code degrades gracefully when either is missing.
+# ============================================================================
+find_path(FAAD2_INCLUDE_DIR neaacdec.h)
+find_library(FAAD2_LIBRARY NAMES faad)
+pkg_check_modules(ALSA alsa)
+
+set(T34_AUDIO_LIBS "")
+set(T34_AUDIO_INCLUDES "")
+set(T34_AUDIO_DEFINES "")
+if(FAAD2_INCLUDE_DIR AND FAAD2_LIBRARY)
+    list(APPEND T34_AUDIO_LIBS ${FAAD2_LIBRARY})
+    list(APPEND T34_AUDIO_INCLUDES ${FAAD2_INCLUDE_DIR})
+    list(APPEND T34_AUDIO_DEFINES HAVE_FAAD2)
+    message(STATUS "T34 audio: libfaad2 found -> DAB+ HE-AAC decode enabled")
+else()
+    message(STATUS "T34 audio: libfaad2 NOT found -> audio decode disabled")
+endif()
+if(ALSA_FOUND)
+    # ALSA_LINK_LIBRARIES holds full paths (robust across distros).
+    list(APPEND T34_AUDIO_LIBS ${ALSA_LINK_LIBRARIES})
+    list(APPEND T34_AUDIO_INCLUDES ${ALSA_INCLUDE_DIRS})
+    list(APPEND T34_AUDIO_DEFINES HAVE_ALSA)
+    message(STATUS "T34 audio: ALSA found -> audio output enabled")
+else()
+    message(STATUS "T34 audio: ALSA NOT found -> audio output disabled")
+endif()
+
 # Qt-Advanced-Docking-System (Qt-ADS) via FetchContent
 include(FetchContent)
 FetchContent_Declare(
@@ -49,6 +81,10 @@ set(SOURCES
     src/core/epg_decoder.cpp
     src/core/journaline_decoder.cpp
     src/core/dls_plus_decoder.cpp
+    # T34: DAB+ audio decode (libfaad2) + ALSA output + selected-service playback.
+    src/core/dabplus_audio_decoder.cpp
+    src/core/audio_output_sink.cpp
+    src/core/audio_playback_controller.cpp
     src/core/phase3a_integration.cpp
     src/core/network_stream_receiver.cpp
     src/core/eti_reader_thread.cpp
@@ -110,8 +146,13 @@ target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
     Qt6::Test
     qtadvanceddocking-qt6
     ${ZMQ_LIBRARIES}
+    ${T34_AUDIO_LIBS}
     pthread
 )
+
+# T34: audio decode/output includes + feature defines (HAVE_FAAD2 / HAVE_ALSA).
+target_include_directories(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${T34_AUDIO_INCLUDES})
+target_compile_definitions(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${T34_AUDIO_DEFINES})
 
 # Add ZeroMQ library directories
 target_link_directories(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${ZMQ_LIBRARY_DIRS})
