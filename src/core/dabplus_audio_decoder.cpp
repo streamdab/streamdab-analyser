@@ -5,12 +5,9 @@
  */
 
 #include "dabplus_audio_decoder.hpp"
-#include "crc16.hpp"
 
 #include <QDebug>
 
-#include <algorithm>
-#include <cstring>
 
 #ifdef HAVE_FAAD2
 extern "C" {
@@ -19,31 +16,6 @@ extern "C" {
 #endif
 
 namespace streamdab::audio {
-
-namespace {
-
-// FireCode CRC-16 (poly 0x782F, init 0x0000), bit order per ETSI TS 102 563
-// §6.2 / ODR-Dab etisnoop (firecode.c). Identical to the DLS+ parser's helper.
-uint16_t firecodeCrc(const uint8_t* buf, size_t size)
-{
-    uint16_t crc = 0x0000;
-    constexpr uint16_t genPoly = 0x782F;
-    for (size_t len = 0; len < size; ++len) {
-        for (int i = 0x80; i != 0; i >>= 1) {
-            if (crc & 0x8000) {
-                crc = static_cast<uint16_t>((crc << 1) ^ genPoly);
-            } else {
-                crc = static_cast<uint16_t>(crc << 1);
-            }
-            if (buf[len] & i) {
-                crc ^= genPoly;
-            }
-        }
-    }
-    return crc;
-}
-
-} // namespace
 
 DabPlusAudioDecoder::DabPlusAudioDecoder(QObject* parent)
     : QObject(parent)
@@ -71,8 +43,7 @@ void DabPlusAudioDecoder::setError(const QString& error)
 
 void DabPlusAudioDecoder::reset()
 {
-    m_superframeBuffer.clear();
-    m_chunkLen = 0;
+    m_superframe.reset();
     m_haveFormat = false;
     m_lastFormatByte = 0;
     m_format = DabPlusFormat{};
@@ -81,25 +52,23 @@ void DabPlusAudioDecoder::reset()
     endDecode();
 }
 
-void DabPlusAudioDecoder::setFormatFromByte(uint8_t audioParams, int bitrateKbps)
+void DabPlusAudioDecoder::setFormatFrom(const streamdab::dabplus::SuperframeResult& result)
 {
     DabPlusFormat fmt;
-    fmt.dacRate = (audioParams & 0x40) != 0;
-    fmt.sbr = (audioParams & 0x20) != 0;
-    fmt.aacChannelMode = (audioParams & 0x10) != 0;
-    fmt.ps = (audioParams & 0x08) != 0;
-    fmt.bitrateKbps = bitrateKbps;
-    // numAus follows the format bits (DABlin SuperframeFilter::CheckSync):
-    // dac_rate ? (sbr ? 3 : 6) : (sbr ? 2 : 4)
-    fmt.numAus = fmt.dacRate ? (fmt.sbr ? 3 : 6) : (fmt.sbr ? 2 : 4);
+    fmt.dacRate = result.format.dacRate;
+    fmt.sbr = result.format.sbr;
+    fmt.aacChannelMode = result.format.aacChannelMode;
+    fmt.ps = result.format.ps;
+    fmt.bitrateKbps = result.format.bitrateKbps;
+    fmt.numAus = result.format.numAus;
     fmt.subChannelId = m_format.subChannelId;
     fmt.serviceId = m_format.serviceId;
 
-    const bool changed = !m_haveFormat || m_lastFormatByte != audioParams;
+    const bool changed = !m_haveFormat || m_lastFormatByte != result.audioParams;
     m_format = fmt;
     if (changed) {
         m_haveFormat = true;
-        m_lastFormatByte = audioParams;
+        m_lastFormatByte = result.audioParams;
         emit formatChanged();
     }
 }
@@ -107,123 +76,29 @@ void DabPlusAudioDecoder::setFormatFromByte(uint8_t audioParams, int bitrateKbps
 bool DabPlusAudioDecoder::feedChunk(const QByteArray& chunk,
                                     const std::function<void(const QByteArray&)>& onAu)
 {
-    if (chunk.isEmpty()) {
+    // T38: the shared transport module owns accumulation and sync. A locked
+    // window increments the accepted-superframe counter exactly as the local
+    // implementation did (before the AU offset table is decoded).
+    const streamdab::dabplus::SuperframeResult result = m_superframe.processChunk(chunk);
+    if (!result.examined
+        || result.sync != streamdab::dabplus::SuperframeSync::Locked) {
         return false;
-    }
-    if (m_chunkLen == 0) {
-        m_chunkLen = chunk.size();
-    }
-    if (chunk.size() != m_chunkLen) {
-        m_superframeBuffer.clear();
-        m_chunkLen = chunk.size();
-    }
-    m_superframeBuffer.append(chunk);
-    const int sfLen = 5 * m_chunkLen;
-    if (m_superframeBuffer.size() < sfLen) {
-        return false;
-    }
-    const QByteArray sf = m_superframeBuffer.left(sfLen);
-    bool synced = false;
-    const bool produced = processSuperframe(sf, onAu, &synced);
-    m_superframeBuffer.remove(0, synced ? sfLen : m_chunkLen);
-    return produced;
-}
-
-bool DabPlusAudioDecoder::processSuperframe(
-    const QByteArray& sf,
-    const std::function<void(const QByteArray&)>& onAu,
-    bool* syncedOut)
-{
-    if (syncedOut) {
-        *syncedOut = false;
-    }
-    if (sf.size() < 120 || (sf.size() % 120) != 0) {
-        return false;
-    }
-    const int subchIndex = sf.size() / 120;
-    const uint8_t* b = reinterpret_cast<const uint8_t*>(sf.constData());
-
-    // ---- Superframe header / FireCode (ETSI TS 102 563 §4) ----
-    const uint16_t fireStored = static_cast<uint16_t>((b[0] << 8) | b[1]);
-    if (fireStored != firecodeCrc(b + 2, 9)) {
-        return false;  // not synced
-    }
-    // Plausibility check (etisnoop): the three bytes after the FireCode must
-    // not all be zero (avoids sync in zero padding).
-    if (b[3] == 0x00 && (b[4] & 0xF0) == 0x00) {
-        return false;
-    }
-    if (syncedOut) {
-        *syncedOut = true;
     }
     ++m_superframesAccepted;
-
-    const uint8_t audioParams = b[2];
-    setFormatFromByte(audioParams, sf.size() / 120 * 8);
-
-    const bool dacRate = (audioParams & 0x40) != 0;
-    const bool sbrFlag = (audioParams & 0x20) != 0;
-    int numAus = 0;
-    int firstAuStart = 0;
-    if (!dacRate && sbrFlag) {
-        numAus = 2;
-        firstAuStart = 5;
-    } else if (dacRate && sbrFlag) {
-        numAus = 3;
-        firstAuStart = 6;
-    } else if (!dacRate && !sbrFlag) {
-        numAus = 4;
-        firstAuStart = 8;
-    } else {
-        numAus = 6;
-        firstAuStart = 11;
+    setFormatFrom(result);
+    if (!result.offsetsValid) {
+        return false;
     }
 
-    // AU start offsets: n-1 values of 3 nibbles each (etisnoop).
-    std::vector<int> auStart(static_cast<size_t>(numAus) + 1, 0);
-    auStart[0] = firstAuStart;
-    auStart[numAus] = subchIndex * 110;  // end of AU data (before RS parity)
-
-    std::vector<uint8_t> nibbles;
-    nibbles.reserve(static_cast<size_t>((numAus - 1) * 3));
-    for (int i = 0; i < (numAus - 1) * 3; ++i) {
-        const int byteIndex = 3 + i / 2;
-        if (byteIndex >= sf.size()) {
-            return false;
-        }
-        nibbles.push_back((i % 2 == 0) ? static_cast<uint8_t>(b[byteIndex] >> 4)
-                                       : static_cast<uint8_t>(b[byteIndex] & 0x0F));
-    }
-    int nib = 0;
-    for (int au = 1; au < numAus; ++au) {
-        auStart[au] = (nibbles[nib] << 8) | (nibbles[nib + 1] << 4) | nibbles[nib + 2];
-        nib += 3;
-    }
-    for (int au = 0; au < numAus; ++au) {
-        if (auStart[au] >= auStart[au + 1]) {
-            return false;
-        }
-    }
-
-    // ---- Per-AU: AU CRC (ETSI TS 102 563 §5) ----
+    const uint8_t* b = reinterpret_cast<const uint8_t*>(result.data.constData());
     bool produced = false;
-    for (int au = 0; au < numAus; ++au) {
-        const int auLen = auStart[au + 1] - auStart[au];
-        if (auLen < 2) {
-            continue;
-        }
-        const uint8_t* auData = b + auStart[au];
-        const int payloadLen = auLen - 2;
-        const uint16_t auCrcStored =
-            static_cast<uint16_t>((auData[payloadLen] << 8) | auData[payloadLen + 1]);
-        const uint16_t auCrcCalc =
-            static_cast<uint16_t>(~eti::crc16ccitt_false(auData, static_cast<size_t>(payloadLen)));
-        if (auCrcStored != auCrcCalc) {
+    for (const streamdab::dabplus::AccessUnit& au : result.aus) {
+        if (!au.crcOk) {
             continue;  // corrupted AU -> skip (no RS correction here)
         }
         ++m_accessUnitsAccepted;
         if (onAu) {
-            onAu(QByteArray(reinterpret_cast<const char*>(auData), payloadLen));
+            onAu(QByteArray(reinterpret_cast<const char*>(b + au.offset), au.size - 2));
         }
         produced = true;
     }

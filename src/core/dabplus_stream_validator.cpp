@@ -474,6 +474,12 @@ DABPlusStreamValidator::Statistics DABPlusStreamValidator::getStatistics() const
 // ============================================================================
 // FireCode CRC Implementation
 // ============================================================================
+// NOTE (T38): this legacy validator keeps its own FireCode lookup table for its
+// independent compliance checks and is deliberately left unchanged. The live
+// DAB+ superframe/AU/PAD transport layer (sliding FireCode sync, AU offsets,
+// AU CRC, DSE/PAD location) is the shared module src/core/dabplus_superframe.
+// {hpp,cpp}; do not add a third copy here.
+// ============================================================================
 
 void DABPlusStreamValidator::initializeFireCodeTable()
 {

@@ -76,6 +76,8 @@ set(SOURCES
     src/core/professional_logging_system.cpp
     src/core/hex_viewer_formatter.cpp
     src/core/dabplus_stream_validator.cpp
+    # T38: shared DAB+ superframe/AU/PAD transport (main.cpp + audio decoder).
+    src/core/dabplus_superframe.cpp
     src/core/mot_protocol.cpp
     src/core/mot_pad_adapter.cpp
     src/core/epg_decoder.cpp

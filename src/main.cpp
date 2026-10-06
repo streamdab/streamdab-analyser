@@ -69,6 +69,7 @@
 
 #include "core/enhanced_eti_processor_qt.h"
 #include "core/crc16.hpp"  // shared CRC-16/CCITT-FALSE (AU + DL Data Group CRC)
+#include "core/dabplus_superframe.hpp"  // T38: shared DAB+ superframe/AU/PAD transport
 #include "core/advanced_fig_analyzer.h"
 #include "core/hex_viewer_formatter.h"
 #include "core/analyzer_settings.hpp"
@@ -130,40 +131,31 @@ namespace {
 // The repo's core/dabplus_stream_validator.cpp does NOT contain a usable
 // F-PAD/X-PAD parser: its `extractPADData()` is explicitly a stub ("real
 // implementation would parse F-PAD length indicator") and its AU handling has
-// no FireCode / DSE / AU-CRC step. The parsing logic here was therefore
-// re-implemented from the standards and cross-checked against the reference
-// decoders (logic only, no code copied):
+// no FireCode / DSE / AU-CRC step. The transport layer (5-CIF superframe
+// assembly, FireCode sync, AU offsets, AU CRC, DSE/PAD location) now lives in
+// the shared module core/dabplus_superframe.{hpp,cpp} (T38) and is used here
+// and by the T34 audio decoder. The remaining F-PAD/X-PAD/DLS/DL+/MOT logic
+// below was re-implemented from the standards and cross-checked against the
+// reference decoders (logic only, no code copied):
 //   - ODR-Dab DABlin: src/dabplus_decoder.cpp (SuperframeFilter::CheckSync /
 //     CheckForPAD), src/pad_decoder.cpp (PADDecoder::Process,
 //     DynamicLabelDecoder)
 //   - ODR-Dab etisnoop: src/dabplussnoop.cpp (seek_valid_firecode / decode /
 //     extract_au), src/firecode.c
-// The only value reused from the repo's validator is FPAD_LEN = 2.
+// FPAD_LEN = 2 is exposed by the shared module as streamdab::dabplus::kFpadLen.
 // ============================================================================
 
-// FireCode CRC-16 (poly 0x782F, init 0x0000), bit order per etisnoop.
+// FireCode CRC-16, shared implementation (core/dabplus_superframe.{hpp,cpp}).
+// Kept as a thin alias because the GUI test target textually includes this file
+// and builds crafted superframes with it.
 inline uint16_t dabFirecodeCrc(const uint8_t* buf, size_t size)
 {
-    uint16_t crc = 0x0000;
-    constexpr uint16_t genPoly = 0x782F;
-    for (size_t len = 0; len < size; ++len) {
-        for (int i = 0x80; i != 0; i >>= 1) {
-            if (crc & 0x8000) {
-                crc = static_cast<uint16_t>((crc << 1) ^ genPoly);
-            } else {
-                crc = static_cast<uint16_t>(crc << 1);
-            }
-            if (buf[len] & i) {
-                crc ^= genPoly;
-            }
-        }
-    }
-    return crc;
+    return streamdab::dabplus::firecodeCrc(buf, size);
 }
 
 // X-PAD X-PAD CI sub-field lengths, ETSI EN 300 401 Table 6.
 constexpr int kXpadSubfieldLens[8] = {4, 6, 8, 12, 16, 24, 32, 48};
-constexpr int kFpadLen = 2;  // FPAD_LEN reused from dabplus_stream_validator.cpp
+constexpr int kFpadLen = streamdab::dabplus::kFpadLen;  // F-PAD length (shared T38)
 
 // DLS+ content descriptor (standard 3-byte form, ETSI TS 102 980 §4).
 struct StdDlsPlusTag {
@@ -242,9 +234,8 @@ struct DabPlusSubchannelParser {
     Reassembler dlReassembler;
     Reassembler dlPlusReassembler;
 
-    // 5-CIF superframe accumulation.
-    QByteArray superframeBuffer;
-    int chunkLen = 0;
+    // 5-CIF superframe accumulation + FireCode/AU/PAD transport (T38 shared).
+    streamdab::dabplus::SuperframeAssembler superframeAssembler;
 
     // DL Data Group accumulation (one group may span sub-fields).
     QByteArray dataGroupBuffer;
@@ -267,8 +258,7 @@ struct DabPlusSubchannelParser {
 
     void reset()
     {
-        superframeBuffer.clear();
-        chunkLen = 0;
+        superframeAssembler.reset();
         dlReassembler.reset();
         dlPlusReassembler.reset();
         dataGroupBuffer.clear();
@@ -280,155 +270,69 @@ struct DabPlusSubchannelParser {
         motContinuationLen = -1;
     }
 
-    // Feed one ETI-frame CIF chunk for this subchannel. Uses a sliding sync:
-    // a DAB+ superframe starts every 5 CIFs, so if the candidate window does
-    // not pass the FireCode we drop ONE chunk and retry (instead of discarding
-    // all 5), which locks onto the real superframe boundary quickly.
+    // Feed one ETI-frame CIF chunk for this subchannel. The shared transport
+    // module (T38) accumulates 5 CIFs into a superframe and applies the sliding
+    // FireCode sync: a candidate window that does not pass the FireCode drops
+    // ONE chunk and retries (instead of discarding all 5), which locks onto the
+    // real superframe boundary quickly.
     bool feedChunk(const QByteArray& chunk, DlsAssembly& out)
     {
-        if (chunk.isEmpty()) {
-            return false;
-        }
-        if (chunkLen == 0) {
-            chunkLen = chunk.size();
-        }
-        if (chunk.size() != chunkLen) {
-            superframeBuffer.clear();
-            chunkLen = chunk.size();
-        }
-        superframeBuffer.append(chunk);
-        const int sfLen = 5 * chunkLen;
-        if (superframeBuffer.size() < sfLen) {
-            return false;
-        }
-        const QByteArray sf = superframeBuffer.left(sfLen);
-        bool synced = false;
-        const bool produced = processSuperframe(sf, out, &synced);
-        superframeBuffer.remove(0, synced ? sfLen : chunkLen);
-        return produced;
+        const streamdab::dabplus::SuperframeResult result =
+            superframeAssembler.processChunk(chunk);
+        return handleSuperframe(result, out);
     }
 
-    bool processSuperframe(const QByteArray& sf, DlsAssembly& out,
-                           bool* syncedOut = nullptr)
+    // Whole-superframe entry point, used by the GUI synthetic-superframe test
+    // hook: evaluate an already-assembled candidate via the shared module.
+    bool processSuperframe(const QByteArray& sf, DlsAssembly& out)
     {
-        if (syncedOut) {
-            *syncedOut = false;
-        }
-        if (sf.size() < 120 || (sf.size() % 120) != 0) {
+        const streamdab::dabplus::SuperframeResult result =
+            streamdab::dabplus::SuperframeAssembler::processSuperframe(sf);
+        return handleSuperframe(result, out);
+    }
+
+    // Apply a shared transport result to this parser's DLS/DLS+ state. Counter
+    // updates and dispatch order are unchanged from the pre-T38 local
+    // implementation:
+    //  - `superframes` counts every size-valid candidate window (locked or not);
+    //  - `firecodeOk` counts FireCode + plausibility passes (before AU offsets);
+    //  - `ausProcessed` counts AUs with size >= 2, `ausCrcOk` the CRC-valid ones;
+    //  - `padFound` counts CRC-valid AUs carrying a usable DSE/PAD.
+    bool handleSuperframe(const streamdab::dabplus::SuperframeResult& result,
+                          DlsAssembly& out)
+    {
+        if (!result.examined) {
             return false;
         }
-        const int subchIndex = sf.size() / 120;
-        const uint8_t* b = reinterpret_cast<const uint8_t*>(sf.constData());
         ++superframes;
-
-        // ---- Superframe header / FireCode (ETSI TS 102 563 §4) ----
-        const uint16_t fireStored = static_cast<uint16_t>((b[0] << 8) | b[1]);
-        if (fireStored != dabFirecodeCrc(b + 2, 9)) {
+        if (result.sync != streamdab::dabplus::SuperframeSync::Locked) {
             return false;  // not synced
         }
-        // Simple plausibility check (etisnoop): the three bytes after the
-        // FireCode must not all be zero (avoids sync in zero padding).
-        if (b[3] == 0x00 && (b[4] & 0xF0) == 0x00) {
+        ++firecodeOk;
+        if (!result.offsetsValid) {
             return false;
         }
-        ++firecodeOk;
-        if (syncedOut) {
-            *syncedOut = true;
-        }
-
-        const uint8_t audioParams = b[2];
-        const bool dacRate = (audioParams & 0x40) != 0;
-        const bool sbrFlag = (audioParams & 0x20) != 0;
-        int numAus = 0;
-        int firstAuStart = 0;
-        if (!dacRate && sbrFlag) {
-            numAus = 2;
-            firstAuStart = 5;
-        } else if (dacRate && sbrFlag) {
-            numAus = 3;
-            firstAuStart = 6;
-        } else if (!dacRate && !sbrFlag) {
-            numAus = 4;
-            firstAuStart = 8;
-        } else {
-            numAus = 6;
-            firstAuStart = 11;
-        }
-
-        // AU start offsets: n-1 values of 3 nibbles each (etisnoop).
-        std::vector<int> auStart(static_cast<size_t>(numAus) + 1, 0);
-        auStart[0] = firstAuStart;
-        auStart[numAus] = subchIndex * 110;  // end of AU data (before RS parity)
-
-        std::vector<uint8_t> nibbles;
-        nibbles.reserve(static_cast<size_t>((numAus - 1) * 3));
-        for (int i = 0; i < (numAus - 1) * 3; ++i) {
-            const int byteIndex = 3 + i / 2;
-            if (byteIndex >= sf.size()) {
-                return false;
-            }
-            nibbles.push_back((i % 2 == 0) ? static_cast<uint8_t>(b[byteIndex] >> 4)
-                                           : static_cast<uint8_t>(b[byteIndex] & 0x0F));
-        }
-        int nib = 0;
-        for (int au = 1; au < numAus; ++au) {
-            auStart[au] = (nibbles[nib] << 8) | (nibbles[nib + 1] << 4) | nibbles[nib + 2];
-            nib += 3;
-        }
-        for (int au = 0; au < numAus; ++au) {
-            if (auStart[au] >= auStart[au + 1]) {
-                return false;
-            }
-        }
-
-        // ---- Per-AU: AU CRC + DSE/PAD (ETSI TS 102 563 §5/§7) ----
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(result.data.constData());
         bool produced = false;
-        for (int au = 0; au < numAus; ++au) {
-            const int auLen = auStart[au + 1] - auStart[au];
-            if (auLen < 2) {
-                continue;
-            }
-            const uint8_t* auData = b + auStart[au];
-            const int payloadLen = auLen - 2;
-            const uint16_t auCrcStored =
-                static_cast<uint16_t>((auData[payloadLen] << 8) | auData[payloadLen + 1]);
-            const uint16_t auCrcCalc =
-                static_cast<uint16_t>(~eti::crc16ccitt_false(auData, payloadLen));
+        for (const streamdab::dabplus::AccessUnit& au : result.aus) {
             ++ausProcessed;
-            if (auCrcStored != auCrcCalc) {
+            if (!au.crcOk) {
                 continue;  // corrupted AU -> skip (no RS correction attempted)
             }
             ++ausCrcOk;
-            if (processAuPad(auData, payloadLen, out)) {
+            if (au.padOffset < 0) {
+                continue;  // CRC-valid AU without a PAD DSE
+            }
+            ++padFound;
+            const uint8_t* payload = b + au.offset;
+            const uint8_t* xpad = payload + au.padOffset;
+            const size_t xpadLen = static_cast<size_t>(au.padLen - kFpadLen);
+            const uint8_t* fpad = payload + au.padOffset + au.padLen - kFpadLen;
+            if (processPad(xpad, xpadLen, fpad, out)) {
                 produced = true;
             }
         }
         return produced;
-    }
-
-    // Locate the PAD inside the AU's Data Stream Element and decode it.
-    bool processAuPad(const uint8_t* data, int len, DlsAssembly& out)
-    {
-        if (len < 3 || (data[0] >> 5) != 4) {
-            return false;  // no DSE (PAD) present
-        }
-        int padStart = 2;
-        int padLen = data[1];
-        if (padLen == 255) {
-            if (len < 3) {
-                return false;
-            }
-            padLen += data[2];
-            padStart++;
-        }
-        if (padLen < kFpadLen || len < padStart + padLen) {
-            return false;
-        }
-        ++padFound;
-        const uint8_t* xpad = data + padStart;
-        const size_t xpadLen = static_cast<size_t>(padLen - kFpadLen);
-        const uint8_t* fpad = data + padStart + padLen - kFpadLen;
-        return processPad(xpad, xpadLen, fpad, out);
     }
 
     // F-PAD + X-PAD CI/data subfield decode (ETSI EN 300 401 §7.4).
