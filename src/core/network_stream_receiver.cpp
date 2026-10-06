@@ -701,14 +701,36 @@ bool NetworkStreamReceiver::is_receiving() const {
 
 void NetworkStreamReceiver::set_config(const NetworkStreamConfig& config) {
     validate_config(config);
-    
+
+    if (!m_worker) {
+        // No worker yet (nothing connected): just update the stored config;
+        // the next connect_with_config()/initialize_worker_thread() snapshots it.
+        m_config = config;
+        return;
+    }
+
+    // LIVE config change. The worker snapshots its config at construction, so
+    // a running worker must be rebuilt for the new config to take effect:
+    // stop reception, tear the worker+thread down, recreate it with the new
+    // config, restart reception.
+    //
+    // Documented semantics:
+    //  - The socket is transparently re-created with the new config
+    //    (buffer sizes are applied in NetworkStreamWorker::initialize_socket()).
+    //  - The receiver keeps its connected state: no connection_status_changed
+    //    is emitted by the receiver during the rebuild. The worker does emit
+    //    start/stop transitions to the receiver, which relays them to the GUI
+    //    as a brief "Connected" re-confirmation — no user disconnect required.
+    //  - If reception was paused, it stays stopped until resumed.
     const bool was_receiving = is_receiving();
     if (was_receiving) {
         stop_reception();
     }
-    
+
+    cleanup_worker_thread();
     m_config = config;
-    
+    initialize_worker_thread();
+
     if (was_receiving) {
         start_reception();
     }
@@ -717,6 +739,15 @@ void NetworkStreamReceiver::set_config(const NetworkStreamConfig& config) {
 NetworkStreamConfig NetworkStreamReceiver::get_config() const {
     QMutexLocker locker(&m_mutex);
     return m_config;
+}
+
+void NetworkStreamReceiver::set_buffer_size(size_t buffer_frames) {
+    // Public setter declared in the header but previously unimplemented; the
+    // Settings dialog wires analysis/bufferSize through it. Delegate to
+    // set_config() so validation + a reception restart stay in one place.
+    NetworkStreamConfig config = get_config();
+    config.buffer_size = buffer_frames;
+    set_config(config);
 }
 
 void NetworkStreamReceiver::start_reception() {

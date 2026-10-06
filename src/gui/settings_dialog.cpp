@@ -1,101 +1,89 @@
 /**
  * @file settings_dialog.cpp
- * @brief Professional settings configuration dialog implementation
- * 
- * This file implements the SettingsDialog class providing comprehensive
- * configuration options for the ETI Stream Analyzer application following
- * professional broadcast industry standards with manual widget creation.
+ * @brief Application settings dialog implementation.
+ *
+ * v1.3 settings audit. Each control is either wired to real behaviour or was
+ * removed (no silent no-ops). Persistence uses the explicit application
+ * QSettings scope (src/utils/app_settings.hpp):
+ *
+ *   general/confirmExit        -> DABAnalyzerWindow::closeEvent confirmation
+ *   general/configPath         -> read-only display path (not persisted)
+ *   analysis/updateRate        -> dashboard sampler rate in Hz (1..10)
+ *   analysis/bufferSize        -> network receiver frame-buffer size
+ *   audio/device,muted,volume  -> T34 AudioPlaybackController + Audio tab
+ *   advanced/logLevel          -> Logger::setLogLevel
+ *   analyzer/ (group)          -> AnalyzerSettings (already wired)
+ *
+ * @author C++ Qt Developer Agent (settings audit, v1.3)
  */
 
 #include "settings_dialog.h"
 #include "utils/logger.h"
+#include "utils/app_settings.hpp"
 
 #include <QApplication>
-#include <QStandardPaths>
 #include <QMessageBox>
-#include <QDir>
-#include <QFileInfo>
-#include <QScreen>
-#include <QDebug>
-#include <QFormLayout>
 #include <QIcon>
+#include <QFormLayout>
 
 SettingsDialog::SettingsDialog(QWidget *parent)
     : QDialog(parent)
     , m_tabWidget(nullptr)
     , m_buttonBox(nullptr)
-    , m_backgroundColor(20, 20, 30)
-    , m_gridColor(60, 60, 80)
-    , m_textColor(200, 200, 220)
-    , m_displayFont("Arial", 9)
     , m_settingsLoaded(false)
-    , m_settingsChanged(false)
     , m_settings(nullptr)
 {
-    // Create UI manually
+    // Explicit application scope (org StreamDAB-Analyzer / app DABAnalyzer).
+    m_settings = streamdab::app_settings::create(this);
+
+    // Create UI, then populate the widgets from the persisted store.
     createUI();
-    
-    // Initialize settings
-    m_settings = new QSettings(this);
-    
+    initialize();
+
     Logger::instance().log(Logger::Info, "SettingsDialog", "Constructor completed");
 }
 
 SettingsDialog::~SettingsDialog()
 {
     Logger::instance().log(Logger::Info, "SettingsDialog", "Destructor starting");
-    
-    // Qt handles widget cleanup automatically
-    
     Logger::instance().log(Logger::Info, "SettingsDialog", "Destructor completed");
 }
 
 void SettingsDialog::createUI()
 {
-    // Create main layout
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    
-    // Create tab widget
+
     m_tabWidget = new QTabWidget(this);
-    
-    // Create tabs
+
     createGeneralTab();
     createAnalysisTab();
-    createDisplayTab();
     createAudioTab();
-    createNetworkTab();
-    createPerformanceTab();
     createAdvancedTab();
     createAnalyzerTab();
-    
-    // Create button box
+
     m_buttonBox = new QDialogButtonBox(
-        QDialogButtonBox::Ok | QDialogButtonBox::Cancel | 
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel |
         QDialogButtonBox::Apply | QDialogButtonBox::RestoreDefaults,
         this
     );
-    
-    // Add to main layout
+
     mainLayout->addWidget(m_tabWidget);
     mainLayout->addWidget(m_buttonBox);
-    
-    // Connect signals
+
     connect(m_buttonBox, &QDialogButtonBox::accepted, this, &SettingsDialog::accept);
     connect(m_buttonBox, &QDialogButtonBox::rejected, this, &SettingsDialog::reject);
     connect(m_buttonBox->button(QDialogButtonBox::Apply), &QPushButton::clicked,
             this, &SettingsDialog::handleApply);
     connect(m_buttonBox->button(QDialogButtonBox::RestoreDefaults), &QPushButton::clicked,
             this, &SettingsDialog::handleDefaults);
-    
-    // Set dialog properties
+
     setObjectName("SettingsDialog");
     setWindowTitle(tr("StreamDAB Stream Analyzer - Settings"));
     setWindowIcon(QIcon(":/icons/settings.png"));
     setModal(true);
     setMinimumSize(600, 450);
     resize(700, 550);
-    
-    // Center dialog on parent
+
     if (parentWidget()) {
         QRect parentGeometry = parentWidget()->geometry();
         int x = parentGeometry.x() + (parentGeometry.width() - width()) / 2;
@@ -108,34 +96,34 @@ void SettingsDialog::createGeneralTab()
 {
     m_generalTab = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(m_generalTab);
-    
-    // Appearance group
-    m_appearanceGroup = new QGroupBox(tr("Appearance"), m_generalTab);
-    QFormLayout *appearanceLayout = new QFormLayout(m_appearanceGroup);
-    
-    m_themeCombo = new QComboBox();
-    m_themeCombo->addItems({tr("Dark"), tr("Light"), tr("System")});
-    appearanceLayout->addRow(tr("Theme:"), m_themeCombo);
-    
-    // Behavior group
-    m_behaviorGroup = new QGroupBox(tr("Behavior"), m_generalTab);
-    QFormLayout *behaviorLayout = new QFormLayout(m_behaviorGroup);
-    
-    m_autoSaveCheck = new QCheckBox(tr("Enable auto-save"));
-    m_confirmExitCheck = new QCheckBox(tr("Confirm on exit"));
-    m_autoSaveIntervalSpin = new QSpinBox();
-    m_autoSaveIntervalSpin->setRange(30, 600);
-    m_autoSaveIntervalSpin->setSuffix(tr(" seconds"));
-    m_autoSaveIntervalSpin->setValue(60);
-    
-    behaviorLayout->addRow(m_autoSaveCheck);
-    behaviorLayout->addRow(m_confirmExitCheck);
-    behaviorLayout->addRow(tr("Auto-save interval:"), m_autoSaveIntervalSpin);
-    
-    layout->addWidget(m_appearanceGroup);
-    layout->addWidget(m_behaviorGroup);
+
+    QGroupBox *behaviourGroup = new QGroupBox(tr("Behaviour"), m_generalTab);
+    QFormLayout *behaviourLayout = new QFormLayout(behaviourGroup);
+
+    m_confirmExitCheck = new QCheckBox(tr("Confirm before closing the application"));
+    m_confirmExitCheck->setObjectName(QStringLiteral("settingsConfirmExit"));
+    m_confirmExitCheck->setToolTip(tr(
+        "When enabled, closing the main window (or File -> Exit) asks for "
+        "confirmation before the capture is torn down. Applied immediately."));
+    behaviourLayout->addRow(m_confirmExitCheck);
+
+    // Read-only configuration-store location: tells the user where preferences
+    // actually live on this platform (see docs/CONFIGURATION.md).
+    QGroupBox *storeGroup = new QGroupBox(tr("Configuration"), m_generalTab);
+    QFormLayout *storeLayout = new QFormLayout(storeGroup);
+    m_configPathLabel = new QLabel(streamdab::app_settings::filePath());
+    m_configPathLabel->setObjectName(QStringLiteral("settingsConfigPath"));
+    m_configPathLabel->setWordWrap(true);
+    m_configPathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_configPathLabel->setToolTip(tr(
+        "Native per-platform settings store written by this application. "
+        "Delete this file (or remove the registry key / plist) to reset."));
+    storeLayout->addRow(tr("Store:"), m_configPathLabel);
+
+    layout->addWidget(behaviourGroup);
+    layout->addWidget(storeGroup);
     layout->addStretch();
-    
+
     m_tabWidget->addTab(m_generalTab, tr("General"));
 }
 
@@ -143,178 +131,104 @@ void SettingsDialog::createAnalysisTab()
 {
     m_analysisTab = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(m_analysisTab);
-    
-    // Performance group
-    m_performanceGroup = new QGroupBox(tr("Performance"), m_analysisTab);
-    QFormLayout *performanceLayout = new QFormLayout(m_performanceGroup);
-    
+
+    QGroupBox *performanceGroup = new QGroupBox(tr("Performance"), m_analysisTab);
+    QFormLayout *performanceLayout = new QFormLayout(performanceGroup);
+
     m_updateRateSpin = new QSpinBox();
+    m_updateRateSpin->setObjectName(QStringLiteral("settingsUpdateRate"));
     m_updateRateSpin->setRange(MIN_UPDATE_RATE, MAX_UPDATE_RATE);
     m_updateRateSpin->setValue(DEFAULT_UPDATE_RATE);
-    m_updateRateSpin->setSuffix(tr(" FPS"));
-    
+    m_updateRateSpin->setSuffix(tr(" Hz"));
+    m_updateRateSpin->setToolTip(tr(
+        "Dashboard sampler rate. Drives how often the Performance Dashboard and "
+        "Real-Time Chart are refreshed with real FPS/RSS/CPU. 1 Hz (default) is "
+        "the historical 1 s cadence; applied immediately."));
+
     m_bufferSizeSpin = new QSpinBox();
+    m_bufferSizeSpin->setObjectName(QStringLiteral("settingsBufferSize"));
     m_bufferSizeSpin->setRange(MIN_BUFFER_SIZE, MAX_BUFFER_SIZE);
     m_bufferSizeSpin->setValue(DEFAULT_BUFFER_SIZE);
     m_bufferSizeSpin->setSuffix(tr(" frames"));
-    
-    m_realTimeCheck = new QCheckBox(tr("Enable real-time processing"));
-    m_hardwareAccelCheck = new QCheckBox(tr("Enable hardware acceleration"));
-    
-    performanceLayout->addRow(tr("Update rate:"), m_updateRateSpin);
-    performanceLayout->addRow(tr("Buffer size:"), m_bufferSizeSpin);
-    performanceLayout->addRow(m_realTimeCheck);
-    performanceLayout->addRow(m_hardwareAccelCheck);
-    
-    layout->addWidget(m_performanceGroup);
-    layout->addStretch();
-    
-    m_tabWidget->addTab(m_analysisTab, tr("Analysis"));
-}
+    m_bufferSizeSpin->setToolTip(tr(
+        "ETI-over-IP receiver frame buffer. Applied to the live receiver at "
+        "once and to every subsequent network connection. File playback is "
+        "unaffected."));
 
-void SettingsDialog::createDisplayTab()
-{
-    m_displayTab = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(m_displayTab);
-    
-    // Colors group
-    m_colorsGroup = new QGroupBox(tr("Colors"), m_displayTab);
-    QFormLayout *colorsLayout = new QFormLayout(m_colorsGroup);
-    
-    m_backgroundColorButton = new QPushButton(tr("Background Color"));
-    m_gridColorButton = new QPushButton(tr("Grid Color"));
-    m_textColorButton = new QPushButton(tr("Text Color"));
-    
-    connect(m_backgroundColorButton, &QPushButton::clicked, this, &SettingsDialog::handleColorSelection);
-    connect(m_gridColorButton, &QPushButton::clicked, this, &SettingsDialog::handleColorSelection);
-    connect(m_textColorButton, &QPushButton::clicked, this, &SettingsDialog::handleColorSelection);
-    
-    colorsLayout->addRow(tr("Background:"), m_backgroundColorButton);
-    colorsLayout->addRow(tr("Grid:"), m_gridColorButton);
-    colorsLayout->addRow(tr("Text:"), m_textColorButton);
-    
-    // Fonts group
-    m_fontsGroup = new QGroupBox(tr("Fonts"), m_displayTab);
-    QFormLayout *fontsLayout = new QFormLayout(m_fontsGroup);
-    
-    m_fontButton = new QPushButton(tr("Select Font"));
-    connect(m_fontButton, &QPushButton::clicked, this, &SettingsDialog::handleFontSelection);
-    
-    fontsLayout->addRow(tr("Display font:"), m_fontButton);
-    
-    layout->addWidget(m_colorsGroup);
-    layout->addWidget(m_fontsGroup);
+    performanceLayout->addRow(tr("Update rate:"), m_updateRateSpin);
+    performanceLayout->addRow(tr("Network buffer:"), m_bufferSizeSpin);
+
+    layout->addWidget(performanceGroup);
     layout->addStretch();
-    
-    m_tabWidget->addTab(m_displayTab, tr("Display"));
+
+    m_tabWidget->addTab(m_analysisTab, tr("Analysis"));
 }
 
 void SettingsDialog::createAudioTab()
 {
     m_audioTab = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(m_audioTab);
-    
-    // Audio device group
-    m_audioDeviceGroup = new QGroupBox(tr("Audio Device"), m_audioTab);
-    QFormLayout *deviceLayout = new QFormLayout(m_audioDeviceGroup);
-    
+
+    QGroupBox *deviceGroup = new QGroupBox(tr("Audio Device"), m_audioTab);
+    QFormLayout *deviceLayout = new QFormLayout(deviceGroup);
+
     m_audioDeviceCombo = new QComboBox();
-    m_audioDeviceCombo->addItems({tr("Default"), tr("System Audio"), tr("ASIO Driver")});
-    
-    m_audioMonitorCheck = new QCheckBox(tr("Enable audio monitoring"));
-    
+    m_audioDeviceCombo->setObjectName(QStringLiteral("settingsAudioDevice"));
+    m_audioDeviceCombo->setToolTip(tr(
+        "ALSA output device used by the T34 DAB+ audio playback. The same "
+        "state as the Transport group's Audio tab."));
+
+    m_audioMuteCheck = new QCheckBox(tr("Mute"));
+    m_audioMuteCheck->setObjectName(QStringLiteral("settingsAudioMute"));
     deviceLayout->addRow(tr("Output device:"), m_audioDeviceCombo);
-    deviceLayout->addRow(m_audioMonitorCheck);
-    
-    // Level group
-    m_levelGroup = new QGroupBox(tr("Audio Levels"), m_audioTab);
-    QFormLayout *levelLayout = new QFormLayout(m_levelGroup);
-    
-    m_volumeSlider = new QSlider(Qt::Horizontal);
-    m_volumeSlider->setRange(0, 100);
-    m_volumeSlider->setValue(50);
-    
-    levelLayout->addRow(tr("Volume:"), m_volumeSlider);
-    
-    layout->addWidget(m_audioDeviceGroup);
-    layout->addWidget(m_levelGroup);
+    deviceLayout->addRow(m_audioMuteCheck);
+
+    QGroupBox *levelGroup = new QGroupBox(tr("Audio Levels"), m_audioTab);
+    QFormLayout *levelLayout = new QFormLayout(levelGroup);
+
+    m_audioVolumeSlider = new QSlider(Qt::Horizontal);
+    m_audioVolumeSlider->setObjectName(QStringLiteral("settingsAudioVolume"));
+    m_audioVolumeSlider->setRange(0, 100);
+    m_audioVolumeSlider->setValue(DEFAULT_AUDIO_VOLUME);
+    m_audioVolumeLabel = new QLabel(QStringLiteral("%1%").arg(DEFAULT_AUDIO_VOLUME));
+    QHBoxLayout *volumeRow = new QHBoxLayout();
+    volumeRow->addWidget(m_audioVolumeSlider, 1);
+    volumeRow->addWidget(m_audioVolumeLabel);
+    connect(m_audioVolumeSlider, &QSlider::valueChanged, this, [this](int value) {
+        if (m_audioVolumeLabel) {
+            m_audioVolumeLabel->setText(QString("%1%").arg(value));
+        }
+    });
+    levelLayout->addRow(tr("Volume:"), volumeRow);
+
+    layout->addWidget(deviceGroup);
+    layout->addWidget(levelGroup);
     layout->addStretch();
-    
+
     m_tabWidget->addTab(m_audioTab, tr("Audio"));
-}
-
-void SettingsDialog::createNetworkTab()
-{
-    m_networkTab = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(m_networkTab);
-    
-    // Connection group
-    m_connectionGroup = new QGroupBox(tr("Network Connection"), m_networkTab);
-    QFormLayout *connectionLayout = new QFormLayout(m_connectionGroup);
-    
-    m_useProxyCheck = new QCheckBox(tr("Use proxy server"));
-    m_proxyHostEdit = new QLineEdit();
-    m_proxyPortSpin = new QSpinBox();
-    m_proxyPortSpin->setRange(1, 65535);
-    m_proxyPortSpin->setValue(8080);
-    
-    connectionLayout->addRow(m_useProxyCheck);
-    connectionLayout->addRow(tr("Proxy host:"), m_proxyHostEdit);
-    connectionLayout->addRow(tr("Proxy port:"), m_proxyPortSpin);
-    
-    layout->addWidget(m_connectionGroup);
-    layout->addStretch();
-    
-    m_tabWidget->addTab(m_networkTab, tr("Network"));
-}
-
-void SettingsDialog::createPerformanceTab()
-{
-    m_performanceTab = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(m_performanceTab);
-    
-    // Memory group
-    m_memoryGroup = new QGroupBox(tr("Memory Management"), m_performanceTab);
-    QFormLayout *memoryLayout = new QFormLayout(m_memoryGroup);
-    
-    m_memoryLimitSpin = new QSpinBox();
-    m_memoryLimitSpin->setRange(MIN_MEMORY_LIMIT, MAX_MEMORY_LIMIT);
-    m_memoryLimitSpin->setValue(DEFAULT_MEMORY_LIMIT);
-    m_memoryLimitSpin->setSuffix(tr(" MB"));
-    
-    m_priorityCombo = new QComboBox();
-    m_priorityCombo->addItems({tr("Low"), tr("Normal"), tr("High"), tr("Real-time")});
-    m_priorityCombo->setCurrentIndex(1); // Normal
-    
-    memoryLayout->addRow(tr("Memory limit:"), m_memoryLimitSpin);
-    memoryLayout->addRow(tr("Process priority:"), m_priorityCombo);
-    
-    layout->addWidget(m_memoryGroup);
-    layout->addStretch();
-    
-    m_tabWidget->addTab(m_performanceTab, tr("Performance"));
 }
 
 void SettingsDialog::createAdvancedTab()
 {
     m_advancedTab = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(m_advancedTab);
-    
-    // Debug group
-    m_debugGroup = new QGroupBox(tr("Advanced Options"), m_advancedTab);
-    QFormLayout *debugLayout = new QFormLayout(m_debugGroup);
-    
-    m_debugModeCheck = new QCheckBox(tr("Enable debug mode"));
+
+    QGroupBox *debugGroup = new QGroupBox(tr("Logging"), m_advancedTab);
+    QFormLayout *debugLayout = new QFormLayout(debugGroup);
+
     m_logLevelCombo = new QComboBox();
+    m_logLevelCombo->setObjectName(QStringLiteral("settingsLogLevel"));
     m_logLevelCombo->addItems({tr("Error"), tr("Warning"), tr("Info"), tr("Debug")});
     m_logLevelCombo->setCurrentIndex(2); // Info
-    
-    debugLayout->addRow(m_debugModeCheck);
+    m_logLevelCombo->setToolTip(tr(
+        "Minimum severity written to the log. Applied to the singleton Logger "
+        "immediately (Console + file). Debug enables verbose output."));
+
     debugLayout->addRow(tr("Log level:"), m_logLevelCombo);
-    
-    layout->addWidget(m_debugGroup);
+
+    layout->addWidget(debugGroup);
     layout->addStretch();
-    
+
     m_tabWidget->addTab(m_advancedTab, tr("Advanced"));
 }
 
@@ -482,22 +396,15 @@ void SettingsDialog::createAnalyzerTab()
 bool SettingsDialog::initialize()
 {
     Logger::instance().log(Logger::Info, "SettingsDialog", "Initialization starting");
-    
+
     try {
-        // Initialize combo boxes
-        initializeComboBoxes();
-        
-        // Update UI with current settings
-        updateUI();
-        
-        // Mark as loaded
+        loadSettings();
         m_settingsLoaded = true;
-        
-        Logger::instance().log(Logger::Info, "SettingsDialog", "Initialization completed successfully");
+        Logger::instance().log(Logger::Info, "SettingsDialog",
+                               "Initialization completed successfully");
         return true;
-        
     } catch (const std::exception& e) {
-        Logger::instance().log(Logger::Error, "SettingsDialog", 
+        Logger::instance().log(Logger::Error, "SettingsDialog",
                              QString("Initialization failed: %1").arg(e.what()));
         return false;
     }
@@ -506,38 +413,41 @@ bool SettingsDialog::initialize()
 void SettingsDialog::loadSettings()
 {
     Logger::instance().log(Logger::Debug, "SettingsDialog", "Loading settings from configuration");
-    
+
     if (!m_settings) {
         Logger::instance().log(Logger::Warning, "SettingsDialog", "Settings object not initialized");
         return;
     }
-    
+
     try {
-        // Load general settings
-        m_themeCombo->setCurrentIndex(m_settings->value("general/theme", 0).toInt());
-        m_autoSaveCheck->setChecked(m_settings->value("general/autoSave", true).toBool());
+        // General: opt-in exit confirmation (default ON, as before the audit).
         m_confirmExitCheck->setChecked(m_settings->value("general/confirmExit", true).toBool());
-        m_autoSaveIntervalSpin->setValue(m_settings->value("general/autoSaveInterval", 60).toInt());
-        
-        // Load analysis settings
-        m_updateRateSpin->setValue(m_settings->value("analysis/updateRate", DEFAULT_UPDATE_RATE).toInt());
-        m_bufferSizeSpin->setValue(m_settings->value("analysis/bufferSize", DEFAULT_BUFFER_SIZE).toInt());
-        m_realTimeCheck->setChecked(m_settings->value("analysis/realTime", false).toBool());
-        m_hardwareAccelCheck->setChecked(m_settings->value("analysis/hardwareAccel", false).toBool());
-        
-        // Load display settings
-        m_backgroundColor = m_settings->value("display/backgroundColor", QColor(20, 20, 30)).value<QColor>();
-        m_gridColor = m_settings->value("display/gridColor", QColor(60, 60, 80)).value<QColor>();
-        m_textColor = m_settings->value("display/textColor", QColor(200, 200, 220)).value<QColor>();
-        m_displayFont = m_settings->value("display/font", QFont("Arial", 9)).value<QFont>();
-        
-        // Load performance settings
-        m_memoryLimitSpin->setValue(m_settings->value("performance/memoryLimit", DEFAULT_MEMORY_LIMIT).toInt());
-        m_priorityCombo->setCurrentIndex(m_settings->value("performance/priority", 1).toInt());
-        
-        // Load advanced settings
-        m_debugModeCheck->setChecked(m_settings->value("advanced/debugMode", false).toBool());
-        m_logLevelCombo->setCurrentIndex(m_settings->value("advanced/logLevel", 2).toInt());
+
+        // Analysis: dashboard sampler rate + network receiver buffer.
+        m_updateRateSpin->setValue(
+            qBound(MIN_UPDATE_RATE,
+                   m_settings->value("analysis/updateRate", DEFAULT_UPDATE_RATE).toInt(),
+                   MAX_UPDATE_RATE));
+        m_bufferSizeSpin->setValue(
+            qBound(MIN_BUFFER_SIZE,
+                   m_settings->value("analysis/bufferSize", DEFAULT_BUFFER_SIZE).toInt(),
+                   MAX_BUFFER_SIZE));
+
+        // Audio: shared with the T34 Audio tab / controller.
+        m_audioDeviceId = m_settings->value("audio/device", QString()).toString();
+        if (m_audioDeviceCombo) {
+            const int deviceIndex = m_audioDeviceCombo->findData(m_audioDeviceId);
+            if (deviceIndex >= 0) {
+                m_audioDeviceCombo->setCurrentIndex(deviceIndex);
+            }
+        }
+        m_audioMuteCheck->setChecked(m_settings->value("audio/muted", false).toBool());
+        m_audioVolumeSlider->setValue(
+            qBound(0, m_settings->value("audio/volume", DEFAULT_AUDIO_VOLUME).toInt(), 100));
+
+        // Advanced: logger level.
+        m_logLevelCombo->setCurrentIndex(
+            qBound(0, m_settings->value("advanced/logLevel", 2).toInt(), 3));
 
         // Load analyzer / decode settings (option-variant matrix rows 1-14)
         {
@@ -567,15 +477,10 @@ void SettingsDialog::loadSettings()
                 m_sidDisplayCombo->findData(
                     eti::AnalyzerSettings::sidDisplayModeToString(analyzer.sid_display_mode)));
         }
-        
-        // Update UI
-        updateColorButtons();
-        m_fontButton->setText(QString("%1, %2pt").arg(m_displayFont.family()).arg(m_displayFont.pointSize()));
-        
+
         Logger::instance().log(Logger::Debug, "SettingsDialog", "Settings loaded successfully");
-        
     } catch (const std::exception& e) {
-        Logger::instance().log(Logger::Error, "SettingsDialog", 
+        Logger::instance().log(Logger::Error, "SettingsDialog",
                              QString("Failed to load settings: %1").arg(e.what()));
     }
 }
@@ -583,40 +488,33 @@ void SettingsDialog::loadSettings()
 void SettingsDialog::saveSettings()
 {
     Logger::instance().log(Logger::Debug, "SettingsDialog", "Saving settings to configuration");
-    
+
     if (!m_settings) {
         Logger::instance().log(Logger::Warning, "SettingsDialog", "Settings object not initialized");
         return;
     }
-    
+
     try {
-        // Save general settings
-        m_settings->setValue("general/theme", m_themeCombo->currentIndex());
-        m_settings->setValue("general/autoSave", m_autoSaveCheck->isChecked());
+        // General
         m_settings->setValue("general/confirmExit", m_confirmExitCheck->isChecked());
-        m_settings->setValue("general/autoSaveInterval", m_autoSaveIntervalSpin->value());
-        
-        // Save analysis settings
+
+        // Analysis
         m_settings->setValue("analysis/updateRate", m_updateRateSpin->value());
         m_settings->setValue("analysis/bufferSize", m_bufferSizeSpin->value());
-        m_settings->setValue("analysis/realTime", m_realTimeCheck->isChecked());
-        m_settings->setValue("analysis/hardwareAccel", m_hardwareAccelCheck->isChecked());
-        
-        // Save display settings
-        m_settings->setValue("display/backgroundColor", m_backgroundColor);
-        m_settings->setValue("display/gridColor", m_gridColor);
-        m_settings->setValue("display/textColor", m_textColor);
-        m_settings->setValue("display/font", m_displayFont);
-        
-        // Save performance settings
-        m_settings->setValue("performance/memoryLimit", m_memoryLimitSpin->value());
-        m_settings->setValue("performance/priority", m_priorityCombo->currentIndex());
-        
-        // Save advanced settings
-        m_settings->setValue("advanced/debugMode", m_debugModeCheck->isChecked());
+
+        // Audio (shared with the T34 Audio tab). Keep the selected device id
+        // when the combo is empty (dialog constructed without a backend).
+        if (m_audioDeviceCombo && m_audioDeviceCombo->count() > 0) {
+            m_audioDeviceId = m_audioDeviceCombo->currentData().toString();
+        }
+        m_settings->setValue("audio/device", m_audioDeviceId);
+        m_settings->setValue("audio/muted", m_audioMuteCheck->isChecked());
+        m_settings->setValue("audio/volume", m_audioVolumeSlider->value());
+
+        // Advanced
         m_settings->setValue("advanced/logLevel", m_logLevelCombo->currentIndex());
 
-        // Save analyzer / decode settings (option-variant matrix rows 1-14)
+        // Analyzer / decode settings (option-variant matrix rows 1-14)
         {
             eti::AnalyzerSettings analyzer = eti::AnalyzerSettings::defaults();
             analyzer.force_charset = m_forceCharsetSpin->value();
@@ -670,14 +568,12 @@ void SettingsDialog::saveSettings()
             }
             analyzer.saveToQSettings(*m_settings);
         }
-        
+
         m_settings->sync();
-        m_settingsChanged = false;
-        
+
         Logger::instance().log(Logger::Debug, "SettingsDialog", "Settings saved successfully");
-        
     } catch (const std::exception& e) {
-        Logger::instance().log(Logger::Error, "SettingsDialog", 
+        Logger::instance().log(Logger::Error, "SettingsDialog",
                              QString("Failed to save settings: %1").arg(e.what()));
     }
 }
@@ -685,28 +581,18 @@ void SettingsDialog::saveSettings()
 void SettingsDialog::resetToDefaults()
 {
     Logger::instance().log(Logger::Debug, "SettingsDialog", "Resetting settings to defaults");
-    
-    // Reset to default values
-    m_themeCombo->setCurrentIndex(0);
-    m_autoSaveCheck->setChecked(true);
+
     m_confirmExitCheck->setChecked(true);
-    m_autoSaveIntervalSpin->setValue(60);
-    
+
     m_updateRateSpin->setValue(DEFAULT_UPDATE_RATE);
     m_bufferSizeSpin->setValue(DEFAULT_BUFFER_SIZE);
-    m_realTimeCheck->setChecked(false);
-    m_hardwareAccelCheck->setChecked(false);
-    
-    m_backgroundColor = QColor(20, 20, 30);
-    m_gridColor = QColor(60, 60, 80);
-    m_textColor = QColor(200, 200, 220);
-    m_displayFont = QFont("Arial", 9);
-    
-    m_memoryLimitSpin->setValue(DEFAULT_MEMORY_LIMIT);
-    m_priorityCombo->setCurrentIndex(1);
-    
-    m_debugModeCheck->setChecked(false);
-    m_logLevelCombo->setCurrentIndex(2);
+
+    // Audio: keep the currently selected device (hardware-specific) but reset
+    // mute/volume to the Audio tab defaults.
+    m_audioMuteCheck->setChecked(false);
+    m_audioVolumeSlider->setValue(DEFAULT_AUDIO_VOLUME);
+
+    m_logLevelCombo->setCurrentIndex(2); // Info
 
     // Reset analyzer / decode options to the etisnoop-parity defaults.
     {
@@ -735,11 +621,6 @@ void SettingsDialog::resetToDefaults()
             m_sidDisplayCombo->findData(
                 eti::AnalyzerSettings::sidDisplayModeToString(analyzer.sid_display_mode)));
     }
-    
-    updateColorButtons();
-    m_fontButton->setText(QString("%1, %2pt").arg(m_displayFont.family()).arg(m_displayFont.pointSize()));
-    
-    m_settingsChanged = true;
 }
 
 // Getters
@@ -753,19 +634,77 @@ int SettingsDialog::getBufferSize() const
     return m_bufferSizeSpin ? m_bufferSizeSpin->value() : DEFAULT_BUFFER_SIZE;
 }
 
-int SettingsDialog::getMemoryLimit() const
+bool SettingsDialog::isConfirmExitEnabled() const
 {
-    return m_memoryLimitSpin ? m_memoryLimitSpin->value() : DEFAULT_MEMORY_LIMIT;
+    return m_confirmExitCheck ? m_confirmExitCheck->isChecked() : true;
 }
 
-bool SettingsDialog::isRealTimeProcessingEnabled() const
+int SettingsDialog::logLevelIndex() const
 {
-    return m_realTimeCheck ? m_realTimeCheck->isChecked() : false;
+    return m_logLevelCombo ? m_logLevelCombo->currentIndex() : 2;
 }
 
-bool SettingsDialog::isHardwareAccelerationEnabled() const
+void SettingsDialog::setAudioOptions(const QStringList& deviceNames,
+                                     const QStringList& deviceIds,
+                                     const QString& currentDeviceId,
+                                     bool muted,
+                                     int volume)
 {
-    return m_hardwareAccelCheck ? m_hardwareAccelCheck->isChecked() : false;
+    if (!m_audioDeviceCombo) {
+        return;
+    }
+
+    m_audioDeviceCombo->clear();
+    const int count = qMin(deviceNames.size(), deviceIds.size());
+    for (int i = 0; i < count; ++i) {
+        m_audioDeviceCombo->addItem(deviceNames.at(i), deviceIds.at(i));
+    }
+
+    // Prefer the live controller device, then the persisted device, else the
+    // first entry; an empty selection means "backend default".
+    QString wanted = currentDeviceId;
+    if (wanted.isEmpty()) {
+        wanted = m_audioDeviceId;
+    }
+    const int index = m_audioDeviceCombo->findData(wanted);
+    if (index >= 0) {
+        m_audioDeviceCombo->setCurrentIndex(index);
+    }
+    m_audioDeviceId = m_audioDeviceCombo->currentData().toString();
+
+    m_audioMuteCheck->setChecked(muted);
+    m_audioVolumeSlider->setValue(qBound(0, volume, 100));
+}
+
+QString SettingsDialog::audioOutputDevice() const
+{
+    if (m_audioDeviceCombo && m_audioDeviceCombo->count() > 0) {
+        return m_audioDeviceCombo->currentData().toString();
+    }
+    return m_audioDeviceId;
+}
+
+bool SettingsDialog::isAudioMuted() const
+{
+    return m_audioMuteCheck && m_audioMuteCheck->isChecked();
+}
+
+int SettingsDialog::audioVolume() const
+{
+    return m_audioVolumeSlider ? m_audioVolumeSlider->value() : DEFAULT_AUDIO_VOLUME;
+}
+
+int SettingsDialog::loggerLevelForIndex(int index)
+{
+    // Combo order: 0 Error, 1 Warning, 2 Info, 3 Debug.
+    // Logger::LogLevel: Debug=0, Info=1, Warning=2, Error=3, Critical=4.
+    switch (index) {
+        case 0: return 3;  // Error
+        case 1: return 2;  // Warning
+        case 3: return 0;  // Debug
+        case 2:
+        default: return 1; // Info
+    }
 }
 
 // Slot implementations
@@ -789,118 +728,7 @@ void SettingsDialog::handleApply()
     emit analyzerSettingsChanged();
 }
 
-void SettingsDialog::handleReset()
-{
-    resetToDefaults();
-}
-
 void SettingsDialog::handleDefaults()
 {
     resetToDefaults();
-}
-
-void SettingsDialog::handleBrowseFilePath()
-{
-    QString dir = QFileDialog::getExistingDirectory(this, tr("Select Directory"));
-    if (!dir.isEmpty()) {
-        // Handle directory selection
-        Logger::instance().log(Logger::Debug, "SettingsDialog", QString("Directory selected: %1").arg(dir));
-    }
-}
-
-void SettingsDialog::handleColorSelection()
-{
-    QPushButton *button = qobject_cast<QPushButton*>(sender());
-    if (!button) return;
-    
-    QColor currentColor;
-    QColor *targetColor = nullptr;
-    
-    if (button == m_backgroundColorButton) {
-        currentColor = m_backgroundColor;
-        targetColor = &m_backgroundColor;
-    } else if (button == m_gridColorButton) {
-        currentColor = m_gridColor;
-        targetColor = &m_gridColor;
-    } else if (button == m_textColorButton) {
-        currentColor = m_textColor;
-        targetColor = &m_textColor;
-    }
-    
-    if (targetColor) {
-        QColor color = QColorDialog::getColor(currentColor, this, tr("Select Color"));
-        if (color.isValid()) {
-            *targetColor = color;
-            updateColorButtons();
-            m_settingsChanged = true;
-        }
-    }
-}
-
-void SettingsDialog::handleFontSelection()
-{
-    bool ok;
-    QFont font = QFontDialog::getFont(&ok, m_displayFont, this, tr("Select Font"));
-    
-    if (ok) {
-        m_displayFont = font;
-        m_fontButton->setText(QString("%1, %2pt").arg(font.family()).arg(font.pointSize()));
-    }
-}
-
-void SettingsDialog::handleSettingsValidation()
-{
-    // Placeholder for settings validation
-    Logger::instance().log(Logger::Debug, "SettingsDialog", "Settings validation - placeholder");
-}
-
-// Private helper methods
-void SettingsDialog::initializeComboBoxes()
-{
-    // Combo boxes are already initialized in createUI methods
-}
-
-void SettingsDialog::updateUI()
-{
-    // Load settings if not already loaded
-    if (!m_settingsLoaded) {
-        loadSettings();
-    }
-}
-
-void SettingsDialog::updateColorButtons()
-{
-    if (m_backgroundColorButton) {
-        m_backgroundColorButton->setStyleSheet(QString("background-color: %1").arg(m_backgroundColor.name()));
-    }
-    if (m_gridColorButton) {
-        m_gridColorButton->setStyleSheet(QString("background-color: %1").arg(m_gridColor.name()));
-    }
-    if (m_textColorButton) {
-        m_textColorButton->setStyleSheet(QString("background-color: %1").arg(m_textColor.name()));
-    }
-}
-
-bool SettingsDialog::validateSettings()
-{
-    // Basic validation
-    return true;
-}
-
-QVariantMap SettingsDialog::getDefaultSettings() const
-{
-    QVariantMap defaults;
-    defaults["general/theme"] = 0;
-    defaults["general/autoSave"] = true;
-    defaults["general/confirmExit"] = true;
-    defaults["general/autoSaveInterval"] = 60;
-    defaults["analysis/updateRate"] = DEFAULT_UPDATE_RATE;
-    defaults["analysis/bufferSize"] = DEFAULT_BUFFER_SIZE;
-    defaults["analysis/realTime"] = false;
-    defaults["analysis/hardwareAccel"] = false;
-    defaults["performance/memoryLimit"] = DEFAULT_MEMORY_LIMIT;
-    defaults["performance/priority"] = 1;
-    defaults["advanced/debugMode"] = false;
-    defaults["advanced/logLevel"] = 2;
-    return defaults;
 }

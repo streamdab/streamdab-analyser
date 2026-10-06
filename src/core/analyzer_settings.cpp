@@ -6,6 +6,7 @@
  */
 
 #include "analyzer_settings.hpp"
+#include "utils/app_settings.hpp"
 #include <QSettings>
 #include <QStringList>
 
@@ -255,13 +256,15 @@ void AnalyzerSettings::loadFromQSettings(QSettings& s)
 
 void AnalyzerSettings::saveToQSettings() const
 {
-    QSettings s;
+    QSettings s(streamdab::app_settings::organization(),
+                streamdab::app_settings::application());
     saveToQSettings(s);
 }
 
 void AnalyzerSettings::loadFromQSettings()
 {
-    QSettings s;
+    QSettings s(streamdab::app_settings::organization(),
+                streamdab::app_settings::application());
     loadFromQSettings(s);
 }
 
