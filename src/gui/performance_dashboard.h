@@ -192,13 +192,6 @@ private slots:
     void onEtiPerformanceUpdate(double frameRate, double memoryMB);
     
     /**
-     * @brief Handle ETI processor frame processed
-     * @param frameNumber Frame number
-     * @param processingTime Processing time in ms
-     */
-    void onFrameProcessed(quint64 frameNumber, double processingTime);
-    
-    /**
      * @brief Handle time range selection change
      * @param index Selected time range index
      */
@@ -334,6 +327,8 @@ private:
     
     // Historical data for trends
     std::deque<PerformanceStats> m_historicalStats;
+    // GUI-thread only: the dashboard is driven by QTimer/Qt signals on the
+    // main thread; non-mutable (no const method locks it).
     QMutex m_dataMutex;
     
     // Professional styling

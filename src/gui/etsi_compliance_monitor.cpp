@@ -50,7 +50,6 @@ ETSIComplianceMonitor::ETSIComplianceMonitor(QWidget *parent)
     , m_refreshButton(nullptr)
     , m_violationDetails(nullptr)
     , m_etiProcessor(nullptr)
-    , m_updateTimer(nullptr)
     , m_monitoringActive(false)
     , m_selectedSeverity(ETSIViolation::Info)
     , m_selectedCategory(ETSIViolation::FIG_Structure)
@@ -63,11 +62,6 @@ ETSIComplianceMonitor::ETSIComplianceMonitor(QWidget *parent)
     setupControlPanel();
     setupViolationDetails();
     applyBroadcastingTheme();
-    
-    // Initialize timer
-    m_updateTimer = new QTimer(this);
-    m_updateTimer->setInterval(UPDATE_INTERVAL_MS);
-    connect(m_updateTimer, &QTimer::timeout, this, &ETSIComplianceMonitor::onUpdateTimer);
     
     // Professional fonts
     m_headerFont = QFont("Segoe UI", 9, QFont::Bold);
@@ -338,7 +332,7 @@ void ETSIComplianceMonitor::setupViolationDetails()
     m_violationDetails->setPlainText(tr("Select a violation to view details..."));
 }
 
-void ETSIComplianceMonitor::connectEtiProcessor(eti_processor* processor)
+void ETSIComplianceMonitor::connectEtiProcessor(EtiProcessor* processor)
 {
     if (m_etiProcessor) {
         // Disconnect previous processor
@@ -360,10 +354,11 @@ void ETSIComplianceMonitor::connectEtiProcessor(eti_processor* processor)
 
 void ETSIComplianceMonitor::startMonitoring()
 {
+    // Real violations are delivered asynchronously via
+    // addViolation()/updateViolationStatus(); there is no polling timer and
+    // no synthetic generation. This flag only reflects the monitoring state.
     if (!m_monitoringActive) {
         m_monitoringActive = true;
-        m_updateTimer->start();
-        
         Logger::instance().log(Logger::Info, "ETSIComplianceMonitor",
                               "Real-time compliance monitoring started");
     }
@@ -373,8 +368,6 @@ void ETSIComplianceMonitor::stopMonitoring()
 {
     if (m_monitoringActive) {
         m_monitoringActive = false;
-        m_updateTimer->stop();
-        
         Logger::instance().log(Logger::Info, "ETSIComplianceMonitor",
                               "Real-time compliance monitoring stopped");
     }
@@ -414,12 +407,16 @@ void ETSIComplianceMonitor::addViolation(const ETSIViolation& violation)
         item->setIcon(0, getCategoryIcon(violation.category));
     }
     
-    // Apply filters
+    // Apply filters (tree-only; safe while the data lock is held).
     applyFilters();
-    
+
+    // Release the lock before updateStatistics(): it acquires the
+    // non-recursive m_dataMutex itself, so calling it here would deadlock.
+    locker.unlock();
+
     // Update statistics
     updateStatistics();
-    
+
     // Emit signal for critical violations
     if (violation.severity == ETSIViolation::Critical) {
         emit criticalViolationDetected(violation);
@@ -433,40 +430,50 @@ void ETSIComplianceMonitor::addViolation(const ETSIViolation& violation)
 
 void ETSIComplianceMonitor::updateViolationStatus(const QString& violationId, bool isActive)
 {
-    QMutexLocker locker(&m_dataMutex);
-    
-    if (m_violations.contains(violationId)) {
-        m_violations[violationId].isActive = isActive;
-        
-        // Update tree item appearance
-        if (m_violationItems.contains(violationId)) {
-            QTreeWidgetItem* item = m_violationItems[violationId];
-            if (isActive) {
-                item->setFont(0, QFont("Segoe UI", 8, QFont::Bold));
-            } else {
-                item->setFont(0, QFont("Segoe UI", 8, QFont::Normal));
-                // Dim inactive violations
-                for (int col = 0; col < item->columnCount(); ++col) {
-                    QColor dimmedColor = item->foreground(col).color();
-                    dimmedColor.setAlpha(128);
-                    item->setForeground(col, QBrush(dimmedColor));
+    bool existed = false;
+    {
+        QMutexLocker locker(&m_dataMutex);
+
+        if (m_violations.contains(violationId)) {
+            existed = true;
+            m_violations[violationId].isActive = isActive;
+
+            // Update tree item appearance
+            if (m_violationItems.contains(violationId)) {
+                QTreeWidgetItem* item = m_violationItems[violationId];
+                if (isActive) {
+                    item->setFont(0, QFont("Segoe UI", 8, QFont::Bold));
+                } else {
+                    item->setFont(0, QFont("Segoe UI", 8, QFont::Normal));
+                    // Dim inactive violations
+                    for (int col = 0; col < item->columnCount(); ++col) {
+                        QColor dimmedColor = item->foreground(col).color();
+                        dimmedColor.setAlpha(128);
+                        item->setForeground(col, QBrush(dimmedColor));
+                    }
                 }
             }
         }
-        
+    }
+
+    // updateStatistics() takes m_dataMutex itself (see note in addViolation).
+    if (existed) {
         updateStatistics();
     }
 }
 
 void ETSIComplianceMonitor::clearViolations()
 {
-    QMutexLocker locker(&m_dataMutex);
-    
-    m_violations.clear();
-    m_violationItems.clear();
-    m_violationsTree->clear();
-    m_violationDetails->clear();
-    
+    {
+        QMutexLocker locker(&m_dataMutex);
+
+        m_violations.clear();
+        m_violationItems.clear();
+        m_violationsTree->clear();
+        m_violationDetails->clear();
+    }
+
+    // updateStatistics() takes m_dataMutex itself (see note in addViolation).
     updateStatistics();
     
     Logger::instance().log(Logger::Info, "ETSIComplianceMonitor", "All violations cleared");
@@ -779,27 +786,6 @@ void ETSIComplianceMonitor::onCategoryFilterChanged(int categoryIndex)
         m_selectedCategory = static_cast<ETSIViolation::Category>(categoryIndex - 1);
     }
     applyFilters();
-}
-
-void ETSIComplianceMonitor::onUpdateTimer()
-{
-    if (m_monitoringActive) {
-        // Generate test violations for demonstration
-        static int testCounter = 0;
-        if (testCounter++ % 10 == 0) { // Every 20 seconds
-            ETSIViolation testViolation;
-            testViolation.violationId = QString("TEST_%1").arg(QDateTime::currentMSecsSinceEpoch());
-            testViolation.severity = static_cast<ETSIViolation::Severity>(testCounter % 4);
-            testViolation.category = static_cast<ETSIViolation::Category>(testCounter % 6);
-            testViolation.description = QString("Test violation #%1 for demonstration").arg(testCounter);
-            testViolation.standardReference = "ETSI EN 300 401 Section 8.1.1";
-            testViolation.timestamp = QDateTime::currentDateTime();
-            testViolation.frameContext = QString("Frame %1").arg(testCounter * 100);
-            testViolation.isActive = true;
-            
-            addViolation(testViolation);
-        }
-    }
 }
 
 void ETSIComplianceMonitor::applyBroadcastingTheme()

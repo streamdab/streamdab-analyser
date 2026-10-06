@@ -489,7 +489,7 @@ private:
     // Data storage
     QVector<ChartSeries> m_series;
     int m_nextSeriesId;
-    QMutex m_dataMutex;
+    mutable QMutex m_dataMutex;
 
     // Real-time update system
     QTimer *m_updateTimer;

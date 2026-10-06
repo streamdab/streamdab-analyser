@@ -9,7 +9,6 @@
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QTextEdit>
-#include <QTimer>
 #include <QFrame>
 #include <QPushButton>
 #include <QComboBox>
@@ -220,11 +219,6 @@ signals:
     
 private slots:
     /**
-     * @brief Handle real-time update timer
-     */
-    void onUpdateTimer();
-    
-    /**
      * @brief Handle violation tree item selection
      * @param item Selected item
      * @param column Selected column
@@ -370,12 +364,15 @@ private:
     
     // Data and state
     EtiProcessor* m_etiProcessor;
-    QTimer* m_updateTimer;
     bool m_monitoringActive;
     
     QMap<QString, ETSIViolation> m_violations;
     QMap<QString, QTreeWidgetItem*> m_violationItems;
     ComplianceStatistics m_statistics;
+    // GUI-thread only: every lock site (addViolation/updateViolationStatus/
+    // clearViolations/updateStatistics/getCurrentStatistics) runs on the Qt
+    // main thread; the mutex is retained as a plain guard, not for worker
+    // threads, so it is deliberately non-mutable (no const method locks it).
     QMutex m_dataMutex;
     
     // Filter state

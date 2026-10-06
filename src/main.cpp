@@ -37,6 +37,7 @@
 #include <QLineEdit>
 #include <QStackedWidget>
 #include <QGridLayout>
+#include <QScrollArea>   // Wave B: scrollable heavy bottom-strip tabs
 #include <QButtonGroup>
 #include <QDialog>              // Phase C: UDP settings dialog
 #include <QFormLayout>          // Phase C: UDP settings dialog
@@ -82,6 +83,21 @@
 #include "core/eti_reader_thread.hpp"  // Phase A: Pattern 3 - Worker Thread
 #include "core/shared_eti_data.hpp"  // Phase A: Pattern 5 - Shared Data Model
 #include "cli/cli_main.hpp"  // PDCA Week 8: CLI mode integration
+
+// Wave B: adopted src/gui widgets (see docs/gui/SRC_GUI_AUDIT.md). These are
+// now compiled into the target and driven by DABAnalyzerWindow adapters.
+#include "gui/constellation_widget.h"
+#include "gui/about_dialog.h"
+#include "gui/performance_dashboard.h"
+#include "gui/real_time_chart_widget.h"
+#include "gui/settings_dialog.h"
+#include "gui/etsi_compliance_monitor.h"
+#include "gui/professional_export_manager.h"
+
+#include <QFile>       // /proc/self/{stat,statm} sampling for the dashboard
+#if defined(Q_OS_LINUX)
+#include <unistd.h>    // sysconf(_SC_PAGESIZE / _SC_CLK_TCK)
+#endif
 
 // Note: gui/main_window.h exists for GUI testing purposes only
 // Do NOT include it here to avoid redefinition conflicts
@@ -903,6 +919,20 @@ public:
         // strictness, fic_mode raw/auto-fallback, force_charset).
         m_figAnalyzer->setAnalyzerSettings(m_analyzerSettings);
 
+        // Wave B: export manager (real analysis rows are injected at export
+        // time from the live analyzer; see applyExportData()).
+        m_exportManager = new ProfessionalExportManager(this);
+        m_exportManager->initialize(nullptr, nullptr, nullptr);
+
+        // Wave B: 1 s sampler feeding the Performance Dashboard + Real-Time
+        // Chart with real FPS / RSS / CPU% / latency.
+        m_perfSampleTimer = new QTimer(this);
+        m_perfSampleTimer->setInterval(1000);
+        connect(m_perfSampleTimer, &QTimer::timeout,
+                this, &DABAnalyzerWindow::updateDashboardSamples);
+        m_perfTimer.start();
+        m_perfSampleTimer->start();
+
         // EMERGENCY: ALL CUSTOM THEMING DISABLED FOR TEXT VISIBILITY
         // applyTheme();
     }
@@ -1312,6 +1342,21 @@ public:
     // Build (without exec'ing) the UDP Streaming Settings dialog. Caller owns it.
     QDialog* buildUdpSettingsDialogForTest() { return buildUDPSettingsDialog().dialog; }
 
+    // Wave B test hooks: adopted bottom-strip/managed widgets.
+    PerformanceDashboard* performanceDashboardForTest() const { return m_performanceDashboard; }
+    RealTimeChartWidget* realTimeChartForTest() const { return m_realTimeChart; }
+    ETSIComplianceMonitor* etsiMonitorForTest() const { return m_etsiMonitor; }
+    ConstellationWidget* constellationWidgetForTest() const { return m_constellationWidget; }
+    ProfessionalExportManager* exportManagerForTest() const { return m_exportManager; }
+    QAction* exportActionForTest() const { return m_exportAction; }
+    QAction* settingsActionForTest() const { return m_settingsAction; }
+    int realTimeChartSamplesForTest() const { return m_chartSamplesFed; }
+    quint64 processorFrameCountForTest() const
+    {
+        return m_etiProcessor ? m_etiProcessor->getFrameCount() : 0;
+    }
+    void applyExportDataForTest(ExportConfiguration& c) const { applyExportData(c); }
+
 private slots:
     void openFile()
     {
@@ -1335,6 +1380,9 @@ private slots:
         m_fileLoaded = false;
         m_totalFrames = 0;
         m_currentFrameIndex = 0;
+        if (m_exportAction) {
+            m_exportAction->setEnabled(false);  // re-armed by onProcessingComplete()
+        }
 
         // Manual-test finding 2: the ETI file is parsed synchronously inside
         // processETIFile() while nested processEvents() calls keep the UI
@@ -1381,6 +1429,9 @@ private slots:
         // T32: the service selector is re-populated once the new capture's
         // services are known; clear stale items + selection and disable it.
         resetServiceSelectorForLoad();
+        // Wave B: reset the adopted PerformanceDashboard / Real-Time Chart /
+        // ETSI Compliance Monitor / Constellation panels for the new file.
+        resetAdoptedPanels();
         // T29: stop the playhead + disable the transport while parsing.
         stopPlaybackForLoad();
         // MOT SlideShow: clear the decoder + adapter and the slideshow tab.
@@ -1608,11 +1659,9 @@ private slots:
             m_timelineRecordFrame = -1;
         }
 
-        // === F8: Performance Dashboard live metrics ===
-        // Cheap (counter arithmetic; label updates throttled to 100 ms) and
-        // now that ProcessedFrame carries msc_size instead of a duplicate MSC
-        // buffer, this does not retain or copy frame bytes.
-        updatePerformanceMetrics(frame);
+        // NOTE (Wave B): the legacy label updater that used to run per frame
+        // here was deleted; the adopted PerformanceDashboard is fed by the 1 s
+        // updateDashboardSamples() sampler instead.
 
         // === PHASE 4: Throttled error counter updates (5 fps) ===
         if (++m_errorCounterUpdateCounter % ERROR_COUNTER_UPDATE_THROTTLE == 0) {
@@ -2197,6 +2246,13 @@ private slots:
         m_totalFrames = static_cast<size_t>(totalFrames);
         qDebug() << "[PHASE 3] File loaded:" << m_totalFrames << "frames";
 
+        // Wave B: record the load-time processing cost (avg ms/frame latency
+        // for the dashboard) and enable File -> Export now that data exists.
+        m_lastProcessingTimeMs = static_cast<double>(processingTimeMs);
+        if (m_exportAction) {
+            m_exportAction->setEnabled(true);
+        }
+
         // Refinement B: complete the progress bar at 100 % (value == max).
         if (m_progressBar) {
             const int total = totalFrames > 0 ? totalFrames : 1;
@@ -2393,20 +2449,15 @@ private slots:
     void onFrameError(int frameNumber, const QString& error, const QString& details)
     {
         m_systemMessages->append(QString("⚠️ Frame %1 Error: %2").arg(frameNumber).arg(error));
-        
-        // Forward frame error to Error Detection system using appropriate detection method
-        if (m_errorDetector) {
-            // Create dummy frame data for error detection
-            std::vector<uint8_t> frame_data(6144, 0); // Empty frame for error simulation
-            
-            if (error.contains("SYNC", Qt::CaseInsensitive)) {
-                // Use ETI sync error detection for sync pattern errors
-                m_errorDetector->detectETISyncErrors(frame_data, frameNumber);
-            } else {
-                // Use frame structure error detection for other frame errors
-                m_errorDetector->detectFrameStructureErrors(frame_data, frameNumber);
-            }
-        }
+
+        // Wave B (T1): the legacy code fabricated an all-zero 6144-byte "frame"
+        // and fed it to AdvancedErrorDetector, which emitted a synthetic
+        // errorDetected() report for every real CRC/parse failure and inflated
+        // the ETSI Compliance Monitor. The frame error is already surfaced in
+        // System Messages and the processor's counters; no synthetic detector
+        // input is generated here. Genuine detector reports still arrive via the
+        // real errorDetected()/criticalErrorDetected() connections.
+        Q_UNUSED(details);
     }
     
     // L1: bounded append for the System Messages pane. A manual block-count
@@ -4698,54 +4749,400 @@ private:
     // DELETED: onFIGTypeFilterChanged() - Code Review HIGH-001
     // No-op function, no signal connections found, safe to delete per PDCA review 2025-10-26
     
-    // Performance metrics update method
-    // F8: wired into onFrameProcessed() (DirectConnection, same thread) so the
-    // Performance Dashboard's FPS/memory/compliance labels actually update.
-    // const& avoids a per-frame struct copy; the body only does cheap counter
-    // arithmetic and (throttled to 100 ms) a few label updates.
-    void updatePerformanceMetrics(const ProcessedFrame& frame)
+    // NOTE (Wave B): the legacy updatePerformanceMetrics(const ProcessedFrame&)
+    // label updater was deleted together with its thin Performance tab. The
+    // adopted PerformanceDashboard is now fed by updateDashboardSamples() with
+    // real FPS/RSS/CPU%/latency samples.
+
+    // ========================================================================
+    // WAVE B: adopted src/gui panel data feeds (real samples, no placeholders)
+    // ========================================================================
+
+    // Resident set size of this process in MB, via /proc/self/statm (Linux).
+    static double processResidentMemoryMB()
     {
-        static auto startTime = std::chrono::steady_clock::now();
-        static uint64_t frameCount = 0;
-        static uint64_t totalBytes = 0;
-        
-        frameCount++;
-        totalBytes += frame.fic_data.size() + frame.msc_size;
-        
-        // Calculate processing rate
-        auto currentTime = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime);
-        
-        if (elapsed.count() > 100) { // Update every 100ms
-            double fps = (double)frameCount * 1000.0 / elapsed.count();
-            double memoryMB = (double)totalBytes / (1024.0 * 1024.0);
-            
-            // Update Performance Dashboard widgets
-            if (m_fpsLabel) {
-                m_fpsLabel->setText(QString("FPS: %1").arg(fps, 0, 'f', 1));
-            }
-            if (m_memoryLabel) {
-                m_memoryLabel->setText(QString("Memory: %1 MB").arg(memoryMB, 0, 'f', 2));
-            }
-            if (m_frameRateLabel) {
-                m_frameRateLabel->setText(QString("Frame Rate: %1/%2")
-                                        .arg(frame.frame_number).arg(5001));
-            }
-            if (m_processingTimeLabel) {
-                m_processingTimeLabel->setText(QString("Processing Time: %1 ms")
-                                             .arg(elapsed.count()));
-            }
-            
-            // Update ETSI compliance score based on valid frames
-            if (m_complianceScore) {
-                double compliance = frame.is_valid ? 95.0 : 75.0;
-                m_complianceScore->setValue((int)compliance);
-            }
-            if (m_complianceLabel) {
-                QString complianceText = frame.is_valid ? "Good" : "Issues Detected";
-                m_complianceLabel->setText(QString("Compliance: %1").arg(complianceText));
+#if defined(Q_OS_LINUX)
+        QFile f(QStringLiteral("/proc/self/statm"));
+        if (!f.open(QIODevice::ReadOnly)) {
+            return 0.0;
+        }
+        const QList<QByteArray> parts = f.readLine().trimmed().split(' ');
+        if (parts.size() < 2) {
+            return 0.0;
+        }
+        bool ok = false;
+        const qulonglong pages = parts.at(1).toULongLong(&ok);
+        if (!ok) {
+            return 0.0;
+        }
+        static const double pageMb = sysconf(_SC_PAGESIZE) / (1024.0 * 1024.0);
+        return static_cast<double>(pages) * pageMb;
+#else
+        return 0.0;
+#endif
+    }
+
+    // Process CPU usage (%) since the previous sample, via /proc/self/stat.
+    double processCpuPercent(qint64 nowMs)
+    {
+#if defined(Q_OS_LINUX)
+        QFile f(QStringLiteral("/proc/self/stat"));
+        if (!f.open(QIODevice::ReadOnly)) {
+            return 0.0;
+        }
+        const QByteArray line = f.readAll();
+        const int rp = line.lastIndexOf(')');
+        if (rp < 0) {
+            return 0.0;
+        }
+        const QList<QByteArray> fields = line.mid(rp + 2).trimmed().split(' ');
+        // After "comm)", fields[0]=state, utime=fields[11], stime=fields[12].
+        if (fields.size() < 13) {
+            return 0.0;
+        }
+        bool okU = false, okS = false;
+        const qulonglong utime = fields.at(11).toULongLong(&okU);
+        const qulonglong stime = fields.at(12).toULongLong(&okS);
+        if (!okU || !okS) {
+            return 0.0;
+        }
+        const qulonglong ticks = utime + stime;
+        static const double hz = sysconf(_SC_CLK_TCK);
+        double pct = 0.0;
+        if (m_lastCpuSampleMs > 0 && nowMs > m_lastCpuSampleMs
+            && ticks >= m_lastCpuTicks && hz > 0.0) {
+            const double dt = (nowMs - m_lastCpuSampleMs) / 1000.0;
+            const double cpuSec = (ticks - m_lastCpuTicks) / hz;
+            if (dt > 0.0) {
+                pct = 100.0 * cpuSec / dt;
             }
         }
+        m_lastCpuSampleMs = nowMs;
+        m_lastCpuTicks = ticks;
+        return pct;
+#else
+        Q_UNUSED(nowMs);
+        return 0.0;
+#endif
+    }
+
+    // 1 s sampler: feeds PerformanceDashboard + RealTimeChart with real
+    // FPS (frame-count delta), RSS, CPU% and average per-frame latency.
+    void updateDashboardSamples()
+    {
+        if (m_closing) {
+            return;
+        }
+        const quint64 frames = m_etiProcessor ? m_etiProcessor->getFrameCount() : 0;
+        const qint64 elapsedMs = m_perfTimer.isValid() ? m_perfTimer.elapsed() : 0;
+
+        double fps = 0.0;
+        if (m_perfLastElapsedMs > 0 && elapsedMs > m_perfLastElapsedMs) {
+            const double dt = (elapsedMs - m_perfLastElapsedMs) / 1000.0;
+            const quint64 df = frames >= m_perfLastFrames ? frames - m_perfLastFrames : 0;
+            if (dt > 0.0) {
+                fps = static_cast<double>(df) / dt;
+            }
+        }
+        m_perfLastFrames = frames;
+        m_perfLastElapsedMs = elapsedMs;
+
+        const double memMB = processResidentMemoryMB();
+        const double cpuPct = processCpuPercent(elapsedMs);
+
+        PerformanceStats stats;
+        stats.frameRate = fps;
+        stats.memoryUsage = memMB;
+        stats.frameCount = frames;
+        stats.cpuUsage = cpuPct;
+        stats.averageLatency = (m_totalFrames > 0 && m_lastProcessingTimeMs > 0.0)
+                                   ? m_lastProcessingTimeMs / static_cast<double>(m_totalFrames)
+                                   : 0.0;
+        stats.timestamp = QDateTime::currentDateTime();
+        if (m_performanceDashboard) {
+            m_performanceDashboard->updatePerformanceMetrics(stats);
+        }
+
+        // Compliance view on the dashboard, from the real error detector.
+        if (m_performanceDashboard && m_errorDetector) {
+            const error_detection::SystemHealthMetrics health =
+                m_errorDetector->getSystemHealth();
+            ComplianceResult cr;
+            cr.compliancePercentage = health.overall_health_score;
+            cr.violationCount = static_cast<int>(m_errorDetector->getTotalErrorCount());
+            cr.complianceLevel = health.overall_health_score >= 95.0 ? QStringLiteral("EXCELLENT")
+                               : health.overall_health_score >= 85.0 ? QStringLiteral("GOOD")
+                               : health.overall_health_score >= 70.0 ? QStringLiteral("FAIR")
+                                                                     : QStringLiteral("POOR");
+            cr.lastUpdate = QDateTime::currentDateTime();
+            m_performanceDashboard->updateComplianceStatus(cr);
+        }
+
+        if (m_realTimeChart) {
+            const QDateTime now = QDateTime::currentDateTime();
+            if (m_chartFpsSeries >= 0) {
+                m_realTimeChart->addDataPoint(m_chartFpsSeries, fps, now);
+            }
+            if (m_chartMemorySeries >= 0) {
+                m_realTimeChart->addDataPoint(m_chartMemorySeries, memMB, now);
+            }
+            ++m_chartSamplesFed;
+        }
+    }
+
+    static ETSIViolation::Severity violationSeverityFromError(error_detection::ErrorSeverity s)
+    {
+        switch (s) {
+            case error_detection::ErrorSeverity::CRITICAL: return ETSIViolation::Critical;
+            case error_detection::ErrorSeverity::HIGH:     return ETSIViolation::Error;
+            case error_detection::ErrorSeverity::MEDIUM:   return ETSIViolation::Warning;
+            case error_detection::ErrorSeverity::LOW:      return ETSIViolation::Info;
+            case error_detection::ErrorSeverity::INFO:     return ETSIViolation::Info;
+        }
+        return ETSIViolation::Info;
+    }
+
+    static ETSIViolation::Category violationCategoryFromError(error_detection::ErrorCategory c)
+    {
+        switch (c) {
+            case error_detection::ErrorCategory::ETI_SYNC:           return ETSIViolation::Timing_Compliance;
+            case error_detection::ErrorCategory::FRAME_STRUCTURE:    return ETSIViolation::FIG_Structure;
+            case error_detection::ErrorCategory::FIC_DECODING:       return ETSIViolation::Data_Integrity;
+            case error_detection::ErrorCategory::SERVICE_DISCOVERY:  return ETSIViolation::Service_Organization;
+            case error_detection::ErrorCategory::AUDIO_QUALITY:      return ETSIViolation::Audio_Quality;
+            case error_detection::ErrorCategory::NETWORK_STREAM:     return ETSIViolation::Data_Integrity;
+            case error_detection::ErrorCategory::FILE_IO:            return ETSIViolation::Data_Integrity;
+            case error_detection::ErrorCategory::MEMORY_MANAGEMENT:  return ETSIViolation::Timing_Compliance;
+            case error_detection::ErrorCategory::PERFORMANCE:        return ETSIViolation::Timing_Compliance;
+            case error_detection::ErrorCategory::CONFIGURATION:      return ETSIViolation::Data_Integrity;
+        }
+        return ETSIViolation::Data_Integrity;
+    }
+
+    // Real AdvancedErrorDetector report -> ETSI monitor violation.
+    void onEtsiViolationFromError(const error_detection::ErrorReport& err)
+    {
+        if (!m_etsiMonitor || m_closing) {
+            return;
+        }
+        ETSIViolation v;
+        v.violationId = err.error_id.isEmpty()
+                            ? QStringLiteral("ERR-F%1").arg(err.frame_number)
+                            : err.error_id;
+        v.severity = violationSeverityFromError(err.severity);
+        v.category = violationCategoryFromError(err.category);
+        v.description = err.description.isEmpty() ? err.technical_details : err.description;
+        v.standardReference = QStringLiteral("ETSI EN 300 799");
+        v.timestamp = err.timestamp.isValid() ? err.timestamp : QDateTime::currentDateTime();
+        v.frameContext = QStringLiteral("Frame %1").arg(err.frame_number);
+        v.isActive = true;
+        m_etsiMonitor->addViolation(v);
+    }
+
+    // ETSI compliance engine result -> ETSI monitor violation.
+    void onEtsiViolationFromEngine(const etsi::ValidationResult& result)
+    {
+        if (!m_etsiMonitor || m_closing) {
+            return;
+        }
+        ETSIViolation v;
+        v.violationId = QStringLiteral("ETSI-F%1-T%2")
+                            .arg(result.frame_number)
+                            .arg(static_cast<int>(result.error_type));
+        switch (result.level) {
+            case etsi::ComplianceLevel::CRITICAL: v.severity = ETSIViolation::Critical; break;
+            case etsi::ComplianceLevel::WARNING:  v.severity = ETSIViolation::Warning;  break;
+            case etsi::ComplianceLevel::INFO:     v.severity = ETSIViolation::Info;     break;
+            case etsi::ComplianceLevel::PASS:     v.severity = ETSIViolation::Info;     break;
+        }
+        switch (result.error_type) {
+            case etsi::ValidationErrorType::FIG_TYPE_ERROR:
+                v.category = ETSIViolation::FIG_Structure;
+                break;
+            case etsi::ValidationErrorType::SERVICE_ID_ERROR:
+            case etsi::ValidationErrorType::ENSEMBLE_ID_ERROR:
+                v.category = ETSIViolation::Service_Organization;
+                break;
+            case etsi::ValidationErrorType::TIMESTAMP_ERROR:
+                v.category = ETSIViolation::Timing_Compliance;
+                break;
+            default:
+                v.category = ETSIViolation::Data_Integrity;
+                break;
+        }
+        v.description = result.description;
+        v.standardReference = result.etsi_reference.isEmpty()
+                                  ? QStringLiteral("ETSI EN 300 799")
+                                  : result.etsi_reference;
+        v.timestamp = result.timestamp.isValid() ? result.timestamp
+                                                 : QDateTime::currentDateTime();
+        v.frameContext = QStringLiteral("Frame %1").arg(result.frame_number);
+        v.isActive = true;
+        m_etsiMonitor->addViolation(v);
+    }
+
+    // Clear the adopted panels on a new file load, like the other panels.
+    void resetAdoptedPanels()
+    {
+        if (m_performanceDashboard) {
+            m_performanceDashboard->resetStatistics();
+        }
+        if (m_realTimeChart) {
+            m_realTimeChart->clearData();
+        }
+        if (m_etsiMonitor) {
+            m_etsiMonitor->clearViolations();
+        }
+        if (m_constellationWidget) {
+            m_constellationWidget->clearDisplay();
+        }
+        m_lastProcessingTimeMs = 0.0;
+        m_perfLastFrames = 0;
+        m_perfLastElapsedMs = 0;
+        m_lastCpuSampleMs = 0;
+        m_lastCpuTicks = 0;
+        if (m_perfTimer.isValid()) {
+            m_perfTimer.restart();
+        }
+    }
+
+    // Real analysis rows injected into the export manager (services / FIGs /
+    // frames). The writers consume customSettings["records"].
+    void applyExportData(ExportConfiguration& config) const
+    {
+        QVariantList columns;
+        auto addColumn = [&columns](const QString& key, const QString& header) {
+            QVariantMap c;
+            c.insert(QStringLiteral("key"), key);
+            c.insert(QStringLiteral("header"), header);
+            columns.append(c);
+        };
+        addColumn(QStringLiteral("service_id"), QStringLiteral("Service ID"));
+        addColumn(QStringLiteral("label"), QStringLiteral("Service Label"));
+        addColumn(QStringLiteral("service_type"), QStringLiteral("Service Type"));
+        addColumn(QStringLiteral("dab_plus"), QStringLiteral("DAB+"));
+        addColumn(QStringLiteral("sub_channel"), QStringLiteral("Sub-channel"));
+        addColumn(QStringLiteral("bitrate_kbps"), QStringLiteral("Bitrate (kbps)"));
+        addColumn(QStringLiteral("figs_total"), QStringLiteral("FIGs (total)"));
+        addColumn(QStringLiteral("frames_total"), QStringLiteral("Frames (total)"));
+        addColumn(QStringLiteral("mot_objects"), QStringLiteral("MOT objects"));
+        addColumn(QStringLiteral("etsi_violations"), QStringLiteral("ETSI violations"));
+
+        const int figsTotal = m_figAnalyzer ? m_figAnalyzer->getTotalFIGsProcessed() : 0;
+        const int etsiCount = m_etsiMonitor
+                                  ? m_etsiMonitor->getCurrentStatistics().totalViolations
+                                  : 0;
+        const int frameCount = static_cast<int>(m_totalFrames);
+
+        std::vector<SubChannelInfo> subchannels;
+        if (m_figAnalyzer) {
+            subchannels = m_figAnalyzer->getAllSubChannels();
+        }
+        auto bitrateForSubChannel = [&subchannels](uint8_t id) -> int {
+            for (const SubChannelInfo& sc : subchannels) {
+                if (sc.sub_channel_id == id) {
+                    return static_cast<int>(sc.getBitrate());
+                }
+            }
+            return -1;
+        };
+
+        QVariantList records;
+        auto addRow = [&records, figsTotal, etsiCount, frameCount, this](
+                          const QString& sid, const QString& label, const QString& type,
+                          const QString& dabPlus, const QString& sub, int bitrate) {
+            QVariantMap r;
+            r.insert(QStringLiteral("service_id"), sid);
+            r.insert(QStringLiteral("label"), label);
+            r.insert(QStringLiteral("service_type"), type);
+            r.insert(QStringLiteral("dab_plus"), dabPlus);
+            r.insert(QStringLiteral("sub_channel"), sub);
+            r.insert(QStringLiteral("bitrate_kbps"),
+                     bitrate >= 0 ? QString::number(bitrate) : QStringLiteral("-"));
+            r.insert(QStringLiteral("figs_total"), QString::number(figsTotal));
+            r.insert(QStringLiteral("frames_total"), QString::number(frameCount));
+            r.insert(QStringLiteral("mot_objects"), QString::number(m_motObjectsReceived));
+            r.insert(QStringLiteral("etsi_violations"), QString::number(etsiCount));
+            records.append(r);
+        };
+
+        if (m_figAnalyzer) {
+            for (const DABService& svc : m_figAnalyzer->getDABServices()) {
+                const ServiceComponent primary = svc.getPrimaryComponent();
+                addRow(QStringLiteral("0x%1").arg(svc.service_id, 0, 16).toUpper(),
+                       svc.service_label.isEmpty() ? QStringLiteral("(unlabelled)")
+                                                   : svc.service_label,
+                       svc.service_type == 0 ? QStringLiteral("Programme")
+                                             : QStringLiteral("Data"),
+                       svc.is_dab_plus ? QStringLiteral("yes") : QStringLiteral("no"),
+                       QString::number(primary.sub_channel_id),
+                       bitrateForSubChannel(primary.sub_channel_id));
+            }
+        }
+        if (records.isEmpty()) {
+            QString ens;
+            if (m_figAnalyzer) {
+                ens = m_figAnalyzer->getCurrentEnsemble().ensembleLabel;
+            }
+            if (ens.isEmpty()) {
+                ens = QStringLiteral("(no services decoded)");
+            }
+            addRow(QStringLiteral("-"), ens, QStringLiteral("Ensemble"),
+                   QStringLiteral("-"), QStringLiteral("-"), -1);
+        }
+
+        config.customSettings.insert(QStringLiteral("columns"), columns);
+        config.customSettings.insert(QStringLiteral("records"), records);
+    }
+
+    // Help -> About: adopted AboutDialog (replaces the inline QMessageBox).
+    void showAboutDialog()
+    {
+        AboutDialog dlg(this);
+        dlg.exec();
+    }
+
+    // File -> Settings: edits the real AnalyzerSettings (QSettings group
+    // "analyzer/"); accepted changes are reloaded and applied to the analyzer.
+    void showSettingsDialog()
+    {
+        SettingsDialog dlg(this);
+        if (dlg.exec() == QDialog::Accepted) {
+            m_analyzerSettings.loadFromQSettings();
+            if (m_figAnalyzer) {
+                m_figAnalyzer->setAnalyzerSettings(m_analyzerSettings);
+            }
+            statusBar()->showMessage(
+                tr("Analyzer settings saved — FIG analyzer updated now; "
+                   "full effect on the next file load."), 5000);
+        }
+    }
+
+    // File -> Export: exports the current analysis with the adopted
+    // ProfessionalExportManager writers. Real rows are injected after the
+    // dialog so the report reflects the live decode.
+    void showExportDialog()
+    {
+        if (!m_exportManager) {
+            return;
+        }
+        ExportConfiguration config;
+        config.outputDirectory = m_exportManager->getDefaultOutputDirectory();
+        config.fileName = config.outputDirectory + QStringLiteral("/analysis_export.csv");
+        applyExportData(config);
+
+        ExportConfigurationDialog dialog(this);
+        dialog.setConfiguration(config);
+        if (dialog.exec() != QDialog::Accepted) {
+            return;
+        }
+        config = dialog.getConfiguration();
+        applyExportData(config);  // re-inject the real analysis after the dialog
+        if (config.fileName.isEmpty()) {
+            config.fileName = m_exportManager->getDefaultOutputDirectory()
+                              + QStringLiteral("/analysis_export.csv");
+        }
+        m_exportManager->startExport(config);
     }
 
 protected:
@@ -6625,6 +7022,24 @@ private:
         return dock;
     }
 
+    // Wave B: the window-level strip is capped at 120 px. The adopted heavy
+    // panels (Performance / Real-Time Chart / ETSI Compliance / Constellation)
+    // have a much larger content minimum, so each is wrapped in a frameless,
+    // resizable QScrollArea. The strip therefore keeps its 120 px cap for the
+    // light tabs (System Messages, Error Detection, Logging, Messages) while
+    // the heavy tabs stay fully usable via scrollbars (no floating needed).
+    static QWidget* wrapHeavyPanel(QWidget* content)
+    {
+        QScrollArea* area = new QScrollArea();
+        area->setObjectName(QStringLiteral("heavyPanelScrollArea"));
+        area->setWidgetResizable(true);
+        area->setFrameShape(QFrame::NoFrame);
+        area->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        area->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        area->setWidget(content);
+        return area;
+    }
+
     // ========================================================================
     // MANUAL-TEST FINDING 1: tab-colour readability
     // ========================================================================
@@ -7815,9 +8230,10 @@ private:
             return;
         }
 
-        // The six bottom tabs become six TABBED CDockWidgets hosted by the
-        // window-level bottom CDockManager. The page-widget builders themselves
-        // are untouched.
+        // The bottom tabs become TABBED CDockWidgets hosted by the window-level
+        // bottom CDockManager. Wave B order (8 tabs):
+        //   System Messages / Performance / Real-Time Chart / Error Detection /
+        //   ETSI Compliance / Logging / Constellation / Messages.
 
         // Tab 1: System Messages
         if (!m_systemMessages) {
@@ -7831,31 +8247,71 @@ private:
 
         m_bottomDockManager->addDockWidget(ads::BottomDockWidgetArea, d1, nullptr);
 
-        // Tab 2: Performance Dashboard
+        // Tab 2: Performance Dashboard (replaces the thin 3-label tab; fed real
+        // FPS / RSS / CPU% / latency samples every second). Its own internal
+        // timer is intentionally NOT started: with no legacy EtiProcessor it
+        // would push zeroed samples and clobber the real ones; DABAnalyzerWindow
+        // drives it via updatePerformanceMetrics() instead.
+        m_performanceDashboard = new PerformanceDashboard();
         ads::CDockWidget* d2 = makeDock(m_bottomDockManager,
             QStringLiteral("bottom_Performance"), QStringLiteral("Performance"),
-            createPerformanceDashboardTab());
+            wrapHeavyPanel(m_performanceDashboard));
         m_bottomDockManager->addDockWidgetTabToArea(d2, d1->dockAreaWidget());
 
-        // Tab 3: Error Detection Summary
+        // Tab 3 (new): Real-Time Chart — FPS + memory history.
+        m_realTimeChart = new RealTimeChartWidget();
+        m_realTimeChart->initialize();
+        m_realTimeChart->setTimeRange(RealTimeChartWidget::TimeRange::Last1Minute);
+        m_realTimeChart->setLegendEnabled(true);
+        m_realTimeChart->applyBroadcastTheme();
+        {
+            ChartSeries fpsSeries(QStringLiteral("FPS"), QColor(0, 170, 0), 900.0,
+                                  QStringLiteral("fps"));
+            m_chartFpsSeries = m_realTimeChart->addSeries(fpsSeries);
+            ChartSeries memSeries(QStringLiteral("Memory MB"), QColor(0, 120, 212), 100.0,
+                                  QStringLiteral("MB"));
+            m_chartMemorySeries = m_realTimeChart->addSeries(memSeries);
+        }
+        m_realTimeChart->startRealTimeUpdates();
+        // Custom-painted widget: give it an explicit minimum so the scroll
+        // area actually produces scrollbars inside the 120 px strip cap.
+        m_realTimeChart->setMinimumSize(360, 240);
+        ads::CDockWidget* dRt = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_RealTimeChart"), QStringLiteral("Real-Time Chart"),
+            wrapHeavyPanel(m_realTimeChart));
+        m_bottomDockManager->addDockWidgetTabToArea(dRt, d1->dockAreaWidget());
+
+        // Tab 4: Error Detection Summary
         ads::CDockWidget* d3 = makeDock(m_bottomDockManager,
             QStringLiteral("bottom_ErrorDetection"), QStringLiteral("Error Detection"),
             createErrorDetectionSummaryTab());
         m_bottomDockManager->addDockWidgetTabToArea(d3, d1->dockAreaWidget());
 
-        // Tab 4: Logging Summary
+        // Tab 5 (new): ETSI Compliance Monitor — fed by the ETSI compliance
+        // engine and the real AdvancedErrorDetector.
+        // NOTE: startMonitoring() is NOT called — violations arrive only via
+        // the real queued errorDetected/criticalErrorDetected signals; there is
+        // no polling timer and no synthetic generation.
+        m_etsiMonitor = new ETSIComplianceMonitor();
+        m_etsiMonitor->applyBroadcastingTheme();
+        ads::CDockWidget* dEtsi = makeDock(m_bottomDockManager,
+            QStringLiteral("bottom_EtsiCompliance"), QStringLiteral("ETSI Compliance"),
+            wrapHeavyPanel(m_etsiMonitor));
+        m_bottomDockManager->addDockWidgetTabToArea(dEtsi, d1->dockAreaWidget());
+
+        // Tab 6: Logging Summary
         ads::CDockWidget* d4 = makeDock(m_bottomDockManager,
             QStringLiteral("bottom_Logging"), QStringLiteral("Logging"),
             createLoggingSummaryTab());
         m_bottomDockManager->addDockWidgetTabToArea(d4, d1->dockAreaWidget());
 
-        // Tab 5: Constellation Viewer
+        // Tab 7: Constellation Viewer (real widget; synthetic post-demod path).
         ads::CDockWidget* d5 = makeDock(m_bottomDockManager,
             QStringLiteral("bottom_Constellation"), QStringLiteral("Constellation"),
-            createConstellationTab());
+            wrapHeavyPanel(createConstellationTab()));
         m_bottomDockManager->addDockWidgetTabToArea(d5, d1->dockAreaWidget());
 
-        // Tab 6: Messages (UI redesign Step C) — moved from the Tab-1 left
+        // Tab 8: Messages (UI redesign Step C) — moved from the Tab-1 left
         // column; wraps the SAME createLoggingPanel() widget/members. Being a
         // window-level strip dock it is automatically shared by all 3 tabs.
         ads::CDockWidget* d6 = makeDock(m_bottomDockManager,
@@ -7879,12 +8335,13 @@ private:
             qWarning() << "Failed to restore window geometry";
         }
 
-        // UI redesign (Step E): dock states saved by the v1.3 layout (26 docks,
-        // no grouped areas) are incompatible with the redesign. The stored
-        // layout version guards a ONE-TIME reset: any version != 3 discards the
-        // saved dock states (docking/tab1|tab2|tab3|bottom) so the first run
-        // after the upgrade shows the new default layout; window geometry is
-        // kept. Version 3 is written again on the next saveDockingState().
+        // UI redesign (Step E): dock states saved by an older layout are
+        // incompatible with the current default. The stored layout version
+        // guards a ONE-TIME reset: any version != DOCKING_LAYOUT_VERSION
+        // discards the saved dock states (docking/tab1|tab2|tab3|bottom) so the
+        // first run after the upgrade shows the new default layout; window
+        // geometry is kept. The current version is written again on the next
+        // saveDockingState().
         const int layoutVersion = s.value(QStringLiteral("docking/layout_version"), 1).toInt();
         if (layoutVersion != DOCKING_LAYOUT_VERSION) {
             qInfo() << "Docking layout version" << layoutVersion
@@ -8619,53 +9076,41 @@ private:
 
     // Code Review MED-002: Deleted obsolete restructure comments (no longer useful)
 
-    QWidget* createPerformanceDashboardTab()
-    {
-        QWidget* widget = new QWidget();
-        QGridLayout* layout = new QGridLayout(widget);
-
-        // Processing Performance
-        QGroupBox* perfGroup = new QGroupBox("Processing Performance");
-        QVBoxLayout* perfLayout = new QVBoxLayout(perfGroup);
-
-        m_fpsLabel = new QLabel("FPS: 0");
-        m_memoryLabel = new QLabel("Memory: 0 MB");
-        m_frameRateLabel = new QLabel("Frame Rate: 0/0");
-        m_processingTimeLabel = new QLabel("Processing Time: 0 ms");
-
-        perfLayout->addWidget(m_fpsLabel);
-        perfLayout->addWidget(m_memoryLabel);
-        perfLayout->addWidget(m_frameRateLabel);
-        perfLayout->addWidget(m_processingTimeLabel);
-
-        // ETSI Compliance
-        QGroupBox* complianceGroup = new QGroupBox("ETSI Compliance");
-        QVBoxLayout* complianceLayout = new QVBoxLayout(complianceGroup);
-
-        m_complianceScore = new QProgressBar();
-        m_complianceScore->setRange(0, 100);
-        m_complianceScore->setValue(85);
-        m_complianceLabel = new QLabel("Compliance Score: 85%");
-
-        complianceLayout->addWidget(m_complianceLabel);
-        complianceLayout->addWidget(m_complianceScore);
-
-        layout->addWidget(perfGroup, 0, 0);
-        layout->addWidget(complianceGroup, 0, 1);
-
-        return widget;
-    }
+    // NOTE (Wave B): the legacy createPerformanceDashboardTab() (3 labels + a
+    // progress bar) was deleted; the strip now uses the adopted
+    // PerformanceDashboard widget directly.
 
     QWidget* createConstellationTab()
     {
+        // Wave B: real ConstellationWidget replaces the dashed placeholder.
+        // ETI is post-demodulation (no true I/Q samples reach the analyzer), so
+        // the widget runs its synthetic / performance-derived path and the
+        // banner states that honestly rather than implying a live DSP feed.
         QWidget* widget = new QWidget();
         QVBoxLayout* layout = new QVBoxLayout(widget);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
 
-        QLabel* placeholder = new QLabel("Constellation Diagram\n\nSignal quality visualization will be displayed here\nwhen implementing professional signal analysis features.");
-        placeholder->setAlignment(Qt::AlignCenter);
-        placeholder->setStyleSheet("border: 2px dashed #cccccc; padding: 20px;");
+        QLabel* banner = new QLabel(
+            QObject::tr("Synthetic display — ETI is post-demodulation (no true I/Q); "
+                        "the constellation is derived from processing performance."));
+        banner->setWordWrap(true);
+        banner->setStyleSheet(QStringLiteral("color: palette(mid); padding: 2px 6px;"));
+        layout->addWidget(banner);
 
-        layout->addWidget(placeholder);
+        m_constellationWidget = new ConstellationWidget();
+        // Custom-painted widget: explicit minimum so the 120 px-strip scroll
+        // area produces scrollbars.
+        m_constellationWidget->setMinimumSize(360, 220);
+        // initialize() must run before startRealTimeUpdates(): it creates the
+        // 16 ms update timer and sets m_isInitialized, without which every
+        // paint/update path early-returns and the tab paints blank.
+        if (!m_constellationWidget->initialize()) {
+            qWarning() << "ConstellationWidget initialization failed";
+        }
+        m_constellationWidget->setDisplayMode(ConstellationWidget::DisplayMode::Constellation);
+        m_constellationWidget->startRealTimeUpdates();
+        layout->addWidget(m_constellationWidget, 1);
         return widget;
     }
     
@@ -8887,7 +9332,19 @@ private:
         QMenu* fileMenu = menuBar->addMenu("File");
         QAction* openAction = fileMenu->addAction("Open ETI File...");
         connect(openAction, &QAction::triggered, this, &DABAnalyzerWindow::openFile);
-        
+
+        fileMenu->addSeparator();
+        // Wave B: Settings edits the real AnalyzerSettings (QSettings group
+        // "analyzer/"); Export writes the current analysis via the adopted
+        // ProfessionalExportManager writers.
+        m_settingsAction = fileMenu->addAction("Settings...");
+        connect(m_settingsAction, &QAction::triggered,
+                this, &DABAnalyzerWindow::showSettingsDialog);
+        m_exportAction = fileMenu->addAction("Export...");
+        m_exportAction->setEnabled(false);  // enabled once a capture is loaded
+        connect(m_exportAction, &QAction::triggered,
+                this, &DABAnalyzerWindow::showExportDialog);
+
         fileMenu->addSeparator();
         QAction* exitAction = fileMenu->addAction("Exit");
         connect(exitAction, &QAction::triggered, this, &QWidget::close);
@@ -8902,13 +9359,12 @@ private:
         QMenu* viewMenu = menuBar->addMenu("View");
         viewMenu->addAction("Refresh Analysis");
         
-        // Help menu
+        // Help menu — Wave B replaces the inline QMessageBox::about() with the
+        // adopted AboutDialog (only one About path remains).
         QMenu* helpMenu = menuBar->addMenu("Help");
-        QAction* aboutAction = helpMenu->addAction("About Phase 1.4");
-        connect(aboutAction, &QAction::triggered, [this]() {
-            QMessageBox::about(this, "About", 
-                "StreamDAB-Analyzer\n\nBangkok ETI Processing Complete\n\nAll 5,001 frames processed successfully!");
-        });
+        QAction* aboutAction = helpMenu->addAction("About");
+        connect(aboutAction, &QAction::triggered,
+                this, &DABAnalyzerWindow::showAboutDialog);
     }
 
     void setupSignalConnections()
@@ -8947,6 +9403,30 @@ private:
                     this, &DABAnalyzerWindow::onSystemHealthChanged,
                     Qt::QueuedConnection);
             qDebug() << "Error Detection signals connected immediately";
+        }
+
+        // Wave B: feed the ETSI Compliance Monitor from the real error detector
+        // and from the ETSI compliance engine.
+        if (m_etsiMonitor) {
+            if (m_errorDetector) {
+                connect(m_errorDetector.get(),
+                        &error_detection::AdvancedErrorDetector::errorDetected,
+                        this, [this](const error_detection::ErrorReport& e) {
+                            onEtsiViolationFromError(e);
+                        }, Qt::QueuedConnection);
+                connect(m_errorDetector.get(),
+                        &error_detection::AdvancedErrorDetector::criticalErrorDetected,
+                        this, [this](const error_detection::ErrorReport& e) {
+                            onEtsiViolationFromError(e);
+                        }, Qt::QueuedConnection);
+            }
+            if (m_etsiComplianceEngine) {
+                connect(m_etsiComplianceEngine.get(),
+                        &etsi::ETSIComplianceEngine::criticalErrorDetected,
+                        this, [this](const etsi::ValidationResult& r) {
+                            onEtsiViolationFromEngine(r);
+                        }, Qt::QueuedConnection);
+            }
         }
         
         // IDENTIFIED PROBLEM: Professional Logging signals cause file dialog freeze
@@ -9865,24 +10345,40 @@ private:
     // RIGHT Panel widgets
     QTreeWidget* m_tab3_figItemDetailsTree = nullptr;  // 4 columns: Property, Size, Value, Information
     
-    // Performance Dashboard widgets
+    // Performance Dashboard widgets (Wave B: the legacy thin-tab labels
+    // m_fpsLabel/m_memoryLabel/m_frameRateLabel/m_processingTimeLabel/
+    // m_complianceScore/m_complianceLabel were deleted with the adopted
+    // PerformanceDashboard replacing them.)
     QLabel* m_fpsCounter = nullptr;
-    QLabel* m_fpsLabel = nullptr;
     QLabel* m_memoryUsage = nullptr;
-    QLabel* m_memoryLabel = nullptr;
     QProgressBar* m_etsiCompliance = nullptr;
-    QProgressBar* m_complianceScore = nullptr;
     QLabel* m_frameRate = nullptr;
-    QLabel* m_frameRateLabel = nullptr;
     QLabel* m_errorCount = nullptr;
-    QLabel* m_processingTimeLabel = nullptr;
-    QLabel* m_complianceLabel = nullptr;
     
     // System Messages widgets (enhanced)
     QComboBox* m_messageFilter = nullptr;
     
     // Constellation Viewer widgets
     QWidget* m_constellationDisplay = nullptr;
+
+    // === Wave B: adopted src/gui widgets + sampler state ===
+    PerformanceDashboard* m_performanceDashboard = nullptr;
+    RealTimeChartWidget* m_realTimeChart = nullptr;
+    int m_chartFpsSeries = -1;
+    int m_chartMemorySeries = -1;
+    ETSIComplianceMonitor* m_etsiMonitor = nullptr;
+    ConstellationWidget* m_constellationWidget = nullptr;
+    ProfessionalExportManager* m_exportManager = nullptr;
+    QAction* m_settingsAction = nullptr;
+    QAction* m_exportAction = nullptr;
+    QTimer* m_perfSampleTimer = nullptr;
+    QElapsedTimer m_perfTimer;
+    quint64 m_perfLastFrames = 0;
+    qint64 m_perfLastElapsedMs = 0;
+    double m_lastProcessingTimeMs = 0.0;
+    qint64 m_lastCpuSampleMs = 0;
+    quint64 m_lastCpuTicks = 0;
+    int m_chartSamplesFed = 0;
     
     // Additional UI state widgets
     QLabel* m_serviceInfo = nullptr;
@@ -10094,9 +10590,14 @@ private:
     // Tab-3 left dock gained the Frame List inner tabs, and the Player panel
     // gained the transport controls. A stale v4 state could also restore the
     // Transport group on the *Decoder* tab (T29 finding), so v5 discards v4
-    // state once and re-applies the default active tab (Player). Any saved
-    // version != 5 is discarded once on restore.
-    static constexpr int DOCKING_LAYOUT_VERSION = 5;
+    // state once and re-applies the default active tab (Player). Bumped
+    // 5 -> 6 (T36): the Tab-1 CENTER column order was corrected in code to
+    // Now Playing / Slideshow -> Signal Analysis (DAB Ensemble group) ->
+    // Frame Analysis (ETI Frame Navigator group) with setSizes 200/190/150, but
+    // a saved v5 state still restored the OLD center order/active tabs. v6
+    // discards stale v5 state once so existing users see the corrected default.
+    // Any saved version != 6 is discarded once on restore.
+    static constexpr int DOCKING_LAYOUT_VERSION = 6;
     
     // Phase 1: Processing counters
     int m_processedFrames{0};

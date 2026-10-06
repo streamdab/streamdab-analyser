@@ -556,7 +556,7 @@ void PerformanceDashboard::setupTrendCharts()
             this, &PerformanceDashboard::onTimeRangeChanged);
 }
 
-void PerformanceDashboard::connectEtiProcessor(eti_processor* processor)
+void PerformanceDashboard::connectEtiProcessor(EtiProcessor* processor)
 {
     if (m_etiProcessor) {
         // Disconnect previous processor
@@ -566,14 +566,11 @@ void PerformanceDashboard::connectEtiProcessor(eti_processor* processor)
     m_etiProcessor = processor;
     
     if (m_etiProcessor) {
-        // Connect to ETI processor signals for real-time performance data
-        connect(m_etiProcessor, &EtiProcessor::frameProcessed,
-                this, [this](quint64 frameNumber, const QByteArray& /*data*/) {
-                    // Calculate processing time or use a default
-                    double processingTime = 1.0; // TODO: Get actual processing time
-                    onFrameProcessed(frameNumber, processingTime);
-                }, Qt::QueuedConnection);
-        
+        // NOTE: the GUI runs on EnhancedETIProcessorQt, not this legacy
+        // EtiProcessor, and the old frameProcessed(quint64,QByteArray) signal
+        // does not exist. The dashboard is fed real FPS / memory / CPU /
+        // latency samples from DABAnalyzerWindow via updatePerformanceMetrics();
+        // this hook only records the association (kept for API stability).
         Logger::instance().log(Logger::Info, "PerformanceDashboard",
                               "Connected to ETI processor for real-time performance monitoring");
     } else {
@@ -650,6 +647,11 @@ void PerformanceDashboard::updatePerformanceMetrics(const PerformanceStats& stat
         m_latencyStatusLabel->setStyleSheet(QString("color: %1;").arg(STATUS_EXCELLENT.name()));
     }
     
+    // Release the lock before the helpers below: updateHistoricalData()
+    // acquires the non-recursive m_dataMutex itself, so calling it while
+    // holding the lock here would deadlock.
+    locker.unlock();
+
     // Update historical data
     updateHistoricalData();
     
@@ -861,27 +863,6 @@ void PerformanceDashboard::onEtiPerformanceUpdate(double frameRate, double memor
     stats.timestamp = QDateTime::currentDateTime();
     
     updatePerformanceMetrics(stats);
-}
-
-void PerformanceDashboard::onFrameProcessed(quint64 frameNumber, double processingTime)
-{
-    // Update frame count and processing latency
-    m_currentStats.frameCount = frameNumber;
-    
-    // Calculate rolling average latency
-    m_currentStats.averageLatency = (m_currentStats.averageLatency * 0.9) + (processingTime * 0.1);
-    
-    // Calculate current FPS based on processing time
-    if (processingTime > 0) {
-        double instantFPS = 1000.0 / processingTime; // Convert ms to FPS
-        m_currentStats.frameRate = (m_currentStats.frameRate * 0.9) + (instantFPS * 0.1);
-    }
-    
-    // Update memory usage (simplified calculation)
-    // In real implementation, this would query actual memory usage
-    m_currentStats.memoryUsage = frameNumber * 0.001; // Placeholder calculation
-    
-    m_currentStats.timestamp = QDateTime::currentDateTime();
 }
 
 void PerformanceDashboard::resetStatistics()
