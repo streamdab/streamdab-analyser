@@ -79,6 +79,10 @@
 #include "core/dls_plus_decoder.hpp"  // Phase 3B: DLS+ decoder integration
 #include "core/mot_protocol.hpp"      // MOT SlideShow decoder (option A)
 #include "core/mot_pad_adapter.hpp"   // X-PAD CI 12/13 -> MOTProtocol adapter
+// T34: selected-service DAB+ audio decode (libfaad2) + ALSA output.
+#include "core/dabplus_audio_decoder.hpp"
+#include "core/audio_output_sink.hpp"
+#include "core/audio_playback_controller.hpp"
 #include "core/network_stream_receiver.hpp"  // Phase 4: ETI-over-IP live streaming
 #include "core/eti_reader_thread.hpp"  // Phase A: Pattern 3 - Worker Thread
 #include "core/shared_eti_data.hpp"  // Phase A: Pattern 5 - Shared Data Model
@@ -884,6 +888,26 @@ public:
                     updateNowPlaying(track, artist, album);
                 });
 
+        // T34: selected-service DAB+ audio playback controller. Fed the same
+        // per-sub-channel MSC slices as the DLS+ pipeline during load; decodes
+        // the selected service on demand and drives the ALSA output sink.
+        m_audioController = new streamdab::audio::AudioPlaybackController(this);
+        connect(m_audioController, &streamdab::audio::AudioPlaybackController::levelsChanged,
+                this, [this](float left, float right) {
+                    if (m_audioLevelLeft) {
+                        m_audioLevelLeft->setValue(static_cast<int>(left * 100.0f + 0.5f));
+                    }
+                    if (m_audioLevelRight) {
+                        m_audioLevelRight->setValue(static_cast<int>(right * 100.0f + 0.5f));
+                    }
+                });
+        connect(m_audioController, &streamdab::audio::AudioPlaybackController::statusChanged,
+                this, [this]() {
+                    if (m_audioStatusLabel && m_audioController) {
+                        m_audioStatusLabel->setText(m_audioController->statusText());
+                    }
+                });
+
         // MOT SlideShow (option A): wire the decoder + adapter to the panel.
         connect(&m_motProtocol, &eti::mot::MOTProtocol::objectComplete,
                 this, &DABAnalyzerWindow::onMotObjectComplete);
@@ -1418,6 +1442,12 @@ private slots:
         m_timelineRecordFrame = -1;
         m_dabPlusSubChannels.clear();
         m_serviceBySubChannel.clear();
+        m_audioSubChannelByService.clear();
+        // T34: reset the audio capture + panel for the new capture.
+        if (m_audioController) {
+            m_audioController->beginCapture();
+        }
+        resetAudioPanelForLoad();
         m_dabPlusServiceMapDirty = true;
         m_cachedDabServiceCount = -1;
         m_cachedSubChannelCount = -1;
@@ -1686,6 +1716,7 @@ private slots:
         }
         m_dabPlusSubChannels.clear();
         m_serviceBySubChannel.clear();
+        m_audioSubChannelByService.clear();
         if (m_figAnalyzer) {
             for (const DABService& svc : m_figAnalyzer->getDABServices()) {
                 for (const ServiceComponent& comp : svc.components) {
@@ -1697,6 +1728,10 @@ private slots:
                         m_serviceBySubChannel.insert(
                             comp.sub_channel_id,
                             qMakePair(svc.service_id, svc.service_label));
+                    }
+                    // T34: one primary DAB+ audio sub-channel per service.
+                    if (!m_audioSubChannelByService.contains(svc.service_id)) {
+                        m_audioSubChannelByService.insert(svc.service_id, comp.sub_channel_id);
                     }
                 }
             }
@@ -1753,6 +1788,12 @@ private slots:
         for (const ProcessedFrame::SubChannelSlice& sc : frame.subChannels()) {
             if (!m_dabPlusSubChannels.contains(sc.sub_channel_id)) {
                 continue;
+            }
+            // T34: feed the selected-service audio capture path with the SAME
+            // per-sub-channel MSC slice the DLS+/MOT feed consumes (one CIF per
+            // ETI frame). No counters here are touched.
+            if (m_audioController) {
+                m_audioController->feedSubchannelChunk(sc.sub_channel_id, sc.data);
             }
             // Lazily create the parser and hook its MOT data-group callback so
             // X-PAD CI 12/13 groups reach the MOTProtocol via the adapter.
@@ -2998,6 +3039,9 @@ private:
                 qWarning() << "[T32] post-load service apply failed (unknown)";
             }
         }
+        // T34: point the audio path at the default selected service (the first
+        // DAB+ audio service) and refresh the Audio tab.
+        updateAudioSelection();
     }
 
     // Apply the selected service's latest recorded DLS/slideshow state (the
@@ -3047,6 +3091,9 @@ private:
             return;
         }
         applySelectedServiceFromCombo(index);
+        // T34: switch the audio source to the newly selected service (a no-op
+        // before a capture is loaded).
+        updateAudioSelection();
         if (!m_fileLoaded || m_selectedServiceId == 0) {
             return;
         }
@@ -3056,6 +3103,99 @@ private:
             qWarning() << "[T32] service switch replay failed:" << e.what();
         } catch (...) {
             qWarning() << "[T32] service switch replay failed (unknown)";
+        }
+        // If the playhead is running, restart audio at the current frame (the
+        // new service is decoded synchronously, then playback resumes).
+        if (m_playbackPlaying && m_audioController) {
+            m_audioController->playFromFrame(m_playbackFrame);
+        }
+    }
+
+    // ========================================================================
+    // T34: selected-service audio helpers
+    // ========================================================================
+    // Map the currently selected service to its primary DAB+ audio sub-channel
+    // and refresh the Audio tab's controls/format info. The audio controller
+    // decodes lazily on first play.
+    void updateAudioSelection()
+    {
+        if (!m_audioController) {
+            return;
+        }
+        const int sc = m_audioSubChannelByService.value(m_selectedServiceId, -1);
+        if (sc < 0 || !m_fileLoaded) {
+            m_audioController->setActiveService(0, -1);
+        } else {
+            m_audioController->setActiveService(m_selectedServiceId, sc);
+        }
+        updateAudioPanelState();
+    }
+
+    // Reflect the controller's real state in the Audio tab (no fake values).
+    void updateAudioPanelState()
+    {
+        if (!m_audioController) {
+            return;
+        }
+        const bool hasBackend = streamdab::audio::AudioPlaybackController::audioBackendAvailable();
+        const bool hasAudio = m_fileLoaded && m_audioController->hasActiveAudio();
+        const bool enabled = hasAudio && hasBackend;
+        if (m_audioDeviceCombo) {
+            m_audioDeviceCombo->setEnabled(enabled);
+        }
+        if (m_audioMuteCheck) {
+            m_audioMuteCheck->setEnabled(enabled);
+        }
+        if (m_audioVolumeSlider) {
+            m_audioVolumeSlider->setEnabled(enabled);
+        }
+        if (m_audioStatusLabel) {
+            if (!hasBackend) {
+                // No compiled-in output backend: clear annotation, no controls.
+                m_audioStatusLabel->setText(tr("Audio output unavailable"));
+            } else if (hasAudio) {
+                m_audioStatusLabel->setText(m_audioController->statusText());
+            } else {
+                m_audioStatusLabel->setText(tr("No audio service"));
+            }
+        }
+        if (m_audioInfoLabel) {
+            const streamdab::audio::DabPlusFormat fmt = m_audioController->activeFormat();
+            if (hasAudio && fmt.valid()) {
+                m_audioInfoLabel->setText(
+                    QString("%1 · %2 kHz core · %3 ch · %4 kbps")
+                        .arg(fmt.profile())
+                        .arg(fmt.coreSampleRateKHz())
+                        .arg(fmt.coreChConfig())
+                        .arg(fmt.bitrateKbps));
+            } else {
+                m_audioInfoLabel->setText(QStringLiteral("—"));
+            }
+        }
+    }
+
+    void resetAudioPanelForLoad()
+    {
+        if (m_audioStatusLabel) {
+            m_audioStatusLabel->setText(tr("No audio service"));
+        }
+        if (m_audioInfoLabel) {
+            m_audioInfoLabel->setText(QStringLiteral("—"));
+        }
+        if (m_audioDeviceCombo) {
+            m_audioDeviceCombo->setEnabled(false);
+        }
+        if (m_audioMuteCheck) {
+            m_audioMuteCheck->setEnabled(false);
+        }
+        if (m_audioVolumeSlider) {
+            m_audioVolumeSlider->setEnabled(false);
+        }
+        if (m_audioLevelLeft) {
+            m_audioLevelLeft->setValue(0);
+        }
+        if (m_audioLevelRight) {
+            m_audioLevelRight->setValue(0);
         }
     }
 
@@ -3072,6 +3212,10 @@ private:
         m_detailThrottleTimer.invalidate();
         updatePlaybackTimerInterval();
         if (m_playbackTimer) m_playbackTimer->start();
+        // T34: start the selected service's audio at the playhead frame.
+        if (m_audioController && m_audioController->hasActiveAudio()) {
+            m_audioController->playFromFrame(m_playbackFrame);
+        }
         updatePlaybackStatus(QStringLiteral("Playing"));
         updatePlaybackClockUi();
     }
@@ -3081,6 +3225,10 @@ private:
         if (!m_playbackPlaying) return;
         m_playbackPlaying = false;
         if (m_playbackTimer) m_playbackTimer->stop();
+        // T34: pause audio (silence) at the current position.
+        if (m_audioController) {
+            m_audioController->pause();
+        }
         // M2: force a final detail refresh so hex/compliance/overview/FIG panes
         // are not left up to DETAIL_THROTTLE_MS stale after pausing.
         applyPlayheadFrame(m_playbackFrame, true);
@@ -3092,6 +3240,10 @@ private:
         m_playbackPlaying = false;
         if (m_playbackTimer) m_playbackTimer->stop();
         m_playbackFrame = 0;
+        // T34: stop = silence + rewind.
+        if (m_audioController) {
+            m_audioController->stopAudio();
+        }
         applyPlayheadFrame(m_playbackFrame, true);
         updatePlaybackStatus(QStringLiteral("Stopped"));
     }
@@ -3100,6 +3252,9 @@ private:
     {
         // Return to frame 0 but keep the current play/pause state.
         m_playbackFrame = 0;
+        if (m_playbackPlaying && m_audioController) {
+            m_audioController->seekToFrame(0);
+        }
         applyPlayheadFrame(m_playbackFrame, true);
     }
 
@@ -3113,6 +3268,10 @@ private:
         const int total = availableFrameCount();
         if (total <= 0) return;
         m_playbackFrame = qBound(0, frameIndex, total - 1);
+        // T34: re-align audio to the new frame (exact to the 24 ms boundary).
+        if (m_playbackPlaying && m_audioController) {
+            m_audioController->seekToFrame(m_playbackFrame);
+        }
         applyPlayheadFrame(m_playbackFrame, true);
     }
 
@@ -3129,6 +3288,11 @@ private:
         if (total <= 0) return;
         m_playbackFrame = qBound(0, value, total - 1);
         const bool dragging = m_playerProgressBar && m_playerProgressBar->isSliderDown();
+        // T34: only re-align audio on a discrete change; a live drag would
+        // thrash the sink's device buffer (the force path on release covers it).
+        if (!dragging && m_playbackPlaying && m_audioController) {
+            m_audioController->seekToFrame(m_playbackFrame);
+        }
         applyPlayheadFrame(m_playbackFrame, !dragging);
     }
 
@@ -3136,6 +3300,10 @@ private:
     void onPlaybackSliderReleased()
     {
         if (m_seekSliderProgrammatic) return;
+        // T34: a completed scrub re-aligns audio to the released frame.
+        if (m_playbackPlaying && m_audioController) {
+            m_audioController->seekToFrame(m_playbackFrame);
+        }
         applyPlayheadFrame(m_playbackFrame, true);
     }
 
@@ -3309,6 +3477,24 @@ public:
     bool isPlayingForTest() const { return m_playbackPlaying; }
     int playbackFrameForTest() const { return m_playbackFrame; }
     bool isLoopForTest() const { return isLoopEnabled(); }
+    // T34: read-only audio state hooks for the GUI tests.
+    bool audioHasActiveServiceForTest() const
+    {
+        return m_audioController && m_audioController->hasActiveAudio();
+    }
+    bool audioDecodedForTest() const
+    {
+        return m_audioController && m_audioController->isDecoded();
+    }
+    int audioCapturedSubChannelCountForTest() const
+    {
+        return m_audioController ? m_audioController->capturedSubChannelCount() : 0;
+    }
+    int audioCapturedAccessUnitsForTest(int subChannelId) const
+    {
+        return m_audioController ? m_audioController->capturedAccessUnitCount(subChannelId) : 0;
+    }
+    QComboBox* audioDeviceComboForTest() const { return m_audioDeviceCombo; }
     QComboBox* playbackSpeedComboForTest() const { return m_playbackSpeedCombo; }
     int playbackIntervalForTest() const
     {
@@ -7114,7 +7300,7 @@ private:
         // UI redesign (Steps B/C): the Input Source dock is gone (now the
         // toolbar above the page) and Messages moved to the shared bottom
         // strip; the remaining 14 panels are grouped into tabbed dock areas:
-        //   LEFT  : Transport (Player | Decoder), System
+        //   LEFT  : Transport (Player | Decoder | Audio), System
         //   CENTER: Now Playing, Signal Analysis (Ensemble Explorer |
         //           Subchannel Org | CU Usage), Frame Analysis
         //           (ETI Frame Navigator | Hex/ETSI Compliance)
@@ -7159,6 +7345,7 @@ private:
         ads::CDockWidget* transportFirst = D("tab1_Player");
         m_tab1DockManager->addDockWidget(ads::LeftDockWidgetArea, transportFirst, nullptr);
         m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Decoder"), transportFirst->dockAreaWidget());
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Audio"), transportFirst->dockAreaWidget());
         // Default active tab: the first dock of the Transport group (Player).
         transportFirst->dockAreaWidget()->setCurrentDockWidget(transportFirst);
         m_tab1DockManager->addDockWidget(ads::LeftDockWidgetArea, D("tab1_System"), nullptr);
@@ -7254,7 +7441,7 @@ private:
         }
         moved.clear();
         const QList<ads::CDockWidget*> leftDocks = {
-            D("tab1_Player"), D("tab1_Decoder"), D("tab1_System")};
+            D("tab1_Player"), D("tab1_Decoder"), D("tab1_Audio"), D("tab1_System")};
         for (ads::CDockWidget* d : leftDocks) {
             if (ads::CDockAreaWidget* a = d->dockAreaWidget()) {
                 if (!moved.contains(a)) {
@@ -7340,6 +7527,12 @@ private:
         QGroupBox* decoderPanel = createDecoderPanel();
         if (decoderPanel) {
             sections.append({QStringLiteral("tab1_Decoder"), QStringLiteral("Decoder"), decoderPanel});
+        }
+
+        // 2b. Audio Panel (T34) - audio output controls/meters (Transport group).
+        QGroupBox* audioPanel = createAudioPanel();
+        if (audioPanel) {
+            sections.append({QStringLiteral("tab1_Audio"), QStringLiteral("Audio"), audioPanel});
         }
         
         // 3. System Panel (Item #3) - 40%
@@ -8804,6 +8997,134 @@ private:
         layout->addWidget(framesLabel, 3, 0);
         layout->addWidget(m_decoderFramesLabel, 3, 1);
         
+        return group;
+    }
+
+    /**
+     * @brief Create the "Audio" tab of the Tab-1 Transport group (T34).
+     *
+     * Audio-specific controls only — the transport buttons live on the Player
+     * tab. Provides: an on-demand DAB+ codec/rate/bit-rate info line (real
+     * superframe values), ALSA output-device selection, mute + volume and real
+     * L/R peak meters. All controls are disabled until a loaded capture has a
+     * selected service with a captured DAB+ audio sub-channel.
+     */
+    QGroupBox* createAudioPanel()
+    {
+        QGroupBox* group = new QGroupBox("Audio");
+        if (!group) {
+            qCritical() << "Failed to create Audio panel";
+            return nullptr;
+        }
+
+        QGridLayout* layout = new QGridLayout(group);
+        layout->setContentsMargins(4, 8, 4, 4);
+        layout->setSpacing(4);
+
+        // Row 0: status.
+        QLabel* statusTitle = new QLabel(tr("Status:"));
+        statusTitle->setStyleSheet("font-weight: bold;");
+        m_audioStatusLabel = new QLabel(tr("No audio service"));
+        m_audioStatusLabel->setObjectName(QStringLiteral("audioStatusLabel"));
+        m_audioStatusLabel->setStyleSheet("color: #666;");
+        layout->addWidget(statusTitle, 0, 0);
+        layout->addWidget(m_audioStatusLabel, 0, 1);
+
+        // Row 1: real codec / sample-rate / channels / bitrate line.
+        QLabel* infoTitle = new QLabel(tr("Format:"));
+        infoTitle->setStyleSheet("font-weight: bold;");
+        m_audioInfoLabel = new QLabel(QStringLiteral("—"));
+        m_audioInfoLabel->setObjectName(QStringLiteral("audioInfoLabel"));
+        m_audioInfoLabel->setWordWrap(true);
+        m_audioInfoLabel->setStyleSheet("color: #0078d4;");
+        layout->addWidget(infoTitle, 1, 0);
+        layout->addWidget(m_audioInfoLabel, 1, 1);
+
+        // Row 2: output device (enumerated by the ALSA backend).
+        QLabel* deviceTitle = new QLabel(tr("Output:"));
+        deviceTitle->setStyleSheet("font-weight: bold;");
+        m_audioDeviceCombo = new QComboBox();
+        m_audioDeviceCombo->setObjectName(QStringLiteral("audioDeviceCombo"));
+        m_audioDeviceCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+        m_audioDeviceCombo->setMinimumContentsLength(10);
+        const QList<streamdab::audio::AudioOutputSink::DeviceInfo> audioDevices =
+            streamdab::audio::AudioOutputSink::enumerateOutputDevices();
+        for (const streamdab::audio::AudioOutputSink::DeviceInfo& info : audioDevices) {
+            m_audioDeviceCombo->addItem(info.description, info.name);
+        }
+        // Prefer the backend's "default" device (the hint order is not
+        // meaningful; the first entry is often a converter plugin).
+        const int defaultDevice = m_audioDeviceCombo->findData(
+            streamdab::audio::AudioOutputSink::defaultDeviceName());
+        if (defaultDevice >= 0) {
+            m_audioDeviceCombo->setCurrentIndex(defaultDevice);
+        }
+        m_audioDeviceCombo->setEnabled(false);
+        layout->addWidget(deviceTitle, 2, 0);
+        layout->addWidget(m_audioDeviceCombo, 2, 1);
+        if (m_audioController && m_audioDeviceCombo->count() > 0) {
+            m_audioController->setOutputDevice(m_audioDeviceCombo->currentData().toString());
+        }
+        connect(m_audioDeviceCombo, &QComboBox::currentIndexChanged, this, [this](int index) {
+            if (!m_audioController || index < 0) {
+                return;
+            }
+            m_audioController->setOutputDevice(m_audioDeviceCombo->itemData(index).toString());
+        });
+
+        // Row 3: mute + volume.
+        m_audioMuteCheck = new QCheckBox(tr("Mute"));
+        m_audioMuteCheck->setObjectName(QStringLiteral("audioMuteCheck"));
+        m_audioMuteCheck->setEnabled(false);
+        m_audioVolumeSlider = new QSlider(Qt::Horizontal);
+        m_audioVolumeSlider->setObjectName(QStringLiteral("audioVolumeSlider"));
+        m_audioVolumeSlider->setRange(0, 100);
+        m_audioVolumeSlider->setValue(100);
+        m_audioVolumeSlider->setEnabled(false);
+        m_audioVolumeLabel = new QLabel(QStringLiteral("100%"));
+        m_audioVolumeLabel->setObjectName(QStringLiteral("audioVolumeLabel"));
+        QHBoxLayout* volumeRow = new QHBoxLayout();
+        volumeRow->addWidget(m_audioVolumeSlider, 1);
+        volumeRow->addWidget(m_audioVolumeLabel);
+        layout->addWidget(m_audioMuteCheck, 3, 0);
+        layout->addLayout(volumeRow, 3, 1);
+        connect(m_audioMuteCheck, &QCheckBox::toggled, this, [this](bool muted) {
+            if (m_audioController) {
+                m_audioController->setMuted(muted);
+            }
+        });
+        connect(m_audioVolumeSlider, &QSlider::valueChanged, this, [this](int value) {
+            if (m_audioVolumeLabel) {
+                m_audioVolumeLabel->setText(QString("%1%").arg(value));
+            }
+            if (m_audioController) {
+                m_audioController->setVolume(value / 100.0);
+            }
+        });
+
+        // Row 4/5: real L/R peak level meters (0 when silent/stopped/no device).
+        QLabel* leftTitle = new QLabel(QStringLiteral("L:"));
+        leftTitle->setStyleSheet("font-weight: bold;");
+        m_audioLevelLeft = new QProgressBar();
+        m_audioLevelLeft->setObjectName(QStringLiteral("audioLevelLeft"));
+        m_audioLevelLeft->setRange(0, 100);
+        m_audioLevelLeft->setValue(0);
+        m_audioLevelLeft->setTextVisible(false);
+        m_audioLevelLeft->setFixedHeight(12);
+        layout->addWidget(leftTitle, 4, 0);
+        layout->addWidget(m_audioLevelLeft, 4, 1);
+
+        QLabel* rightTitle = new QLabel(QStringLiteral("R:"));
+        rightTitle->setStyleSheet("font-weight: bold;");
+        m_audioLevelRight = new QProgressBar();
+        m_audioLevelRight->setObjectName(QStringLiteral("audioLevelRight"));
+        m_audioLevelRight->setRange(0, 100);
+        m_audioLevelRight->setValue(0);
+        m_audioLevelRight->setTextVisible(false);
+        m_audioLevelRight->setFixedHeight(12);
+        layout->addWidget(rightTitle, 5, 0);
+        layout->addWidget(m_audioLevelRight, 5, 1);
+
         return group;
     }
 
@@ -10449,6 +10770,18 @@ private:
     // invalidates the cache.
     QSet<int> m_dabPlusSubChannels;
     QHash<int, QPair<quint32, QString>> m_serviceBySubChannel;
+    // T34: service id -> its primary DAB+ audio sub-channel (audio selection).
+    QHash<quint32, int> m_audioSubChannelByService;
+    // T34: selected-service audio playback controller + Audio-tab widgets.
+    streamdab::audio::AudioPlaybackController* m_audioController = nullptr;
+    QLabel* m_audioStatusLabel = nullptr;
+    QLabel* m_audioInfoLabel = nullptr;
+    QComboBox* m_audioDeviceCombo = nullptr;
+    QCheckBox* m_audioMuteCheck = nullptr;
+    QSlider* m_audioVolumeSlider = nullptr;
+    QLabel* m_audioVolumeLabel = nullptr;
+    QProgressBar* m_audioLevelLeft = nullptr;
+    QProgressBar* m_audioLevelRight = nullptr;
     bool m_dabPlusServiceMapDirty{true};
     int m_cachedDabServiceCount{-1};
     int m_cachedSubChannelCount{-1};
@@ -10596,8 +10929,11 @@ private:
     // Frame Analysis (ETI Frame Navigator group) with setSizes 200/190/150, but
     // a saved v5 state still restored the OLD center order/active tabs. v6
     // discards stale v5 state once so existing users see the corrected default.
-    // Any saved version != 6 is discarded once on restore.
-    static constexpr int DOCKING_LAYOUT_VERSION = 6;
+    // Bumped 6 -> 7 (T34): the Tab-1 LEFT "Transport" group gained a third tab
+    // ("Audio"); a saved v6 state would restore the group with only
+    // Player|Decoder and hide the new Audio tab. v7 discards stale v6 state once.
+    // Any saved version != 7 is discarded once on restore.
+    static constexpr int DOCKING_LAYOUT_VERSION = 7;
     
     // Phase 1: Processing counters
     int m_processedFrames{0};

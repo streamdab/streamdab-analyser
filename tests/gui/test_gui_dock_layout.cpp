@@ -4,7 +4,7 @@
  *
  * UI redesign (v2) validation:
  *   a) exactly 4 CDockManagers (one per tab + one window-level bottom dock area)
- *   b) exactly 25 dock widgets with the expected objectNames
+ *   b) exactly 28 dock widgets with the expected objectNames
  *      (14 tab1 + 3 tab2 + 2 tab3 + 6 bottom; -tab1_InputSource -> toolbar,
  *       -tab1_Messages -> bottom_Messages strip tab)
  *   c) default first-launch placement: TABBED GROUPS on Tab 1 —
@@ -16,8 +16,8 @@
  *   d) the Input Source toolbar sits at the TOP of the Tab-1 page with an
  *      expandable network row (visible only in Network Stream mode)
  *   e) QSettings persistence round-trip (closed dock stays closed; restored
- *      group structure matches the default layout) incl. layout_version=6
- *   f) stale v1/v2/v3/v4/v5 layout state (layout_version != 6) is discarded once
+ *      group structure matches the default layout) incl. layout_version=7
+ *   f) stale v1/v2/v3/v4/v5 layout state (layout_version != 7) is discarded once
  *      so the first run after the upgrade shows the new default layout
  *   g) auto-hide (pin) config sanity
  *   h) floating round-trip safety (float a dock, re-dock it, no crash)
@@ -74,7 +74,7 @@ private slots:
     void initTestCase();
     void cleanupTestCase();
     void testFourDockManagers();
-    void test27DocksWithExpectedNames();
+    void test28DocksWithExpectedNames();
     void testDefaultGroupedPlacement();
     void testDefaultActiveTabs();
     void testBottomEightDocks();
@@ -119,12 +119,14 @@ private slots:
     void testPlayerPanelTransportControls();
     void testPlaybackController();
     void testPlayerActiveTabAfterVersionBump();
-    // T36: stale v5 center order/active tabs discarded (5 -> 6)
+    // T36: stale v5 center order/active tabs discarded (5 -> 6, superseded by T34 6 -> 7)
     void testT36CenterOrderAfterVersionBump();
     // T32: Player service selector + per-service media pipeline
     void testPlayerServiceSelector();
     // T32 review #4: retained-slide eviction (tiny cap, cross-service)
     void testRetainedSlideEviction();
+    // T34: Audio tab in the Transport group + enabled state / level meters
+    void testAudioTabControls();
 
 private:
     // Removes every DABAnalyzerWindow QSettings key used by the app so each
@@ -254,7 +256,7 @@ void TestGuiDockLayout::testFourDockManagers()
     QCoreApplication::processEvents();
 }
 
-void TestGuiDockLayout::test27DocksWithExpectedNames()
+void TestGuiDockLayout::test28DocksWithExpectedNames()
 {
     clearSettingsStore();
     DABAnalyzerWindow w;
@@ -271,6 +273,7 @@ void TestGuiDockLayout::test27DocksWithExpectedNames()
         // Tab 1 (14) - UI redesign: tab1_InputSource removed (toolbar),
         // tab1_Messages removed (bottom strip), CU Usage grouped in center.
         QStringLiteral("tab1_Player"), QStringLiteral("tab1_Decoder"),
+        QStringLiteral("tab1_Audio"),
         QStringLiteral("tab1_System"),
         QStringLiteral("tab1_EnsembleExplorer"), QStringLiteral("tab1_SubchannelOrg"),
         QStringLiteral("tab1_CUUsage"),
@@ -292,7 +295,7 @@ void TestGuiDockLayout::test27DocksWithExpectedNames()
         QStringLiteral("bottom_Constellation"), QStringLiteral("bottom_Messages"),
     };
 
-    QCOMPARE(all.size(), expected.size());  // 27 docks
+    QCOMPARE(all.size(), expected.size());  // 28 docks (T34 added tab1_Audio)
     QCOMPARE(all, expected);
 
     w.close();
@@ -325,10 +328,11 @@ void TestGuiDockLayout::testDefaultGroupedPlacement()
     QVERIFY(!m1->findDockWidget(QStringLiteral("tab1_InputSource")));
     QVERIFY(!m1->findDockWidget(QStringLiteral("tab1_Messages")));
 
-    // LEFT column (0): Transport group (Player | Decoder) + System standalone.
+    // LEFT column (0): Transport group (Player | Decoder | Audio) + System standalone.
     verifyTabbedGroup(m1, root,
-                      {QStringLiteral("tab1_Player"), QStringLiteral("tab1_Decoder")},
-                      2, 0);
+                      {QStringLiteral("tab1_Player"), QStringLiteral("tab1_Decoder"),
+                       QStringLiteral("tab1_Audio")},
+                      3, 0);
     ads::CDockAreaWidget* transportArea =
         m1->findDockWidget(QStringLiteral("tab1_Player"))->dockAreaWidget();
     QVERIFY(transportArea);
@@ -759,7 +763,7 @@ void TestGuiDockLayout::testPersistenceRoundTrip()
     }
 
     const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 6);
+    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 7);
     QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab2")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab3")).isNull());
@@ -797,8 +801,9 @@ void TestGuiDockLayout::testPersistenceRoundTrip()
 
         // Group verification (all groups fully visible; only NowPlaying closed).
         verifyTabbedGroup(m1, root,
-                          {QStringLiteral("tab1_Player"), QStringLiteral("tab1_Decoder")},
-                          2, 0);
+                          {QStringLiteral("tab1_Player"), QStringLiteral("tab1_Decoder"),
+                           QStringLiteral("tab1_Audio")},
+                          3, 0);
         QCOMPARE(columnIndexOf(root,
                  m1->findDockWidget(QStringLiteral("tab1_System"))->dockAreaWidget()), 0);
         verifyTabbedGroup(m1, root,
@@ -840,7 +845,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
 {
     // Stale v1 settings (layout_version 1 + a saved layout with Now Playing
     // closed) must be DISCARDED once: the next launch shows the new default
-    // layout (Now Playing visible, groups intact) and re-saves version 6.
+    // layout (Now Playing visible, groups intact) and re-saves version 7.
     QStandardPaths::setTestModeEnabled(true);
     clearSettingsStore();
 
@@ -872,7 +877,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
     }
     {
         const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(check.value(versionKey).toInt(), 6);
+        QCOMPARE(check.value(versionKey).toInt(), 7);
         QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     }
 
@@ -902,8 +907,9 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(root);
         QCOMPARE(root->count(), 3);
         verifyTabbedGroup(m1, root,
-                          {QStringLiteral("tab1_Player"), QStringLiteral("tab1_Decoder")},
-                          2, 0);
+                          {QStringLiteral("tab1_Player"), QStringLiteral("tab1_Decoder"),
+                           QStringLiteral("tab1_Audio")},
+                          3, 0);
         verifyTabbedGroup(m1, root,
                           {QStringLiteral("tab1_EnsembleExplorer"),
                            QStringLiteral("tab1_SubchannelOrg"),
@@ -929,14 +935,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(mBottom);
         QVERIFY(mBottom->findDockWidget(QStringLiteral("bottom_Messages")));
 
-        w2.close(); // writes layout version 6 again
+        w2.close(); // writes layout version 7 again
         QCoreApplication::processEvents();
     }
 
     // 4) Version is 6 again; a third launch restores normally (v6 round-trip).
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 6);
+        QCOMPARE(s.value(versionKey).toInt(), 7);
     }
     {
         DABAnalyzerWindow w3;
@@ -968,12 +974,12 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(np);
         np->toggleView(false);
         QCoreApplication::processEvents();
-        w.close();  // writes layout_version 6 with Now Playing hidden
+        w.close();  // writes layout_version 7 with Now Playing hidden
         QCoreApplication::processEvents();
     }
     {
         QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 6);
+        QCOMPARE(s.value(versionKey).toInt(), 7);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
         s.setValue(versionKey, 5);  // simulate the v5 -> v6 migration
         s.sync();
@@ -989,12 +995,12 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY2(!np->isClosed() && np->isVisible(),
                  "stale v5 layout must be discarded: Now Playing visible in "
                  "the default redesign layout");
-        w4.close();  // re-saves layout_version 6
+        w4.close();  // re-saves layout_version 7
         QCoreApplication::processEvents();
     }
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 6);
+        QCOMPARE(s.value(versionKey).toInt(), 7);
     }
 
     clearSettingsStore();
@@ -3235,7 +3241,7 @@ void TestGuiDockLayout::testPlaybackController()
 
 // ============================================================================
 // T29: a stale (previous-version) layout that restored the Decoder tab is
-// discarded across the version bump (now 5 -> 6)
+// discarded across the version bump (now 6 -> 7; this test simulates a stale v5 store)
 // ============================================================================
 void TestGuiDockLayout::testPlayerActiveTabAfterVersionBump()
 {
@@ -3253,7 +3259,7 @@ void TestGuiDockLayout::testPlayerActiveTabAfterVersionBump()
         // Simulate the stale user state: the Decoder tab is active.
         player->dockAreaWidget()->setCurrentDockWidget(decoder);
         QCoreApplication::processEvents();
-        w.close();  // saves layout_version 6 with Decoder active
+        w.close();  // saves layout_version 7 with Decoder active
         QCoreApplication::processEvents();
     }
     {
@@ -3281,7 +3287,7 @@ void TestGuiDockLayout::testPlayerActiveTabAfterVersionBump()
 
 // ============================================================================
 // T36: a saved v5 state with the OLD Tab-1 center order + old active tabs is
-// discarded once (5 -> 6); after the reset the center order and every group's
+// discarded once (the current bump is 6 -> 7); after the reset the center order and every group's
 // default active dock are the corrected ones.
 // ============================================================================
 void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
@@ -3345,7 +3351,7 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
     }
     {
         QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 6);
+        QCOMPARE(s.value(versionKey).toInt(), 7);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
         s.setValue(versionKey, 5);  // simulate a stale v5 store
         s.sync();
@@ -3387,12 +3393,12 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
         QCOMPARE(frameAnalysisArea->currentDockWidget()->objectName(),
                  QStringLiteral("tab1_FrameNavigator"));
 
-        w.close();  // re-saves version 6
+        w.close();  // re-saves version 7
         QCoreApplication::processEvents();
     }
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        QCOMPARE(s.value(versionKey).toInt(), 6);
+        QCOMPARE(s.value(versionKey).toInt(), 7);
     }
 
     clearSettingsStore();
@@ -3499,6 +3505,37 @@ void TestGuiDockLayout::testPlayerServiceSelector()
                              "svc=%s track='%s' status='%s'\n",
                      qPrintable(svc), qPrintable(w.nowPlayingTrackForTest()),
                      qPrintable(status));
+    }
+
+    // --- T34: after a load the Audio tab is enabled and reports the REAL
+    // DAB+ superframe format of the default-selected audio service. ---
+    {
+        QVERIFY2(w.audioHasActiveServiceForTest(),
+                 "T34: the default selected DAB+ service must have active audio");
+        QCOMPARE(w.audioCapturedSubChannelCountForTest(), 14);  // fixture parity
+        auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
+        QVERIFY(m1);
+        ads::CDockWidget* audioDock = m1->findDockWidget(QStringLiteral("tab1_Audio"));
+        QVERIFY(audioDock && audioDock->widget());
+        QWidget* audioPanel = audioDock->widget();
+        QComboBox* device = audioPanel->findChild<QComboBox*>(QStringLiteral("audioDeviceCombo"));
+        QCheckBox* mute = audioPanel->findChild<QCheckBox*>(QStringLiteral("audioMuteCheck"));
+        QSlider* volume = audioPanel->findChild<QSlider*>(QStringLiteral("audioVolumeSlider"));
+        QLabel* info = audioPanel->findChild<QLabel*>(QStringLiteral("audioInfoLabel"));
+        QVERIFY(device && mute && volume && info);
+        QVERIFY2(device->isEnabled(), "T34: device selector enabled with a DAB+ service");
+        QVERIFY2(mute->isEnabled(), "T34: mute enabled with a DAB+ service");
+        QVERIFY2(volume->isEnabled(), "T34: volume enabled with a DAB+ service");
+        // Real info line: codec profile + core rate + channels + bitrate.
+        const QString infoText = info->text();
+        QVERIFY2(infoText.contains(QStringLiteral("AAC")),
+                 qPrintable(QString("T34: format info must name the codec, got: %1")
+                                .arg(infoText)));
+        QVERIFY2(infoText.contains(QStringLiteral("kbps")),
+                 qPrintable(QString("T34: format info must carry the bitrate, got: %1")
+                                .arg(infoText)));
+        std::fprintf(stderr, "[T34-TEST] audio format info: '%s' captured subchannels=%d\n",
+                     qPrintable(infoText), w.audioCapturedSubChannelCountForTest());
     }
 
     // --- Invariant baseline (post-load). ---
@@ -4049,6 +4086,70 @@ void TestGuiDockLayout::testAboutAndSettingsDialogs()
                  qPrintable(QString("format change must rebuild the extension, got: %1")
                                 .arg(nameEdit->text())));
     }
+}
+
+// ============================================================================
+// T34: Audio tab in the Tab-1 Transport group (Player | Decoder | Audio).
+// Before a capture is loaded every audio control is disabled; the widgets
+// exist and are wired to the AudioPlaybackController (no fake data).
+// ============================================================================
+void TestGuiDockLayout::testAudioTabControls()
+{
+    clearSettingsStore();
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
+    QVERIFY(m1);
+
+    ads::CDockWidget* audio = m1->findDockWidget(QStringLiteral("tab1_Audio"));
+    QVERIFY2(audio, "T34: the Transport group must own the Audio dock");
+    ads::CDockWidget* player = m1->findDockWidget(QStringLiteral("tab1_Player"));
+    ads::CDockWidget* decoder = m1->findDockWidget(QStringLiteral("tab1_Decoder"));
+    QVERIFY(player && decoder);
+    QCOMPARE(audio->dockAreaWidget(), player->dockAreaWidget());
+    QCOMPARE(audio->dockAreaWidget(), decoder->dockAreaWidget());
+
+    // Tab ORDER: Player -> Decoder -> Audio; the active tab stays Player.
+    const QList<ads::CDockWidget*> tabs = audio->dockAreaWidget()->dockWidgets();
+    QCOMPARE(tabs.size(), 3);
+    QCOMPARE(tabs.at(0)->objectName(), QStringLiteral("tab1_Player"));
+    QCOMPARE(tabs.at(1)->objectName(), QStringLiteral("tab1_Decoder"));
+    QCOMPARE(tabs.at(2)->objectName(), QStringLiteral("tab1_Audio"));
+    QCOMPARE(audio->dockAreaWidget()->currentDockWidget()->objectName(),
+             QStringLiteral("tab1_Player"));
+
+    QWidget* panel = audio->widget();
+    QVERIFY(panel);
+
+    // Required audio widgets exist (object names are the test contract).
+    QLabel* status = panel->findChild<QLabel*>(QStringLiteral("audioStatusLabel"));
+    QLabel* info = panel->findChild<QLabel*>(QStringLiteral("audioInfoLabel"));
+    QComboBox* device = panel->findChild<QComboBox*>(QStringLiteral("audioDeviceCombo"));
+    QCheckBox* mute = panel->findChild<QCheckBox*>(QStringLiteral("audioMuteCheck"));
+    QSlider* volume = panel->findChild<QSlider*>(QStringLiteral("audioVolumeSlider"));
+    QProgressBar* levelL = panel->findChild<QProgressBar*>(QStringLiteral("audioLevelLeft"));
+    QProgressBar* levelR = panel->findChild<QProgressBar*>(QStringLiteral("audioLevelRight"));
+    QVERIFY2(status && info && device && mute && volume && levelL && levelR,
+             "T34: all Audio-tab controls must exist");
+
+    // Level meters are wired (0 without playback; documented limitation).
+    QCOMPARE(levelL->value(), 0);
+    QCOMPARE(levelR->value(), 0);
+    QCOMPARE(volume->minimum(), 0);
+    QCOMPARE(volume->maximum(), 100);
+    QVERIFY2(device->count() >= 1, "T34: at least the default output device is listed");
+
+    // Before a capture: no audio service -> all audio controls disabled.
+    QVERIFY2(!device->isEnabled(), "T34: device selector disabled before a load");
+    QVERIFY2(!mute->isEnabled(), "T34: mute disabled before a load");
+    QVERIFY2(!volume->isEnabled(), "T34: volume disabled before a load");
+    QCOMPARE(w.audioCapturedSubChannelCountForTest(), 0);
+    QVERIFY(!w.audioHasActiveServiceForTest());
+
+    w.close();
+    QCoreApplication::processEvents();
 }
 
 QTEST_MAIN(TestGuiDockLayout)

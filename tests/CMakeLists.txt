@@ -673,9 +673,11 @@ if(CAN_RUN_GUI_TESTS)
         Qt6::Network
         qtadvanceddocking-qt6
         ${ZMQ_LIBRARIES}
+        ${T34_AUDIO_LIBS}
         pthread
     )
-    target_compile_definitions(test_gui_dock_layout PRIVATE GUI_TEST_MODE)
+    target_compile_definitions(test_gui_dock_layout PRIVATE GUI_TEST_MODE ${T34_AUDIO_DEFINES})
+    target_include_directories(test_gui_dock_layout PRIVATE ${T34_AUDIO_INCLUDES})
     # test_gui_dock_layout.cpp includes ../src/main.cpp, whose trailing
     # `#include "main.moc"` needs the moc output that AUTOMOC generates for the
     # app target. Ensure the app target (and its autogen dir) builds first, then
@@ -996,4 +998,56 @@ add_test(NAME test_segfault_fixes COMMAND test_segfault_fixes)
 set_tests_properties(test_segfault_fixes PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     TIMEOUT 60
+)
+
+# ============================================================================
+# T34 DAB+ audio decode (libfaad2) — headless, no sound device required
+# ============================================================================
+# Drives the real Bangkok fixture through the production ETI frame parser +
+# MSC slice extraction, assembles DAB+ superframes, decodes the AUs with
+# libfaad2 and asserts non-silent PCM + plausible output format. Also asserts
+# that two different DAB+ sub-channels decode to different PCM (service switch
+# changes the decoded stream identity). QSKIPs when libfaad2 is not built in.
+add_executable(test_dabplus_audio_decoder
+    test_dabplus_audio_decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dabplus_audio_decoder.cpp
+    ${CORE_SOURCES}
+)
+target_link_libraries(test_dabplus_audio_decoder
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    ${T34_AUDIO_LIBS}
+    pthread
+)
+target_include_directories(test_dabplus_audio_decoder PRIVATE ${T34_AUDIO_INCLUDES})
+target_compile_definitions(test_dabplus_audio_decoder PRIVATE ${T34_AUDIO_DEFINES})
+add_test(NAME test_dabplus_audio_decoder COMMAND test_dabplus_audio_decoder)
+set_tests_properties(test_dabplus_audio_decoder PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 120
+)
+
+# ============================================================================
+# T34 audio output sink lifecycle (review gate 5) — headless, simulated backend
+# ============================================================================
+# Proves the sink's close()/destructor cannot hang on a stalled device and that
+# a bad device name fails gracefully. No real playback is required.
+add_executable(test_audio_output_sink
+    test_audio_output_sink.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/audio_output_sink.cpp
+)
+target_link_libraries(test_audio_output_sink
+    Qt6::Test
+    Qt6::Core
+    ${T34_AUDIO_LIBS}
+    pthread
+)
+target_include_directories(test_audio_output_sink PRIVATE ${T34_AUDIO_INCLUDES})
+target_compile_definitions(test_audio_output_sink PRIVATE ${T34_AUDIO_DEFINES})
+add_test(NAME test_audio_output_sink COMMAND test_audio_output_sink)
+set_tests_properties(test_audio_output_sink PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 30
 )
