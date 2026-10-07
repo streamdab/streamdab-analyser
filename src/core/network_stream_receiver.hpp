@@ -16,6 +16,7 @@
 
 #include <QObject>
 #include <QUdpSocket>
+#include <QTcpSocket>
 #include <QNetworkInterface>
 #include <QTimer>
 #include <QMutex>
@@ -34,6 +35,25 @@
 namespace eti {
 
 /**
+ * @brief Wire transport used to receive ETI-over-IP.
+ *
+ * The scheme in the user-facing URL selects the transport:
+ *   - `udp://` or plain `A.B.C.D[:port]` -> UdpMulticast
+ *   - `tcp://`                           -> Tcp  (raw 6144-byte ETI stream)
+ *   - `zmq+tcp://`                       -> Zmq  (SUB to an ODR-DabMux publisher)
+ */
+enum class StreamTransport {
+    UdpMulticast = 0,
+    Tcp = 1,
+    Zmq = 2
+};
+
+/**
+ * @brief Human-readable transport name (for logs / error messages).
+ */
+const char* stream_transport_name(StreamTransport transport);
+
+/**
  * @brief Result of validating/parsing an ETI-over-IP stream URL.
  *
  * `address`/`port` are only meaningful when `valid == true`. On failure
@@ -41,21 +61,28 @@ namespace eti {
  */
 struct StreamUrlValidation {
     bool valid{false};
-    QString address;             ///< IPv4 multicast address (valid only)
+    StreamTransport transport{StreamTransport::UdpMulticast};
+    QString address;             ///< IPv4 multicast address, or TCP/ZMQ host (valid only)
     quint16 port{9200};          ///< 1..65535, defaults to 9200 when omitted
     QString error;               ///< reason when `valid == false`
 };
 
 /**
- * @brief Validate a multicast ETI-over-IP URL.
+ * @brief Validate an ETI-over-IP stream URL and resolve it to a transport.
  *
- * The receiver is multicast-only, so accepted input is deliberately narrow:
- *   - `udp://A.B.C.D[:port]`
- *   - `A.B.C.D[:port]`
- * where `A.B.C.D` is an IPv4 multicast address (224.0.0.0/4) and the optional
- * port is 1..65535 (defaults to 9200). Host names (`localhost`), unicast/IPv6
- * addresses, `tcp://` / `zmq+tcp://` schemes and malformed input are rejected
- * with a descriptive `error`.
+ * Accepted grammar (the ONLY accepted forms):
+ *   - `udp://A.B.C.D[:port]`   IPv4 multicast (224.0.0.0/4)
+ *   - `A.B.C.D[:port]`         IPv4 multicast (224.0.0.0/4)
+ *   - `tcp://host[:port]`      raw ETI byte stream (hostname or IPv4 literal)
+ *   - `zmq+tcp://host[:port]`  ZeroMQ SUB to an ODR-DabMux ETI publisher
+ *
+ * For every form the port is optional and defaults to 9200; when present it
+ * must be 1..65535 with digits only. `address` receives the canonical
+ * dotted-decimal multicast address (UDP) or the verbatim host (TCP/ZMQ).
+ *
+ * Rejected with a descriptive `error`: empty/blank input, `http://` and any
+ * other scheme, hostnames without a transport scheme (ambiguous), unicast
+ * UDP, IPv6, malformed paths and malformed addresses/ports.
  *
  * This is a pure free function (no I/O) so both the UI and the receiver can
  * call it before creating any worker thread.
@@ -138,7 +165,10 @@ private:
  * @brief Network stream configuration for ETI-over-IP reception
  */
 struct NetworkStreamConfig {
-    QString multicast_address = "239.192.0.1";  // Default DAB multicast
+    /// Selected wire transport. Determines how `multicast_address` is used:
+    /// UDP -> IPv4 multicast group; TCP/ZMQ -> target host name or IP literal.
+    StreamTransport transport = StreamTransport::UdpMulticast;
+    QString multicast_address = "239.192.0.1";  // Default DAB multicast (or TCP/ZMQ host)
     quint16 port = 9200;                        // Default ETI port
     QString interface_name;                      // Network interface (auto if empty)
     size_t buffer_size = 1000;                  // Frame buffer size
@@ -313,6 +343,15 @@ public slots:
     void stop_reception();
     void process_pending_datagrams();
     void update_statistics();
+    /// Tear down every transport socket in the worker's OWN thread. Called by
+    /// the receiver with a bounded queued invocation before the thread quits
+    /// because ZMQ sockets are not thread-safe: creating and destroying them
+    /// must happen on the same thread.
+    ///
+    /// LOSS-SILENT: unlike `stop_reception()` this does NOT emit
+    /// `connection_status_changed(false)` — the receiver initiated the teardown
+    /// and must not mistake it for a stream loss (review F1).
+    void shutdown();
 
 signals:
     void frame_received(const QByteArray& frameData);
@@ -324,21 +363,49 @@ signals:
 private slots:
     void handle_socket_error(QAbstractSocket::SocketError error);
     void handle_datagram_ready();
+    // TCP
+    void handle_tcp_connected();
+    void handle_tcp_disconnected();
+    void handle_tcp_ready_read();
+    void handle_tcp_error(QAbstractSocket::SocketError error);
+    // ZeroMQ
+    void poll_zmq();
 
 private:
+    /// Shared stop path. `emitStatus == false` is used by the intentional
+    /// teardown (`shutdown()`): the receiver owns the connection lifecycle, and
+    /// a stop it deliberately initiated must never be relayed as a stream loss
+    /// (that used to retrigger the reconnect policy — review F1).
+    void stop_reception_internal(bool emitStatus);
     bool initialize_socket();
     bool join_multicast_group();
     void leave_multicast_group();
+    bool initialize_tcp_socket();
+    bool initialize_zmq_socket();
+    void reframe_tcp_buffer();
+    void deliver_eti_frame(const QByteArray& frame, const QString& sourceAddress,
+                           quint16 sourcePort);
+    void report_socket_error(QAbstractSocket::SocketError error,
+                             const QString& errorString, bool fatal);
     bool validate_eti_packet(const QByteArray& data) const;
     void update_frame_rate();
     void check_quality_thresholds();
+
+    // ZeroMQ state is hidden behind a pimpl so <zmq.hpp> stays out of the
+    // header (and therefore out of every translation unit that includes it).
+    struct ZmqState;
     
     NetworkStreamConfig m_config;
     QString m_last_error;  ///< last start/init failure (worker thread only)
     std::unique_ptr<QUdpSocket> m_socket;
+    std::unique_ptr<QTcpSocket> m_tcp_socket;   ///< TCP raw ETI stream
+    QByteArray m_tcp_buffer;                    ///< TCP re-framing accumulator
+    std::unique_ptr<ZmqState> m_zmq;            ///< ZMQ context + SUB socket
+    std::unique_ptr<QTimer> m_zmq_poll_timer;   ///< drives zmq_poll (never blocks)
     std::unique_ptr<QTimer> m_statistics_timer;
     NetworkStreamStatistics m_statistics;
     QMutex m_statistics_mutex;
+    static constexpr int ZMQ_POLL_INTERVAL_MS = 5;
     
     std::atomic<bool> m_receiving{false};
     std::atomic<bool> m_connected{false};
@@ -357,7 +424,8 @@ private:
 /**
  * @brief Professional Network Stream Receiver for ETI-over-IP
  * 
- * Thread-safe, high-performance receiver for multicast ETI streams with:
+ * Thread-safe, high-performance receiver for UDP multicast, TCP and ZeroMQ
+ * ETI streams with:
  * - Real-time frame processing (>900 frames/second capability)
  * - Automatic failover and reconnection
  * - Quality monitoring and threshold enforcement
@@ -491,6 +559,8 @@ private:
     static constexpr size_t DEFAULT_BUFFER_SIZE = 1000;
     static constexpr size_t MAX_BUFFER_SIZE = 10000;
     static constexpr size_t MAX_ERROR_MESSAGES = 100;
+    /// Bounded wait for the worker-thread teardown invoke (review F3).
+    static constexpr int SHUTDOWN_TIMEOUT_MS = 5000;
 };
 
 /**
