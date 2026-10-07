@@ -1,4 +1,4 @@
-// /home/seksan/workspace/streamdab-analyzer/src/core/shared_eti_data.hpp
+// src/core/shared_eti_data.hpp
 #ifndef SHARED_ETI_DATA_HPP
 #define SHARED_ETI_DATA_HPP
 

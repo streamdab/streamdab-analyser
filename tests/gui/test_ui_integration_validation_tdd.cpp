@@ -25,7 +25,7 @@
 #include "../../src/gui/audio_monitoring_widget.h"
 #include "../../src/gui/etsi_compliance_monitor.h"
 #include "../../src/gui/service_browser.h"
-#include "../../src/gui/analyzer_widget.h"
+#include "../../src/gui/analyser_widget.h"
 #include "../../src/gui/constellation_widget.h"
 #include "../../src/gui/audio_decoder_integration.h"
 #include "../fixtures/test_data_generators.h"
@@ -78,12 +78,12 @@ private slots:
     void test_service_browser_metadata_display_AAA();
     void test_service_browser_filtering_integration_AAA();
 
-    // **ANALYZER WIDGET INTEGRATION TESTS - AAA PATTERNS**
-    void test_analyzer_widget_data_processing_AAA();
-    void test_analyzer_widget_real_time_analysis_AAA();
-    void test_analyzer_widget_frame_navigation_AAA();
-    void test_analyzer_widget_export_functionality_AAA();
-    void test_analyzer_widget_search_integration_AAA();
+    // **ANALYSER WIDGET INTEGRATION TESTS - AAA PATTERNS**
+    void test_analyser_widget_data_processing_AAA();
+    void test_analyser_widget_real_time_analysis_AAA();
+    void test_analyser_widget_frame_navigation_AAA();
+    void test_analyser_widget_export_functionality_AAA();
+    void test_analyser_widget_search_integration_AAA();
 
     // **CONSTELLATION WIDGET INTEGRATION TESTS - AAA PATTERNS**
     void test_constellation_widget_signal_processing_AAA();
@@ -133,7 +133,7 @@ private:
     std::unique_ptr<AudioMonitoringWidget> createTestAudioMonitor();
     std::unique_ptr<ETSIComplianceMonitor> createTestComplianceMonitor();
     std::unique_ptr<ServiceBrowser> createTestServiceBrowser();
-    std::unique_ptr<AnalyzerWidget> createTestAnalyzerWidget();
+    std::unique_ptr<AnalyserWidget> createTestAnalyserWidget();
     std::unique_ptr<ConstellationWidget> createTestConstellationWidget();
     
     // Test data generators

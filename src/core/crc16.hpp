@@ -1,7 +1,7 @@
 /**
  * @file crc16.hpp
  * @brief Shared CRC-16/CCITT-FALSE helper (single implementation used by all
- *        FIB-CRC consumers in the analyzer).
+ *        FIB-CRC consumers in the analyser).
  *
  * Reference: ETSI EN 300 799 clause 5.2 / EN 300 401 clause 5.2 — the FIB
  * CRC is CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflection,

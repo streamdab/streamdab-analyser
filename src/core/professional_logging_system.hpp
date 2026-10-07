@@ -102,7 +102,7 @@ struct LogOutputConfig {
         file_output(true),
         network_output(false),
         real_time_monitoring(true),
-        log_file_prefix("dab_analyzer"),
+        log_file_prefix("dab_analyser"),
         minimum_level(LogLevel::DEBUG) {}
 };
 

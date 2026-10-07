@@ -1,6 +1,6 @@
 #!/bin/bash
 # Coverage Quality Gate Script
-# Enforces TDD coverage requirements for ETI Stream Analyzer
+# Enforces TDD coverage requirements for ETI Stream Analyser
 
 set -e
 
@@ -15,7 +15,7 @@ COVERAGE_HTML_DIR="${BUILD_DIR}/coverage_html"
 REPORT_FILE="${BUILD_DIR}/coverage_report.json"
 
 echo "=== TDD Coverage Quality Gate ==="
-echo "Project: ETI Stream Analyzer"
+echo "Project: ETI Stream Analyser"
 echo "Minimum Required Coverage: ${MINIMUM_COVERAGE}%"
 echo "Coverage Data File: ${COVERAGE_FILE}"
 echo "==============================="
@@ -64,7 +64,7 @@ echo "📋 Generating detailed coverage report..."
 cat > "$REPORT_FILE" << EOF
 {
     "timestamp": "$(date -Iseconds)",
-    "project": "ETI Stream Analyzer",
+    "project": "ETI Stream Analyser",
     "coverage_summary": {
         "lines_covered": $LINES_COVERED,
         "lines_total": $LINES_TOTAL,
@@ -172,7 +172,7 @@ fi
 if command -v genhtml &> /dev/null; then
     echo ""
     echo "🌐 Generating HTML coverage report..."
-    genhtml "$COVERAGE_FILE" --output-directory "$COVERAGE_HTML_DIR" --title "ETI Stream Analyzer Coverage Report" --show-details --legend 2>/dev/null
+    genhtml "$COVERAGE_FILE" --output-directory "$COVERAGE_HTML_DIR" --title "ETI Stream Analyser Coverage Report" --show-details --legend 2>/dev/null
     echo "   📄 HTML Report: file://${COVERAGE_HTML_DIR}/index.html"
 fi
 
@@ -200,7 +200,7 @@ else
 
     if ! $core_passed; then
         echo "   • Priority: Increase core component test coverage (currently ${core_coverage}%)"
-        echo "     - Focus on ETI processor, FIG analyzer, and ETSI compliance modules"
+        echo "     - Focus on ETI processor, FIG analyser, and ETSI compliance modules"
         echo "     - Add unit tests for error handling and edge cases"
     fi
 

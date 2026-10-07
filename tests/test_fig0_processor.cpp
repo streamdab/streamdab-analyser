@@ -8,7 +8,7 @@
 
 #include <QtTest/QtTest>
 #include <QtCore/QDebug>
-#include "../src/core/advanced_fig_analyzer.h"
+#include "../src/core/advanced_fig_analyser.h"
 
 // ============================================================================
 // Test Class Declaration
@@ -60,7 +60,7 @@ private slots:
 
 private:
     // Test helpers
-    AdvancedFIGAnalyzer* m_analyzer;
+    AdvancedFIGAnalyser* m_analyser;
 
     QByteArray createFIG0_0(uint16_t ensemble_id, uint8_t country_code = 0x0E);
     QByteArray createFIG0_1_ShortForm(uint8_t subch_id, uint16_t start_addr, uint8_t table_idx);
@@ -99,19 +99,19 @@ void TestFIG0Processor::cleanupTestCase()
 
 void TestFIG0Processor::init()
 {
-    m_analyzer = new AdvancedFIGAnalyzer();
-    QVERIFY(m_analyzer != nullptr);
+    m_analyser = new AdvancedFIGAnalyser();
+    QVERIFY(m_analyser != nullptr);
 
     // Enable FIG types for testing
-    m_analyzer->enableFIGType(0, 0, true);
-    m_analyzer->enableFIGType(0, 1, true);
-    m_analyzer->enableFIGType(0, 2, true);
+    m_analyser->enableFIGType(0, 0, true);
+    m_analyser->enableFIGType(0, 1, true);
+    m_analyser->enableFIGType(0, 2, true);
 }
 
 void TestFIG0Processor::cleanup()
 {
-    delete m_analyzer;
-    m_analyzer = nullptr;
+    delete m_analyser;
+    m_analyser = nullptr;
 }
 
 // ============================================================================
@@ -123,13 +123,13 @@ void TestFIG0Processor::testFIG0_0_EnsembleInfo()
     // Test basic ensemble info extraction
     QByteArray fig = createFIG0_0(0x1234, 0x0E);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Verify FIG was processed
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() > 0);
 
     // Verify ensemble info
-    EnsembleInfo info = m_analyzer->getCurrentEnsemble();
+    EnsembleInfo info = m_analyser->getCurrentEnsemble();
     QCOMPARE(info.ensembleId, static_cast<uint16_t>(0x1234));
     QVERIFY(!info.countryCode.isEmpty());
 }
@@ -139,9 +139,9 @@ void TestFIG0Processor::testFIG0_0_ChangeFlags()
     // Test change flag detection
     QByteArray fig = createFIG0_0(0x1234, 0x0E);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+    QVERIFY(m_analyser->getValidFIGsCount() > 0);
 }
 
 void TestFIG0Processor::testFIG0_0_CountryCode()
@@ -149,9 +149,9 @@ void TestFIG0Processor::testFIG0_0_CountryCode()
     // Test country code extraction (Thailand = 0x0E)
     QByteArray fig = createFIG0_0(0x1234, 0x0E);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    EnsembleInfo info = m_analyzer->getCurrentEnsemble();
+    EnsembleInfo info = m_analyser->getCurrentEnsemble();
     QVERIFY(!info.countryCode.isEmpty());
 }
 
@@ -160,9 +160,9 @@ void TestFIG0Processor::testFIG0_0_EnsembleReference()
     // Test ensemble reference (ECC + ensemble ID)
     QByteArray fig = createFIG0_0(0x1234, 0x0E);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    EnsembleInfo info = m_analyzer->getCurrentEnsemble();
+    EnsembleInfo info = m_analyser->getCurrentEnsemble();
     QVERIFY(info.ensembleId == 0x1234);
 }
 
@@ -175,19 +175,19 @@ void TestFIG0Processor::testFIG0_1_SingleSubChannel()
     // Test: Sub-channel 0, Start Address 0, Table Index 5
     QByteArray fig = createFIG0_1_ShortForm(0, 0, 5);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Verify FIG processed successfully
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() > 0);
     qInfo() << "FIG 0/1: Single sub-channel processed";
 
     // *** ENHANCED: Verify sub-channel storage ***
-    auto subchannels = m_analyzer->getAllSubChannels();
+    auto subchannels = m_analyser->getAllSubChannels();
     QCOMPARE(static_cast<int>(subchannels.size()), 1);  // Should have exactly 1 sub-channel
     qInfo() << "FIG 0/1: Storage verified - 1 sub-channel stored";
 
     // Verify sub-channel details using getSubChannelInfo
-    SubChannelInfo subch = m_analyzer->getSubChannelInfo(0);
+    SubChannelInfo subch = m_analyser->getSubChannelInfo(0);
     QCOMPARE(subch.sub_channel_id, static_cast<uint8_t>(0));
     QCOMPARE(subch.start_address, static_cast<uint16_t>(0));
     QCOMPARE(subch.table_index, static_cast<uint8_t>(5));
@@ -225,21 +225,21 @@ void TestFIG0Processor::testFIG0_1_MultipleSubChannels()
     fig.append(static_cast<char>(168));  // Start[7:0]=168
     fig.append(static_cast<char>(0x09));  // UEP short form (bit 7=0) + Table Index 9
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Verify FIG processing count
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() > 0);
     qInfo() << "FIG 0/1: Multiple sub-channels processed";
 
     // *** ENHANCED: Verify all sub-channels stored ***
-    auto subchannels = m_analyzer->getAllSubChannels();
+    auto subchannels = m_analyser->getAllSubChannels();
     QCOMPARE(static_cast<int>(subchannels.size()), 3);  // Should have exactly 3 sub-channels
     qInfo() << "FIG 0/1: Storage verified - 3 sub-channels stored";
 
     // Verify each sub-channel exists and has correct data
-    SubChannelInfo subch0 = m_analyzer->getSubChannelInfo(0);
-    SubChannelInfo subch1 = m_analyzer->getSubChannelInfo(1);
-    SubChannelInfo subch2 = m_analyzer->getSubChannelInfo(2);
+    SubChannelInfo subch0 = m_analyser->getSubChannelInfo(0);
+    SubChannelInfo subch1 = m_analyser->getSubChannelInfo(1);
+    SubChannelInfo subch2 = m_analyser->getSubChannelInfo(2);
 
     // Verify sub-channel IDs
     QCOMPARE(subch0.sub_channel_id, static_cast<uint8_t>(0));
@@ -264,12 +264,12 @@ void TestFIG0Processor::testFIG0_1_ShortForm()
     // Test: Short form (EEP - Equal Error Protection)
     QByteArray fig = createFIG0_1_ShortForm(5, 100, 12);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+    QVERIFY(m_analyser->getValidFIGsCount() > 0);
 
     // *** ENHANCED: Verify short form storage ***
-    SubChannelInfo subch = m_analyzer->getSubChannelInfo(5);
+    SubChannelInfo subch = m_analyser->getSubChannelInfo(5);
     QCOMPARE(subch.sub_channel_id, static_cast<uint8_t>(5));
     QCOMPARE(subch.start_address, static_cast<uint16_t>(100));
     QCOMPARE(subch.table_index, static_cast<uint8_t>(12));
@@ -282,12 +282,12 @@ void TestFIG0Processor::testFIG0_1_LongForm()
     // Test: Long form (UEP - Unequal Error Protection)
     QByteArray fig = createFIG0_1_LongForm(5, 100, 2);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+    QVERIFY(m_analyser->getValidFIGsCount() > 0);
 
     // *** ENHANCED: Verify long form storage ***
-    SubChannelInfo subch = m_analyzer->getSubChannelInfo(5);
+    SubChannelInfo subch = m_analyser->getSubChannelInfo(5);
     QCOMPARE(subch.sub_channel_id, static_cast<uint8_t>(5));
     QCOMPARE(subch.start_address, static_cast<uint16_t>(100));
     QCOMPARE(subch.protection_level, static_cast<uint8_t>(2));
@@ -303,20 +303,20 @@ void TestFIG0Processor::testFIG0_1_StartAddressExtraction()
 
     for (uint16_t addr : test_addresses) {
         QByteArray fig = createFIG0_1_ShortForm(0, addr, 5);
-        m_analyzer->analyzeFICData(fig);
+        m_analyser->analyzeFICData(fig);
     }
 
     // Verify processing count
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() == 10);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() == 10);
     qInfo() << "FIG 0/1: Processed 10 FIGs with different start addresses";
 
     // *** ENHANCED: Verify start address progression ***
     // Note: Since all use SubCh ID 0, only the last one is stored
-    auto subchannels = m_analyzer->getAllSubChannels();
+    auto subchannels = m_analyser->getAllSubChannels();
     QCOMPARE(static_cast<int>(subchannels.size()), 1);  // Only 1 sub-channel (overwritten)
 
     // Verify last processed start address (756)
-    SubChannelInfo subch = m_analyzer->getSubChannelInfo(0);
+    SubChannelInfo subch = m_analyser->getSubChannelInfo(0);
     QCOMPARE(subch.start_address, static_cast<uint16_t>(756));
     qInfo() << "FIG 0/1: Start address progression verified - Last address=756";
 }
@@ -325,12 +325,12 @@ void TestFIG0Processor::testFIG0_1_TableIndexExtraction()
 {
     // Test: Table indices 0-15 (protection table selection)
     for (uint8_t table_idx = 0; table_idx < 16; ++table_idx) {
-        m_analyzer->reset();  // Clear previous data to test each independently
+        m_analyser->reset();  // Clear previous data to test each independently
         QByteArray fig = createFIG0_1_ShortForm(0, 0, table_idx);
-        m_analyzer->analyzeFICData(fig);
+        m_analyser->analyzeFICData(fig);
 
         // *** ENHANCED: Verify table index stored correctly ***
-        SubChannelInfo subch = m_analyzer->getSubChannelInfo(0);
+        SubChannelInfo subch = m_analyser->getSubChannelInfo(0);
         QCOMPARE(subch.sub_channel_id, static_cast<uint8_t>(0));
         QCOMPARE(subch.table_index, table_idx);
         QVERIFY(subch.short_form == true);
@@ -344,13 +344,13 @@ void TestFIG0Processor::testFIG0_1_BitrateCalculation()
     // Test: Table index 5 -> 64 kbps (typical DAB bitrate)
     QByteArray fig = createFIG0_1_ShortForm(0, 0, 5);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Bitrate calculation depends on protection table
-    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+    QVERIFY(m_analyser->getValidFIGsCount() > 0);
 
     // *** ENHANCED: Verify bitrate calculation via SubChannelInfo ***
-    SubChannelInfo subch = m_analyzer->getSubChannelInfo(0);
+    SubChannelInfo subch = m_analyser->getSubChannelInfo(0);
     QCOMPARE(subch.table_index, static_cast<uint8_t>(5));
 
     // Verify bitrate can be retrieved (implementation-dependent)
@@ -364,12 +364,12 @@ void TestFIG0Processor::testFIG0_1_ProtectionLevel()
     // Test: Long form with protection level 2 (EEP-A)
     QByteArray fig = createFIG0_1_LongForm(0, 0, 2);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+    QVERIFY(m_analyser->getValidFIGsCount() > 0);
 
     // *** ENHANCED: Verify protection level storage ***
-    SubChannelInfo subch = m_analyzer->getSubChannelInfo(0);
+    SubChannelInfo subch = m_analyser->getSubChannelInfo(0);
     QCOMPARE(subch.protection_level, static_cast<uint8_t>(2));
     QVERIFY(subch.short_form == false);  // Long form uses protection_level
 
@@ -394,14 +394,14 @@ void TestFIG0Processor::testFIG0_1_InvalidSubChannelID()
     fig.append(static_cast<char>(0x00));  // SubChId=0
     fig.append(static_cast<char>(0x00));  // Start address low
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Should detect error or reject invalid sub-channel
-    QVERIFY(!m_analyzer->getLastError().isEmpty() ||
-            m_analyzer->getValidFIGsCount() == 0);
+    QVERIFY(!m_analyser->getLastError().isEmpty() ||
+            m_analyser->getValidFIGsCount() == 0);
 
     // *** ENHANCED: Verify invalid sub-channel NOT stored ***
-    auto subchannels = m_analyzer->getAllSubChannels();
+    auto subchannels = m_analyser->getAllSubChannels();
     QCOMPARE(static_cast<int>(subchannels.size()), 0);
     qInfo() << "FIG 0/1: Invalid sub-channel descriptor rejected - nothing stored";
 }
@@ -413,17 +413,17 @@ void TestFIG0Processor::testFIG0_1_InvalidSubChannelID()
 void TestFIG0Processor::testFIG0_2_ProgrammeService()
 {
     // First add sub-channel
-    m_analyzer->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
+    m_analyser->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
 
     // Then add audio service
     QByteArray fig = createFIG0_2(0xE0D00001, 0, true);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getServiceCount() > 0);
+    QVERIFY(m_analyser->getServiceCount() > 0);
 
     // *** ENHANCED: Verify service storage ***
-    auto services = m_analyzer->getDABServices();
+    auto services = m_analyser->getDABServices();
     QVERIFY(services.size() > 0);
 
     // Find service with ID 0xE0D00001
@@ -442,17 +442,17 @@ void TestFIG0Processor::testFIG0_2_ProgrammeService()
 void TestFIG0Processor::testFIG0_2_DataService()
 {
     // First add sub-channel
-    m_analyzer->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
+    m_analyser->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
 
     // Then add data service
     QByteArray fig = createFIG0_2(0xE0D00002, 0, false);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getServiceCount() > 0);
+    QVERIFY(m_analyser->getServiceCount() > 0);
 
     // *** ENHANCED: Verify data service storage ***
-    auto services = m_analyzer->getDABServices();
+    auto services = m_analyser->getDABServices();
     QVERIFY(services.size() > 0);
 
     // Find data service
@@ -471,15 +471,15 @@ void TestFIG0Processor::testFIG0_2_DataService()
 void TestFIG0Processor::testFIG0_2_ServiceComponent()
 {
     // First add sub-channel
-    m_analyzer->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
+    m_analyser->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
 
     // Add service with component
-    m_analyzer->analyzeFICData(createFIG0_2(0xE0D00001, 0, true));
+    m_analyser->analyzeFICData(createFIG0_2(0xE0D00001, 0, true));
 
-    QVERIFY(m_analyzer->getServiceCount() > 0);
+    QVERIFY(m_analyser->getServiceCount() > 0);
 
     // *** ENHANCED: Verify component mapping ***
-    auto services = m_analyzer->getDABServices();
+    auto services = m_analyser->getDABServices();
     bool found = false;
     for (const auto& svc : services) {
         if (svc.service_id == 0xE0D00001) {
@@ -496,13 +496,13 @@ void TestFIG0Processor::testFIG0_2_ServiceComponent()
 void TestFIG0Processor::testFIG0_2_PrimarySecondaryComponent()
 {
     // Test primary/secondary component designation
-    m_analyzer->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
-    m_analyzer->analyzeFICData(createFIG0_2(0xE0D00001, 0, true));
+    m_analyser->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
+    m_analyser->analyzeFICData(createFIG0_2(0xE0D00001, 0, true));
 
-    QVERIFY(m_analyzer->getServiceCount() > 0);
+    QVERIFY(m_analyser->getServiceCount() > 0);
 
     // *** ENHANCED: Verify primary component ***
-    auto services = m_analyzer->getDABServices();
+    auto services = m_analyser->getDABServices();
     for (const auto& svc : services) {
         if (svc.service_id == 0xE0D00001) {
             auto primary = svc.getPrimaryComponent();
@@ -516,17 +516,17 @@ void TestFIG0Processor::testFIG0_2_PrimarySecondaryComponent()
 void TestFIG0Processor::testFIG0_2_MultipleServices()
 {
     // Add 3 services
-    m_analyzer->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
-    m_analyzer->analyzeFICData(createFIG0_1_ShortForm(1, 84, 7));
-    m_analyzer->analyzeFICData(createFIG0_1_ShortForm(2, 168, 9));
+    m_analyser->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
+    m_analyser->analyzeFICData(createFIG0_1_ShortForm(1, 84, 7));
+    m_analyser->analyzeFICData(createFIG0_1_ShortForm(2, 168, 9));
 
-    m_analyzer->analyzeFICData(createFIG0_2(0xE0D00001, 0, true));
-    m_analyzer->analyzeFICData(createFIG0_2(0xE0D00002, 1, true));
-    m_analyzer->analyzeFICData(createFIG0_2(0xE0D00003, 2, false));
+    m_analyser->analyzeFICData(createFIG0_2(0xE0D00001, 0, true));
+    m_analyser->analyzeFICData(createFIG0_2(0xE0D00002, 1, true));
+    m_analyser->analyzeFICData(createFIG0_2(0xE0D00003, 2, false));
 
     // *** ENHANCED: Verify all services stored ***
-    QCOMPARE(m_analyzer->getServiceCount(), 3);
-    auto services = m_analyzer->getDABServices();
+    QCOMPARE(m_analyser->getServiceCount(), 3);
+    auto services = m_analyser->getDABServices();
     QCOMPARE(static_cast<int>(services.size()), 3);
     qInfo() << "FIG 0/2: Multiple services verified - 3 services stored";
 }
@@ -534,10 +534,10 @@ void TestFIG0Processor::testFIG0_2_MultipleServices()
 void TestFIG0Processor::testFIG0_2_ServiceIDExtraction()
 {
     // Test 32-bit service ID extraction
-    m_analyzer->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
-    m_analyzer->analyzeFICData(createFIG0_2(0xE0D00001, 0, false));
+    m_analyser->analyzeFICData(createFIG0_1_ShortForm(0, 0, 5));
+    m_analyser->analyzeFICData(createFIG0_2(0xE0D00001, 0, false));
 
-    auto services = m_analyzer->getDABServices();
+    auto services = m_analyser->getDABServices();
     QVERIFY(services.size() > 0);
 
     // *** ENHANCED: Verify exact service ID ***
@@ -555,10 +555,10 @@ void TestFIG0Processor::testFIG0_2_ServiceIDExtraction()
 void TestFIG0Processor::testFIG0_2_ComponentMapping()
 {
     // Verify component-to-subchannel mapping
-    m_analyzer->analyzeFICData(createFIG0_1_ShortForm(5, 100, 12));
-    m_analyzer->analyzeFICData(createFIG0_2(0xE0D00001, 5, true));
+    m_analyser->analyzeFICData(createFIG0_1_ShortForm(5, 100, 12));
+    m_analyser->analyzeFICData(createFIG0_2(0xE0D00001, 5, true));
 
-    auto services = m_analyzer->getDABServices();
+    auto services = m_analyser->getDABServices();
 
     // *** ENHANCED: Verify component mapping ***
     bool found = false;
@@ -596,10 +596,10 @@ void TestFIG0Processor::testDataLengthValidation()
     fig.append(static_cast<char>(0x00));  // CIF count low
     fig.append(static_cast<char>(0x0E));  // Occurrence change / AL flag + Country code
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // FIX: Should process successfully now with valid data
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() > 0);
 }
 
 void TestFIG0Processor::testInvalidFIGType()
@@ -615,10 +615,10 @@ void TestFIG0Processor::testInvalidFIGType()
     fig.append(static_cast<char>(0x00));
     fig.append(static_cast<char>(0x00));
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Unsupported types should not increment counter
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() == 0);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() == 0);
 }
 
 void TestFIG0Processor::testInvalidFIGExtension()
@@ -636,10 +636,10 @@ void TestFIG0Processor::testInvalidFIGExtension()
     fig.append(static_cast<char>(0x00));
     fig.append(static_cast<char>(0x00));
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Disabled extensions should not increment counter
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() == 0);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() == 0);
 }
 
 void TestFIG0Processor::testTruncatedFIGData()
@@ -657,10 +657,10 @@ void TestFIG0Processor::testTruncatedFIGData()
     fig.append(static_cast<char>(0x00));
     fig.append(static_cast<char>(0x00));
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Truncated data should be detected
-    QVERIFY(!m_analyzer->getLastError().isEmpty());
+    QVERIFY(!m_analyser->getLastError().isEmpty());
 }
 
 void TestFIG0Processor::testCorruptedFIGHeader()
@@ -671,10 +671,10 @@ void TestFIG0Processor::testCorruptedFIGHeader()
     fig.append(static_cast<char>(type_byte));
     fig.append(static_cast<char>(0x00));  // Zero length (invalid)
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Should detect invalid header
-    QVERIFY(!m_analyzer->getLastError().isEmpty());
+    QVERIFY(!m_analyser->getLastError().isEmpty());
 }
 
 // ============================================================================

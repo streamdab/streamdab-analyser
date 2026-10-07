@@ -1,5 +1,5 @@
 #!/bin/bash
-# Package Validation Script for StreamDAB Stream Analyzer
+# Package Validation Script for StreamDAB Stream Analyser
 # Validates created packages for distribution readiness
 
 set -e
@@ -8,7 +8,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build"
 PACKAGE_DIR="${BUILD_DIR}/packages"
 
-echo "=== StreamDAB Stream Analyzer Package Validation ==="
+echo "=== StreamDAB Stream Analyser Package Validation ==="
 echo "Project Root: ${PROJECT_ROOT}"
 echo "Build Directory: ${BUILD_DIR}"
 echo "Package Directory: ${PACKAGE_DIR}"
@@ -76,7 +76,7 @@ log_info "Validating main executable..."
 EXECUTABLE_FOUND=false
 
 # Check different possible locations
-for executable_path in "ETIStreamAnalyzer" "bin/ETIStreamAnalyzer" "./ETIStreamAnalyzer"; do
+for executable_path in "ETIStreamAnalyser" "bin/ETIStreamAnalyser" "./ETIStreamAnalyser"; do
     if [ -f "${executable_path}" ]; then
         log_success "Main executable found: ${executable_path}"
         EXECUTABLE_FOUND=true
@@ -109,12 +109,12 @@ fi
 
 # 3. Validate Qt Integration
 log_info "Validating Qt integration..."
-if [ -d "ETIStreamAnalyzer_autogen" ]; then
+if [ -d "ETIStreamAnalyser_autogen" ]; then
     log_success "Qt MOC/UIC integration found"
 
     # Check for generated UI headers
     UI_HEADERS_FOUND=0
-    for ui_header in ETIStreamAnalyzer_autogen/include/ui_*.h; do
+    for ui_header in ETIStreamAnalyser_autogen/include/ui_*.h; do
         if [ -f "$ui_header" ]; then
             ((UI_HEADERS_FOUND++))
         fi
@@ -176,12 +176,12 @@ else
 fi
 
 # Check for desktop integration files (Linux)
-if [ -f "${PROJECT_ROOT}/resources/linux/eti-stream-analyzer.desktop" ]; then
+if [ -f "${PROJECT_ROOT}/resources/linux/eti-stream-analyser.desktop" ]; then
     log_success "Linux desktop integration file found"
 
     # Validate desktop file syntax
     if command -v desktop-file-validate >/dev/null 2>&1; then
-        if desktop-file-validate "${PROJECT_ROOT}/resources/linux/eti-stream-analyzer.desktop"; then
+        if desktop-file-validate "${PROJECT_ROOT}/resources/linux/eti-stream-analyser.desktop"; then
             log_success "Desktop file syntax validation passed"
         else
             log_error "Desktop file syntax validation failed"
@@ -192,7 +192,7 @@ else
 fi
 
 # Check for MIME type definitions
-if [ -f "${PROJECT_ROOT}/resources/linux/eti-stream-analyzer.xml" ]; then
+if [ -f "${PROJECT_ROOT}/resources/linux/eti-stream-analyser.xml" ]; then
     log_success "MIME type definitions found"
 else
     log_warning "MIME type definitions not found"
@@ -247,7 +247,7 @@ fi
 # Check for debug symbols in release build
 if [ "$EXECUTABLE_FOUND" = true ]; then
     if command -v file >/dev/null 2>&1; then
-        EXECUTABLE_PATH=$(find . -name "ETIStreamAnalyzer" -type f -executable | head -1)
+        EXECUTABLE_PATH=$(find . -name "ETIStreamAnalyser" -type f -executable | head -1)
         if [ -n "$EXECUTABLE_PATH" ]; then
             FILE_INFO=$(file "$EXECUTABLE_PATH")
             if echo "$FILE_INFO" | grep -q "not stripped"; then

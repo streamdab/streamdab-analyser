@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# ETI Stream Analyzer - Linux/macOS Native Build Script
+# ETI Stream Analyser - Linux/macOS Native Build Script
 # Professional shell build automation for Unix-like systems
 # ============================================================================
 
@@ -28,9 +28,12 @@ HELP=false
 JOBS=$(streamdab_build_jobs)
 export CMAKE_BUILD_PARALLEL_LEVEL="${JOBS}"
 
-# Application metadata
-APP_NAME="ETI Stream Analyzer"
-APP_VERSION="1.0.0"
+# Application metadata — mirrors the CMake single-source resolution
+# (src/core/product_version.hpp: -DDABX_VERSION=, else the git tag, else
+# PROJECT_VERSION in CMakeLists.txt). Keep in step with both.
+APP_NAME="StreamDAB Analyser"
+APP_VERSION="$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')"
+[ -z "$APP_VERSION" ] && APP_VERSION="1.6.0"
 
 # Detect operating system
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then

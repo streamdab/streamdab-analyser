@@ -172,7 +172,7 @@ jobs:
 
       - name: "Professional Build Execution"
         run: |
-          cmake --build build --parallel $(nproc)
+          cmake --build build --parallel "$(bash scripts/build_jobs.sh)"
 
       - name: "Professional Test Execution"
         run: |
@@ -300,7 +300,7 @@ jobs:
           make install
 
           # Professional Qt framework deployment
-          macdeployqt ETIStreamAnalyzer.app -dmg -verbose=2
+          macdeployqt ETIStreamAnalyser.app -dmg -verbose=2
 
       - name: "Professional Code Signing Preparation"
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -339,9 +339,9 @@ jobs:
           done
 
           # Validate app bundle
-          if [ -d "build/ETIStreamAnalyzer.app" ]; then
+          if [ -d "build/ETIStreamAnalyser.app" ]; then
             echo "App Bundle Structure:"
-            find build/ETIStreamAnalyzer.app -type f | head -20
+            find build/ETIStreamAnalyser.app -type f | head -20
           fi
 
       - name: "Upload Professional macOS Package"
@@ -381,9 +381,9 @@ jobs:
       - name: "Create Professional GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
-          name: "ETI Stream Analyzer Professional ${{ github.ref_name }}"
+          name: "ETI Stream Analyser Professional ${{ github.ref_name }}"
           body: |
-            ## ETI Stream Analyzer Professional Release ${{ github.ref_name }}
+            ## ETI Stream Analyser Professional Release ${{ github.ref_name }}
 
             Professional desktop application for ETI/DAB stream analysis designed for broadcast engineers.
 
@@ -401,7 +401,7 @@ jobs:
             - **macOS**: Professional DMG with native bundle and code signing
 
             ### 🔧 Installation Instructions
-            See [Installation Guide](https://github.com/eti-analyzer/desktop/wiki/Installation) for detailed platform-specific instructions.
+            See [Installation Guide](https://github.com/eti-analyser/desktop/wiki/Installation) for detailed platform-specific instructions.
 
             ### 📋 System Requirements
             - **Windows**: Windows 10/11 (x64)
@@ -409,7 +409,7 @@ jobs:
             - **macOS**: macOS 10.15+ (Intel/Apple Silicon)
 
             ### 🎯 Professional Support
-            For broadcast engineering support: support@eti-analyzer.org
+            For broadcast engineering support: support@eti-analyser.org
           files: professional-packages/**/*
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}

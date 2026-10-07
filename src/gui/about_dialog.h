@@ -16,11 +16,13 @@
 #include <QString>
 #include <QStringList>
 
+#include "core/product_version.hpp"
+
 /**
  * @class AboutDialog
- * @brief Professional about dialog for ETI Stream Analyzer
+ * @brief Professional about dialog for ETI Stream Analyser
  * 
- * This dialog provides comprehensive information about the ETI Stream Analyzer
+ * This dialog provides comprehensive information about the ETI Stream Analyser
  * application including version details, credits, license information, and
  * system information for professional broadcast environments.
  */
@@ -141,9 +143,9 @@ private:
     QTextEdit *m_systemInfoText;
 
     // Application information
-    static constexpr const char* APP_NAME = "StreamDAB Stream Analyzer";
-    static constexpr const char* APP_VERSION = "1.0.0";
+    static constexpr const char* APP_NAME = "StreamDAB Stream Analyser";
+    static constexpr const char* APP_VERSION = DABX_VERSION;
     static constexpr const char* APP_BUILD = "Professional Edition";
-    static constexpr const char* APP_COPYRIGHT = "Copyright © 2024 ETI Stream Analyzer Team";
-    static constexpr const char* APP_WEBSITE = "https://github.com/eti-stream-analyzer";
+    static constexpr const char* APP_COPYRIGHT = "Copyright © 2024 ETI Stream Analyser Team";
+    static constexpr const char* APP_WEBSITE = "https://git.morange.co.th/morange/streamdab-analyser";
 };

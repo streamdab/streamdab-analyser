@@ -4,7 +4,7 @@
 namespace cli {
 
 /**
- * @brief CLI mode entry point for StreamDAB Analyzer
+ * @brief CLI mode entry point for StreamDAB Analyser
  *
  * Orchestrates the complete CLI workflow:
  * 1. Parse command-line arguments

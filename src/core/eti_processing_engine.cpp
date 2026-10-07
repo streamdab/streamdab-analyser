@@ -62,7 +62,7 @@ bool UnifiedETIProcessingEngine::initialize(const EngineConfiguration& config) {
                               .arg(static_cast<int>(config_.processing_mode))
                               .arg(QString("FP:%1 FA:%2 AE:%3 ED:%4")
                                    .arg(config_.components.use_modern_frame_parser ? "I" : "W")
-                                   .arg(config_.components.use_enhanced_fig_analyzer ? "I" : "W")
+                                   .arg(config_.components.use_enhanced_fig_analyser ? "I" : "W")
                                    .arg(config_.components.use_integrated_audio_extractor ? "I" : "W")
                                    .arg(config_.components.use_modern_error_detector ? "I" : "W")));
         
@@ -252,12 +252,12 @@ void UnifiedETIProcessingEngine::enableModernFrameParser(bool enable) {
                           QString("Modern frame parser %1").arg(enable ? "enabled" : "disabled"));
 }
 
-void UnifiedETIProcessingEngine::enableEnhancedFIGAnalyzer(bool enable) {
-    config_.components.use_enhanced_fig_analyzer = enable;
+void UnifiedETIProcessingEngine::enableEnhancedFIGAnalyser(bool enable) {
+    config_.components.use_enhanced_fig_analyser = enable;
     updateMigrationProgress();
     
     Logger::instance().log(Logger::Info, "UnifiedETIProcessingEngine", 
-                          QString("Enhanced FIG analyzer %1").arg(enable ? "enabled" : "disabled"));
+                          QString("Enhanced FIG analyser %1").arg(enable ? "enabled" : "disabled"));
 }
 
 void UnifiedETIProcessingEngine::enableIntegratedAudioExtractor(bool enable) {
@@ -297,13 +297,13 @@ bool UnifiedETIProcessingEngine::initializeIntegratedEngine() {
             return false;
         }
         
-        // Initialize enhanced FIG analyzer
-        enhanced_fig_analyzer_ = std::make_unique<eti::modern::EnhancedFIGAnalyzer>(this);
+        // Initialize enhanced FIG analyser
+        enhanced_fig_analyser_ = std::make_unique<eti::modern::EnhancedFIGAnalyser>(this);
         
-        if (!enhanced_fig_analyzer_->initialize(true, true)) { // Enable carousel analysis and Thai support
+        if (!enhanced_fig_analyser_->initialize(true, true)) { // Enable carousel analysis and Thai support
             Logger::instance().log(Logger::Error, "UnifiedETIProcessingEngine", 
-                                  "Enhanced FIG analyzer initialization failed");
-            enhanced_fig_analyzer_.reset();
+                                  "Enhanced FIG analyser initialization failed");
+            enhanced_fig_analyser_.reset();
             return false;
         }
         
@@ -311,14 +311,14 @@ bool UnifiedETIProcessingEngine::initializeIntegratedEngine() {
         connect(integrated_parser_.get(), &eti::modern::ModernETIFrameParser::frameProcessed,
                 this, &UnifiedETIProcessingEngine::onIntegratedFrameProcessed);
         
-        connect(enhanced_fig_analyzer_.get(), &eti::modern::EnhancedFIGAnalyzer::ensembleDiscovered,
+        connect(enhanced_fig_analyser_.get(), &eti::modern::EnhancedFIGAnalyser::ensembleDiscovered,
                 [this](const eti::modern::EnhancedEnsembleInfo& enhanced_ensemble) {
                     // Convert EnhancedEnsembleInfo to base Ensemble for signal compatibility
                     eti::Ensemble base_ensemble = enhanced_ensemble.base_ensemble;
                     emit ensembleDiscovered(base_ensemble);
                 });
         
-        connect(enhanced_fig_analyzer_.get(), &eti::modern::EnhancedFIGAnalyzer::serviceDiscovered,
+        connect(enhanced_fig_analyser_.get(), &eti::modern::EnhancedFIGAnalyser::serviceDiscovered,
                 [this](const eti::modern::EnhancedServiceInfo& enhanced_service) {
                     emit serviceDiscovered(enhanced_service.base_service);
                 });
@@ -360,10 +360,10 @@ UnifiedProcessingResult UnifiedETIProcessingEngine::processWithIntegratedEngine(
         result.integrated_result = std::move(integrated_result);
         
         // Analyze FIG data if parsing was successful
-        if (result.success && enhanced_fig_analyzer_ && result.integrated_result.has_value()) {
+        if (result.success && enhanced_fig_analyser_ && result.integrated_result.has_value()) {
             // Extract FIG blocks from frame for analysis
             auto fic_field = result.integrated_result->frame.get_fic_field();
-            // Note: Enhanced FIG analyzer would need FIG blocks extracted from FIC
+            // Note: Enhanced FIG analyser would need FIG blocks extracted from FIC
             // For now, skip detailed FIG analysis - signals will be emitted by parser
         }
         
@@ -421,14 +421,14 @@ void UnifiedETIProcessingEngine::trackPerformance(const UnifiedProcessingResult&
 void UnifiedETIProcessingEngine::updateMigrationProgress() {
     // Update component migration status
     migration_progress_.components.frame_parser_migrated.store(config_.components.use_modern_frame_parser);
-    migration_progress_.components.fig_analyzer_migrated.store(config_.components.use_enhanced_fig_analyzer);
+    migration_progress_.components.fig_analyser_migrated.store(config_.components.use_enhanced_fig_analyser);
     migration_progress_.components.audio_extractor_migrated.store(config_.components.use_integrated_audio_extractor);
     migration_progress_.components.error_detector_migrated.store(config_.components.use_modern_error_detector);
     
     // Calculate overall migration percentage
     int migrated_components = 0;
     migrated_components += config_.components.use_modern_frame_parser ? 1 : 0;
-    migrated_components += config_.components.use_enhanced_fig_analyzer ? 1 : 0;
+    migrated_components += config_.components.use_enhanced_fig_analyser ? 1 : 0;
     migrated_components += config_.components.use_integrated_audio_extractor ? 1 : 0;
     migrated_components += config_.components.use_modern_error_detector ? 1 : 0;
     

@@ -4,7 +4,7 @@
  * 
  * @author TDD Lead Agent
  * @date 2025-09-22
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #include "tdd_framework.h"

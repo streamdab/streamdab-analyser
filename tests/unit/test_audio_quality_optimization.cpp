@@ -7,7 +7,7 @@
  * 
  * @author TDD Agent
  * @date 2025
- * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2025 ETI Stream Analyser Team
  * @version 1.0
  */
 
@@ -26,7 +26,7 @@
 #include "../../src/core/etsi/broadcast_standards.h"
 
 // Audio processing headers
-#include "../../src/core/audio/audio_analyzer.h"
+#include "../../src/core/audio/audio_analyser.h"
 #include "../../src/core/audio/loudness_meter.h"
 #include "../../src/core/audio/quality_monitor.h"
 
@@ -97,15 +97,15 @@ protected:
         alert_system_ = std::make_unique<EtsiAlertSystem>(config);
         ASSERT_TRUE(alert_system_->initialize());
         
-        // Configure audio analyzer
-        AudioAnalyzerConfig analyzer_config;
-        analyzer_config.enable_broadcast_mode = true;
-        analyzer_config.enable_ebu_r128_measurement = true;
-        analyzer_config.enable_quality_analysis = true;
-        analyzer_config.measurement_window_seconds = 3.0;
+        // Configure audio analyser
+        AudioAnalyserConfig analyser_config;
+        analyser_config.enable_broadcast_mode = true;
+        analyser_config.enable_ebu_r128_measurement = true;
+        analyser_config.enable_quality_analysis = true;
+        analyser_config.measurement_window_seconds = 3.0;
         
-        audio_analyzer_ = std::make_unique<AudioAnalyzer>(analyzer_config);
-        ASSERT_TRUE(audio_analyzer_->initialize());
+        audio_analyser_ = std::make_unique<AudioAnalyser>(analyser_config);
+        ASSERT_TRUE(audio_analyser_->initialize());
         
         // Configure loudness meter
         LoudnessMeterConfig loudness_config;
@@ -228,8 +228,8 @@ protected:
     void calculate_audio_metrics(AudioTestData& audio) {
         if (audio.samples.empty()) return;
         
-        // Analyze with our audio analyzer
-        auto analysis_result = audio_analyzer_->analyze(audio.samples, 
+        // Analyze with our audio analyser
+        auto analysis_result = audio_analyser_->analyze(audio.samples, 
                                                        audio.sample_rate, 
                                                        audio.channels);
         
@@ -248,7 +248,7 @@ protected:
     }
     
     std::unique_ptr<EtsiAlertSystem> alert_system_;
-    std::unique_ptr<AudioAnalyzer> audio_analyzer_;
+    std::unique_ptr<AudioAnalyser> audio_analyser_;
     std::unique_ptr<LoudnessMeter> loudness_meter_;
     std::unique_ptr<QualityMonitor> quality_monitor_;
 };

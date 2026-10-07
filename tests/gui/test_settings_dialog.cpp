@@ -5,10 +5,10 @@
  * Validates that every control shown in the dialog either drives real
  * behaviour (WIRE) or does not exist (REMOVE), and that the dialog persists
  * to the SAME explicit QSettings scope the application reads
- * (StreamDAB-Analyzer / DABAnalyzer, see src/utils/app_settings.hpp):
+ * (StreamDAB-Analyser / DABAnalyser, see src/utils/app_settings.hpp):
  *
  *   WIRE   : general/confirmExit, analysis/updateRate, analysis/bufferSize,
- *            audio/device|muted|volume, advanced/logLevel, analyzer group
+ *            audio/device|muted|volume, advanced/logLevel, analyser group
  *   REMOVE : general/theme|autoSave|autoSaveInterval, display group,
  *            analysis/realTime|hardwareAccel, network group, performance group,
  *            advanced/debugMode — no widget, no persisted key.
@@ -43,7 +43,7 @@ const char* const kWiredKeys[] = {
     "audio/muted",
     "audio/volume",
     "advanced/logLevel",
-    "analyzer/force_charset",
+    "analyser/force_charset",
 };
 
 // Keys that were REMOVEd: nobody may write or read them any more.
@@ -92,14 +92,14 @@ protected:
         }
         // Isolate from the real user store.
         QStandardPaths::setTestModeEnabled(true);
-        QCoreApplication::setOrganizationName(QStringLiteral("StreamDAB-Analyzer"));
-        QCoreApplication::setApplicationName(QStringLiteral("DABAnalyzer"));
-        QSettings(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer")).clear();
+        QCoreApplication::setOrganizationName(QStringLiteral("StreamDAB-Analyser"));
+        QCoreApplication::setApplicationName(QStringLiteral("DABAnalyser"));
+        QSettings(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser")).clear();
     }
 
     void TearDown() override
     {
-        QSettings(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer")).clear();
+        QSettings(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser")).clear();
     }
 
     QApplication* app = nullptr;
@@ -216,7 +216,7 @@ TEST_F(SettingsDialogTest, RemovedControlsDoNotExistAndAreNotPersisted)
 
     // The removed TABS (Display, Network, Performance) are also gone; the kept
     // tabs are General, Processing (renamed from the unclear "Analysis"),
-    // Audio, Advanced, Analyzer.
+    // Audio, Advanced, Analyser.
     QTabWidget* tabs = dialog.findChild<QTabWidget*>();
     ASSERT_NE(tabs, nullptr);
     QStringList labels;
@@ -225,7 +225,7 @@ TEST_F(SettingsDialogTest, RemovedControlsDoNotExistAndAreNotPersisted)
     }
     EXPECT_EQ(labels, QStringList({QStringLiteral("General"), QStringLiteral("Processing"),
                                    QStringLiteral("Audio"), QStringLiteral("Advanced"),
-                                   QStringLiteral("Analyzer")}));
+                                   QStringLiteral("Analyser")}));
 
     // saveSettings must never write a removed key.
     dialog.saveSettings();
@@ -237,9 +237,9 @@ TEST_F(SettingsDialogTest, RemovedControlsDoNotExistAndAreNotPersisted)
     }
 }
 
-TEST_F(SettingsDialogTest, AnalyzerTabStillRoundTrips)
+TEST_F(SettingsDialogTest, AnalyserTabStillRoundTrips)
 {
-    // The already-wired analyzer tab must keep working (regression guard).
+    // The already-wired analyser tab must keep working (regression guard).
     SettingsDialog dialog;
     QSpinBox* forceCharset = dialog.findChild<QSpinBox*>(QStringLiteral("settingsForceCharset"));
     ASSERT_NE(forceCharset, nullptr);
@@ -248,7 +248,7 @@ TEST_F(SettingsDialogTest, AnalyzerTabStillRoundTrips)
 
     QSettings mutableStore(streamdab::app_settings::organization(),
                            streamdab::app_settings::application());
-    eti::AnalyzerSettings roundTripped = eti::AnalyzerSettings::defaults();
+    eti::AnalyserSettings roundTripped = eti::AnalyserSettings::defaults();
     roundTripped.loadFromQSettings(mutableStore);
     EXPECT_EQ(roundTripped.force_charset, 6);
 }
@@ -271,15 +271,15 @@ TEST_F(SettingsDialogTest, LoggerLevelMapping)
     }
 }
 
-TEST_F(SettingsDialogTest, EveryTabScrollsAndAnalyzerControlsAreReachable)
+TEST_F(SettingsDialogTest, EveryTabScrollsAndAnalyserControlsAreReachable)
 {
     SettingsDialog dialog;
     QTabWidget* tabs = dialog.findChild<QTabWidget*>();
     ASSERT_NE(tabs, nullptr);
-    ASSERT_GE(tabs->count(), 5) << "General/Processing/Audio/Advanced/Analyzer";
+    ASSERT_GE(tabs->count(), 5) << "General/Processing/Audio/Advanced/Analyser";
 
     // Every tab's content lives in a resizable scroll area: long forms (the
-    // Analyzer tab has groups A..I) must never be squeezed until only the
+    // Analyser tab has groups A..I) must never be squeezed until only the
     // group titles remain visible.
     for (int i = 0; i < tabs->count(); ++i) {
         auto* scroll = qobject_cast<QScrollArea*>(tabs->widget(i));
@@ -288,18 +288,18 @@ TEST_F(SettingsDialogTest, EveryTabScrollsAndAnalyzerControlsAreReachable)
         EXPECT_NE(scroll->widget(), nullptr) << tabs->tabText(i).toStdString();
     }
 
-    int analyzerIndex = -1;
+    int analyserIndex = -1;
     for (int i = 0; i < tabs->count(); ++i) {
-        if (tabs->tabText(i) == QStringLiteral("Analyzer")) {
-            analyzerIndex = i;
+        if (tabs->tabText(i) == QStringLiteral("Analyser")) {
+            analyserIndex = i;
         }
     }
-    ASSERT_GE(analyzerIndex, 0) << "Analyzer tab must exist";
-    tabs->setCurrentIndex(analyzerIndex);
+    ASSERT_GE(analyserIndex, 0) << "Analyser tab must exist";
+    tabs->setCurrentIndex(analyserIndex);
     dialog.show();
     QCoreApplication::processEvents();
 
-    auto* scroll = qobject_cast<QScrollArea*>(tabs->widget(analyzerIndex));
+    auto* scroll = qobject_cast<QScrollArea*>(tabs->widget(analyserIndex));
     ASSERT_NE(scroll, nullptr);
     QWidget* content = scroll->widget();
     ASSERT_NE(content, nullptr);

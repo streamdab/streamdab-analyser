@@ -176,26 +176,26 @@
 
 1. **Build Validation Tests**
    ```bash
-   cd /home/seksan/workspace/streamdab-analyzer/build
-   make -j$(nproc) StreamDAB_Analyzer
+   cd /home/seksan/workspace/streamdab-analyser/build
+   make -j$(nproc) StreamDAB_Analyser
    echo $? # Should be 0 for success
    ```
 
 2. **Component Unit Tests**
    ```bash
-   cd /home/seksan/workspace/streamdab-analyzer/build/tests
+   cd /home/seksan/workspace/streamdab-analyser/build/tests
    ./test_phase_1_3_validation_suite
    ```
 
 3. **Performance Benchmark Tests**
    ```bash
-   cd /home/seksan/workspace/streamdab-analyzer/build/tests
+   cd /home/seksan/workspace/streamdab-analyser/build/tests
    ./test_performance_validation
    ```
 
 4. **Integration Test Suite**
    ```bash
-   cd /home/seksan/workspace/streamdab-analyzer/build/tests
+   cd /home/seksan/workspace/streamdab-analyser/build/tests
    ./test_e2e_integration
    ```
 
@@ -203,27 +203,27 @@
 
 1. **Executable Launch Test**
    ```bash
-   cd /home/seksan/workspace/streamdab-analyzer/build
-   ./StreamDAB_Analyzer --version
-   ./StreamDAB_Analyzer --help
+   cd /home/seksan/workspace/streamdab-analyser/build
+   ./StreamDAB_Analyser --version
+   ./StreamDAB_Analyser --help
    ```
 
 2. **Configuration File Test**
    ```bash
    # Test configuration loading
-   ./StreamDAB_Analyzer --config=test_config.ini
+   ./StreamDAB_Analyser --config=test_config.ini
    ```
 
 3. **ETI File Processing Test**
    ```bash
    # Test file input processing
-   ./StreamDAB_Analyzer --input=sample.eti --output=analysis.json
+   ./StreamDAB_Analyser --input=sample.eti --output=analysis.json
    ```
 
 4. **ZMQ Connection Test**
    ```bash
    # Test network connectivity (requires ODR-DabMux or test server)
-   ./StreamDAB_Analyzer --zmq-endpoint=tcp://127.0.0.1:9200
+   ./StreamDAB_Analyser --zmq-endpoint=tcp://127.0.0.1:9200
    ```
 
 ## Success Criteria Summary
@@ -262,7 +262,7 @@
 5. **Integration Tests**: End-to-end pipeline working correctly
 
 ### ✅ **Deliverables for User Validation**
-1. **Working Executable**: Functional StreamDAB_Analyzer binary
+1. **Working Executable**: Functional StreamDAB_Analyser binary
 2. **Test Reports**: Comprehensive validation evidence
 3. **Performance Metrics**: Documented benchmark results
 4. **Configuration Examples**: Sample .ini files for testing

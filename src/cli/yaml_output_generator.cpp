@@ -111,7 +111,7 @@ void YAMLOutputGenerator::setFicHealth(const FICHealth& health) {
 void YAMLOutputGenerator::setVerboseMode(bool enabled) {
     m_data.verbose_mode = enabled;
     if (enabled) {
-        m_data.generator = "StreamDAB Analyzer v1.1 - Verbose Mode";
+        m_data.generator = QStringLiteral("StreamDAB Analyser v" DABX_VERSION " - Verbose Mode");
     }
 }
 
@@ -130,7 +130,7 @@ QString YAMLOutputGenerator::generateYAML() const {
     QTextStream out(&yaml);
 
     // Document header
-    out << "# StreamDAB Analyzer CLI Output\n";
+    out << "# StreamDAB Analyser CLI Output\n";
     out << "version: \"" << m_data.version << "\"\n";
     out << "generator: \"" << m_data.generator << "\"\n";
     out << "timestamp: \"" << m_data.timestamp.toString(Qt::ISODate) << "\"\n";

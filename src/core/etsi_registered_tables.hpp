@@ -16,7 +16,7 @@
  *
  * @version 1.1.0
  * @date October 2025
- * @author StreamDAB Analyzer Team
+ * @author StreamDAB Analyser Team
  */
 
 #ifndef ETSI_REGISTERED_TABLES_HPP

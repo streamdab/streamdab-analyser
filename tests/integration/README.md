@@ -1,6 +1,6 @@
 # TDD Integration Tests Directory
 
-This directory contains integration tests for the ETI Stream Analyzer TDD framework.
+This directory contains integration tests for the ETI Stream Analyser TDD framework.
 
 ## Purpose
 
@@ -132,7 +132,7 @@ public:
 make run_integration_tests
 
 # Run specific integration test
-./eti_analyzer_integration_tests --gtest_filter=*EtiPipeline*
+./eti_analyser_integration_tests --gtest_filter=*EtiPipeline*
 ```
 
 ### CI/CD Pipeline

@@ -6,7 +6,7 @@
 #include <gmock/gmock.h>
 
 class MockMainWindow;
-class MockAnalyzerWidget;
+class MockAnalyserWidget;
 class MockConstellationWidget;
 class MockServiceBrowser;
 
@@ -38,14 +38,14 @@ signals:
 };
 
 /**
- * @brief Mock analyzer engine for testing
+ * @brief Mock analyser engine for testing
  */
-class MockAnalyzerEngine : public QObject {
+class MockAnalyserEngine : public QObject {
     Q_OBJECT
 
 public:
-    explicit MockAnalyzerEngine(QObject* parent = nullptr);
-    virtual ~MockAnalyzerEngine() = default;
+    explicit MockAnalyserEngine(QObject* parent = nullptr);
+    virtual ~MockAnalyserEngine() = default;
 
     MOCK_METHOD(bool, processEtiFrame, (const QByteArray& frame));
     MOCK_METHOD(void, startAnalysis, ());
@@ -89,7 +89,7 @@ struct MockConstellationData {
 class MockGuiComponentFactory {
 public:
     static MockEtiDataSource* createMockDataSource(QObject* parent = nullptr);
-    static MockAnalyzerEngine* createMockEngine(QObject* parent = nullptr);
+    static MockAnalyserEngine* createMockEngine(QObject* parent = nullptr);
     static MockServiceInfo createMockService(uint32_t id, const QString& name);
     static MockConstellationData createMockConstellation(int samples = 256);
 };

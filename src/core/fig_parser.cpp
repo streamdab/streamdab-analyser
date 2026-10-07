@@ -13,7 +13,7 @@
  *
  * @author Standards Compliance Agent
  * @date September 22, 2025
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #include "fig_parser.hpp"
@@ -843,7 +843,7 @@ std::vector<FigBlock> FigParser::extractFigBlocks(const EtiFicField& fic_data) {
         // dumps still yield FIGs. The warning is logged once per parser.
         // The fic_mode / fib_ignore_crc settings drive the shared decode; the
         // DABX_FIC_MODE env hook remains active for the auto mode (tests).
-        const FicDecodeMode mode = AnalyzerSettings::toFicDecodeMode(settings_.fic_mode);
+        const FicDecodeMode mode = AnalyserSettings::toFicDecodeMode(settings_.fic_mode);
         auto decode_result = fic_data.decodeFigBlocks(mode, settings_.fib_ignore_crc);
         fib_crc_failures_count_.store(decode_result.fib_crc_failures);
         fig_blocks = std::move(decode_result.fig_blocks);

@@ -22,7 +22,7 @@
 EtiProcessor::EtiProcessor(QObject *parent)
     : QObject(parent)
     , frame_parser_(std::make_unique<eti::modern::ModernETIFrameParser>(this))
-    , fig_analyzer_(std::make_unique<eti::modern::EnhancedFIGAnalyzer>(this))
+    , fig_analyser_(std::make_unique<eti::modern::EnhancedFIGAnalyser>(this))
     , profiler_(std::make_unique<eti::modern::performance_profiler>())
     , initialized_(false)
     , frame_count_(0)
@@ -53,11 +53,11 @@ EtiProcessor::EtiProcessor(QObject *parent)
     //         this, &EtiProcessor::on_fig_analysis_complete, Qt::QueuedConnection);
     // connect(frame_parser_.get(), &eti::modern::ModernETIFrameParser::performanceTarget,
     //         this, &EtiProcessor::on_performance_target_result, Qt::QueuedConnection);
-    // connect(fig_analyzer_.get(), &eti::modern::EnhancedFIGAnalyzer::ensembleDiscovered,
+    // connect(fig_analyser_.get(), &eti::modern::EnhancedFIGAnalyser::ensembleDiscovered,
     //         this, &EtiProcessor::on_modern_ensemble_discovered, Qt::QueuedConnection);
-    // connect(fig_analyzer_.get(), &eti::modern::EnhancedFIGAnalyzer::serviceDiscovered,
+    // connect(fig_analyser_.get(), &eti::modern::EnhancedFIGAnalyser::serviceDiscovered,
     //         this, &EtiProcessor::on_modern_service_discovered, Qt::QueuedConnection);
-    // connect(fig_analyzer_.get(), &eti::modern::EnhancedFIGAnalyzer::complianceIssue,
+    // connect(fig_analyser_.get(), &eti::modern::EnhancedFIGAnalyser::complianceIssue,
     //         this, &EtiProcessor::on_compliance_issue_detected, Qt::QueuedConnection);
 }
 
@@ -79,9 +79,9 @@ bool EtiProcessor::initialize()
             return false;
         }
 
-        // Initialize Enhanced FIG Analyzer with Thai support
-        if (!fig_analyzer_->initialize(true, true)) { // Enable carousel analysis and Thai support
-            QString error = "Failed to initialize Enhanced FIG Analyzer";
+        // Initialize Enhanced FIG Analyser with Thai support
+        if (!fig_analyser_->initialize(true, true)) { // Enable carousel analysis and Thai support
+            QString error = "Failed to initialize Enhanced FIG Analyser";
             Logger::instance().log(Logger::Error, "EtiProcessor", error);
             emit errorOccurred(error);
             return false;

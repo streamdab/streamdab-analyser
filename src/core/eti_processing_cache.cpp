@@ -4,7 +4,7 @@
  * 
  * @author Build Manager Agent
  * @date 2025
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #include "eti_processing_cache.hpp"

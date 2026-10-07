@@ -19,7 +19,7 @@
  *
  * @author QA Testing Agent 4 (fullstack-qa-tester)
  * @date 2025-10-29 (Week 3 expansion: Agent 10)
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #include <QtTest/QtTest>

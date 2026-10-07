@@ -22,7 +22,7 @@ using namespace testing;
 /**
  * @brief Test Report Generation TDD Implementation
  * 
- * Professional Report Generation for ETI Stream Analyzer following TDD methodology.
+ * Professional Report Generation for ETI Stream Analyser following TDD methodology.
  * Tests written BEFORE implementation (RED phase).
  * 
  * Features to test:
@@ -47,7 +47,7 @@ protected:
         }
         
         // Create temporary test directory
-        testDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/eti_analyzer_test_reports";
+        testDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/eti_analyser_test_reports";
         QDir().mkpath(testDir);
         
         // Initialize report generator

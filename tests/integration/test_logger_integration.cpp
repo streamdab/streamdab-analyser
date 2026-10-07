@@ -185,7 +185,7 @@ TEST_F(LoggerIntegrationTest, FileOperationsIntegration) {
     EXPECT_TRUE(logger.initialize());
     
     // Test that we can set log directory
-    QString tempDir = QDir::tempPath() + "/eti_analyzer_test_logs";
+    QString tempDir = QDir::tempPath() + "/eti_analyser_test_logs";
     EXPECT_TRUE(logger.setLogDirectory(tempDir));
     EXPECT_EQ(logger.getLogDirectory(), tempDir);
     

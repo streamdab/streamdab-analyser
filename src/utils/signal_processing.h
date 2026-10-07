@@ -8,7 +8,7 @@
 
 /**
  * @class SignalProcessing
- * @brief Digital Signal Processing utilities for ETI Stream Analyzer
+ * @brief Digital Signal Processing utilities for ETI Stream Analyser
  * 
  * Provides DSP functions for audio processing, FFT analysis, filtering,
  * and signal analysis specific to DAB/ETI streams.

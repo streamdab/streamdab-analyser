@@ -8,7 +8,7 @@
 
 #include "eti_service_tree_model.h"
 #include "core/modern_eti_frame_parser.hpp"
-#include "core/enhanced_fig_analyzer.hpp"
+#include "core/enhanced_fig_analyser.hpp"
 #include "utils/logger.h"
 
 #include <QIcon>
@@ -23,7 +23,7 @@
 EtiServiceTreeModel::EtiServiceTreeModel(QObject *parent)
     : QAbstractItemModel(parent)
     , m_frameParser(nullptr)
-    , m_figAnalyzer(nullptr)
+    , m_figAnalyser(nullptr)
     , m_rootItem(nullptr)
     , m_ensembleItem(nullptr)
     , m_updateTimer(nullptr)
@@ -64,9 +64,9 @@ EtiServiceTreeModel::~EtiServiceTreeModel()
 }
 
 bool EtiServiceTreeModel::initializeWithModernEngine(eti::modern::ModernETIFrameParser *frameParser, 
-                                                   eti::modern::EnhancedFIGAnalyzer *figAnalyzer)
+                                                   eti::modern::EnhancedFIGAnalyser *figAnalyser)
 {
-    if (!frameParser || !figAnalyzer) {
+    if (!frameParser || !figAnalyser) {
         Logger::instance().log(Logger::Error, "EtiServiceTreeModel", "Invalid Modern ETI Core Engine components provided");
         return false;
     }
@@ -74,14 +74,14 @@ bool EtiServiceTreeModel::initializeWithModernEngine(eti::modern::ModernETIFrame
     Logger::instance().log(Logger::Info, "EtiServiceTreeModel", "Initializing with Modern ETI Core Engine");
     
     m_frameParser = frameParser;
-    m_figAnalyzer = figAnalyzer;
+    m_figAnalyser = figAnalyser;
     
     // Connect Modern ETI Core Engine signals
     connect(m_frameParser, &eti::modern::ModernETIFrameParser::serviceDiscovered,
             this, &EtiServiceTreeModel::onModernServiceDiscovered);
     // connect(m_frameParser, &eti::modern::ModernETIFrameParser::ensembleUpdated,
     //         this, &EtiServiceTreeModel::onModernEnsembleUpdated);
-    // connect(m_figAnalyzer, &eti::modern::EnhancedFIGAnalyzer::figAnalysisComplete,
+    // connect(m_figAnalyser, &eti::modern::EnhancedFIGAnalyser::figAnalysisComplete,
     //         this, &EtiServiceTreeModel::onFIGAnalysisComplete);
     
     // Setup update timer

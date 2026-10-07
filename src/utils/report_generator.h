@@ -16,7 +16,7 @@
 
 /**
  * @class ReportGenerator
- * @brief Professional Report Generation System for ETI Stream Analyzer
+ * @brief Professional Report Generation System for ETI Stream Analyser
  * 
  * Comprehensive report generation with PDF, HTML, CSV, JSON, and XML export
  * capabilities for broadcast industry standards and ETSI compliance reporting.

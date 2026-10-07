@@ -117,7 +117,7 @@ ProfessionalLoggingSystem::ProfessionalLoggingSystem(QObject* parent)
 {
     // Initialize configuration with defaults
     m_output_config.log_directory = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/logs";
-    m_output_config.log_file_prefix = "streamdab_analyzer";
+    m_output_config.log_file_prefix = "streamdab_analyser";
     
     // Create background thread and worker
     m_worker_thread = new QThread(this);
@@ -594,7 +594,7 @@ void ProfessionalLoggingSystem::initializeLogFile()
     m_log_stream->setEncoding(QStringConverter::Utf8);
     
     // Write session header
-    *m_log_stream << QString("=== StreamDAB Analyzer Professional Logging Session Started ===\n");
+    *m_log_stream << QString("=== StreamDAB Analyser Professional Logging Session Started ===\n");
     *m_log_stream << QString("Session ID: %1\n").arg(m_session_id);
     *m_log_stream << QString("Started: %1\n").arg(QDateTime::currentDateTime().toString(Qt::ISODate));
     *m_log_stream << QString("================================================================\n\n");

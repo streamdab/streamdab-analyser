@@ -34,7 +34,7 @@
 
 #include "core/eti_processing_engine.hpp"
 #include "core/modern_eti_frame_parser.hpp"
-#include "core/enhanced_fig_analyzer.hpp"
+#include "core/enhanced_fig_analyser.hpp"
 // REMOVED: No external dependencies - using internal implementations only
 #include "utils/logger.h"
 
@@ -72,7 +72,7 @@ private slots:
 
     // Component-Level Performance
     void testModernFrameParserPerformance();
-    void testEnhancedFIGAnalyzerPerformance();
+    void testEnhancedFIGAnalyserPerformance();
     void testETIProcessingCachePerformance();
     void testPerformanceProfilerOverhead();
 
@@ -581,18 +581,18 @@ void TestPerformanceRegression::testRealETSIComplianceValidation()
     QVERIFY2(validFrames < static_cast<int>(testFrames.size()), "Compliance validation should reject invalid frames");
 }
 
-void TestPerformanceRegression::testEnhancedFIGAnalyzerPerformance()
+void TestPerformanceRegression::testEnhancedFIGAnalyserPerformance()
 {
-    Logger::instance().log(Logger::Info, "PerfTest", "Testing Enhanced FIG Analyzer Performance");
+    Logger::instance().log(Logger::Info, "PerfTest", "Testing Enhanced FIG Analyser Performance");
     
     QVERIFY(initializeTestEngine(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE));
-    testEngine->enableEnhancedFIGAnalyzer(true);
+    testEngine->enableEnhancedFIGAnalyser(true);
     
     // Benchmark FIG analysis
     double processingTime = measureProcessingTime(eti::processing::EngineConfiguration::ProcessingMode::INTEGRATED_ENGINE);
     
     Logger::instance().log(Logger::Info, "PerfTest", 
-                          QString("Enhanced FIG Analyzer: %1ms processing time").arg(processingTime, 0, 'f', 2));
+                          QString("Enhanced FIG Analyser: %1ms processing time").arg(processingTime, 0, 'f', 2));
 }
 
 void TestPerformanceRegression::testETIProcessingCachePerformance()

@@ -2,7 +2,7 @@
 
 # ============================================================================
 # Phase 1 Unit Test Runner Script
-# StreamDAB Analyzer - ETI Processing and FIG Decoding Tests
+# StreamDAB Analyser - ETI Processing and FIG Decoding Tests
 # ============================================================================
 
 set -e  # Exit on error

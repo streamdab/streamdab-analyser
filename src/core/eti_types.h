@@ -8,10 +8,10 @@
 #include <cstdint>
 
 /**
- * @brief Data structures for ETI processing and DAB Analyzer interface
+ * @brief Data structures for ETI processing and DAB Analyser interface
  * 
  * These structures define the core data types used throughout the
- * StreamDAB Stream Analyzer for ETI frame processing, service discovery,
+ * StreamDAB Stream Analyser for ETI frame processing, service discovery,
  * and ensemble management.
  */
 

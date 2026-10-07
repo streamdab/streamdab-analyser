@@ -17,7 +17,7 @@
  * @author Advanced Features Agent - Perfect 10.0/10.0 Specialist
  * @date 2025-09-27
  * @version 2.0.0
- * @copyright Professional Broadcast Solutions - StreamDAB Analyzer
+ * @copyright Professional Broadcast Solutions - StreamDAB Analyser
  */
 
 #pragma once
@@ -72,7 +72,7 @@ concept MLModel = requires(T t) {
 };
 
 template<typename T>
-concept SignalAnalyzer = requires(T t) {
+concept SignalAnalyser = requires(T t) {
     { t.analyze_signal(std::span<const double>{}) } -> std::convertible_to<double>;
     { t.detect_anomalies(std::span<const double>{}) } -> std::convertible_to<std::vector<size_t>>;
     { t.classify_interference(std::span<const double>{}) } -> std::convertible_to<std::string>;

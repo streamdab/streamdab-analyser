@@ -3,7 +3,7 @@
  * 
  * This test verifies that:
  * 1. ETI processor emits frameProcessed signals
- * 2. FIG analyzer receives FIC data and emits servicesUpdated
+ * 2. FIG analyser receives FIC data and emits servicesUpdated
  * 3. Signal/slot connections are correct
  */
 
@@ -12,7 +12,7 @@
 #include <QCoreApplication>
 #include <memory>
 #include "../src/core/enhanced_eti_processor_qt.h"
-#include "../src/core/advanced_fig_analyzer.h"
+#include "../src/core/advanced_fig_analyser.h"
 
 class TestSignalSlotVerification : public QObject
 {
@@ -20,7 +20,7 @@ class TestSignalSlotVerification : public QObject
 
 private:
     std::unique_ptr<EnhancedETIProcessorQt> m_processor;
-    std::unique_ptr<AdvancedFIGAnalyzer> m_analyzer;
+    std::unique_ptr<AdvancedFIGAnalyser> m_analyser;
 
 private slots:
     void initTestCase()
@@ -29,10 +29,10 @@ private slots:
         
         // Create components
         m_processor = std::make_unique<EnhancedETIProcessorQt>();
-        m_analyzer = std::make_unique<AdvancedFIGAnalyzer>();
+        m_analyser = std::make_unique<AdvancedFIGAnalyser>();
         
         QVERIFY(m_processor != nullptr);
-        QVERIFY(m_analyzer != nullptr);
+        QVERIFY(m_analyser != nullptr);
     }
 
     void test_01_ProcessorSignals()
@@ -86,15 +86,15 @@ private slots:
         qDebug() << "✅ ETI Processor signals verified";
     }
 
-    void test_02_AnalyzerSignals()
+    void test_02_AnalyserSignals()
     {
-        qDebug() << "\n[TEST 2] FIG Analyzer Signal Emission";
+        qDebug() << "\n[TEST 2] FIG Analyser Signal Emission";
         
         // Create signal spies
-        QSignalSpy spyServicesUpdated(m_analyzer.get(), 
-                                      &AdvancedFIGAnalyzer::servicesUpdated);
-        QSignalSpy spyEnsembleUpdated(m_analyzer.get(), 
-                                      &AdvancedFIGAnalyzer::ensembleInfoUpdated);
+        QSignalSpy spyServicesUpdated(m_analyser.get(), 
+                                      &AdvancedFIGAnalyser::servicesUpdated);
+        QSignalSpy spyEnsembleUpdated(m_analyser.get(), 
+                                      &AdvancedFIGAnalyser::ensembleInfoUpdated);
         
         QVERIFY(spyServicesUpdated.isValid());
         QVERIFY(spyEnsembleUpdated.isValid());
@@ -112,8 +112,8 @@ private slots:
         ficData[5] = 0x00;  // Alarm flag
         ficData[6] = 0x01;  // CIF count MSB
         
-        qDebug() << "Feeding FIC data to analyzer...";
-        m_analyzer->analyzeFICData(ficData);
+        qDebug() << "Feeding FIC data to analyser...";
+        m_analyser->analyzeFICData(ficData);
         
         // Wait for signals
         QTest::qWait(100);
@@ -125,7 +125,7 @@ private slots:
         QVERIFY2(spyEnsembleUpdated.count() > 0, 
                  "ensembleInfoUpdated signal should be emitted after FIG 0/0");
         
-        qDebug() << "✅ FIG Analyzer signals verified";
+        qDebug() << "✅ FIG Analyser signals verified";
     }
 
     void test_03_ConnectionFlow()
@@ -133,26 +133,26 @@ private slots:
         qDebug() << "\n[TEST 3] Complete Signal Flow";
         
         // Test the complete flow:
-        // ETI Processor → frameProcessed → Handler → FIG Analyzer → servicesUpdated
+        // ETI Processor → frameProcessed → Handler → FIG Analyser → servicesUpdated
         
         // Create fresh instances
         auto processor = std::make_unique<EnhancedETIProcessorQt>();
-        auto analyzer = std::make_unique<AdvancedFIGAnalyzer>();
+        auto analyser = std::make_unique<AdvancedFIGAnalyser>();
         
         QSignalSpy spyFrameProcessed(processor.get(), 
                                      &EnhancedETIProcessorQt::frameProcessed);
-        QSignalSpy spyServicesUpdated(analyzer.get(), 
-                                      &AdvancedFIGAnalyzer::servicesUpdated);
+        QSignalSpy spyServicesUpdated(analyser.get(), 
+                                      &AdvancedFIGAnalyser::servicesUpdated);
         
         // Connect them like main.cpp should
         connect(processor.get(), &EnhancedETIProcessorQt::frameProcessed,
-                [&analyzer](ProcessedFrame frame) {
+                [&analyser](ProcessedFrame frame) {
                     qDebug() << "[Lambda] Received frame:" << frame.frame_number 
                              << "FIC size:" << frame.fic_data.size();
                     
                     // This is what main.cpp should do
                     if (!frame.fic_data.isEmpty()) {
-                        analyzer->analyzeFICData(frame.fic_data);
+                        analyser->analyzeFICData(frame.fic_data);
                     }
                 });
         
@@ -181,10 +181,10 @@ private slots:
     {
         qDebug() << "\n[TEST 4] Service Count After Processing";
         
-        // Reset analyzer
-        m_analyzer->reset();
+        // Reset analyser
+        m_analyser->reset();
         
-        int initialCount = m_analyzer->getServiceCount();
+        int initialCount = m_analyser->getServiceCount();
         qDebug() << "Initial service count:" << initialCount;
         QCOMPARE(initialCount, 0);
         
@@ -198,7 +198,7 @@ private slots:
             connect(processor.get(), &EnhancedETIProcessorQt::frameProcessed,
                     [this](ProcessedFrame frame) {
                         if (!frame.fic_data.isEmpty()) {
-                            m_analyzer->analyzeFICData(frame.fic_data);
+                            m_analyser->analyzeFICData(frame.fic_data);
                         }
                     });
             
@@ -207,14 +207,14 @@ private slots:
             // Wait for processing
             QTest::qWait(2000);
             
-            int finalCount = m_analyzer->getServiceCount();
+            int finalCount = m_analyser->getServiceCount();
             qDebug() << "Final service count:" << finalCount;
             
             QVERIFY2(finalCount > 0, 
                      "Should discover at least 1 service from Bangkok DAB+ file");
             
             // Get service details
-            QList<ServiceInfo> services = m_analyzer->getDiscoveredServices();
+            QList<ServiceInfo> services = m_analyser->getDiscoveredServices();
             qDebug() << "Discovered services:";
             for (const auto& service : services) {
                 qDebug() << "  -" << service.label << "(SID:" 

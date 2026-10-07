@@ -1,11 +1,11 @@
 #!/bin/bash
-# StreamDAB Analyzer - Phase 3 Qt6 GUI Launcher
+# StreamDAB Analyser - Phase 3 Qt6 GUI Launcher
 # Build: Phase 3 Complete (Commit 5d8fa92)
 # Date: 2025-10-18
 # Status: All simulation code removed, real ETI integration complete
 
 echo "=========================================="
-echo "StreamDAB Analyzer - Phase 3 Qt6 GUI"
+echo "StreamDAB Analyser - Phase 3 Qt6 GUI"
 echo "=========================================="
 echo "Build: Phase 3 Complete (5d8fa92)"
 echo "Features:"
@@ -23,8 +23,11 @@ echo "Launching application..."
 echo "=========================================="
 echo ""
 
-cd /home/seksan/workspace/streamdab-analyzer/build
-./StreamDABAnalyzer
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+cd "${PROJECT_ROOT}/build"
+./StreamDABAnalyser
 
 echo ""
 echo "Application closed."

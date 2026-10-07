@@ -1,4 +1,4 @@
-name: StreamDAB Analyzer - Professional Deployment Pipeline
+name: StreamDAB Analyser - Professional Deployment Pipeline
 
 on:
   push:
@@ -62,12 +62,12 @@ jobs:
     - name: Build Application
       run: |
         cd build
-        make -j$(nproc)
+        make -j"$(bash ../scripts/build_jobs.sh)"
 
     - name: Run Tests
       run: |
         cd build
-        ctest --output-on-failure --parallel $(nproc)
+        ctest --output-on-failure --parallel 2
       continue-on-error: true
 
     - name: Create Deployment Package
@@ -87,7 +87,7 @@ jobs:
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: streamdab-analyzer-linux-${{ matrix.package_type }}
+        name: streamdab-analyser-linux-${{ matrix.package_type }}
         path: |
           build/*.deb
           build/*.tar.gz
@@ -132,7 +132,7 @@ jobs:
     - name: Upload Windows Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: streamdab-analyzer-windows
+        name: streamdab-analyser-windows
         path: |
           build/*.msi
           build/*.exe
@@ -173,7 +173,7 @@ jobs:
     - name: Upload macOS Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: streamdab-analyzer-macos
+        name: streamdab-analyser-macos
         path: |
           build/*.dmg
           build/*.app
@@ -196,9 +196,9 @@ jobs:
 
     - name: Create Release Notes
       run: |
-        echo "# StreamDAB Analyzer v${GITHUB_REF#refs/tags/v}" > release_notes.md
+        echo "# StreamDAB Analyser v${GITHUB_REF#refs/tags/v}" > release_notes.md
         echo "" >> release_notes.md
-        echo "## Professional ETI Stream Analyzer for Broadcast Industry" >> release_notes.md
+        echo "## Professional ETI Stream Analyser for Broadcast Industry" >> release_notes.md
         echo "" >> release_notes.md
         echo "### Features" >> release_notes.md
         echo "- ETSI EN 300 799 compliant ETI processing" >> release_notes.md
@@ -244,7 +244,7 @@ jobs:
 
         # Generate architecture diagrams
         echo "graph TD
-          A[ETI Stream] --> B[StreamDAB Analyzer]
+          A[ETI Stream] --> B[StreamDAB Analyser]
           B --> C[Service Discovery]
           B --> D[ETSI Compliance]
           B --> E[Real-time Processing]
@@ -269,7 +269,7 @@ jobs:
     - name: Download Linux Package
       uses: actions/download-artifact@v4
       with:
-        name: streamdab-analyzer-linux-deb
+        name: streamdab-analyser-linux-deb
         path: packages
 
     - name: Install Package
@@ -307,7 +307,7 @@ jobs:
     - name: Deployment Success Notification
       if: needs.create-release.result == 'success'
       run: |
-        echo "🚀 StreamDAB Analyzer v${GITHUB_REF#refs/tags/v} deployed successfully!"
+        echo "🚀 StreamDAB Analyser v${GITHUB_REF#refs/tags/v} deployed successfully!"
         echo "📦 Packages available for Windows, Linux, and macOS"
         echo "📚 Documentation updated at GitHub Pages"
         echo "✅ Performance validation completed"
@@ -315,5 +315,5 @@ jobs:
     - name: Deployment Failure Notification
       if: needs.create-release.result == 'failure'
       run: |
-        echo "❌ StreamDAB Analyzer deployment failed"
+        echo "❌ StreamDAB Analyser deployment failed"
         echo "Please check the build logs for details"

@@ -6,7 +6,7 @@
  * 
  * Test Requirements:
  * - Modern ETI Frame Parser performance >7,482 FPS
- * - Enhanced FIG Analyzer real-time processing
+ * - Enhanced FIG Analyser real-time processing
  * - Comprehensive ETSI Validator 100% compliance
  * - Memory efficiency <4MB operational footprint
  * - GUI integration with Modern ETI Core Engine
@@ -26,7 +26,7 @@
 #include "gui/eti_service_tree_model.h"
 #include "gui/eti_frame_list_model.h"
 #include "core/modern_eti_frame_parser.hpp"
-#include "core/enhanced_fig_analyzer.hpp"
+#include "core/enhanced_fig_analyser.hpp"
 #include "core/comprehensive_etsi_validator.hpp"
 #include "core/performance_profiler.h"
 #include "core/eti_processor.hpp"
@@ -43,7 +43,7 @@ private slots:
 
     // Modern ETI Core Engine Performance Tests
     void testModernETIFrameParserPerformance();
-    void testEnhancedFIGAnalyzerProcessing();
+    void testEnhancedFIGAnalyserProcessing();
     void testComprehensiveETSIValidation();
     void testPerformanceProfilerAccuracy();
 
@@ -65,7 +65,7 @@ private:
     std::unique_ptr<QApplication> m_app;
     std::unique_ptr<MainWindow> m_mainWindow;
     std::unique_ptr<eti::modern::ModernETIFrameParser> m_frameParser;
-    std::unique_ptr<eti::modern::EnhancedFIGAnalyzer> m_figAnalyzer;
+    std::unique_ptr<eti::modern::EnhancedFIGAnalyser> m_figAnalyser;
     std::unique_ptr<eti::modern::ComprehensiveETSIValidator> m_etsiValidator;
     std::unique_ptr<PerformanceProfiler> m_profiler;
 
@@ -106,7 +106,7 @@ void TestModernETICoreEngineIntegration::cleanupTestCase()
 {
     m_mainWindow.reset();
     m_frameParser.reset();
-    m_figAnalyzer.reset();
+    m_figAnalyser.reset();
     m_etsiValidator.reset();
     m_profiler.reset();
     m_app.reset();
@@ -118,12 +118,12 @@ void TestModernETICoreEngineIntegration::init()
 {
     // Initialize Modern ETI Core Engine components for each test
     m_frameParser = std::make_unique<eti::modern::ModernETIFrameParser>();
-    m_figAnalyzer = std::make_unique<eti::modern::EnhancedFIGAnalyzer>();
+    m_figAnalyser = std::make_unique<eti::modern::EnhancedFIGAnalyser>();
     m_etsiValidator = std::make_unique<eti::modern::ComprehensiveETSIValidator>();
     m_profiler = std::make_unique<PerformanceProfiler>();
 
     QVERIFY(m_frameParser->initialize());
-    QVERIFY(m_figAnalyzer->initialize());
+    QVERIFY(m_figAnalyser->initialize());
     QVERIFY(m_etsiValidator->initialize());
     QVERIFY(m_profiler->initialize());
 }
@@ -132,7 +132,7 @@ void TestModernETICoreEngineIntegration::cleanup()
 {
     // Clean up components after each test
     m_frameParser.reset();
-    m_figAnalyzer.reset();
+    m_figAnalyser.reset();
     m_etsiValidator.reset();
     m_profiler.reset();
 }
@@ -178,20 +178,20 @@ void TestModernETICoreEngineIntegration::testModernETIFrameParserPerformance()
     QVERIFY(performanceUpdatedSpy.count() > 0);
 }
 
-void TestModernETICoreEngineIntegration::testEnhancedFIGAnalyzerProcessing()
+void TestModernETICoreEngineIntegration::testEnhancedFIGAnalyserProcessing()
 {
-    // Test Enhanced FIG Analyzer real-time processing
-    qDebug() << "Testing Enhanced FIG Analyzer real-time processing";
+    // Test Enhanced FIG Analyser real-time processing
+    qDebug() << "Testing Enhanced FIG Analyser real-time processing";
 
-    QSignalSpy figAnalysisCompleteSpy(m_figAnalyzer.get(), &eti::modern::EnhancedFIGAnalyzer::figAnalysisComplete);
-    QSignalSpy serviceDiscoveredSpy(m_figAnalyzer.get(), &eti::modern::EnhancedFIGAnalyzer::serviceDiscovered);
+    QSignalSpy figAnalysisCompleteSpy(m_figAnalyser.get(), &eti::modern::EnhancedFIGAnalyser::figAnalysisComplete);
+    QSignalSpy serviceDiscoveredSpy(m_figAnalyser.get(), &eti::modern::EnhancedFIGAnalyser::serviceDiscovered);
 
     // Process test FIG data with various FIG types
     std::vector<uint8_t> figTypes = {0, 1, 2, 16, 17}; // Test common FIG types
     
     for (uint8_t figType : figTypes) {
         QByteArray figData = generateTestFIGData(figType);
-        auto result = m_figAnalyzer->processFIG(figData, figType);
+        auto result = m_figAnalyser->processFIG(figData, figType);
         
         QVERIFY(result.isValid());
         QCOMPARE(result.figType, figType);
@@ -280,7 +280,7 @@ void TestModernETICoreEngineIntegration::testServiceTreeModelModernEngine()
     
     // Initialize with Modern ETI Core Engine components
     bool initSuccess = serviceTreeModel->initializeWithModernEngine(
-        m_frameParser.get(), m_figAnalyzer.get());
+        m_frameParser.get(), m_figAnalyser.get());
     QVERIFY2(initSuccess, "Failed to initialize EtiServiceTreeModel with Modern ETI Core Engine");
 
     // Test service discovery signals
@@ -319,10 +319,10 @@ void TestModernETICoreEngineIntegration::testCompleteInternalImplementation()
 
     // Test that internal ETI processing engine provides all required functionality
     auto frameParser = processor->getETIParser();
-    auto figAnalyzer = processor->getFIGAnalyzer();
+    auto figAnalyser = processor->getFIGAnalyser();
     
     QVERIFY(frameParser != nullptr);
-    QVERIFY(figAnalyzer != nullptr);
+    QVERIFY(figAnalyser != nullptr);
     
     // Process test data to verify complete internal functionality
     QByteArray testFrame = generateTestETIFrame(1);

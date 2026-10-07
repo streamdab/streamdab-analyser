@@ -53,7 +53,7 @@ private slots:
     // ========================================================================
 
     void test_signal_slot_connections();
-    void test_fig_analyzer_connection();
+    void test_fig_analyser_connection();
     void test_audio_validator_connection();
     void test_mot_protocol_connection();
     void test_epg_decoder_connection();
@@ -155,7 +155,7 @@ void TestPhase3AIntegration::test_component_initialization()
 
     // Verify components created
     QVERIFY(m_manager->etiParser() != nullptr);
-    QVERIFY(m_manager->figAnalyzer() != nullptr);
+    QVERIFY(m_manager->figAnalyser() != nullptr);
     QVERIFY(m_manager->audioValidator() != nullptr);
     QVERIFY(m_manager->motProtocol() != nullptr);
     QVERIFY(m_manager->epgDecoder() != nullptr);
@@ -218,15 +218,15 @@ void TestPhase3AIntegration::test_signal_slot_connections()
     QVERIFY(audioSpy.isValid());
 }
 
-void TestPhase3AIntegration::test_fig_analyzer_connection()
+void TestPhase3AIntegration::test_fig_analyser_connection()
 {
-    // Test: FIG analyzer signals connected to manager
+    // Test: FIG analyser signals connected to manager
     QVERIFY(m_manager->initializeComponents());
 
     QSignalSpy serviceSpy(m_manager, &Phase3AIntegrationManager::serviceDiscovered);
     QSignalSpy ensembleSpy(m_manager, &Phase3AIntegrationManager::ensembleDiscovered);
 
-    // Simulate FIG analyzer signal (would normally come from processing)
+    // Simulate FIG analyser signal (would normally come from processing)
     // For now, verify spies are valid (actual signal tested in pipeline tests)
     QVERIFY(serviceSpy.isValid());
     QVERIFY(ensembleSpy.isValid());

@@ -133,11 +133,11 @@ jobs:
         echo "💥 Running stress tests..."
 
         # Large data processing stress test
-        if [[ -f "./eti_analyzer_unit_tests" ]]; then
+        if [[ -f "./eti_analyser_unit_tests" ]]; then
           echo "Testing with large datasets..."
           for i in {1..10}; do
             echo "Stress test iteration $i/10"
-            timeout 120 ./eti_analyzer_unit_tests --gtest_filter="*Performance*" || echo "Stress test $i completed"
+            timeout 120 ./eti_analyser_unit_tests --gtest_filter="*Performance*" || echo "Stress test $i completed"
           done
         fi
 

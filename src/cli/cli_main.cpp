@@ -1,6 +1,6 @@
 /**
  * @file cli_main.cpp
- * @brief CLI Mode Entry Point and Orchestration for StreamDAB Analyzer
+ * @brief CLI Mode Entry Point and Orchestration for StreamDAB Analyser
  *
  * Implements the complete CLI workflow:
  * 1. Parse command-line arguments (CLIArgumentParser)
@@ -19,14 +19,14 @@
  * HeadlessETIProcessor collects: ETI header, STC fields, FIC data, FIG blocks
  * YAMLOutputGenerator formats all frame data to YAML
  *
- * @copyright StreamDAB Analyzer Project - PDCA Week 8
+ * @copyright StreamDAB Analyser Project - PDCA Week 8
  */
 
 #include "cli_main.hpp"
 #include "cli_argument_parser.hpp"
 #include "yaml_output_generator.hpp"
 #include "../core/headless_eti_processor.hpp"
-#include "../core/analyzer_settings.hpp"
+#include "../core/analyser_settings.hpp"
 #include "../utils/logger.h"
 #include <QFile>
 #include <QElapsedTimer>
@@ -159,17 +159,17 @@ int cli_main(int argc, char** argv) {
         // Create headless ETI processor
         HeadlessETIProcessor processor;
 
-        // Build the AnalyzerSettings from defaults + the provided CLI flags.
+        // Build the AnalyserSettings from defaults + the provided CLI flags.
         // NOTE: the CLI deliberately does NOT read the GUI QSettings so that a
         // default-config run is byte-identical to the baseline (gate 2).
-        eti::AnalyzerSettings analyzerSettings = eti::AnalyzerSettings::defaults();
-        analyzerSettings.applyCliOverrides(options.analyzerOverrides());
+        eti::AnalyserSettings analyserSettings = eti::AnalyserSettings::defaults();
+        analyserSettings.applyCliOverrides(options.analyserOverrides());
         QString settingsError;
-        if (!analyzerSettings.validate(&settingsError)) {
-            std::cerr << "WARNING: invalid analyzer setting: "
+        if (!analyserSettings.validate(&settingsError)) {
+            std::cerr << "WARNING: invalid analyser setting: "
                       << settingsError.toStdString() << " (using sane defaults)\n";
         }
-        processor.setAnalyzerSettings(analyzerSettings);
+        processor.setAnalyserSettings(analyserSettings);
 
         // *** ENABLE VERBOSE MODE IF REQUESTED ***
         if (options.verbose_frames) {
@@ -247,11 +247,11 @@ int cli_main(int argc, char** argv) {
 
         YAMLOutputGenerator yamlGenerator;
 
-        // Thread the analyzer settings into the output layer (rows 6/8/12).
-        yamlGenerator.setAnalyzerSettings(analyzerSettings);
+        // Thread the analyser settings into the output layer (rows 6/8/12).
+        yamlGenerator.setAnalyserSettings(analyserSettings);
 
         // Row 11 diagnostics: emitted only when strict_frame_crc is enabled.
-        yamlGenerator.setFrameCrcStats(analyzerSettings.strict_frame_crc,
+        yamlGenerator.setFrameCrcStats(analyserSettings.strict_frame_crc,
                                        result.frame_crc_failures);
 
         // Enable verbose mode if requested

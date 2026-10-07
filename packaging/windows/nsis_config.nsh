@@ -1,16 +1,16 @@
-# ETI Stream Analyzer - Professional Windows Installer Configuration
+# ETI Stream Analyser - Professional Windows Installer Configuration
 # NSIS (Nullsoft Scriptable Install System) Configuration
 
 # Professional installer appearance
-!define PRODUCT_NAME "ETI Stream Analyzer"
+!define PRODUCT_NAME "ETI Stream Analyser"
 !define PRODUCT_VERSION "${PROJECT_VERSION}"
 !define PRODUCT_PUBLISHER "Professional Broadcast Tools"
-!define PRODUCT_WEB_SITE "https://eti-analyzer.org"
-!define PRODUCT_SUPPORT_URL "https://eti-analyzer.org/support"
-!define PRODUCT_UPDATES_URL "https://eti-analyzer.org/downloads"
+!define PRODUCT_WEB_SITE "https://eti-analyser.org"
+!define PRODUCT_SUPPORT_URL "https://eti-analyser.org/support"
+!define PRODUCT_UPDATES_URL "https://eti-analyser.org/downloads"
 
 # Professional branding
-!define MUI_PRODUCT "ETI Stream Analyzer Professional"
+!define MUI_PRODUCT "ETI Stream Analyser Professional"
 !define MUI_BRANDINGTEXT "Professional Broadcast Tools"
 
 # Professional installer icons and graphics
@@ -31,8 +31,8 @@
 !define MUI_UNABORTWARNING
 
 # Professional finish page options
-!define MUI_FINISHPAGE_RUN "$INSTDIR\bin\ETIStreamAnalyzer.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "Launch ETI Stream Analyzer"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\bin\ETIStreamAnalyser.exe"
+!define MUI_FINISHPAGE_RUN_TEXT "Launch ETI Stream Analyser"
 !define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\README.txt"
 !define MUI_FINISHPAGE_SHOWREADME_TEXT "Show User Manual"
 

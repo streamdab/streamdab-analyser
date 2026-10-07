@@ -1,4 +1,4 @@
-// /home/seksan/workspace/streamdab-analyzer/tests/test_eti_reader_thread.cpp
+// tests/test_eti_reader_thread.cpp
 #include <gtest/gtest.h>
 #include <QCoreApplication>
 #include <QSignalSpy>

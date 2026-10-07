@@ -1,6 +1,6 @@
 /**
  * @file test_gui_stability.cpp
- * @brief GUI stability tests for ETI Stream Analyzer
+ * @brief GUI stability tests for ETI Stream Analyser
  */
 
 #include <QApplication>

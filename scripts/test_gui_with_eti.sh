@@ -2,17 +2,20 @@
 # Test GUI with problematic ETI file
 # This script launches the GUI in headless mode and monitors for crashes
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
 echo "=== Testing GUI with ETI File ==="
-echo "File: /home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti"
+echo "File: ${PROJECT_ROOT}/eti/bkk_20062022_141637.eti"
 echo ""
 
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd "${PROJECT_ROOT}/build"
 
 # Set headless display
 export QT_QPA_PLATFORM=offscreen
 
 # Run with timeout to prevent hanging
-timeout 30s ./StreamDABAnalyzer 2>&1 | tee gui_test_output.log &
+timeout 30s ./StreamDABAnalyser 2>&1 | tee gui_test_output.log &
 GUI_PID=$!
 
 echo "GUI Process ID: $GUI_PID"

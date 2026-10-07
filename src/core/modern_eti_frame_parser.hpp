@@ -17,13 +17,13 @@
  *
  * @author Standards Compliance Agent (Phase 2 Migration Lead)
  * @date 2025
- * @copyright ETI Stream Analyzer Project
+ * @copyright ETI Stream Analyser Project
  */
 
 #pragma once
 
 #include "eti_types.hpp"
-#include "analyzer_settings.hpp"
+#include "analyser_settings.hpp"
 #include <QObject>
 #include <QByteArray>
 #include <QString>
@@ -310,20 +310,20 @@ public:
     bool isInitialized() const noexcept { return initialized_.load(); }
 
     /**
-     * @brief Set the user-selected analyzer decode options (row 1-14).
+     * @brief Set the user-selected analyser decode options (row 1-14).
      *
      * Applied from the next parseFrame()/analyzeFIGData() call on; has no
-     * effect on frames already parsed. Defaults to AnalyzerSettings::defaults()
+     * effect on frames already parsed. Defaults to AnalyserSettings::defaults()
      * (byte parity with the pre-settings behavior).
      *
-     * @param settings Analyzer decode options to use
+     * @param settings Analyser decode options to use
      */
-    void setAnalyzerSettings(const AnalyzerSettings& settings) { settings_ = settings; }
+    void setAnalyserSettings(const AnalyserSettings& settings) { settings_ = settings; }
 
     /**
-     * @brief Current analyzer decode options.
+     * @brief Current analyser decode options.
      */
-    const AnalyzerSettings& analyzerSettings() const noexcept { return settings_; }
+    const AnalyserSettings& analyserSettings() const noexcept { return settings_; }
 
     /**
      * @brief Parse single ETI frame with optimal performance (auto-detects format)
@@ -551,10 +551,10 @@ private:
     // logged, so it appears once per stream instead of once per frame.
     std::atomic<bool> raw_fic_fallback_warned_{false};
 
-    // User-selected analyzer decode options (option-variant matrix rows 1-14).
+    // User-selected analyser decode options (option-variant matrix rows 1-14).
     // Defaults == current etisnoop-parity behavior; populated by the CLI from
     // command-line flags or by the GUI from QSettings.
-    AnalyzerSettings settings_;
+    AnalyserSettings settings_;
 
     // Charset values for which the "raw passthrough" warning was already logged
     // (FIG 1 labels, F4). Indexed by the 4-bit charset flag.

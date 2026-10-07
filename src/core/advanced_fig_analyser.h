@@ -1,5 +1,5 @@
-#ifndef ADVANCED_FIG_ANALYZER_H
-#define ADVANCED_FIG_ANALYZER_H
+#ifndef ADVANCED_FIG_ANALYSER_H
+#define ADVANCED_FIG_ANALYSER_H
 
 #include <QtCore/QObject>
 #include <QtCore/QByteArray>
@@ -15,7 +15,7 @@
 #include "eti_types.h"
 
 namespace eti {
-struct AnalyzerSettings;  // complete type only in advanced_fig_analyzer.cpp
+struct AnalyserSettings;  // complete type only in advanced_fig_analyser.cpp
 }
 
 /**
@@ -429,7 +429,7 @@ struct FIG2_4_ComponentExtLabel {
 };
 
 /**
- * @brief Advanced FIG (Fast Information Group) Analyzer
+ * @brief Advanced FIG (Fast Information Group) Analyser
  *
  * Phase 1 Week 2: Complete FIG Type 0 processing (0/0, 0/1, 0/2)
  * Phase 1 Week 2: Complete FIG Type 1 processing (1/0, 1/1, 1/4)
@@ -462,24 +462,24 @@ struct FIG2_4_ComponentExtLabel {
  * - FIG 2/4: Component Extended Labels
  * - FIG 2/5: Data Service Extended Labels
  */
-class AdvancedFIGAnalyzer : public QObject
+class AdvancedFIGAnalyser : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit AdvancedFIGAnalyzer(QObject *parent = nullptr);
-    ~AdvancedFIGAnalyzer() override;  // out-of-line: m_settings needs a complete type
+    explicit AdvancedFIGAnalyser(QObject *parent = nullptr);
+    ~AdvancedFIGAnalyser() override;  // out-of-line: m_settings needs a complete type
 
     // Main analysis methods
     void analyzeFICData(const QByteArray& ficData);
     void reset();
 
-    // Analyzer decode settings (option-variant matrix; defaults = strict FIB
+    // Analyser decode settings (option-variant matrix; defaults = strict FIB
     // CRC + follow-stream charset when not wired). Defined in the .cpp so
-    // TUs without the complete AnalyzerSettings type still compile.
-    void setAnalyzerSettings(const eti::AnalyzerSettings& settings);
-    bool hasAnalyzerSettings() const { return m_settings != nullptr; }
-    const eti::AnalyzerSettings* analyzerSettings() const { return m_settings.get(); }
+    // TUs without the complete AnalyserSettings type still compile.
+    void setAnalyserSettings(const eti::AnalyserSettings& settings);
+    bool hasAnalyserSettings() const { return m_settings != nullptr; }
+    const eti::AnalyserSettings* analyserSettings() const { return m_settings.get(); }
 
     // FIB CRC / FIC decode diagnostics
     int getFibCrcFailureCount() const { return m_fib_crc_failures; }
@@ -735,7 +735,7 @@ private:
     static constexpr int MAX_FIG_INSTANCES = 200000;  // GUI memory bound
 
     // User-selected decode options; empty = historical strict defaults
-    std::unique_ptr<eti::AnalyzerSettings> m_settings;
+    std::unique_ptr<eti::AnalyserSettings> m_settings;
 
     // Processing state
     QByteArray m_currentFICData;
@@ -794,4 +794,4 @@ public:
                                      uint16_t sub_channel_size, uint8_t protection_level);
 };
 
-#endif // ADVANCED_FIG_ANALYZER_H
+#endif // ADVANCED_FIG_ANALYSER_H

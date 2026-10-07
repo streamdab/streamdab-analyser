@@ -1,16 +1,16 @@
 /**
- * @file analyzer_settings.hpp
- * @brief User-selectable analyzer decode options (option-variant matrix).
+ * @file analyser_settings.hpp
+ * @brief User-selectable analyser decode options (option-variant matrix).
  *
  * Implements the "SETTING" rows of docs/fixes/OPTION_VARIANT_MATRIX.md as a
  * single settings struct shared by the GUI (QSettings, org
- * "StreamDAB-Analyzer", app "DABAnalyzer", group "analyzer/") and the CLI
+ * "StreamDAB-Analyser", app "DABAnalyser", group "analyser/") and the CLI
  * (command-line flags built on top of the same defaults).
  *
  * CRITICAL RULE (user mandate / gate 2): every default equals the current
  * etisnoop-parity behavior, so a default-config run (no QSettings values, no
  * CLI flags) is byte-identical to the committed baseline. Never change a
- * default without updating AnalyzerSettings::defaults() and the unit tests.
+ * default without updating AnalyserSettings::defaults() and the unit tests.
  *
  * Rows covered (option-variant matrix):
  *   1  label charset (force_charset / charset_fallback_policy)
@@ -28,8 +28,8 @@
  * @author C++ Qt Developer Agent (settings feature, v1.3)
  */
 
-#ifndef STREAMDAB_ANALYZER_SETTINGS_HPP
-#define STREAMDAB_ANALYZER_SETTINGS_HPP
+#ifndef STREAMDAB_ANALYSER_SETTINGS_HPP
+#define STREAMDAB_ANALYSER_SETTINGS_HPP
 
 #include "eti_types.hpp"   // FicDecodeMode (row 4 helper)
 #include <QString>
@@ -82,14 +82,14 @@ enum class SidDisplayMode : uint8_t {
 };
 
 /**
- * @brief User-selected analyzer decode options (option-variant matrix).
+ * @brief User-selected analyser decode options (option-variant matrix).
  *
- * Plain data struct, no Qt Widgets. Persisted under group "analyzer/" via
- * QSettings (org "StreamDAB-Analyzer", app "DABAnalyzer"). The CLI builds the
+ * Plain data struct, no Qt Widgets. Persisted under group "analyser/" via
+ * QSettings (org "StreamDAB-Analyser", app "DABAnalyser"). The CLI builds the
  * struct from defaults() + CLI-flag overrides only (never from the user's
  * GUI QSettings), keeping default runs byte-identical to the baseline.
  */
-struct AnalyzerSettings {
+struct AnalyserSettings {
     // --- Row 1: label charset ---
     int force_charset{-1};                 // -1 = follow stream; 0/3/6 = override
     CharsetFallbackPolicy charset_fallback_policy{CharsetFallbackPolicy::Raw};
@@ -122,9 +122,9 @@ struct AnalyzerSettings {
     SidDisplayMode sid_display_mode{SidDisplayMode::Hex32};
 
     /** @brief Defaults == current etisnoop-parity behavior (byte parity gate). */
-    static AnalyzerSettings defaults();
+    static AnalyserSettings defaults();
 
-    // --- QSettings persistence (group "analyzer/") ---
+    // --- QSettings persistence (group "analyser/") ---
     /** @brief Save into an explicit QSettings instance. */
     void saveToQSettings(QSettings& s) const;
     /** @brief Load from an explicit QSettings instance (unknown keys -> defaults). */
@@ -188,4 +188,4 @@ struct AnalyzerSettings {
 
 } // namespace eti
 
-#endif // STREAMDAB_ANALYZER_SETTINGS_HPP
+#endif // STREAMDAB_ANALYSER_SETTINGS_HPP

@@ -1,22 +1,22 @@
 /**
- * @file analyzer_settings.cpp
- * @brief Implementation of the user-selectable analyzer decode options.
+ * @file analyser_settings.cpp
+ * @brief Implementation of the user-selectable analyser decode options.
  *
  * @author C++ Qt Developer Agent (settings feature, v1.3)
  */
 
-#include "analyzer_settings.hpp"
+#include "analyser_settings.hpp"
 #include "utils/app_settings.hpp"
 #include <QSettings>
 #include <QStringList>
 
 namespace eti {
 
-AnalyzerSettings AnalyzerSettings::defaults()
+AnalyserSettings AnalyserSettings::defaults()
 {
     // Values must equal the current etisnoop-parity behavior (gate 2). The
     // brace-init here mirrors the member defaults; keep them in sync.
-    AnalyzerSettings s;
+    AnalyserSettings s;
     s.force_charset = -1;
     s.charset_fallback_policy = CharsetFallbackPolicy::Raw;
     s.eti_mode = EtiModeSetting::Auto;
@@ -37,7 +37,7 @@ AnalyzerSettings AnalyzerSettings::defaults()
 // String conversions (stable keys shared by QSettings + CLI overrides)
 // ---------------------------------------------------------------------------
 
-QString AnalyzerSettings::charsetFallbackToString(CharsetFallbackPolicy p)
+QString AnalyserSettings::charsetFallbackToString(CharsetFallbackPolicy p)
 {
     switch (p) {
         case CharsetFallbackPolicy::ForceUtf8: return QStringLiteral("utf8");
@@ -47,7 +47,7 @@ QString AnalyzerSettings::charsetFallbackToString(CharsetFallbackPolicy p)
     }
 }
 
-bool AnalyzerSettings::charsetFallbackFromString(const QString& s, CharsetFallbackPolicy& out)
+bool AnalyserSettings::charsetFallbackFromString(const QString& s, CharsetFallbackPolicy& out)
 {
     const QString v = s.trimmed().toLower();
     if (v == QLatin1String("utf8") || v == QLatin1String("utf-8")) {
@@ -65,7 +65,7 @@ bool AnalyzerSettings::charsetFallbackFromString(const QString& s, CharsetFallba
     return false;
 }
 
-QString AnalyzerSettings::etiModeToString(EtiModeSetting m)
+QString AnalyserSettings::etiModeToString(EtiModeSetting m)
 {
     switch (m) {
         case EtiModeSetting::Li:   return QStringLiteral("li");
@@ -75,7 +75,7 @@ QString AnalyzerSettings::etiModeToString(EtiModeSetting m)
     }
 }
 
-bool AnalyzerSettings::etiModeFromString(const QString& s, EtiModeSetting& out)
+bool AnalyserSettings::etiModeFromString(const QString& s, EtiModeSetting& out)
 {
     const QString v = s.trimmed().toLower();
     if (v == QLatin1String("li")) { out = EtiModeSetting::Li; return true; }
@@ -84,7 +84,7 @@ bool AnalyzerSettings::etiModeFromString(const QString& s, EtiModeSetting& out)
     return false;
 }
 
-QString AnalyzerSettings::ficModeToString(FicModeSetting m)
+QString AnalyserSettings::ficModeToString(FicModeSetting m)
 {
     switch (m) {
         case FicModeSetting::Strict: return QStringLiteral("strict");
@@ -94,7 +94,7 @@ QString AnalyzerSettings::ficModeToString(FicModeSetting m)
     }
 }
 
-bool AnalyzerSettings::ficModeFromString(const QString& s, FicModeSetting& out)
+bool AnalyserSettings::ficModeFromString(const QString& s, FicModeSetting& out)
 {
     const QString v = s.trimmed().toLower();
     if (v == QLatin1String("strict")) { out = FicModeSetting::Strict; return true; }
@@ -103,7 +103,7 @@ bool AnalyzerSettings::ficModeFromString(const QString& s, FicModeSetting& out)
     return false;
 }
 
-QString AnalyzerSettings::labelSourceToString(LabelSourcePriority p)
+QString AnalyserSettings::labelSourceToString(LabelSourcePriority p)
 {
     switch (p) {
         case LabelSourcePriority::Fig11First: return QStringLiteral("fig11");
@@ -112,7 +112,7 @@ QString AnalyzerSettings::labelSourceToString(LabelSourcePriority p)
     }
 }
 
-bool AnalyzerSettings::labelSourceFromString(const QString& s, LabelSourcePriority& out)
+bool AnalyserSettings::labelSourceFromString(const QString& s, LabelSourcePriority& out)
 {
     const QString v = s.trimmed().toLower();
     if (v == QLatin1String("fig11") || v == QLatin1String("1/1")) {
@@ -127,7 +127,7 @@ bool AnalyzerSettings::labelSourceFromString(const QString& s, LabelSourcePriori
     return false;
 }
 
-QString AnalyzerSettings::timestampSourceToString(TimestampSource t)
+QString AnalyserSettings::timestampSourceToString(TimestampSource t)
 {
     switch (t) {
         case TimestampSource::Mtime: return QStringLiteral("mtime");
@@ -136,7 +136,7 @@ QString AnalyzerSettings::timestampSourceToString(TimestampSource t)
     }
 }
 
-bool AnalyzerSettings::timestampSourceFromString(const QString& s, TimestampSource& out)
+bool AnalyserSettings::timestampSourceFromString(const QString& s, TimestampSource& out)
 {
     const QString v = s.trimmed().toLower();
     if (v == QLatin1String("mtime")) { out = TimestampSource::Mtime; return true; }
@@ -144,7 +144,7 @@ bool AnalyzerSettings::timestampSourceFromString(const QString& s, TimestampSour
     return false;
 }
 
-QString AnalyzerSettings::sidDisplayModeToString(SidDisplayMode m)
+QString AnalyserSettings::sidDisplayModeToString(SidDisplayMode m)
 {
     switch (m) {
         case SidDisplayMode::EccSid: return QStringLiteral("ecc-sid");
@@ -154,7 +154,7 @@ QString AnalyzerSettings::sidDisplayModeToString(SidDisplayMode m)
     }
 }
 
-bool AnalyzerSettings::sidDisplayModeFromString(const QString& s, SidDisplayMode& out)
+bool AnalyserSettings::sidDisplayModeFromString(const QString& s, SidDisplayMode& out)
 {
     const QString v = s.trimmed().toLower();
     if (v == QLatin1String("ecc-sid") || v == QLatin1String("eccsid") ||
@@ -168,13 +168,13 @@ bool AnalyzerSettings::sidDisplayModeFromString(const QString& s, SidDisplayMode
 }
 
 // ---------------------------------------------------------------------------
-// QSettings persistence  (org "StreamDAB-Analyzer", app "DABAnalyzer",
-// group "analyzer/")
+// QSettings persistence  (org "StreamDAB-Analyser", app "DABAnalyser",
+// group "analyser/")
 // ---------------------------------------------------------------------------
 
-void AnalyzerSettings::saveToQSettings(QSettings& s) const
+void AnalyserSettings::saveToQSettings(QSettings& s) const
 {
-    s.beginGroup(QStringLiteral("analyzer"));
+    s.beginGroup(QStringLiteral("analyser"));
     s.setValue(QStringLiteral("force_charset"), force_charset);
     s.setValue(QStringLiteral("charset_fallback_policy"),
                charsetFallbackToString(charset_fallback_policy));
@@ -193,11 +193,11 @@ void AnalyzerSettings::saveToQSettings(QSettings& s) const
     s.endGroup();
 }
 
-void AnalyzerSettings::loadFromQSettings(QSettings& s)
+void AnalyserSettings::loadFromQSettings(QSettings& s)
 {
     *this = defaults();
 
-    s.beginGroup(QStringLiteral("analyzer"));
+    s.beginGroup(QStringLiteral("analyser"));
     force_charset = s.value(QStringLiteral("force_charset"), force_charset).toInt();
 
     QString v = s.value(QStringLiteral("charset_fallback_policy"),
@@ -254,14 +254,14 @@ void AnalyzerSettings::loadFromQSettings(QSettings& s)
     s.endGroup();
 }
 
-void AnalyzerSettings::saveToQSettings() const
+void AnalyserSettings::saveToQSettings() const
 {
     QSettings s(streamdab::app_settings::organization(),
                 streamdab::app_settings::application());
     saveToQSettings(s);
 }
 
-void AnalyzerSettings::loadFromQSettings()
+void AnalyserSettings::loadFromQSettings()
 {
     QSettings s(streamdab::app_settings::organization(),
                 streamdab::app_settings::application());
@@ -272,7 +272,7 @@ void AnalyzerSettings::loadFromQSettings()
 // CLI overrides
 // ---------------------------------------------------------------------------
 
-void AnalyzerSettings::applyCliOverrides(const QMap<QString, QVariant>& overrides)
+void AnalyserSettings::applyCliOverrides(const QMap<QString, QVariant>& overrides)
 {
     auto it = overrides.constFind(QStringLiteral("force_charset"));
     if (it != overrides.constEnd()) {
@@ -364,7 +364,7 @@ void AnalyzerSettings::applyCliOverrides(const QMap<QString, QVariant>& override
     }
 }
 
-bool AnalyzerSettings::validate(QString* error) const
+bool AnalyserSettings::validate(QString* error) const
 {
     if (force_charset != -1 && force_charset != 0 && force_charset != 3 &&
         force_charset != 6) {

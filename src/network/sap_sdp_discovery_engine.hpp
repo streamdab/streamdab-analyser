@@ -12,7 +12,7 @@
  * 
  * @author Network/Stream Agent - Phase 3 Production Platform
  * @date 2025-09-28
- * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2025 ETI Stream Analyser Team
  */
 
 #ifndef SAP_SDP_DISCOVERY_ENGINE_HPP
@@ -211,7 +211,7 @@ struct DiscoveredBroadcastService {
     // Service status
     bool is_active = true;                  // Service currently active
     bool is_verified = false;               // Service connectivity verified
-    bool is_eti_compatible = false;         // Compatible with ETI analyzer
+    bool is_eti_compatible = false;         // Compatible with ETI analyser
     QString status_message;                 // Status information
     
     // Custom metadata

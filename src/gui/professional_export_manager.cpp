@@ -24,7 +24,7 @@
 // ---------------------------------------------------------------------------
 // Real-analysis record injection (no synthetic content in the app path).
 //
-// Callers that own the live analysis (DABAnalyzerWindow) inject the current
+// Callers that own the live analysis (DABAnalyserWindow) inject the current
 // rows via ExportConfiguration::customSettings:
 //   customSettings["records"] = QVariantList of QVariantMap (one per row)
 //   customSettings["columns"] = QVariantList of { "key", "header" }
@@ -1015,7 +1015,7 @@ void ExportConfigurationDialog::onResetToDefaults()
 
 void ExportConfigurationDialog::onLoadPreset()
 {
-    QSettings settings(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+    QSettings settings(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
     settings.beginGroup(QStringLiteral("export/preset"));
     ExportConfiguration config = getConfiguration();
     config.format = static_cast<ExportFormat>(
@@ -1033,7 +1033,7 @@ void ExportConfigurationDialog::onLoadPreset()
 void ExportConfigurationDialog::onSavePreset()
 {
     const ExportConfiguration config = getConfiguration();
-    QSettings settings(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+    QSettings settings(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
     settings.beginGroup(QStringLiteral("export/preset"));
     settings.setValue(QStringLiteral("format"), static_cast<int>(config.format));
     settings.setValue(QStringLiteral("scope"), static_cast<int>(config.scope));

@@ -12,7 +12,7 @@
  * 
  * @author Network/Stream Agent - Phase 3 Production Platform Integration
  * @date 2025-09-28
- * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2025 ETI Stream Analyser Team
  */
 
 #ifndef PRODUCTION_STREAMING_INTEGRATION_HPP

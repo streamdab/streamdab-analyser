@@ -1,5 +1,5 @@
 # ============================================================================
-# StreamDAB-Analyzer — canonical container build (Qt 6 / CMake / headless-CI)
+# StreamDAB-Analyser — canonical container build (Qt 6 / CMake / headless-CI)
 #
 # Canonical build instead of the historical Dockerfile.build (which predates
 # the Qt-ADS migration and fails on current tree: missing libzmq3-dev, no
@@ -76,7 +76,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libzmq5 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /workspace/build/StreamDABAnalyzer /usr/local/bin/StreamDABAnalyzer
+COPY --from=build /workspace/build/StreamDABAnalyser /usr/local/bin/StreamDABAnalyser
 COPY --from=build /workspace/build/streamdab-cli /usr/local/bin/streamdab-cli
 
 WORKDIR /data

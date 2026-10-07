@@ -1,5 +1,5 @@
 # Linux-specific build configuration
-# For ETI Stream Analyzer on Linux platforms
+# For ETI Stream Analyser on Linux platforms
 
 message(STATUS "Configuring for Linux platform")
 
@@ -32,7 +32,7 @@ endfunction()
 
 # Linux packaging configuration
 set(CPACK_GENERATOR "DEB;RPM;TGZ")
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "ETI Stream Analyzer Team")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "ETI Stream Analyser Team")
 set(CPACK_DEBIAN_PACKAGE_SECTION "electronics")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6core6, libqt6widgets6, libqt6gui6, libfdk-aac2 (>= 2.0.0) | libfaad2 (>= 2.9.2), libfftw3-3")
 set(CPACK_RPM_PACKAGE_LICENSE "MIT")

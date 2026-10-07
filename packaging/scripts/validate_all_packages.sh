@@ -1,5 +1,5 @@
 #!/bin/bash
-# ETI Stream Analyzer - Comprehensive Package Validation Script
+# ETI Stream Analyser - Comprehensive Package Validation Script
 # Professional validation for all distribution packages
 
 set -e
@@ -9,7 +9,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build"
 
 echo "============================================"
-echo "ETI Stream Analyzer Package Validation Suite"
+echo "ETI Stream Analyser Package Validation Suite"
 echo "Professional Quality Assurance for v1.0.0"
 echo "============================================"
 
@@ -112,9 +112,9 @@ validate_desktop_integration() {
     echo ""
     echo "=== Desktop Integration Validation ==="
 
-    local desktop_file="${PROJECT_ROOT}/resources/linux/eti-stream-analyzer.desktop"
-    local mime_file="${PROJECT_ROOT}/resources/linux/eti-stream-analyzer.xml"
-    local icon_file="${PROJECT_ROOT}/resources/icons/eti-stream-analyzer.svg"
+    local desktop_file="${PROJECT_ROOT}/resources/linux/eti-stream-analyser.desktop"
+    local mime_file="${PROJECT_ROOT}/resources/linux/eti-stream-analyser.xml"
+    local icon_file="${PROJECT_ROOT}/resources/icons/eti-stream-analyser.svg"
 
     validate_file_exists "$desktop_file" "Desktop Entry File"
     validate_file_exists "$mime_file" "MIME Type Definition"
@@ -137,9 +137,9 @@ validate_build_artifacts() {
     echo ""
     echo "=== Build Artifacts Validation ==="
 
-    local executable="${BUILD_DIR}/ETIStreamAnalyzer"
-    local test_unit="${BUILD_DIR}/tests/eti_analyzer_unit_tests"
-    local test_gui="${BUILD_DIR}/tests/eti_analyzer_gui_tests"
+    local executable="${BUILD_DIR}/ETIStreamAnalyser"
+    local test_unit="${BUILD_DIR}/tests/eti_analyser_unit_tests"
+    local test_gui="${BUILD_DIR}/tests/eti_analyser_gui_tests"
 
     validate_file_exists "$executable" "Main Application"
     validate_file_exists "$test_unit" "Unit Test Executable"
@@ -153,7 +153,7 @@ run_functional_tests() {
     echo ""
     echo "=== Functional Testing ==="
 
-    local executable="${BUILD_DIR}/ETIStreamAnalyzer"
+    local executable="${BUILD_DIR}/ETIStreamAnalyser"
 
     if [ -x "$executable" ]; then
         echo "🧪 Testing executable launch (help mode):"
@@ -205,7 +205,7 @@ generate_validation_report() {
     echo "============================================"
     echo "VALIDATION REPORT SUMMARY"
     echo "============================================"
-    echo "Project: ETI Stream Analyzer v1.0.0"
+    echo "Project: ETI Stream Analyser v1.0.0"
     echo "Build Date: $(date)"
     echo "Platform: $(uname -s) $(uname -m)"
     echo "Validation Time: $(date '+%Y-%m-%d %H:%M:%S')"
@@ -242,13 +242,13 @@ main() {
 
     # Core validation
     validate_build_artifacts || ((validation_errors++))
-    validate_executable "${BUILD_DIR}/ETIStreamAnalyzer" || ((validation_errors++))
+    validate_executable "${BUILD_DIR}/ETIStreamAnalyser" || ((validation_errors++))
     validate_desktop_integration || ((validation_errors++))
     validate_packaging_metadata || ((validation_errors++))
 
     # Package validation
-    local deb_file="${BUILD_DIR}/ETI Stream Analyzer-1.0.0-Linux.deb"
-    local tar_file="${BUILD_DIR}/ETI Stream Analyzer-1.0.0-Linux.tar.gz"
+    local deb_file="${BUILD_DIR}/ETI Stream Analyser-1.0.0-Linux.deb"
+    local tar_file="${BUILD_DIR}/ETI Stream Analyser-1.0.0-Linux.tar.gz"
 
     if [ -f "$deb_file" ]; then
         validate_deb_package "$deb_file" || ((validation_errors++))

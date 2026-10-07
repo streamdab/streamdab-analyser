@@ -17,7 +17,7 @@
  * 
  * @author Standards Compliance Agent
  * @date September 22, 2025
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #pragma once

@@ -7,7 +7,7 @@
 #include <memory>
 
 /**
- * @brief Professional GUI testing framework for ETI Stream Analyzer
+ * @brief Professional GUI testing framework for ETI Stream Analyser
  * 
  * Provides comprehensive testing capabilities for Qt GUI components
  * with focus on broadcast industry requirements and 60 FPS performance.

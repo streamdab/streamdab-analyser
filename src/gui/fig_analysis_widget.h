@@ -25,7 +25,7 @@
 // Forward declarations
 // Forward declarations for Modern ETI Core Engine
 namespace eti::modern {
-    class EnhancedFIGAnalyzer;
+    class EnhancedFIGAnalyser;
 }
 
 /**
@@ -108,7 +108,7 @@ public:
      * @param wrapper ETISnoop wrapper instance
      * @return true if successful
      */
-    bool initialize(eti::modern::EnhancedFIGAnalyzer *analyzer);
+    bool initialize(eti::modern::EnhancedFIGAnalyser *analyser);
 
     /**
      * @brief Update FIG analysis data
@@ -374,7 +374,7 @@ private:
     bool validateFig02ServiceOrg();
 
     // Core components
-    eti::modern::EnhancedFIGAnalyzer *m_figAnalyzer;
+    eti::modern::EnhancedFIGAnalyser *m_figAnalyser;
 
     // Main layout
     QVBoxLayout *m_mainLayout;

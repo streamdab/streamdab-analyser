@@ -854,12 +854,12 @@ bool EnhancedETIProcessorQt::processEtiFrame(const QByteArray& frameData)
         qDebug() << "Frame" << parsedFrame << "parsed:" << parsed_frame.header.toString();
     }
 
-    // Process FIC if present (will be used by FIG analyzer - Agent 3's work)
+    // Process FIC if present (will be used by FIG analyser - Agent 3's work)
     if (!parsed_frame.fic_data.isEmpty()) {
         if (!validateFICCRC(parsed_frame.fic_data)) {
             qWarning() << "FIC CRC validation warning for frame" << (frame_count_ + 1);
         }
-        // FIC will be processed by FIG analyzer in future implementation
+        // FIC will be processed by FIG analyser in future implementation
         processFicData(parsed_frame.fic_data);
     }
 

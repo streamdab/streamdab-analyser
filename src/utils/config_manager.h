@@ -8,7 +8,7 @@
 
 /**
  * @class ConfigManager
- * @brief Configuration management for ETI Stream Analyzer
+ * @brief Configuration management for ETI Stream Analyser
  * 
  * Handles application settings, user preferences, and configuration
  * persistence using Qt's QSettings framework.

@@ -2,7 +2,7 @@
  * @file audio_output_sink.hpp
  * @brief T34: minimal ALSA playback sink for the decoded DAB+ PCM stream.
  *
- * The analyzer intentionally does not depend on Qt Multimedia (its dev package
+ * The analyser intentionally does not depend on Qt Multimedia (its dev package
  * is not required by this project); on Linux the sink talks to ALSA directly.
  * When ALSA is unavailable at build time (`HAVE_ALSA` unset) the class still
  * compiles and degrades gracefully: it reports the missing backend via

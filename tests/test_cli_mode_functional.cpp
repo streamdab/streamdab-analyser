@@ -6,7 +6,7 @@
  * PDCA Week 8 - CLI Mode Development
  *
  * This test suite verifies the complete CLI workflow by launching the
- * streamdab-analyzer executable in CLI mode and validating:
+ * streamdab-analyser executable in CLI mode and validating:
  * - Exit codes
  * - YAML output format
  * - File operations

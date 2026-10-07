@@ -1,5 +1,5 @@
 # GUI Tests CMakeLists.txt
-# Automated GUI testing for DABAnalyzerWindow
+# Automated GUI testing for DABAnalyserWindow
 
 message(STATUS "Configuring GUI tests...")
 
@@ -23,7 +23,7 @@ include_directories(
 # Core source files needed by GUI tests
 set(GUI_TEST_CORE_SOURCES
     ${CMAKE_SOURCE_DIR}/src/core/enhanced_eti_processor_qt.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/advanced_fig_analyzer.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/advanced_fig_analyser.cpp
     ${CMAKE_SOURCE_DIR}/src/core/etsi_compliance_engine.cpp
     ${CMAKE_SOURCE_DIR}/src/core/multi_stream_processor.cpp
     ${CMAKE_SOURCE_DIR}/src/core/advanced_error_detection.cpp
@@ -129,7 +129,7 @@ message(STATUS "  ✓ test_gui_click_through_workflow configured (E2E user inter
 # ============================================================================
 
 # Note: Starting with basic framework test to validate Qt GUI infrastructure
-# Full DABAnalyzerWindow testing requires integration test approach (see documentation)
+# Full DABAnalyserWindow testing requires integration test approach (see documentation)
 
 message(STATUS "GUI tests configured: 3 tests enabled")
 message(STATUS "  - test_gui_framework_basic (Qt infrastructure)")

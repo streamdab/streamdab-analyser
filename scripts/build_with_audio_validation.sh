@@ -18,7 +18,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo "=== ETI Stream Analyzer - Enhanced Build with Audio Validation ==="
+echo "=== ETI Stream Analyser - Enhanced Build with Audio Validation ==="
 echo "Project: $PROJECT_ROOT"
 echo "Build Directory: $BUILD_DIR"
 echo
@@ -142,7 +142,7 @@ echo
 # Step 6: Verify the built executable
 echo "Step 6: Verifying built executable..."
 
-EXECUTABLE="$BUILD_DIR/ETIStreamAnalyzer"
+EXECUTABLE="$BUILD_DIR/ETIStreamAnalyser"
 if [ -f "$EXECUTABLE" ]; then
     echo -e "${GREEN}✅ Executable created: $EXECUTABLE${NC}"
 
@@ -183,7 +183,7 @@ fi
 # Final summary
 echo
 echo "=== Build Summary ==="
-echo -e "${GREEN}✅ ETI Stream Analyzer build completed successfully${NC}"
+echo -e "${GREEN}✅ ETI Stream Analyser build completed successfully${NC}"
 echo
 echo "Executable: $EXECUTABLE"
 

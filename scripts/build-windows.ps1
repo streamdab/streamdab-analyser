@@ -1,5 +1,5 @@
 # ============================================================================
-# StreamDAB Analyzer - Windows native build helper (MSVC + Qt6 + vcpkg)
+# StreamDAB Analyser - Windows native build helper (MSVC + Qt6 + vcpkg)
 #
 # Configures with the Visual Studio 2022 generator, builds with bounded
 # parallelism, then (optionally) runs the test suite offscreen. See
@@ -53,7 +53,7 @@ function Fail([string]$Message) {
 
 function Show-Help {
     Write-Host @"
-StreamDAB Analyzer - Windows build (MSVC + Qt6 + vcpkg)
+StreamDAB Analyser - Windows build (MSVC + Qt6 + vcpkg)
 
 USAGE:
   .\scripts\build-windows.ps1 [options]
@@ -132,7 +132,7 @@ if ($Help) {
     exit 0
 }
 
-Write-Host "StreamDAB Analyzer - Windows build" -ForegroundColor Green
+Write-Host "StreamDAB Analyser - Windows build" -ForegroundColor Green
 Write-Host "  Config:   $Config"
 Write-Host "  BuildDir: $BuildPath"
 

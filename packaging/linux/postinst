@@ -1,5 +1,5 @@
 #!/bin/bash
-# Post-installation script for StreamDAB Stream Analyzer
+# Post-installation script for StreamDAB Stream Analyser
 # Debian/Ubuntu package post-installation
 
 set -e
@@ -24,8 +24,8 @@ case "$1" in
         # Create user configuration directory template
         if [ ! -d /etc/skel/.config/StreamDAB ]; then
             mkdir -p /etc/skel/.config/StreamDAB
-            cat > /etc/skel/.config/StreamDAB/analyzer.conf << 'EOF'
-# StreamDAB Stream Analyzer Default Configuration
+            cat > /etc/skel/.config/StreamDAB/analyser.conf << 'EOF'
+# StreamDAB Stream Analyser Default Configuration
 [General]
 AutoOpenRecentFiles=true
 ShowWelcomeDialog=true
@@ -65,7 +65,7 @@ EOF
             groupadd -r broadcast 2>/dev/null || true
         fi
 
-        echo "StreamDAB Stream Analyzer installation completed successfully"
+        echo "StreamDAB Stream Analyser installation completed successfully"
         echo "Professional ETI analysis tools are now available"
         ;;
 

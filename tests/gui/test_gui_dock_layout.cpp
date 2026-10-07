@@ -1,6 +1,6 @@
 /**
  * @file test_gui_dock_layout.cpp
- * @brief Qt-ADS (Qt Advanced Docking System) layout tests for DABAnalyzerWindow
+ * @brief Qt-ADS (Qt Advanced Docking System) layout tests for DABAnalyserWindow
  *
  * UI redesign (v2) validation:
  *   a) exactly 4 CDockManagers (one per tab + one window-level bottom dock area)
@@ -129,7 +129,7 @@ private slots:
     void testLayoutVersionReset();
     void testFloatingRoundTrip();
     void testAutoHideConfig();
-    void testReloadResetsAnalyzerState();
+    void testReloadResetsAnalyserState();
     void testEnsembleTreeRealFixture();
     // Manual-test findings 1-4 regression coverage
     void testTabTitlesAndStylesheet();
@@ -145,7 +145,7 @@ private slots:
     // T20 review findings 1 + 2
     void testXpadOversizePadRejected();
     void testDabPlusServiceCacheRevision();
-    // T25: queued FIG signals must not fire against a torn-down analyzer
+    // T25: queued FIG signals must not fire against a torn-down analyser
     void testTeardownDropsQueuedFigSignals();
     // T22 network-stream invalid-URL guard
     void testNetworkStreamInvalidUrlGuard();
@@ -188,13 +188,13 @@ private slots:
     void testNetworkLiveAfterFileLoadNoStaleFileState();
 
 private:
-    // Removes every DABAnalyzerWindow QSettings key used by the app so each
+    // Removes every DABAnalyserWindow QSettings key used by the app so each
     // window-based test starts from a CLEARED store. window.close() saves dock
     // state; without this, the next window would restore the previous layout
     // and break first-launch expectations.
     static void clearSettingsStore()
     {
-        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
         s.remove(QStringLiteral("window/geometry"));
         s.remove(QStringLiteral("docking/layout_version"));
         s.remove(QStringLiteral("docking/tab1"));
@@ -281,27 +281,27 @@ private:
 
 void TestGuiDockLayout::initTestCase()
 {
-    // Every window in this test reads/writes DABAnalyzerWindow's QSettings
-    // store ("StreamDAB-Analyzer","DABAnalyzer"). Redirect it to Qt's test-mode
+    // Every window in this test reads/writes DABAnalyserWindow's QSettings
+    // store ("StreamDAB-Analyser","DABAnalyser"). Redirect it to Qt's test-mode
     // location so the real user config is never touched, and start empty.
     QStandardPaths::setTestModeEnabled(true);
     // Wave B: SettingsDialog uses a default QSettings, which resolves org/app
     // from QCoreApplication. Match the app so the round-trip test hits the
     // same test-mode store.
-    QCoreApplication::setOrganizationName(QStringLiteral("StreamDAB-Analyzer"));
-    QCoreApplication::setApplicationName(QStringLiteral("DABAnalyzer"));
-    QSettings(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer")).clear();
+    QCoreApplication::setOrganizationName(QStringLiteral("StreamDAB-Analyser"));
+    QCoreApplication::setApplicationName(QStringLiteral("DABAnalyser"));
+    QSettings(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser")).clear();
 }
 
 void TestGuiDockLayout::cleanupTestCase()
 {
-    QSettings(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer")).clear();
+    QSettings(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser")).clear();
 }
 
 void TestGuiDockLayout::testFourDockManagers()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -321,7 +321,7 @@ void TestGuiDockLayout::testFourDockManagers()
 void TestGuiDockLayout::testDocksWithExpectedNames()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -368,7 +368,7 @@ void TestGuiDockLayout::testDocksWithExpectedNames()
 void TestGuiDockLayout::testDefaultGroupedPlacement()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -484,7 +484,7 @@ void TestGuiDockLayout::testDefaultGroupedPlacement()
 void TestGuiDockLayout::testDefaultActiveTabs()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -551,7 +551,7 @@ void TestGuiDockLayout::testDefaultActiveTabs()
 void TestGuiDockLayout::testBottomStripDocks()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -680,7 +680,7 @@ void TestGuiDockLayout::testBottomStripDocks()
 void TestGuiDockLayout::testInputToolbar()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -769,7 +769,7 @@ void TestGuiDockLayout::testInputToolbar()
 void TestGuiDockLayout::testUdpSettingsGearOpensDialog()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -822,7 +822,7 @@ void TestGuiDockLayout::testPersistenceRoundTrip()
 
     // --- First launch: default layout, hide one dock, close (saves state) ---
     {
-        DABAnalyzerWindow w;
+        DABAnalyserWindow w;
         w.show();
         QCoreApplication::processEvents();
 
@@ -840,7 +840,7 @@ void TestGuiDockLayout::testPersistenceRoundTrip()
         QCoreApplication::processEvents();
     }
 
-    const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+    const QSettings check(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
     QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 8);
     QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab2")).isNull());
@@ -849,7 +849,7 @@ void TestGuiDockLayout::testPersistenceRoundTrip()
 
     // --- Second launch: restored state must keep the dock hidden ---
     {
-        DABAnalyzerWindow w2;
+        DABAnalyserWindow w2;
         w2.show();
         QCoreApplication::processEvents();
 
@@ -933,7 +933,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
     // 1) First launch: hide Now Playing, select CU Usage in the Signal
     // Analysis group (the user-observed stale active tab), close -> saves state.
     {
-        DABAnalyzerWindow w;
+        DABAnalyserWindow w;
         w.show();
         QCoreApplication::processEvents();
 
@@ -954,21 +954,21 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QCoreApplication::processEvents();
     }
     {
-        const QSettings check(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        const QSettings check(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
         QCOMPARE(check.value(versionKey).toInt(), 8);
         QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     }
 
     // 2) Simulate a stale v1 store: downgrade the layout version.
     {
-        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
         s.setValue(versionKey, 1);
         s.sync();
     }
 
     // 3) Second launch: stale state discarded -> default redesign layout.
     {
-        DABAnalyzerWindow w2;
+        DABAnalyserWindow w2;
         w2.show();
         QCoreApplication::processEvents();
 
@@ -1023,11 +1023,11 @@ void TestGuiDockLayout::testLayoutVersionReset()
 
     // 4) Version is 8 again; a third launch restores normally (v8 round-trip).
     {
-        const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
         QCOMPARE(s.value(versionKey).toInt(), 8);
     }
     {
-        DABAnalyzerWindow w3;
+        DABAnalyserWindow w3;
         w3.show();
         QCoreApplication::processEvents();
 
@@ -1047,7 +1047,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
     // Playing hidden), then confirm the next launch shows the default redesign
     // layout and re-saves v8.
     {
-        DABAnalyzerWindow w;
+        DABAnalyserWindow w;
         w.show();
         QCoreApplication::processEvents();
         auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
@@ -1060,14 +1060,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QCoreApplication::processEvents();
     }
     {
-        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
         QCOMPARE(s.value(versionKey).toInt(), 8);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
         s.setValue(versionKey, 5);  // simulate the v5 -> v8 migration
         s.sync();
     }
     {
-        DABAnalyzerWindow w4;
+        DABAnalyserWindow w4;
         w4.show();
         QCoreApplication::processEvents();
         auto* m1 = w4.findChild<ads::CDockManager*>("tab1DockManager");
@@ -1081,7 +1081,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QCoreApplication::processEvents();
     }
     {
-        const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
         QCOMPARE(s.value(versionKey).toInt(), 8);
     }
 
@@ -1091,7 +1091,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
 void TestGuiDockLayout::testFloatingRoundTrip()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -1126,13 +1126,13 @@ void TestGuiDockLayout::testFloatingRoundTrip()
     QCoreApplication::processEvents();
 }
 
-void TestGuiDockLayout::testReloadResetsAnalyzerState()
+void TestGuiDockLayout::testReloadResetsAnalyserState()
 {
-    // Finding 10: loadETIFile() must reset the FIG analyzer before a NEW
+    // Finding 10: loadETIFile() must reset the FIG analyser before a NEW
     // file so Tab-3 instances / FIG counters / FIB-CRC counts restart clean
     // instead of accumulating across files.
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -1144,20 +1144,20 @@ void TestGuiDockLayout::testReloadResetsAnalyzerState()
 
     // --- First load: full fixture ---
     w.autoLoadFile(fixture);
-    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0,
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyserFigInstanceCount() > 0,
                              120000);
-    const int inst1 = w.analyzerFigInstanceCount();
-    const int total1 = w.analyzerTotalFigCount();
+    const int inst1 = w.analyserFigInstanceCount();
+    const int total1 = w.analyserTotalFigCount();
     QVERIFY2(total1 > 0, "first load must decode FIGs");
     QVERIFY2(inst1 > 0, "first load must record FIG instances");
 
-    // --- Second load of the same file: without the analyzer reset the
+    // --- Second load of the same file: without the analyser reset the
     // instance list / counters would accumulate (inst2 ~= inst1 + inst1) ---
     w.autoLoadFile(fixture);
-    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0,
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyserFigInstanceCount() > 0,
                              120000);
-    const int inst2 = w.analyzerFigInstanceCount();
-    const int total2 = w.analyzerTotalFigCount();
+    const int inst2 = w.analyserFigInstanceCount();
+    const int total2 = w.analyserTotalFigCount();
     QVERIFY2(inst2 <= inst1,
              qPrintable(QString("FIG instances accumulated across reloads: "
                                 "%1 -> %2").arg(inst1).arg(inst2)));
@@ -1165,7 +1165,7 @@ void TestGuiDockLayout::testReloadResetsAnalyzerState()
              qPrintable(QString("FIG counters accumulated across reloads: "
                                 "%1 -> %2").arg(total1).arg(total2)));
     // FIB-CRC failures stay at 0 on the clean capture across reloads.
-    QCOMPARE(w.analyzerFibCrcFailureCount(), 0);
+    QCOMPARE(w.analyserFibCrcFailureCount(), 0);
     // The Tab-3 instance tree reflects only the second load. Observation (d):
     // it is grouped by (type, ext), so count the CHILD instances, not the
     // top-level group nodes.
@@ -1204,9 +1204,9 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
     // EId 0x2000) and the decoded service label ("RROne FM 101") — not
     // mojibake/garbage from the pre-fix FIG walking (this test documents the
     // v1.3 GUI decode fix; the deterministic decode itself is covered by
-    // test_advanced_fig_analyzer).
+    // test_advanced_fig_analyser).
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -1481,7 +1481,7 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
     QVERIFY2(foundF870,
              "FIG 1/1 details must show the character flag 0xF870");
 
-    // --- Finding 5: FIC overview fed with real analyzer values ---
+    // --- Finding 5: FIC overview fed with real analyser values ---
     QTreeWidget* ficOverview = w.ficOverviewTree();
     QVERIFY(ficOverview);
     QVERIFY2(ficOverview->topLevelItemCount() > 0,
@@ -1510,7 +1510,7 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
     QVERIFY2(noPlaceholder,
              "FIC overview must not contain placeholder literals");
 
-    // --- Error & Stats: FIB CRC error counter fed from the analyzer ---
+    // --- Error & Stats: FIB CRC error counter fed from the analyser ---
     QTableWidget* errT = w.errorCounterTable();
     QVERIFY(errT);
     int fibCrcRow = -1;
@@ -1750,7 +1750,7 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
 void TestGuiDockLayout::testTabTitlesAndStylesheet()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -1799,7 +1799,7 @@ void TestGuiDockLayout::testTabTitlesAndStylesheet()
 void TestGuiDockLayout::testFrameNavigatorCrashGuard()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -1938,7 +1938,7 @@ QByteArray buildSyntheticDabPlusDlsSuperframe()
 void TestGuiDockLayout::testNowPlayingDlsPlusSynthetic()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -1970,7 +1970,7 @@ void TestGuiDockLayout::testNowPlayingDlsPlusSynthetic()
     tags.append({1, {14, 7}});   // ITEM.TITLE  "Hey Jude"
     tags.append({2, {24, 9}});   // ITEM.ALBUM  "Abbey Road"
     int mapped = 0;
-    const QByteArray dlPlusPad = DABAnalyzerWindow::buildDecoderPadForTest(
+    const QByteArray dlPlusPad = DABAnalyserWindow::buildDecoderPadForTest(
         QByteArrayLiteral("The Beatles - Hey Jude [Abbey Road]"), 15, tags, mapped);
     QCOMPARE(mapped, 3);
     QVERIFY(w.feedPadDataForTest(dlPlusPad));
@@ -1985,7 +1985,7 @@ void TestGuiDockLayout::testNowPlayingDlsPlusSynthetic()
 void TestGuiDockLayout::testDabPlusPadParserRejectsGarbage()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -2022,7 +2022,7 @@ void TestGuiDockLayout::testDlsResetHistory()
     QVERIFY2(spy.isValid(), "nowPlayingUpdated spy must be valid");
 
     int mapped = 0;
-    const QByteArray pad = DABAnalyzerWindow::buildDecoderPadForTest(
+    const QByteArray pad = DABAnalyserWindow::buildDecoderPadForTest(
         QByteArrayLiteral("Same Artist - Same Song"), 15, {}, mapped);
     QCOMPARE(mapped, 0);  // plain DLS -> fallback descriptor
 
@@ -2044,7 +2044,7 @@ void TestGuiDockLayout::testDlsResetHistory()
 void TestGuiDockLayout::testLongUtf8LabelRoundTrip()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -2058,7 +2058,7 @@ void TestGuiDockLayout::testLongUtf8LabelRoundTrip()
                             .arg(labelBytes.size())));
 
     int mapped = 0;
-    const QByteArray pad = DABAnalyzerWindow::buildDecoderPadForTest(labelBytes, 15, {}, mapped);
+    const QByteArray pad = DABAnalyserWindow::buildDecoderPadForTest(labelBytes, 15, {}, mapped);
     QCOMPARE(mapped, 0);
     QVERIFY(!pad.isEmpty());
 
@@ -2076,7 +2076,7 @@ void TestGuiDockLayout::testLongUtf8LabelRoundTrip()
     for (const int n : {63, 64, 65, 127}) {
         const QByteArray bytes(n, 'A');
         int m = 0;
-        const QByteArray p = DABAnalyzerWindow::buildDecoderPadForTest(bytes, 15, {}, m);
+        const QByteArray p = DABAnalyserWindow::buildDecoderPadForTest(bytes, 15, {}, m);
         QCOMPARE(m, 0);
         QVERIFY(!p.isEmpty());
         QVERIFY(w.feedPadDataForTest(p));
@@ -2088,7 +2088,7 @@ void TestGuiDockLayout::testLongUtf8LabelRoundTrip()
     {
         const QByteArray bytes(130, 'B');
         int m = 0;
-        const QByteArray p = DABAnalyzerWindow::buildDecoderPadForTest(bytes, 15, {}, m);
+        const QByteArray p = DABAnalyserWindow::buildDecoderPadForTest(bytes, 15, {}, m);
         QVERIFY(!p.isEmpty());
         QVERIFY(w.feedPadDataForTest(p));
         const QString got = w.nowPlayingTrackForTest();
@@ -2107,7 +2107,7 @@ void TestGuiDockLayout::testLongUtf8LabelRoundTrip()
 void TestGuiDockLayout::testDlPlusFromPadPath()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -2402,14 +2402,14 @@ QByteArray fig11ServiceLabel(uint16_t serviceId, const QByteArray& labelIn)
 
 // ============================================================================
 // T20 finding 2: the DAB+ sub-channel -> service cache must invalidate on the
-// analyzer's monotonic service revision, not only on count changes. A FIG 1/1
+// analyser's monotonic service revision, not only on count changes. A FIG 1/1
 // label arriving after the cache was built (with an empty label) must be
 // reflected in the resolved service label and the Now Playing panel line.
 // ============================================================================
 void TestGuiDockLayout::testDabPlusServiceCacheRevision()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -2422,7 +2422,7 @@ void TestGuiDockLayout::testDabPlusServiceCacheRevision()
     QVERIFY2(w.figServiceRevisionForTest() != rev0,
              "FIG 0/2 must advance the service revision");
     // Drain the queued servicesUpdated() before any close: the window's
-    // queued-slot connections must not fire against a torn-down analyzer.
+    // queued-slot connections must not fire against a torn-down analyser.
     QCoreApplication::processEvents();
 
     // Build the cache now -> under the old count-only invalidation it pinned
@@ -2455,9 +2455,9 @@ void TestGuiDockLayout::testDabPlusServiceCacheRevision()
 // ============================================================================
 // T25: a queued FIG signal (servicesUpdated/subChannelsUpdated/
 // ensembleInfoUpdated) posted right before close must NOT be delivered against
-// the torn-down AdvancedFIGAnalyzer. Pre-T25, closeEvent() reset m_figAnalyzer
+// the torn-down AdvancedFIGAnalyser. Pre-T25, closeEvent() reset m_figAnalyser
 // and then called processEvents(), which delivered the still-queued
-// onServicesUpdated() -> getServiceCount() on the freed analyzer (latent
+// onServicesUpdated() -> getServiceCount() on the freed analyser (latent
 // crash). Mechanism note (F3): QObject::disconnect only stops FUTURE emissions;
 // the already-posted queued call is neutralised by the null-guard in
 // onServicesUpdated()/onSubChannelsUpdated() (the actual fix). This feeds a FIG
@@ -2467,11 +2467,11 @@ void TestGuiDockLayout::testDabPlusServiceCacheRevision()
 void TestGuiDockLayout::testTeardownDropsQueuedFigSignals()
 {
     clearSettingsStore();
-    auto* w = new DABAnalyzerWindow;
+    auto* w = new DABAnalyserWindow;
     w->show();
     QCoreApplication::processEvents();
 
-    // FIG 0/2 advances the service revision and makes AdvancedFIGAnalyzer emit
+    // FIG 0/2 advances the service revision and makes AdvancedFIGAnalyser emit
     // servicesUpdated(). The window's connection is Qt::QueuedConnection, so a
     // delivery event is now pending in this thread's event queue — deliberately
     // NOT drained before close.
@@ -2479,13 +2479,13 @@ void TestGuiDockLayout::testTeardownDropsQueuedFigSignals()
     const uint32_t revisionBeforeClose = w->figServiceRevisionForTest();
     QVERIFY(revisionBeforeClose != 0u);
 
-    // close() -> closeEvent() resets the analyzer and runs processEvents();
+    // close() -> closeEvent() resets the analyser and runs processEvents();
     // the stale queued servicesUpdated() must be a no-op (null-guard), so the
-    // window survives and its analyzer-dependent hook reports the torn-down
-    // (null-analyzer) state instead of dereferencing a freed pointer.
+    // window survives and its analyser-dependent hook reports the torn-down
+    // (null-analyser) state instead of dereferencing a freed pointer.
     w->close();
     QCoreApplication::processEvents();
-    QCOMPARE(w->figServiceRevisionForTest(), 0u);  // analyzer gone, window alive
+    QCOMPARE(w->figServiceRevisionForTest(), 0u);  // analyser gone, window alive
 
     // Destroy with no close event in flight — the destructor's own disconnect
     // + guard path must also be safe.
@@ -2493,7 +2493,7 @@ void TestGuiDockLayout::testTeardownDropsQueuedFigSignals()
     QCoreApplication::processEvents();
 
     // Reaching here means teardown with a pending queued FIG signal completed
-    // without a crash; the post-condition is the null-analyzer state asserted
+    // without a crash; the post-condition is the null-analyser state asserted
     // above while the window was still alive.
 }
 
@@ -2504,7 +2504,7 @@ void TestGuiDockLayout::testTeardownDropsQueuedFigSignals()
 void TestGuiDockLayout::testNetworkStreamInvalidUrlGuard()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -2577,7 +2577,7 @@ void TestGuiDockLayout::testNetworkStreamInvalidUrlGuard()
 void TestGuiDockLayout::testStreamErrorAfterConnectedIsLogOnly()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -2624,7 +2624,7 @@ void TestGuiDockLayout::testStreamErrorAfterConnectedIsLogOnly()
 void TestGuiDockLayout::testTabPagesDescriptiveTitles()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -2638,7 +2638,7 @@ void TestGuiDockLayout::testTabPagesDescriptiveTitles()
                                  QStringLiteral("TODO")};
 
     QStringList seenTitles;
-    for (int tab = 1; tab <= 2; ++tab) {  // Tab 2 = FIC-Analyzer, Tab 3 = FIC-Extractor
+    for (int tab = 1; tab <= 2; ++tab) {  // Tab 2 = FIC-Analyser, Tab 3 = FIC-Extractor
         QWidget* page = mainTabs->widget(tab);
         QVERIFY2(page, qPrintable(QString("tab page %1 missing").arg(tab)));
         const QList<QGroupBox*> groups = page->findChildren<QGroupBox*>();
@@ -3006,7 +3006,7 @@ void TestGuiDockLayout::testMotXpadCiFlagZeroContinuation()
 void TestGuiDockLayout::testMotSlideshowPanelAndTabs()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -3125,7 +3125,7 @@ void TestGuiDockLayout::testMotSlideshowPanelAndTabs()
 void TestGuiDockLayout::testMotSlideshowRealFixture()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -3135,7 +3135,7 @@ void TestGuiDockLayout::testMotSlideshowRealFixture()
                             .arg(fixture, QDir::currentPath())));
     w.autoLoadFile(fixture);
     QCoreApplication::processEvents();
-    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0, 120000);
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyserFigInstanceCount() > 0, 120000);
 
     // The Bangkok capture really carries MOT SlideShow (X-PAD CI 12/13): the
     // whole pipeline must have decoded the documented number of objects/images.
@@ -3196,7 +3196,7 @@ void TestGuiDockLayout::testMotSlideshowRealFixture()
 void TestGuiDockLayout::testPlayerPanelTransportControls()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -3247,7 +3247,7 @@ void TestGuiDockLayout::testPlayerPanelTransportControls()
     // with a null icon to prove both branches work.
     {
         QPushButton nullIconProbe;
-        DABAnalyzerWindow::applyTransportButtonFace(
+        DABAnalyserWindow::applyTransportButtonFace(
             &nullIconProbe, QIcon(), QStringLiteral("Play"));
         QVERIFY2(nullIconProbe.icon().isNull(),
                  "null icon must leave the button icon-less");
@@ -3256,7 +3256,7 @@ void TestGuiDockLayout::testPlayerPanelTransportControls()
                  "fallback button must keep a sane width range");
 
         QPushButton styleIconProbe;
-        DABAnalyzerWindow::applyTransportButtonFace(
+        DABAnalyserWindow::applyTransportButtonFace(
             &styleIconProbe,
             styleIconProbe.style()->standardIcon(QStyle::SP_MediaPlay),
             QStringLiteral("Play"));
@@ -3284,7 +3284,7 @@ void TestGuiDockLayout::testLoggingTabLive()
     // the remaining dock tests.
     const Logger::LogLevel originalLevel = Logger::instance().getLogLevel();
 
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -3433,7 +3433,7 @@ void TestGuiDockLayout::testLoggingTabBatching()
     clearSettingsStore();
     const Logger::LogLevel originalLevel = Logger::instance().getLogLevel();
 
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -3502,7 +3502,7 @@ void TestGuiDockLayout::testLoggingTabBatching()
 void TestGuiDockLayout::testPlaybackController()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -3607,7 +3607,7 @@ void TestGuiDockLayout::testPlayerActiveTabAfterVersionBump()
 {
     clearSettingsStore();
     {
-        DABAnalyzerWindow w;
+        DABAnalyserWindow w;
         w.show();
         QCoreApplication::processEvents();
         auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
@@ -3623,12 +3623,12 @@ void TestGuiDockLayout::testPlayerActiveTabAfterVersionBump()
         QCoreApplication::processEvents();
     }
     {
-        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
         s.setValue(QStringLiteral("docking/layout_version"), 5);  // stale v5
         s.sync();
     }
     {
-        DABAnalyzerWindow w;
+        DABAnalyserWindow w;
         w.show();
         QCoreApplication::processEvents();
         auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
@@ -3663,7 +3663,7 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
     //    Reference old order: 1512f53 `centerDocks = {EnsembleExplorer…,
     //    FrameNavigator…, NowPlaying}` (Now Playing was the bottom entry).
     {
-        DABAnalyzerWindow w;
+        DABAnalyserWindow w;
         w.show();
         QCoreApplication::processEvents();
         auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
@@ -3710,7 +3710,7 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
         QCoreApplication::processEvents();
     }
     {
-        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
         QCOMPARE(s.value(versionKey).toInt(), 8);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
         s.setValue(versionKey, 5);  // simulate a stale v5 store
@@ -3720,7 +3720,7 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
     // 2) Relaunch: the stale v5 state must be discarded; the center order and
     //    each group's default active dock are the corrected defaults.
     {
-        DABAnalyzerWindow w;
+        DABAnalyserWindow w;
         w.show();
         QCoreApplication::processEvents();
         auto* m1 = w.findChild<ads::CDockManager*>("tab1DockManager");
@@ -3757,7 +3757,7 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
         QCoreApplication::processEvents();
     }
     {
-        const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
         QCOMPARE(s.value(versionKey).toInt(), 8);
     }
 
@@ -3770,7 +3770,7 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
 void TestGuiDockLayout::testPlayerServiceSelector()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -3793,24 +3793,24 @@ void TestGuiDockLayout::testPlayerServiceSelector()
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
     w.autoLoadFile(fixture);
-    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0, 120000);
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyserFigInstanceCount() > 0, 120000);
 
     // --- Selector populated with all decoded services, enabled. ---
-    // The GUI analyzer exposes the fixture's services 1:1: 14 DAB+ audio plus
+    // The GUI analyser exposes the fixture's services 1:1: 14 DAB+ audio plus
     // 2 data services (0xF3200000 and 0xF3200001). T35 fixed the CLI's separate
     // headless discovery to key/validate on the full 32-bit SID, so CLI and GUI
     // now agree (16) — this test pins the GUI's 16-service selector.
     QVERIFY2(combo->isEnabled(), "T32: selector must be enabled after a load");
     const QList<quint32> ids = w.serviceSelectorIdsForTest();
-    std::fprintf(stderr, "[T32-TEST] selector items=%d (analyzer services=%d)\n",
-                 combo->count(), w.analyzerServiceCountForTest());
+    std::fprintf(stderr, "[T32-TEST] selector items=%d (analyser services=%d)\n",
+                 combo->count(), w.analyserServiceCountForTest());
     for (int i = 0; i < combo->count(); ++i) {
         std::fprintf(stderr, "[T32-TEST]   [%d] %s (0x%08X)\n", i,
                      qPrintable(combo->itemText(i)),
                      static_cast<unsigned>(combo->itemData(i).toUInt()));
     }
     QCOMPARE(ids.size(), combo->count());
-    QCOMPARE(combo->count(), w.analyzerServiceCountForTest());
+    QCOMPARE(combo->count(), w.analyserServiceCountForTest());
     QCOMPARE(combo->count(), 16);  // review #5: exact fixture service count
     for (int i = 0; i < combo->count(); ++i) {
         QVERIFY2(combo->itemText(i).contains(QStringLiteral("0x")),
@@ -4116,7 +4116,7 @@ void TestGuiDockLayout::testPlayerServiceSelector()
 void TestGuiDockLayout::testRetainedSlideEviction()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;  // no file needed: synthetic slides + injected cap
+    DABAnalyserWindow w;  // no file needed: synthetic slides + injected cap
 
     const qint64 slideBytes = QImage(64, 64, QImage::Format_ARGB32).sizeInBytes();
     QVERIFY2(slideBytes > 0, "synthetic slide size must be positive");
@@ -4204,7 +4204,7 @@ void TestGuiDockLayout::testRetainedSlideEviction()
 void TestGuiDockLayout::testAdoptedWidgetsAndExportRealFixture()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -4239,7 +4239,7 @@ void TestGuiDockLayout::testAdoptedWidgetsAndExportRealFixture()
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
     w.autoLoadFile(fixture);
-    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0,
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyserFigInstanceCount() > 0,
                              120000);
     QVERIFY2(exportAction->isEnabled(), "Export must be enabled after load");
 
@@ -4393,7 +4393,7 @@ void TestGuiDockLayout::testAdoptedWidgetsAndExportRealFixture()
 }
 
 // Wave B: dialog construction + the Settings dialog round-trips a real
-// AnalyzerSettings value through the "analyzer/" QSettings group.
+// AnalyserSettings value through the "analyser/" QSettings group.
 void TestGuiDockLayout::testAboutAndSettingsDialogs()
 {
     // AboutDialog constructs (constructed, not exec'd — no modal loop).
@@ -4405,8 +4405,8 @@ void TestGuiDockLayout::testAboutAndSettingsDialogs()
 
     clearSettingsStore();
     {
-        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        s.remove(QStringLiteral("analyzer"));
+        QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
+        s.remove(QStringLiteral("analyser"));
         s.sync();
     }
 
@@ -4414,21 +4414,21 @@ void TestGuiDockLayout::testAboutAndSettingsDialogs()
     {
         SettingsDialog dlg;
         auto* spin = dlg.findChild<QSpinBox*>(QStringLiteral("settingsForceCharset"));
-        QVERIFY2(spin, "analyzer force-charset control must be reachable");
+        QVERIFY2(spin, "analyser force-charset control must be reachable");
         spin->setValue(target);
         dlg.saveSettings();
     }
 
     {
-        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        eti::AnalyzerSettings roundTripped = eti::AnalyzerSettings::defaults();
+        QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
+        eti::AnalyserSettings roundTripped = eti::AnalyserSettings::defaults();
         roundTripped.loadFromQSettings(s);
         QCOMPARE(roundTripped.force_charset, target);
     }
 
     {
-        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
-        s.remove(QStringLiteral("analyzer"));
+        QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
+        s.remove(QStringLiteral("analyser"));
         s.sync();
     }
 
@@ -4456,7 +4456,7 @@ void TestGuiDockLayout::testAboutAndSettingsDialogs()
 void TestGuiDockLayout::testAudioTabControls()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -4518,7 +4518,7 @@ void TestGuiDockLayout::testAudioTabControls()
 void TestGuiDockLayout::testMessagesTabRemoved()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -4540,7 +4540,7 @@ void TestGuiDockLayout::testMessagesTabRemoved()
     // Saving persists the new layout version (8), so existing users reset once.
     w.close();
     QCoreApplication::processEvents();
-    const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+    const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
     QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 8);
     clearSettingsStore();
 }
@@ -4551,7 +4551,7 @@ void TestGuiDockLayout::testMessagesTabRemoved()
 void TestGuiDockLayout::testBottomStripResizable()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -4585,7 +4585,7 @@ void TestGuiDockLayout::testBottomStripResizable()
 void TestGuiDockLayout::testTab3HexViewer()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -4607,7 +4607,7 @@ void TestGuiDockLayout::testTab3HexViewer()
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
     w.autoLoadFile(fixture);
-    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyzerFigInstanceCount() > 0, 120000);
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyserFigInstanceCount() > 0, 120000);
 
     // After load with no selection: a guard message, not stale bytes.
     QTRY_VERIFY_WITH_TIMEOUT(
@@ -4728,7 +4728,7 @@ void TestGuiDockLayout::testNetworkLiveFramePathNoCrash()
     f.close();
     QCOMPARE(frames.size(), 6144 * kFrameCount);
 
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -4776,7 +4776,7 @@ void TestGuiDockLayout::testNetworkLiveReceptionRealSocket()
     f.close();
     QCOMPARE(frames.size(), 6144 * kFrameCount);
 
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
     QVERIFY(!w.isFileLoaded());
@@ -4837,7 +4837,7 @@ void TestGuiDockLayout::testNetworkLiveReceptionRealSocket()
 void TestGuiDockLayout::testNetworkStreamButtonStates()
 {
     clearSettingsStore();
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -4942,7 +4942,7 @@ void TestGuiDockLayout::testNetworkLiveAfterFileLoadNoStaleFileState()
         QCOMPARE(liveFrames.size(), 6144 * kLiveFrames);
     }
 
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     QCoreApplication::processEvents();
 
@@ -5003,7 +5003,7 @@ void TestGuiDockLayout::testNetworkLiveAfterFileLoadNoStaleFileState()
 // ============================================================================
 void TestGuiDockLayout::testSettingsWiringIntegration()
 {
-    QSettings store(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+    QSettings store(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
     store.clear();
     store.setValue(QStringLiteral("general/confirmExit"), false);
     store.setValue(QStringLiteral("analysis/updateRate"), 5);       // 200 ms sampler
@@ -5018,7 +5018,7 @@ void TestGuiDockLayout::testSettingsWiringIntegration()
     const Logger::LogLevel originalLogLevel = Logger::instance().getLogLevel();
 
     {
-        DABAnalyzerWindow w;
+        DABAnalyserWindow w;
         w.show();
         QCoreApplication::processEvents();
 

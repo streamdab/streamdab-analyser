@@ -1,4 +1,4 @@
-// /home/seksan/workspace/streamdab-analyzer/src/core/shared_eti_data.cpp
+// src/core/shared_eti_data.cpp
 #include "shared_eti_data.hpp"
 #include <QMutexLocker>
 #include <QDebug>

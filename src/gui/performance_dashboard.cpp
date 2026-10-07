@@ -569,7 +569,7 @@ void PerformanceDashboard::connectEtiProcessor(EtiProcessor* processor)
         // NOTE: the GUI runs on EnhancedETIProcessorQt, not this legacy
         // EtiProcessor, and the old frameProcessed(quint64,QByteArray) signal
         // does not exist. The dashboard is fed real FPS / memory / CPU /
-        // latency samples from DABAnalyzerWindow via updatePerformanceMetrics();
+        // latency samples from DABAnalyserWindow via updatePerformanceMetrics();
         // this hook only records the association (kept for API stability).
         Logger::instance().log(Logger::Info, "PerformanceDashboard",
                               "Connected to ETI processor for real-time performance monitoring");

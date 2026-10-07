@@ -1,5 +1,5 @@
 # ============================================================================
-# StreamDAB-Analyzer — export/archive attributes
+# StreamDAB-Analyser — export/archive attributes
 #
 # `export-ignore` keeps internal paths out of `git archive` output (release
 # tarballs) and documents the not-for-public set used by

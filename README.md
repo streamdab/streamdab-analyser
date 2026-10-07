@@ -1,8 +1,8 @@
-# StreamDAB Stream Analyzer - Professional Desktop Application
+# StreamDAB Stream Analyser - Professional Desktop Application
 
 ## 🎯 **PROJECT STATUS: v1.2 + ETI-NI ERA — v1.3 GUI MIGRATION PLANNED**
 
-A professional DAB/ETI Stream Analyzer with comprehensive real processing capabilities. **Shipped:** 100% ETSI EN 300 401 (v1.1, 22/22 FIG types), CLI mode with YAML output (v1.2), ETI-NI parser (Nov 2025), DLS+ decoder. **Next:** v1.3 GUI migration to Qt-ADS → v1.4 test closeout → v2.0 (EWS + EDI) — see `docs/PHASE_E_PLAN.md` (main plan).
+A professional DAB/ETI Stream Analyser with comprehensive real processing capabilities. **Shipped:** 100% ETSI EN 300 401 (v1.1, 22/22 FIG types), CLI mode with YAML output (v1.2), ETI-NI parser (Nov 2025), DLS+ decoder. **Next:** v1.3 GUI migration to Qt-ADS → v1.4 test closeout → v2.0 (EWS + EDI) — see `docs/PHASE_E_PLAN.md` (main plan).
 
 **🚀 Current State:** v1.2 Complete ✅ + ETI-NI Parser ✅ — Professional tool with real ETI processing, complete FIG decoding, audio stream validation, data service support, and headless CLI operation.
 **🎯 v1.3 Target:** GUI migration to Qt-ADS docking system (dockable panels, save/restore layout).
@@ -153,7 +153,7 @@ for (auto& event : events) {
 ## 📁 Project Structure - **96 COMPONENTS IMPLEMENTED**
 
 ```
-streamdab-analyzer/
+streamdab-analyser/
 ├── src/
 │   ├── main.cpp                              # ✅ Qt6 GUI application
 │   ├── core/                                 # ✅ 96 files (46 .cpp + 50 .hpp)
@@ -205,8 +205,8 @@ brew install qt6 faad2 fftw cmake
 ### **Build & Run (PRODUCTION-READY)**
 ```bash
 # Clone and build
-git clone <repository-url>
-cd streamdab-analyzer
+git clone https://git.morange.co.th/morange/streamdab-analyser.git
+cd streamdab-analyser
 
 # Configure build
 cmake -B build -S .
@@ -218,10 +218,10 @@ cmake --build build
 cd build && ctest --output-on-failure
 
 # Run application
-./StreamDABAnalyzer
+./StreamDABAnalyser
 
 > **Full instructions** (native Linux / Docker / Windows / macOS / packaging roadmap):
-> see **[INSTALL.md](INSTALL.md)**. The GUI binary is `build/StreamDABAnalyzer`;
+> see **[INSTALL.md](INSTALL.md)**. The GUI binary is `build/StreamDABAnalyser`;
 
 # ✅ Expected result: Professional Qt6 GUI with real ETI processing
 ```
@@ -229,7 +229,7 @@ cd build && ctest --output-on-failure
 ### **Application Usage**
 ```bash
 # Launch application
-./build/StreamDABAnalyzer
+./build/StreamDABAnalyser
 
 # Current features:
 ✅ File -> Open ETI File (real ETI-LI processing)
@@ -295,7 +295,7 @@ cd build && ctest --output-on-failure
 - BWS (Broadcast Website) enhancements
 - MOT Directory advanced features
 
-**Phase 5: Performance & Optimization**
+**Phase 5: Performance & Optimisation**
 - Multi-threaded processing
 - >1000 FPS sustained processing
 - Real-time ETI-over-IP optimization
@@ -337,8 +337,8 @@ cd build && ctest --output-on-failure
 
 ## 📈 **COMPETITIVE POSITIONING**
 
-### **vs Commercial DAB Analyzers**
-| **Aspect** | **Commercial Tools** | **StreamDAB Analyzer** | **Advantage** |
+### **vs Commercial DAB Analysers**
+| **Aspect** | **Commercial Tools** | **StreamDAB Analyser** | **Advantage** |
 |------------|---------------------|----------------------|---------------|
 | **Cost** | $2,000 - $50,000 | **FREE (Open Source)** | ✅ **100% Savings** |
 | **ETI Processing** | Proprietary | **ETSI EN 300 799** | ✅ **Standards-Based** |
@@ -387,12 +387,12 @@ cd build && ctest --output-on-failure
 
 ### **Future Phases**
 - ⏳ **Phase 4:** Advanced Data Services (TPEG, BWS)
-- ⏳ **Phase 5:** Performance & Optimization (>1000 FPS)
+- ⏳ **Phase 5:** Performance & Optimisation (>1000 FPS)
 - ⏳ **Phase 6:** Professional Features (multi-stream, export)
 
 ---
 
-## 📜 License
+## 📜 Licence
 
 **Open Source** - Committed to broadcast industry benefit and community-driven development
 
@@ -416,7 +416,7 @@ Professional development project with systematic implementation approach. Contri
 
 ## 🎯 **PROJECT SUMMARY**
 
-The **StreamDAB Stream Analyzer** is a **production-ready professional DAB/ETI analysis tool** with:
+The **StreamDAB Stream Analyser** is a **production-ready professional DAB/ETI analysis tool** with:
 
 ### **✅ Proven Achievements**
 - **96 Components:** Complete implementation (46 .cpp + 50 .hpp)
@@ -442,7 +442,7 @@ The **StreamDAB Stream Analyzer** is a **production-ready professional DAB/ETI a
 
 ### **🎯 Commercial Position**
 - **FREE vs $2K-$50K commercial tools**
-- **Feature-competitive** with professional analyzers
+- **Feature-competitive** with professional analysers
 - **Standards-compliant** (6 ETSI specifications)
 - **Validated quality** (168+ tests, 100% pass)
 - **Unique Thai support** (full UTF-8 throughout)

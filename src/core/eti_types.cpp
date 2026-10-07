@@ -3,11 +3,11 @@
  * @brief ETSI-Compliant ETI data type implementations
  *
  * Implementation of the fundamental data types, structures, and methods
- * used throughout the ETI Stream Analyzer for DAB/DAB+ processing.
+ * used throughout the ETI Stream Analyser for DAB/DAB+ processing.
  *
  * @author Standards Compliance Agent
  * @date 2025
- * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2025 ETI Stream Analyser Team
  */
 
 #include "eti_types.hpp"

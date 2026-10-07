@@ -21,7 +21,7 @@
 
 /**
  * @class Logger
- * @brief HANG-SAFE Professional Logging Framework for ETI Stream Analyzer
+ * @brief HANG-SAFE Professional Logging Framework for ETI Stream Analyser
  * 
  * This is a hang-resistant implementation that maintains 100% API compatibility
  * with the original Logger while preventing the Logger::instance() hang issue.

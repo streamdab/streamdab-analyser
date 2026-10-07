@@ -1,6 +1,6 @@
 /**
  * @file tdd_framework.h
- * @brief Comprehensive TDD Framework for ETI Stream Analyzer
+ * @brief Comprehensive TDD Framework for ETI Stream Analyser
  * 
  * This header provides the complete TDD infrastructure for the project
  * including test macros, assertions, mocking capabilities, and coverage
@@ -8,7 +8,7 @@
  * 
  * @author TDD Lead Agent
  * @date 2025-09-22
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #pragma once

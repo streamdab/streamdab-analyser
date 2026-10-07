@@ -109,10 +109,10 @@ void TestGUIClickThroughWorkflow::init()
 {
     // Create main window for each test
     m_mainWindow = new QMainWindow();
-    m_mainWindow->setWindowTitle("DAB Analyzer - E2E Test");
+    m_mainWindow->setWindowTitle("DAB Analyser - E2E Test");
     m_mainWindow->resize(1200, 800);
     
-    // Note: In real implementation, this would be the actual DABAnalyzerWindow
+    // Note: In real implementation, this would be the actual DABAnalyserWindow
     // For now, we create a mock structure to demonstrate the test approach
     
     // Create mock menu bar

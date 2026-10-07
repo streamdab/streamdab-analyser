@@ -42,7 +42,7 @@
 // #include <QStyleSheet>  // Not a valid Qt header
 
 #include "gui/main_window.h"
-#include "gui/analyzer_widget.h"
+#include "gui/analyser_widget.h"
 #include "gui/service_browser.h"
 #include "gui/service_explorer_panel.h"
 #include "gui/eti_analysis_widget.h"
@@ -73,7 +73,7 @@ private slots:
 
     // Qt Designer UI Component Tests
     void testMainWindowUIComponents();
-    void testAnalyzerWidgetComponents();
+    void testAnalyserWidgetComponents();
     void testServiceExplorerComponents();
     void testSettingsDialogComponents();
     void testAboutDialogComponents();
@@ -446,30 +446,30 @@ void TestGUIIntegration::testMainWindowUIComponents()
     Logger::instance().log(Logger::Info, "E2EGUITest", "MainWindow UI components validated");
 }
 
-void TestGUIIntegration::testAnalyzerWidgetComponents()
+void TestGUIIntegration::testAnalyserWidgetComponents()
 {
-    Logger::instance().log(Logger::Info, "E2EGUITest", "Testing AnalyzerWidget components");
+    Logger::instance().log(Logger::Info, "E2EGUITest", "Testing AnalyserWidget components");
     
-    AnalyzerWidget* analyzerWidget = mainWindow->findChild<AnalyzerWidget*>();
-    if (analyzerWidget) {
-        verifyComponentFunctionality(analyzerWidget);
+    AnalyserWidget* analyserWidget = mainWindow->findChild<AnalyserWidget*>();
+    if (analyserWidget) {
+        verifyComponentFunctionality(analyserWidget);
         
-        // Test specific analyzer components
-        QTextEdit* logDisplay = analyzerWidget->findChild<QTextEdit*>();
+        // Test specific analyser components
+        QTextEdit* logDisplay = analyserWidget->findChild<QTextEdit*>();
         if (logDisplay) {
             QVERIFY(logDisplay->isVisible());
             Logger::instance().log(Logger::Debug, "E2EGUITest", "Log display component found");
         }
         
-        QProgressBar* progressBar = analyzerWidget->findChild<QProgressBar*>();
+        QProgressBar* progressBar = analyserWidget->findChild<QProgressBar*>();
         if (progressBar) {
             Logger::instance().log(Logger::Debug, "E2EGUITest", "Progress bar component found");
         }
     } else {
-        Logger::instance().log(Logger::Warning, "E2EGUITest", "AnalyzerWidget not found");
+        Logger::instance().log(Logger::Warning, "E2EGUITest", "AnalyserWidget not found");
     }
     
-    Logger::instance().log(Logger::Info, "E2EGUITest", "AnalyzerWidget components validated");
+    Logger::instance().log(Logger::Info, "E2EGUITest", "AnalyserWidget components validated");
 }
 
 void TestGUIIntegration::testServiceExplorerComponents()

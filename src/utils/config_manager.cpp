@@ -35,8 +35,8 @@ bool ConfigManager::initialize()
     
     try {
         // Setup application info for QSettings
-        QCoreApplication::setOrganizationName("ETI Stream Analyzer");
-        QCoreApplication::setApplicationName("ETI Stream Analyzer");
+        QCoreApplication::setOrganizationName("ETI Stream Analyser");
+        QCoreApplication::setApplicationName("ETI Stream Analyser");
         QCoreApplication::setApplicationVersion("1.0.0");
         
         // Create settings instance

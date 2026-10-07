@@ -183,7 +183,7 @@ void TestCLIFigExtended::initTestCase()
     }
 
     const QStringList fixtureCandidates = {
-        "/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti",
+        QStringLiteral(QT_TESTCASE_SOURCEDIR) + QStringLiteral("/../eti/bkk_20062022_141637.eti"),
         appDir + "/../eti/bkk_20062022_141637.eti",
         appDir + "/../../eti/bkk_20062022_141637.eti",
     };

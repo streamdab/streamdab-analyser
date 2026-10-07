@@ -22,7 +22,7 @@
 
 // Core includes
 #include "gui/main_window.h"
-#include "gui/analyzer_widget.h"
+#include "gui/analyser_widget.h"
 #include "gui/service_browser.h"
 #include "gui/constellation_widget.h"
 #include "gui/eti_service_tree_model.h"
@@ -201,10 +201,10 @@ TEST_F(UserWorkflowPatternsTest, FileAnalysisWorkflow) {
     EXPECT_GT(serviceTreeModel->rowCount(), 0);
     
     // Step 3: Frame Selection
-    auto* analyzerWidget = mainWindow->getAnalyzerWidget();
-    ASSERT_TRUE(analyzerWidget);
+    auto* analyserWidget = mainWindow->getAnalyserWidget();
+    ASSERT_TRUE(analyserWidget);
     
-    auto* frameListTable = analyzerWidget->findChild<QTableWidget*>("frameListTable");
+    auto* frameListTable = analyserWidget->findChild<QTableWidget*>("frameListTable");
     ASSERT_TRUE(frameListTable);
     
     // Wait for frame data
@@ -299,8 +299,8 @@ TEST_F(UserWorkflowPatternsTest, ErrorDetectionWorkflow) {
     ASSERT_TRUE(mainWindow);
     
     // Step 1: Frame Error Highlighting
-    auto* analyzerWidget = mainWindow->getAnalyzerWidget();
-    ASSERT_TRUE(analyzerWidget);
+    auto* analyserWidget = mainWindow->getAnalyserWidget();
+    ASSERT_TRUE(analyserWidget);
     
     // Generate ETI data with errors
     QString errorEtiFile = testDataGenerator->createEtiFileWithErrors();
@@ -326,7 +326,7 @@ TEST_F(UserWorkflowPatternsTest, ErrorDetectionWorkflow) {
     
     // Step 3: Alert Generation
     // Verify error highlighting in frame list
-    auto* frameListTable = analyzerWidget->findChild<QTableWidget*>("frameListTable");
+    auto* frameListTable = analyserWidget->findChild<QTableWidget*>("frameListTable");
     if (frameListTable && frameListTable->rowCount() > 0) {
         // Check for error highlighting (red background, etc.)
         for (int row = 0; row < frameListTable->rowCount(); ++row) {
@@ -396,12 +396,12 @@ TEST_F(UserWorkflowPatternsTest, DualModeWorkflow) {
     auto* serviceBrowser = mainWindow->getServiceBrowser();
     ASSERT_TRUE(serviceBrowser);
     
-    auto* analyzerWidget = mainWindow->getAnalyzerWidget();
-    ASSERT_TRUE(analyzerWidget);
+    auto* analyserWidget = mainWindow->getAnalyserWidget();
+    ASSERT_TRUE(analyserWidget);
     
     // Both widgets should be responsive and consistent
     EXPECT_TRUE(serviceBrowser->isEnabled());
-    EXPECT_TRUE(analyzerWidget->isEnabled());
+    EXPECT_TRUE(analyserWidget->isEnabled());
     
     // Cleanup
     QFile::remove(testFile);
@@ -617,8 +617,8 @@ TEST_F(UserWorkflowPatternsTest, BroadcastingAestheticsValidation) {
     
     // Step 4: Window Title
     QString title = mainWindow->windowTitle();
-    EXPECT_TRUE(title.contains("ETI Stream Analyzer") || 
-                title.contains("DAB Analyzer") ||
+    EXPECT_TRUE(title.contains("ETI Stream Analyser") || 
+                title.contains("DAB Analyser") ||
                 title.contains("StreamDAB"));
     
     // Step 5: Status Bar Professional Information
@@ -641,10 +641,10 @@ TEST_F(UserWorkflowPatternsTest, PanelIntegrationTesting) {
     
     // Step 1: Service Selection → Frame Display Integration
     auto* serviceBrowser = mainWindow->getServiceBrowser();
-    auto* analyzerWidget = mainWindow->getAnalyzerWidget();
+    auto* analyserWidget = mainWindow->getAnalyserWidget();
     
     ASSERT_TRUE(serviceBrowser);
-    ASSERT_TRUE(analyzerWidget);
+    ASSERT_TRUE(analyserWidget);
     
     // Setup signal spy for integration
     QSignalSpy serviceSelectionSpy(serviceBrowser, SIGNAL(serviceSelected(quint32)));
@@ -654,7 +654,7 @@ TEST_F(UserWorkflowPatternsTest, PanelIntegrationTesting) {
     QTest::qWait(200);
     
     // Verify frame display updates
-    auto* frameListTable = analyzerWidget->findChild<QTableWidget*>("frameListTable");
+    auto* frameListTable = analyserWidget->findChild<QTableWidget*>("frameListTable");
     if (frameListTable) {
         EXPECT_GT(frameListTable->rowCount(), 0);
     }
@@ -704,7 +704,7 @@ TEST_F(UserWorkflowPatternsTest, ProfessionalDeploymentReadiness) {
     EXPECT_TRUE(mainWindow->initialize());
     
     // Step 2: All Required Components Present
-    EXPECT_TRUE(mainWindow->getAnalyzerWidget());
+    EXPECT_TRUE(mainWindow->getAnalyserWidget());
     EXPECT_TRUE(mainWindow->getServiceBrowser());
     EXPECT_TRUE(mainWindow->getConstellationWidget());
     

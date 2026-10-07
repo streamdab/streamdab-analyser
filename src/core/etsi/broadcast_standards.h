@@ -15,7 +15,7 @@
  * 
  * @author Standards Compliance Agent
  * @date 2025
- * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2025 ETI Stream Analyser Team
  * @version 1.0
  */
 
@@ -231,10 +231,10 @@ struct BroadcastComplianceResult {
 };
 
 // Forward declarations
-class AudioAnalyzer;
+class AudioAnalyser;
 class LoudnessProcessor;
 class EasMonitor;
-class SpectrumAnalyzer;
+class SpectrumAnalyser;
 
 /**
  * @brief Professional Broadcast Standards Compliance Framework
@@ -435,10 +435,10 @@ private:
     std::atomic<bool> shutdown_requested_{false};
     
     // Analysis components
-    std::unique_ptr<AudioAnalyzer> audio_analyzer_;
+    std::unique_ptr<AudioAnalyser> audio_analyser_;
     std::unique_ptr<LoudnessProcessor> loudness_processor_;
     std::unique_ptr<EasMonitor> eas_monitor_;
-    std::unique_ptr<SpectrumAnalyzer> spectrum_analyzer_;
+    std::unique_ptr<SpectrumAnalyser> spectrum_analyser_;
     
     // Enabled standards
     std::map<BroadcastStandard, bool> enabled_standards_;
@@ -459,7 +459,7 @@ private:
     ComplianceCallback compliance_callback_;
     
     // Internal methods
-    void initialize_analyzers();
+    void initialize_analysers();
     void update_performance_metrics(const std::chrono::microseconds& analysis_time);
     void add_to_history(const ItuR1770Metrics& loudness, const EbuR68Metrics& ebu_r68);
     void notify_compliance_violation(const BroadcastComplianceResult& result);

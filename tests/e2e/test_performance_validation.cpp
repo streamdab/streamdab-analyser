@@ -31,7 +31,7 @@
 
 // Core includes
 #include "gui/main_window.h"
-#include "gui/analyzer_widget.h"
+#include "gui/analyser_widget.h"
 #include "gui/service_browser.h"
 #include "gui/constellation_widget.h"
 #include "gui/eti_service_tree_model.h"
@@ -454,9 +454,9 @@ TEST_F(PerformanceValidationTest, RealTimeSignalSlotLatency) {
     }
     
     // Test frame list signal/slot latency
-    auto* analyzerWidget = mainWindow->getAnalyzerWidget();
-    if (analyzerWidget) {
-        auto* frameTable = analyzerWidget->findChild<QTableWidget*>("frameListTable");
+    auto* analyserWidget = mainWindow->getAnalyserWidget();
+    if (analyserWidget) {
+        auto* frameTable = analyserWidget->findChild<QTableWidget*>("frameListTable");
         if (frameTable) {
             testDataGenerator->populateFrameList(frameTable);
             QTest::qWait(200);

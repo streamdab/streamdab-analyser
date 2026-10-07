@@ -1,4 +1,4 @@
-# ETI Stream Analyzer - Professional .gitignore
+# ETI Stream Analyser - Professional .gitignore
 # C++/Qt/CMake Project with Cross-Platform Build Support
 
 #==============================================================================
@@ -240,7 +240,7 @@ config/local.*
 !config/*.template.*
 
 #==============================================================================
-# ETI Stream Analyzer Specific
+# ETI Stream Analyser Specific
 #==============================================================================
 # ETI test files (large binary files)
 *.eti

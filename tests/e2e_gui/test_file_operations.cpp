@@ -58,7 +58,7 @@ void FileOperationsTest::initTestCase()
     Logger::instance().log(Logger::Info, "E2EInternalTest", "=== INTERNAL FILE OPERATIONS E2E TEST STARTED ===");
     
     // Set test ETI file path
-    m_testEtiFile = "/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti";
+    m_testEtiFile = "/home/seksan/workspace/streamdab-analyser/eti/bkk_20062022_141637.eti";
     
     // Verify test file exists
     QFileInfo fileInfo(m_testEtiFile);

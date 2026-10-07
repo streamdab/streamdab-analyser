@@ -1,13 +1,13 @@
 /**
  * @file test_main.cpp
- * @brief Main test runner for ETI Stream Analyzer unit tests
+ * @brief Main test runner for ETI Stream Analyser unit tests
  * 
  * This file contains the main test runner that executes all unit tests
- * for the ETI Stream Analyzer project using the Qt Test framework.
+ * for the ETI Stream Analyser project using the Qt Test framework.
  * 
- * @author ETI Stream Analyzer Team
+ * @author ETI Stream Analyser Team
  * @date 2024
- * @copyright Copyright (c) 2024 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2024 ETI Stream Analyser Team
  */
 
 #include <QtTest/QtTest>
@@ -33,7 +33,7 @@ class BuildSystemTest : public QObject
 private slots:
     void initTestCase()
     {
-        qDebug() << "ETI Stream Analyzer Test Suite";
+        qDebug() << "ETI Stream Analyser Test Suite";
         qDebug() << "Qt Version:" << QT_VERSION_STR;
         qDebug() << "Build Type:" << 
 #ifdef DEBUG_BUILD
@@ -47,7 +47,7 @@ private slots:
     {
         // Test Qt basic functionality
         QVERIFY(!QCoreApplication::applicationName().isEmpty());
-        QCOMPARE(QCoreApplication::applicationName(), QString("ETI Stream Analyzer Tests"));
+        QCOMPARE(QCoreApplication::applicationName(), QString("ETI Stream Analyser Tests"));
     }
 
     void testApplicationDirectories()
@@ -65,7 +65,7 @@ private slots:
     {
         // Test basic file system operations
         QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-        QString testDir = tempDir + "/eti_analyzer_test";
+        QString testDir = tempDir + "/eti_analyser_test";
         
         QDir dir;
         QVERIFY(dir.mkpath(testDir));
@@ -85,7 +85,7 @@ private slots:
         QVERIFY(testObject.metaObject() != nullptr);
         
         // Test string handling
-        QString testString = "ETI Stream Analyzer";
+        QString testString = "ETI Stream Analyser";
         QCOMPARE(testString.length(), 19);
         QVERIFY(testString.contains("ETI"));
         
@@ -175,9 +175,9 @@ int main(int argc, char *argv[])
     QCoreApplication app(argc, argv);
     
     // Set application properties for testing
-    app.setApplicationName("ETI Stream Analyzer Tests");
+    app.setApplicationName("ETI Stream Analyser Tests");
     app.setApplicationVersion("1.0.0");
-    app.setOrganizationName("ETI Analyzer Team");
+    app.setOrganizationName("ETI Analyser Team");
     
     // Configure logging for tests
     QLoggingCategory::setFilterRules("*.debug=true");

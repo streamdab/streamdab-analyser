@@ -9,7 +9,8 @@ echo "FIG 0/14 FEC Sub-channel Organization - Integration Verification"
 echo "========================================================================"
 echo ""
 
-PROJECT_ROOT="/home/seksan/workspace/streamdab-analyzer"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$PROJECT_ROOT" || exit 1
 
 # Color codes

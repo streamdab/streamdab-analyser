@@ -1,6 +1,6 @@
-# ETI Stream Analyzer - Professional Cross-Platform Packaging
+# ETI Stream Analyser - Professional Cross-Platform Packaging
 
-This directory contains the professional packaging infrastructure for the ETI Stream Analyzer desktop application, designed to create production-ready distributions for Windows, Linux, and macOS platforms.
+This directory contains the professional packaging infrastructure for the ETI Stream Analyser desktop application, designed to create production-ready distributions for Windows, Linux, and macOS platforms.
 
 ## 🚀 Overview
 
@@ -158,13 +158,13 @@ The packaging system includes comprehensive validation:
 ### Package Naming Convention
 
 ```
-ETI_Stream_Analyzer-{version}-{platform}-{arch}.{extension}
+ETI_Stream_Analyser-{version}-{platform}-{arch}.{extension}
 
 Examples:
-- ETI_Stream_Analyzer-1.0.0-windows-x64.exe
-- ETI_Stream_Analyzer-1.0.0-linux-x86_64.deb
-- ETI_Stream_Analyzer-1.0.0-linux-x86_64.AppImage
-- ETI_Stream_Analyzer-1.0.0-macos-universal.dmg
+- ETI_Stream_Analyser-1.0.0-windows-x64.exe
+- ETI_Stream_Analyser-1.0.0-linux-x86_64.deb
+- ETI_Stream_Analyser-1.0.0-linux-x86_64.AppImage
+- ETI_Stream_Analyser-1.0.0-macos-universal.dmg
 ```
 
 ## 🔐 Security and Code Signing
@@ -224,7 +224,7 @@ Examples:
 
 ```bash
 # Clone the repository
-git clone https://github.com/eti-analyzer/desktop.git
+git clone https://github.com/eti-analyser/desktop.git
 cd desktop
 
 # Build all packages
@@ -241,11 +241,11 @@ find build -name "*.exe" -o -name "*.deb" -o -name "*.rpm" -o -name "*.dmg" -o -
 
 For broadcast engineering support and professional deployment assistance:
 
-- **Email**: support@eti-analyzer.org
-- **Documentation**: https://github.com/eti-analyzer/desktop/wiki
-- **Issues**: https://github.com/eti-analyzer/desktop/issues
+- **Email**: support@eti-analyser.org
+- **Documentation**: https://github.com/eti-analyser/desktop/wiki
+- **Issues**: https://github.com/eti-analyser/desktop/issues
 
 ---
 
-**ETI Stream Analyzer Professional Packaging System**  
+**ETI Stream Analyser Professional Packaging System**  
 *Designed for broadcast engineering excellence*

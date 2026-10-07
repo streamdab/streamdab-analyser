@@ -1,5 +1,5 @@
 /**
- * @file advanced_fig_analyzer.cpp
+ * @file advanced_fig_analyser.cpp
  * @brief FIG (Fast Information Group) Processor
  *
  * Implements decoding of FIG data from the FIC per ETSI EN 300 401.
@@ -18,9 +18,9 @@
  * @see ETSI EN 300 401 Section 8 (FIG Type 1)
  */
 
-#include "advanced_fig_analyzer.h"
+#include "advanced_fig_analyser.h"
 #include "charset_converter.hpp"
-#include "analyzer_settings.hpp"
+#include "analyser_settings.hpp"
 #include <QtCore/QDebug>
 #include <QtCore/QDateTime>
 #include <QTimeZone>
@@ -28,7 +28,7 @@
 #include "crc16.hpp"
 
 namespace {
-// FIG extension field extraction per EN 300 401 (same masks the analyzer's
+// FIG extension field extraction per EN 300 401 (same masks the analyser's
 // dispatch uses): FIG 0 = 5 bits (b4-b0), FIG 1/2 = 3 bits (b2-b0).
 uint8_t figExtensionOf(uint8_t figType, uint8_t data0)
 {
@@ -49,7 +49,7 @@ constexpr size_t kMaxFigDataLength = 29;
 // first 30 occurrences (startup diagnostics) and every 250th per call site.
 //
 // Thread-safety (F9): the `static` counters at each call site are local and
-// unsynchronised. Safe only because AdvancedFIGAnalyzer is driven from a
+// unsynchronised. Safe only because AdvancedFIGAnalyser is driven from a
 // single (GUI) thread; if that ever changes, promote them to
 // std::atomic<uint64_t> members.
 inline bool shouldLogFigDiagnostic(unsigned long long counter)
@@ -165,10 +165,10 @@ QString DABLabel::toString() const {
 }
 
 // ============================================================================
-// AdvancedFIGAnalyzer implementation
+// AdvancedFIGAnalyser implementation
 // ============================================================================
 
- AdvancedFIGAnalyzer::AdvancedFIGAnalyzer(QObject *parent)
+ AdvancedFIGAnalyser::AdvancedFIGAnalyser(QObject *parent)
     : QObject(parent)
     , m_totalFIGsProcessed(0)
     , m_validFIGsCount(0)
@@ -181,14 +181,14 @@ QString DABLabel::toString() const {
     initializeDefaultFIGTypes();
 }
 
-AdvancedFIGAnalyzer::~AdvancedFIGAnalyzer() = default;
+AdvancedFIGAnalyser::~AdvancedFIGAnalyser() = default;
 
-void AdvancedFIGAnalyzer::setAnalyzerSettings(const eti::AnalyzerSettings& settings)
+void AdvancedFIGAnalyser::setAnalyserSettings(const eti::AnalyserSettings& settings)
 {
-    m_settings = std::make_unique<eti::AnalyzerSettings>(settings);
+    m_settings = std::make_unique<eti::AnalyserSettings>(settings);
 }
 
-QVector<AdvancedFIGAnalyzer::FigTypeCount> AdvancedFIGAnalyzer::getFigTypeCounts() const
+QVector<AdvancedFIGAnalyser::FigTypeCount> AdvancedFIGAnalyser::getFigTypeCounts() const
 {
     QVector<FigTypeCount> counts;
     counts.reserve(static_cast<int>(m_figTypeCounts.size()));
@@ -202,9 +202,9 @@ QVector<AdvancedFIGAnalyzer::FigTypeCount> AdvancedFIGAnalyzer::getFigTypeCounts
     return counts;
 }
 
-void AdvancedFIGAnalyzer::initializeDefaultFIGTypes()
+void AdvancedFIGAnalyser::initializeDefaultFIGTypes()
 {
-    // Enable essential FIG types by default for DAB Analyzer compatibility
+    // Enable essential FIG types by default for DAB Analyser compatibility
     m_enabledFIGTypes["0.0"] = true;   // Ensemble organization
     m_enabledFIGTypes["0.1"] = true;   // Subchannel organization
     m_enabledFIGTypes["0.2"] = true;   // Service organization
@@ -230,7 +230,7 @@ void AdvancedFIGAnalyzer::initializeDefaultFIGTypes()
     m_enabledFIGTypes["2.5"] = false;  // Data service extended labels (optional)
 }
 
-void AdvancedFIGAnalyzer::analyzeFICData(const QByteArray& ficData)
+void AdvancedFIGAnalyser::analyzeFICData(const QByteArray& ficData)
 {
     // CRITICAL-006: Input validation. The FIC is 96 bytes (3 FIBs, Modes
     // I/II/IV) or 128 bytes (4 FIBs, Mode III) in ETI, but a raw on-air FIC
@@ -248,13 +248,13 @@ void AdvancedFIGAnalyzer::analyzeFICData(const QByteArray& ficData)
     m_currentFICData = ficData;
     m_lastFicSize = ficData.size();
 
-    // Effective decode settings: the analyzer settings when wired, otherwise
+    // Effective decode settings: the analyser settings when wired, otherwise
     // the historical fixed behavior (strict FIB CRC validation, no raw
     // fallback, no forced charset).
     eti::FicDecodeMode mode = eti::FicDecodeMode::Strict;
     bool ignore_fib_crc = false;
     if (m_settings) {
-        mode = eti::AnalyzerSettings::toFicDecodeMode(m_settings->fic_mode);
+        mode = eti::AnalyserSettings::toFicDecodeMode(m_settings->fic_mode);
         ignore_fib_crc = m_settings->fib_ignore_crc;
     }
 
@@ -327,7 +327,7 @@ void AdvancedFIGAnalyzer::analyzeFICData(const QByteArray& ficData)
             m_rawFicFallbackWarned = true;
             qWarning() << "FIC decode fallback: all FIB CRCs failed -> re-decoded"
                           " FIC as a raw FIG stream (no per-FIB CRC). Set"
-                          " fic_mode=strict (AnalyzerSettings) to disable.";
+                          " fic_mode=strict (AnalyserSettings) to disable.";
         }
         // The fallback re-walk would double-record every FIG (once per
         // failed FIB, once raw); suppress instance collection for it.
@@ -338,7 +338,7 @@ void AdvancedFIGAnalyzer::analyzeFICData(const QByteArray& ficData)
     }
 }
 
-bool AdvancedFIGAnalyzer::validateFibCrc(const uint8_t* fib) const
+bool AdvancedFIGAnalyser::validateFibCrc(const uint8_t* fib) const
 {
     // FIB CRC: CRC-16/CCITT-FALSE over the 30-byte FIG area; the transmitted
     // value is the one's complement, big-endian (EN 300 799 clause 5.2 /
@@ -349,7 +349,7 @@ bool AdvancedFIGAnalyzer::validateFibCrc(const uint8_t* fib) const
     return expected == stored;
 }
 
-void AdvancedFIGAnalyzer::walkFigArea(const uint8_t* area, size_t area_size)
+void AdvancedFIGAnalyser::walkFigArea(const uint8_t* area, size_t area_size)
 {
     // Walk one FIG area (30-byte FIB area or whole-FIC raw stream) with the
     // correct EN 300 401 FIG header semantics (mirrors parse_fig_area in
@@ -439,7 +439,7 @@ void AdvancedFIGAnalyzer::walkFigArea(const uint8_t* area, size_t area_size)
     }
 }
 
-void AdvancedFIGAnalyzer::processFIG0(const QByteArray& figData)
+void AdvancedFIGAnalyser::processFIG0(const QByteArray& figData)
 {
     if (figData.size() < 1) {
         m_lastError = "FIG 0: Insufficient data";
@@ -511,7 +511,7 @@ void AdvancedFIGAnalyzer::processFIG0(const QByteArray& figData)
     }
 }
 
-void AdvancedFIGAnalyzer::processFIG1(const QByteArray& figData)
+void AdvancedFIGAnalyser::processFIG1(const QByteArray& figData)
 {
     if (figData.size() < 1) {
         m_lastError = "FIG 1: Insufficient data";
@@ -568,7 +568,7 @@ void AdvancedFIGAnalyzer::processFIG1(const QByteArray& figData)
  *   data[4] = CIF count low
  *   data[5] = Occurrence change (when the change flag is non-zero)
  */
-void AdvancedFIGAnalyzer::processFIG0_0(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_0(const QByteArray& data)
 {
     // FIG 0/0: Ensemble organization
     // FIX FOR testFIG0_0_InvalidData: Set error and return early for invalid data
@@ -644,7 +644,7 @@ void AdvancedFIGAnalyzer::processFIG0_0(const QByteArray& data)
  *   bit 7 CLEAR                    -> UEP short form, 3 bytes:
  *       [TableSwitch(1)|TableIndex(6)]
  */
-void AdvancedFIGAnalyzer::processFIG0_1(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_1(const QByteArray& data)
 {
     // FIG 0/1: Subchannel organization
     if (data.size() < 2) {
@@ -777,7 +777,7 @@ void AdvancedFIGAnalyzer::processFIG0_1(const QByteArray& data)
  *     then ncomp × 2-byte component descriptors:
  *       [TMId(2)|ASCTy/DSCTy(6)] [SubChId(6)|P/S(1)|CA(1)]
  */
-void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_2(const QByteArray& data)
 {
     // FIG 0/2: Service organization
     if (data.size() < 2) {
@@ -965,7 +965,7 @@ void AdvancedFIGAnalyzer::processFIG0_2(const QByteArray& data)
  * Provides 16-character label for the ensemble (multiplex).
  * Includes character flag for short label extraction.
  */
-void AdvancedFIGAnalyzer::processFIG1_0(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG1_0(const QByteArray& data)
 {
     // FIG 1/0: Ensemble label
     // Data (starts at the ext byte, etisnoop fig1.cpp fig1_select):
@@ -1059,7 +1059,7 @@ void AdvancedFIGAnalyzer::processFIG1_0(const QByteArray& data)
  * Provides 16-character label for a service (radio station).
  * Service ID can be 16-bit (programme) or 32-bit (data).
  */
-void AdvancedFIGAnalyzer::processFIG1_1(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG1_1(const QByteArray& data)
 {
     // FIG 1/1: Programme service label
     // ETSI EN 300 401 Section 8.1.14.1
@@ -1226,7 +1226,7 @@ void AdvancedFIGAnalyzer::processFIG1_1(const QByteArray& data)
  *
  * Note: For packet mode (P/D=1), structure is different with 12-bit SCId.
  */
-void AdvancedFIGAnalyzer::processFIG1_4(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG1_4(const QByteArray& data)
 {
     // FIG 1/4: Service component label
     // Data (starts at the ext byte, etisnoop fig1.cpp fig1_select case 4):
@@ -1309,7 +1309,7 @@ void AdvancedFIGAnalyzer::processFIG1_4(const QByteArray& data)
 // Label parsing helper methods
 // ============================================================================
 
-DABLabel AdvancedFIGAnalyzer::parseLabel(const uint8_t* data, size_t offset, uint8_t charset)
+DABLabel AdvancedFIGAnalyser::parseLabel(const uint8_t* data, size_t offset, uint8_t charset)
 {
     DABLabel label;
 
@@ -1329,7 +1329,7 @@ DABLabel AdvancedFIGAnalyzer::parseLabel(const uint8_t* data, size_t offset, uin
     return label;
 }
 
-uint8_t AdvancedFIGAnalyzer::effectiveLabelCharset(uint8_t streamCharset) const
+uint8_t AdvancedFIGAnalyser::effectiveLabelCharset(uint8_t streamCharset) const
 {
     // Row 1 (force_charset): an explicit override wins over the stream flag.
     if (m_settings && m_settings->force_charset >= 0 &&
@@ -1355,7 +1355,7 @@ uint8_t AdvancedFIGAnalyzer::effectiveLabelCharset(uint8_t streamCharset) const
     return streamCharset;
 }
 
-QString AdvancedFIGAnalyzer::extractShortLabel(const std::array<char, 16>& full_label, uint16_t char_flag)
+QString AdvancedFIGAnalyser::extractShortLabel(const std::array<char, 16>& full_label, uint16_t char_flag)
 {
     QString short_label;
 
@@ -1371,14 +1371,14 @@ QString AdvancedFIGAnalyzer::extractShortLabel(const std::array<char, 16>& full_
     return short_label.trimmed();
 }
 
-bool AdvancedFIGAnalyzer::isCharacterIncluded(uint16_t char_flag, int position) const
+bool AdvancedFIGAnalyser::isCharacterIncluded(uint16_t char_flag, int position) const
 {
     // ETSI EN 300 401: Bit 15 (MSB) = position 0, Bit 0 (LSB) = position 15
     // (MSB-first mapping; etisnoop label_t::shortlabel() parity)
     return (char_flag & (0x8000 >> position)) != 0;
 }
 
-bool AdvancedFIGAnalyzer::isBitSet(uint8_t byte, int bit_position) const
+bool AdvancedFIGAnalyser::isBitSet(uint8_t byte, int bit_position) const
 {
     return (byte & (1 << bit_position)) != 0;
 }
@@ -1404,7 +1404,7 @@ bool AdvancedFIGAnalyzer::isBitSet(uint8_t byte, int bit_position) const
  *  - Byte 4: Packet_address[7:0]
  *  - [Optional] Bytes 5-6: SCCA (if SCCA_flag=1)
  */
-void AdvancedFIGAnalyzer::processFIG0_3(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_3(const QByteArray& data)
 {
     if (data.size() < 6) {  // Minimum: header(1) + one component(5)
         m_lastError = QString("FIG 0/3: Insufficient data (need at least 6 bytes, got %1)").arg(data.size());
@@ -1489,7 +1489,7 @@ void AdvancedFIGAnalyzer::processFIG0_3(const QByteArray& data)
  *  - Byte 0: SubChId(6) + rfu(1) + LS(1)
  *  - Byte 1: language code (ISO 639-2, 8 bits)
  */
-void AdvancedFIGAnalyzer::processFIG0_5(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_5(const QByteArray& data)
 {
     if (data.size() < 3) {  // Minimum: header(1) + one component(2)
         m_lastError = QString("FIG 0/5: Insufficient data (need at least 3 bytes, got %1)").arg(data.size());
@@ -1558,7 +1558,7 @@ void AdvancedFIGAnalyzer::processFIG0_5(const QByteArray& data)
  *  - [If IdListFlag=1] Header: num_ids(4) + rfa(1) + IdLQ(2) + rfu(1)
  *  - [If IdListFlag=1] Service IDs (2 or 3 or 4 bytes each depending on PD and ILS)
  */
-void AdvancedFIGAnalyzer::processFIG0_6(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_6(const QByteArray& data)
 {
     if (data.size() < 3) {  // Minimum: header(1) + LSN(2)
         m_lastError = QString("FIG 0/6: Insufficient data (need at least 3 bytes, got %1)").arg(data.size());
@@ -1671,7 +1671,7 @@ void AdvancedFIGAnalyzer::processFIG0_6(const QByteArray& data)
  *  - Bytes 1-2: Number of services (6 bits, MSBs) + Reconfiguration
  *    counter (10 bits, LSBs)
  */
-void AdvancedFIGAnalyzer::processFIG0_7(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_7(const QByteArray& data)
 {
     if (data.size() < 3) {
         m_lastError = QString("FIG 0/7: Insufficient data (need 3 bytes, got %1)").arg(data.size());
@@ -1711,7 +1711,7 @@ void AdvancedFIGAnalyzer::processFIG0_7(const QByteArray& data)
  *   - Bytes 0-3: SId (32-bit)
  *   - Similar short/long form follows
  */
-void AdvancedFIGAnalyzer::processFIG0_8(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_8(const QByteArray& data)
 {
     if (data.size() < 5) {  // Minimum: header(1) + SId(2) + definition(2)
         m_lastError = QString("FIG 0/8: Insufficient data (need at least 5 bytes, got %1)").arg(data.size());
@@ -1815,7 +1815,7 @@ void AdvancedFIGAnalyzer::processFIG0_8(const QByteArray& data)
  *  - Byte 3: tableId
  *  - [Optional] Extended fields with additional service ECCs
  */
-void AdvancedFIGAnalyzer::processFIG0_9(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_9(const QByteArray& data)
 {
     if (data.size() < 4) {
         m_lastError = QString("FIG 0/9: Insufficient data (need at least 4 bytes, got %1)").arg(data.size());
@@ -1872,7 +1872,7 @@ void AdvancedFIGAnalyzer::processFIG0_9(const QByteArray& data)
  *  - Byte 5: Milliseconds[9:8](2) + Seconds(6)   [long form, UTC=1]
  *  - Byte 6: Milliseconds[7:0]                   [long form, UTC=1]
  */
-void AdvancedFIGAnalyzer::processFIG0_10(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_10(const QByteArray& data)
 {
     if (data.size() < 5) {
         m_lastError = QString("FIG 0/10: Insufficient data (need 5 bytes, got %1)").arg(data.size());
@@ -1960,7 +1960,7 @@ void AdvancedFIGAnalyzer::processFIG0_10(const QByteArray& data)
  *   - User app data length: 5-bit
  *   - User app data: variable length (application-specific)
  */
-void AdvancedFIGAnalyzer::processFIG0_13(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_13(const QByteArray& data)
 {
     if (data.size() < 4) {  // Minimum: header(1) + SId(2) + SCIdS+No(1)
         m_lastError = QString("FIG 0/13: Insufficient data (need at least 4 bytes, got %1)").arg(data.size());
@@ -2076,7 +2076,7 @@ void AdvancedFIGAnalyzer::processFIG0_13(const QByteArray& data)
  * - SubChId: 6 bits (bits 7-2)
  * - FEC scheme: 2 bits (bits 1-0)
  */
-void AdvancedFIGAnalyzer::processFIG0_14(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_14(const QByteArray& data)
 {
     if (data.size() < 2) {  // Minimum: header(1) + one subchannel(1)
         m_lastError = QString("FIG 0/14: Insufficient data (need at least 2 bytes, got %1)").arg(data.size());
@@ -2137,7 +2137,7 @@ void AdvancedFIGAnalyzer::processFIG0_14(const QByteArray& data)
  * - Byte 2: rfa2_high(4) + rfu1(2) + rfa1(1) + SD(1)
  * - Byte 3: IntCode(5) + rfu2(1) + rfa2_low(2)
  */
-void AdvancedFIGAnalyzer::processFIG0_17(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_17(const QByteArray& data)
 {
     if (data.size() < 5) {  // Minimum: header(1) + one service(4)
         m_lastError = QString("FIG 0/17: Insufficient data (need at least 5 bytes, got %1)").arg(data.size());
@@ -2210,7 +2210,7 @@ void AdvancedFIGAnalyzer::processFIG0_17(const QByteArray& data)
  * 
  * Note: Per ETSI EN 300 401, bit 0 of ASu (Alarm) and cluster 0xFF are handled specially
  */
-void AdvancedFIGAnalyzer::processFIG0_18(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_18(const QByteArray& data)
 {
     if (data.size() < 6) {  // Minimum: header(1) + SId(2) + ASu(2) + NumClusters(1)
         m_lastError = QString("FIG 0/18: Insufficient data (need at least 6 bytes, got %1)").arg(data.size());
@@ -2296,7 +2296,7 @@ void AdvancedFIGAnalyzer::processFIG0_18(const QByteArray& data)
  * 
  * **EWS CRITICAL**: When ASw bit 0 (ANNOUNCEMENT_ALARM) is set, EMERGENCY ALARM IS ACTIVE!
  */
-void AdvancedFIGAnalyzer::processFIG0_19(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG0_19(const QByteArray& data)
 {
     if (data.size() < 5) {  // Minimum: header(1) + one cluster(4)
         m_lastError = QString("FIG 0/19: Insufficient data (need at least 5 bytes, got %1)").arg(data.size());
@@ -2390,7 +2390,7 @@ void AdvancedFIGAnalyzer::processFIG0_19(const QByteArray& data)
 
 
 
-void AdvancedFIGAnalyzer::processFIG1_5(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG1_5(const QByteArray& data)
 {
     // ETSI EN 300 401 Section 5.2.2.6: FIG 1/5 Data Service Label
     // Data (starts at the ext byte, etisnoop fig1.cpp case 5):
@@ -2451,7 +2451,7 @@ void AdvancedFIGAnalyzer::processFIG1_5(const QByteArray& data)
 }
 
 
-void AdvancedFIGAnalyzer::processFIG2(const QByteArray& figData)
+void AdvancedFIGAnalyser::processFIG2(const QByteArray& figData)
 {
     // ETSI EN 300 401 Section 8.1.13.1: FIG Type 2 Extended Labels
     
@@ -2499,7 +2499,7 @@ void AdvancedFIGAnalyzer::processFIG2(const QByteArray& figData)
  * Provides UTF-8 extended labels for ensemble (up to 128 bytes in 8 segments)
  * Structure: EId (16 bits) + Rfa (4 bits) + Toggle (1 bit) + SegmentIndex (3 bits) + Text (variable)
  */
-void AdvancedFIGAnalyzer::processFIG2_0(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG2_0(const QByteArray& data)
 {
     // ETSI EN 300 401 Section 8.1.13.1: FIG 2/0 Ensemble Extended Label
     // Minimum: FIG header (1) + EId (2) + flags (1) = 4 bytes
@@ -2556,7 +2556,7 @@ void AdvancedFIGAnalyzer::processFIG2_0(const QByteArray& data)
  * Provides UTF-8 extended labels for services (programme or data)
  * Structure: SId (16 or 32 bits) + flags + Text (variable)
  */
-void AdvancedFIGAnalyzer::processFIG2_1(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG2_1(const QByteArray& data)
 {
     // ETSI EN 300 401 Section 8.1.13.1: FIG 2/1 Service Extended Label
     
@@ -2641,7 +2641,7 @@ void AdvancedFIGAnalyzer::processFIG2_1(const QByteArray& data)
  * Provides UTF-8 extended labels for service components
  * Structure: SId (16 or 32 bits) + SCIdS (4 bits) + flags + Text (variable)
  */
-void AdvancedFIGAnalyzer::processFIG2_4(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG2_4(const QByteArray& data)
 {
     // ETSI EN 300 401 Section 8.1.13.1: FIG 2/4 Component Extended Label
     
@@ -2729,7 +2729,7 @@ void AdvancedFIGAnalyzer::processFIG2_4(const QByteArray& data)
  * Provides UTF-8 extended labels for data services (always 32-bit SId)
  * Semantically identical to FIG 2/1 with P/D=1
  */
-void AdvancedFIGAnalyzer::processFIG2_5(const QByteArray& data)
+void AdvancedFIGAnalyser::processFIG2_5(const QByteArray& data)
 {
     // ETSI EN 300 401 Section 8.1.13.1: FIG 2/5 Data Service Extended Label
     // Always uses 32-bit service ID (data services)
@@ -2789,7 +2789,7 @@ void AdvancedFIGAnalyzer::processFIG2_5(const QByteArray& data)
  * Reassemble ensemble extended label from segments
  * CRITICAL: UTF-8 multi-byte character support for Thai language
  */
-QString AdvancedFIGAnalyzer::getEnsembleExtendedLabel(uint16_t ensemble_id)
+QString AdvancedFIGAnalyser::getEnsembleExtendedLabel(uint16_t ensemble_id)
 {
     auto it = m_ensemble_extended_labels.find(ensemble_id);
     if (it == m_ensemble_extended_labels.end()) {
@@ -2820,7 +2820,7 @@ QString AdvancedFIGAnalyzer::getEnsembleExtendedLabel(uint16_t ensemble_id)
  * Reassemble service extended label from segments
  * CRITICAL: UTF-8 multi-byte character support for Thai language
  */
-QString AdvancedFIGAnalyzer::getServiceExtendedLabel(uint32_t service_id)
+QString AdvancedFIGAnalyser::getServiceExtendedLabel(uint32_t service_id)
 {
     auto it = m_service_extended_labels.find(service_id);
     if (it == m_service_extended_labels.end()) {
@@ -2849,7 +2849,7 @@ QString AdvancedFIGAnalyzer::getServiceExtendedLabel(uint32_t service_id)
  * Reassemble component extended label from segments
  * CRITICAL: UTF-8 multi-byte character support for Thai language
  */
-QString AdvancedFIGAnalyzer::getComponentExtendedLabel(uint32_t service_id, uint8_t component_id)
+QString AdvancedFIGAnalyser::getComponentExtendedLabel(uint32_t service_id, uint8_t component_id)
 {
     uint64_t key = (static_cast<uint64_t>(service_id) << 8) | component_id;
     
@@ -2883,7 +2883,7 @@ QString AdvancedFIGAnalyzer::getComponentExtendedLabel(uint32_t service_id, uint
 /**
  * Get all data service labels (FIG 1/5)
  */
-std::vector<FIG1_5_DataServiceLabel> AdvancedFIGAnalyzer::getDataServiceLabels() const
+std::vector<FIG1_5_DataServiceLabel> AdvancedFIGAnalyser::getDataServiceLabels() const
 {
     std::vector<FIG1_5_DataServiceLabel> labels;
     for (const auto& pair : m_data_service_labels) {
@@ -2896,19 +2896,19 @@ std::vector<FIG1_5_DataServiceLabel> AdvancedFIGAnalyzer::getDataServiceLabels()
 // Control methods
 // ============================================================================
 
-void AdvancedFIGAnalyzer::enableFIGType(uint8_t type, uint8_t extension, bool enabled)
+void AdvancedFIGAnalyser::enableFIGType(uint8_t type, uint8_t extension, bool enabled)
 {
     QString figKey = QString("%1.%2").arg(type).arg(extension);
     m_enabledFIGTypes[figKey] = enabled;
 }
 
-bool AdvancedFIGAnalyzer::isFIGTypeEnabled(uint8_t type, uint8_t extension) const
+bool AdvancedFIGAnalyser::isFIGTypeEnabled(uint8_t type, uint8_t extension) const
 {
     QString figKey = QString("%1.%2").arg(type).arg(extension);
     return m_enabledFIGTypes.value(figKey, false);
 }
 
-void AdvancedFIGAnalyzer::reset()
+void AdvancedFIGAnalyser::reset()
 {
     m_currentEnsemble = EnsembleInfo();
     m_discoveredServices.clear();
@@ -2958,7 +2958,7 @@ void AdvancedFIGAnalyzer::reset()
 // ============================================================================
 // Data accessors
 
-QList<ServiceInfo> AdvancedFIGAnalyzer::getDiscoveredServices() const
+QList<ServiceInfo> AdvancedFIGAnalyser::getDiscoveredServices() const
 {
     // Convert m_services map to legacy QList<ServiceInfo> format
     QList<ServiceInfo> services;
@@ -2989,7 +2989,7 @@ QList<ServiceInfo> AdvancedFIGAnalyzer::getDiscoveredServices() const
 }
 // ============================================================================
 
-QStringList AdvancedFIGAnalyzer::getServiceLabels() const
+QStringList AdvancedFIGAnalyser::getServiceLabels() const
 {
     QStringList labels;
     for (auto it = m_serviceLabels.begin(); it != m_serviceLabels.end(); ++it) {
@@ -3000,7 +3000,7 @@ QStringList AdvancedFIGAnalyzer::getServiceLabels() const
     return labels;
 }
 
-QStringList AdvancedFIGAnalyzer::getProgrammeInfo() const
+QStringList AdvancedFIGAnalyser::getProgrammeInfo() const
 {
     QStringList info;
 
@@ -3023,7 +3023,7 @@ QStringList AdvancedFIGAnalyzer::getProgrammeInfo() const
 // Helper methods with CRITICAL-006 bounds checking
 // ============================================================================
 
-uint16_t AdvancedFIGAnalyzer::extractUInt16(const QByteArray& data, int offset)
+uint16_t AdvancedFIGAnalyser::extractUInt16(const QByteArray& data, int offset)
 {
     // CRITICAL-006: Bounds checking with warning
     if (offset < 0 || offset + 1 >= data.size()) {
@@ -3035,7 +3035,7 @@ uint16_t AdvancedFIGAnalyzer::extractUInt16(const QByteArray& data, int offset)
            static_cast<uint16_t>(static_cast<uint8_t>(data[offset + 1]));
 }
 
-uint32_t AdvancedFIGAnalyzer::extractUInt32(const QByteArray& data, int offset)
+uint32_t AdvancedFIGAnalyser::extractUInt32(const QByteArray& data, int offset)
 {
     // CRITICAL-006: Bounds checking with warning
     if (offset < 0 || offset + 3 >= data.size()) {
@@ -3225,7 +3225,7 @@ QString DABService::toString() const
 // FIG Type 0 Data Accessor Methods (Agent 3)
 // ============================================================================
 
-SubChannelInfo AdvancedFIGAnalyzer::getSubChannelInfo(uint8_t sub_channel_id) const
+SubChannelInfo AdvancedFIGAnalyser::getSubChannelInfo(uint8_t sub_channel_id) const
 {
     auto it = m_sub_channels.find(sub_channel_id);
     if (it != m_sub_channels.end()) {
@@ -3234,7 +3234,7 @@ SubChannelInfo AdvancedFIGAnalyzer::getSubChannelInfo(uint8_t sub_channel_id) co
     return SubChannelInfo();
 }
 
-std::vector<SubChannelInfo> AdvancedFIGAnalyzer::getAllSubChannels() const
+std::vector<SubChannelInfo> AdvancedFIGAnalyser::getAllSubChannels() const
 {
     std::vector<SubChannelInfo> result;
     for (const auto& pair : m_sub_channels) {
@@ -3243,7 +3243,7 @@ std::vector<SubChannelInfo> AdvancedFIGAnalyzer::getAllSubChannels() const
     return result;
 }
 
-std::vector<DABService> AdvancedFIGAnalyzer::getDABServices() const
+std::vector<DABService> AdvancedFIGAnalyser::getDABServices() const
 {
     std::vector<DABService> result;
     for (const auto& pair : m_services) {
@@ -3252,7 +3252,7 @@ std::vector<DABService> AdvancedFIGAnalyzer::getDABServices() const
     return result;
 }
 
-DABService AdvancedFIGAnalyzer::getService(uint32_t service_id) const
+DABService AdvancedFIGAnalyser::getService(uint32_t service_id) const
 {
     auto it = m_services.find(service_id);
     if (it != m_services.end()) {
@@ -3261,12 +3261,12 @@ DABService AdvancedFIGAnalyzer::getService(uint32_t service_id) const
     return DABService();
 }
 
-int AdvancedFIGAnalyzer::getServiceCount() const
+int AdvancedFIGAnalyser::getServiceCount() const
 {
     return static_cast<int>(m_services.size());
 }
 
-int AdvancedFIGAnalyzer::getSubChannelCount() const
+int AdvancedFIGAnalyser::getSubChannelCount() const
 {
     return static_cast<int>(m_sub_channels.size());
 }
@@ -3275,7 +3275,7 @@ int AdvancedFIGAnalyzer::getSubChannelCount() const
 // Helper Methods (Agent 3 - Bit manipulation)
 // ============================================================================
 
-uint8_t AdvancedFIGAnalyzer::extractUInt8(const QByteArray& data, int offset)
+uint8_t AdvancedFIGAnalyser::extractUInt8(const QByteArray& data, int offset)
 {
     // CRITICAL-006: Bounds checking with warning
     if (offset < 0 || offset >= data.size()) {
@@ -3286,7 +3286,7 @@ uint8_t AdvancedFIGAnalyzer::extractUInt8(const QByteArray& data, int offset)
     return static_cast<uint8_t>(data[offset]);
 }
 
-uint16_t AdvancedFIGAnalyzer::extractBits(const QByteArray& data, int bit_offset, int bit_count)
+uint16_t AdvancedFIGAnalyser::extractBits(const QByteArray& data, int bit_offset, int bit_count)
 {
     // ========================================================================
     // SECURITY FIX: Comprehensive input validation and overflow protection
@@ -3410,12 +3410,12 @@ int FIGParsingUtils::protectionLevelToBitrate(uint8_t protectionLevel)
 // FIG 0/3 - 0/10 Data Accessor Methods
 // ============================================================================
 
-std::vector<FIG0_3_ServiceComponent> AdvancedFIGAnalyzer::getPacketModeComponents() const
+std::vector<FIG0_3_ServiceComponent> AdvancedFIGAnalyser::getPacketModeComponents() const
 {
     return m_packet_components;
 }
 
-std::vector<FIG0_5_Language> AdvancedFIGAnalyzer::getComponentLanguages() const
+std::vector<FIG0_5_Language> AdvancedFIGAnalyser::getComponentLanguages() const
 {
     std::vector<FIG0_5_Language> result;
     for (const auto& pair : m_component_languages) {
@@ -3424,17 +3424,17 @@ std::vector<FIG0_5_Language> AdvancedFIGAnalyzer::getComponentLanguages() const
     return result;
 }
 
-std::vector<FIG0_6_ServiceLink> AdvancedFIGAnalyzer::getServiceLinks() const
+std::vector<FIG0_6_ServiceLink> AdvancedFIGAnalyser::getServiceLinks() const
 {
     return m_service_links;
 }
 
-FIG0_7_ConfigInfo AdvancedFIGAnalyzer::getConfigurationInfo() const
+FIG0_7_ConfigInfo AdvancedFIGAnalyser::getConfigurationInfo() const
 {
     return m_config_info;
 }
 
-std::vector<FIG0_8_GlobalDefinition> AdvancedFIGAnalyzer::getGlobalDefinitions() const
+std::vector<FIG0_8_GlobalDefinition> AdvancedFIGAnalyser::getGlobalDefinitions() const
 {
     std::vector<FIG0_8_GlobalDefinition> result;
     for (const auto& pair : m_global_definitions) {
@@ -3443,12 +3443,12 @@ std::vector<FIG0_8_GlobalDefinition> AdvancedFIGAnalyzer::getGlobalDefinitions()
     return result;
 }
 
-FIG0_9_CountryLTO AdvancedFIGAnalyzer::getCountryLTO() const
+FIG0_9_CountryLTO AdvancedFIGAnalyser::getCountryLTO() const
 {
     return m_country_lto;
 }
 
-FIG0_10_DateTime AdvancedFIGAnalyzer::getDateTime() const
+FIG0_10_DateTime AdvancedFIGAnalyser::getDateTime() const
 {
     return m_date_time;
 }
@@ -3548,12 +3548,12 @@ QDateTime FIGParsingUtils::mjdToDateTime(uint32_t mjd, uint8_t hours, uint8_t mi
 // FIG 0/13 - 0/19 Data Accessor Methods (Phase 2A Week 6)
 // ============================================================================
 
-std::vector<FIG0_13_UserApp> AdvancedFIGAnalyzer::getUserApplications() const
+std::vector<FIG0_13_UserApp> AdvancedFIGAnalyser::getUserApplications() const
 {
     return m_user_applications;
 }
 
-std::vector<FIG0_14_FECScheme> AdvancedFIGAnalyzer::getFECSchemes() const
+std::vector<FIG0_14_FECScheme> AdvancedFIGAnalyser::getFECSchemes() const
 {
     std::vector<FIG0_14_FECScheme> result;
     for (const auto& pair : m_fec_schemes) {
@@ -3562,7 +3562,7 @@ std::vector<FIG0_14_FECScheme> AdvancedFIGAnalyzer::getFECSchemes() const
     return result;
 }
 
-std::vector<FIG0_17_ProgrammeType> AdvancedFIGAnalyzer::getProgrammeTypes() const
+std::vector<FIG0_17_ProgrammeType> AdvancedFIGAnalyser::getProgrammeTypes() const
 {
     std::vector<FIG0_17_ProgrammeType> result;
     for (const auto& pair : m_programme_type_info) {
@@ -3571,12 +3571,12 @@ std::vector<FIG0_17_ProgrammeType> AdvancedFIGAnalyzer::getProgrammeTypes() cons
     return result;
 }
 
-std::vector<FIG0_18_AnnouncementSupport> AdvancedFIGAnalyzer::getAnnouncementSupport() const
+std::vector<FIG0_18_AnnouncementSupport> AdvancedFIGAnalyser::getAnnouncementSupport() const
 {
     return m_announcement_support;
 }
 
-std::vector<FIG0_19_AnnouncementSwitching> AdvancedFIGAnalyzer::getActiveAnnouncements() const
+std::vector<FIG0_19_AnnouncementSwitching> AdvancedFIGAnalyser::getActiveAnnouncements() const
 {
     return m_active_announcements;
 }

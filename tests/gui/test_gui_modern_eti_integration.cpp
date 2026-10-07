@@ -10,7 +10,7 @@
  * - MainWindow integration with Modern ETI components
  * - Service Tree Model performance at >7,482 FPS
  * - Real-time Performance Dashboard validation
- * - ETI Analysis Widget with Enhanced FIG Analyzer
+ * - ETI Analysis Widget with Enhanced FIG Analyser
  * - Network Streaming Panel (Phase 8)
  * - UI responsiveness under high processing loads
  * - Professional theme consistency
@@ -44,7 +44,7 @@
 // Core Modern ETI components
 #include "core/eti_processor.hpp"
 #include "core/modern_eti_frame_parser.hpp"
-#include "core/enhanced_fig_analyzer.hpp"
+#include "core/enhanced_fig_analyser.hpp"
 #include "core/eti_types.h"
 
 // Test utilities
@@ -102,8 +102,8 @@ protected:
         ASSERT_NE(modernParser, nullptr);
         ASSERT_TRUE(modernParser->initialize(config));
         
-        auto figAnalyzer = processor->getFIGAnalyzer();
-        ASSERT_NE(figAnalyzer, nullptr);
+        auto figAnalyser = processor->getFIGAnalyser();
+        ASSERT_NE(figAnalyser, nullptr);
     }
     
     // Generate test ETI frames for performance testing
@@ -154,8 +154,8 @@ TEST_F(GUIModernETIIntegrationTest, MainWindowModernETIIntegration) {
     ASSERT_NE(modernParser, nullptr);
     EXPECT_TRUE(modernParser->isInitialized());
     
-    auto figAnalyzer = processor->getFIGAnalyzer();
-    ASSERT_NE(figAnalyzer, nullptr);
+    auto figAnalyser = processor->getFIGAnalyser();
+    ASSERT_NE(figAnalyser, nullptr);
     
     // Test signal/slot connections between Modern ETI and GUI
     QSignalSpy frameProcessedSpy(processor, &EtiProcessor::frameProcessed);
@@ -292,7 +292,7 @@ TEST_F(GUIModernETIIntegrationTest, PerformanceDashboardValidation) {
 }
 
 /**
- * @brief Test ETI Analysis Widget integration with Enhanced FIG Analyzer
+ * @brief Test ETI Analysis Widget integration with Enhanced FIG Analyser
  */
 TEST_F(GUIModernETIIntegrationTest, ETIAnalysisWidgetFIGIntegration) {
     auto analysisWidget = mainWindow->findChild<EtiAnalysisWidget*>();
@@ -309,10 +309,10 @@ TEST_F(GUIModernETIIntegrationTest, ETIAnalysisWidgetFIGIntegration) {
     auto testFrame = TestDataGenerators::createETIFrameWithFIGs();
     
     auto processor = mainWindow->getEtiProcessor();
-    auto figAnalyzer = processor->getFIGAnalyzer();
+    auto figAnalyser = processor->getFIGAnalyser();
     
     // Set up signal spies for FIG analysis
-    QSignalSpy figAnalysisSpy(figAnalyzer, SIGNAL(figAnalysisComplete(uint32_t, const FIGAnalysisResult&)));
+    QSignalSpy figAnalysisSpy(figAnalyser, SIGNAL(figAnalysisComplete(uint32_t, const FIGAnalysisResult&)));
     QSignalSpy ensembleSpy(processor, &EtiProcessor::ensembleDiscovered);
     QSignalSpy serviceSpy(processor, &EtiProcessor::serviceDiscovered);
     

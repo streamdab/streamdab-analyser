@@ -1,6 +1,6 @@
 # TDD Mock Objects Directory
 
-This directory contains mock implementations for the ETI Stream Analyzer TDD framework.
+This directory contains mock implementations for the ETI Stream Analyser TDD framework.
 
 ## Purpose
 

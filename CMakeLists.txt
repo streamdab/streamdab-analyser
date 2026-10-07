@@ -1,5 +1,38 @@
 cmake_minimum_required(VERSION 3.16)
-project(DABAnalyzer_Enhanced)
+# PROJECT_VERSION is the fallback used when no git metadata is available (e.g. a
+# source tarball). Tagged checkouts build with the tag they are on.
+project(DABAnalyser_Enhanced VERSION 1.6.0 LANGUAGES CXX)
+
+# ============================================================================
+# Product version -- single source of truth for the GUI, the CLI banner, the
+# About dialog and the YAML header. Resolution order:
+#   1. -DDABX_VERSION=x.y.z on the command line (release/CI override)
+#   2. the most recent reachable git tag (leading "v" stripped)
+#   3. PROJECT_VERSION from the project() line above
+# The value is exported to every target as the DABX_VERSION compile definition
+# (see src/core/product_version.hpp for the include-time fallback).
+# ============================================================================
+if(NOT DABX_VERSION)
+    find_package(Git QUIET)
+    if(GIT_FOUND)
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} describe --tags --abbrev=0
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            OUTPUT_VARIABLE _dabx_git_tag
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE _dabx_git_rc
+        )
+        if(_dabx_git_rc EQUAL 0 AND _dabx_git_tag MATCHES "^v?[0-9]+\\.[0-9]+\\.[0-9]+")
+            string(REGEX REPLACE "^v" "" DABX_VERSION "${_dabx_git_tag}")
+        endif()
+    endif()
+endif()
+if(NOT DABX_VERSION)
+    set(DABX_VERSION "${PROJECT_VERSION}")
+endif()
+message(STATUS "Product version (DABX_VERSION): ${DABX_VERSION}")
+add_compile_definitions(DABX_VERSION="${DABX_VERSION}")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -190,7 +223,7 @@ set(CMAKE_BUILD_TYPE Release)
 set(SOURCES
     src/main.cpp
     src/core/enhanced_eti_processor_qt.cpp
-    src/core/advanced_fig_analyzer.cpp
+    src/core/advanced_fig_analyser.cpp
     src/core/charset_converter.cpp
     src/core/etsi_compliance_engine.cpp
     src/core/etsi_registered_tables.cpp
@@ -220,10 +253,10 @@ set(SOURCES
     src/core/headless_eti_processor.cpp
     src/core/eti_processor.cpp
     src/core/modern_eti_frame_parser.cpp
-    src/core/analyzer_settings.cpp
+    src/core/analyser_settings.cpp
     src/core/eti_types.cpp
     src/core/performance_profiler.cpp
-    src/core/enhanced_fig_analyzer.cpp
+    src/core/enhanced_fig_analyser.cpp
     src/core/comprehensive_etsi_validator.cpp
     src/core/ensemble_manager.cpp
     src/core/dab_service_discovery_engine.cpp
@@ -231,7 +264,7 @@ set(SOURCES
     src/utils/logger.cpp
     # Adopted src/gui widgets (Wave B). Each was a stale pre-v1.3 generation
     # file, fixed minimally to compile against the current src/core and driven
-    # by DABAnalyzerWindow adapters (no fake data).
+    # by DABAnalyserWindow adapters (no fake data).
     src/gui/constellation_widget.cpp
     src/gui/about_dialog.cpp
     src/gui/performance_dashboard.cpp
@@ -259,15 +292,15 @@ include_directories(src include)
 
 # === Main GUI Application ===
 # Create executable
-add_executable(DABAnalyzer_Enhanced_FilteringBuild ${SOURCES} ${EDI_SOURCES} ${CLI_SOURCES})
+add_executable(DABAnalyser_Enhanced_FilteringBuild ${SOURCES} ${EDI_SOURCES} ${CLI_SOURCES})
 
 # Runnable name (tests keep referencing the CMake target name above)
-set_target_properties(DABAnalyzer_Enhanced_FilteringBuild PROPERTIES OUTPUT_NAME StreamDABAnalyzer)
+set_target_properties(DABAnalyser_Enhanced_FilteringBuild PROPERTIES OUTPUT_NAME StreamDABAnalyser)
 
 # Link Qt6, ZeroMQ, and Qt-ADS libraries
 # Qt-ADS 4.5.0 exports its include dir via $<BUILD_INTERFACE>, so no manual
 # include-directory hack is needed. Target name: qtadvanceddocking-qt6.
-target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
+target_link_libraries(DABAnalyser_Enhanced_FilteringBuild
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
@@ -280,11 +313,11 @@ target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
 
 # T34: audio decode/output includes + feature defines (HAVE_FAAD2 / HAVE_ALSA).
 # ZMQ_DEFINES carries HAVE_ZMQ only when the ZeroMQ transport was found.
-target_include_directories(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${T34_AUDIO_INCLUDES})
-target_compile_definitions(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${T34_AUDIO_DEFINES} ${ZMQ_DEFINES})
+target_include_directories(DABAnalyser_Enhanced_FilteringBuild PRIVATE ${T34_AUDIO_INCLUDES})
+target_compile_definitions(DABAnalyser_Enhanced_FilteringBuild PRIVATE ${T34_AUDIO_DEFINES} ${ZMQ_DEFINES})
 
 # Add ZeroMQ library directories
-target_link_directories(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${ZMQ_LIBRARY_DIRS})
+target_link_directories(DABAnalyser_Enhanced_FilteringBuild PRIVATE ${ZMQ_LIBRARY_DIRS})
 
 # === CLI-Only Executable ===
 # All dependencies needed for CLI mode (no GUI, no network)
@@ -299,8 +332,8 @@ set(CLI_ONLY_SOURCES
     src/core/eti_processor.cpp
     src/core/eti_types.cpp
     src/core/modern_eti_frame_parser.cpp
-    src/core/analyzer_settings.cpp
-    src/core/enhanced_fig_analyzer.cpp
+    src/core/analyser_settings.cpp
+    src/core/enhanced_fig_analyser.cpp
     src/core/performance_profiler.cpp
     # src/core/comprehensive_etsi_validator.cpp  # REMOVED: All methods commented out
     src/core/fig_parser.cpp

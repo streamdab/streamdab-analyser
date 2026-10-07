@@ -72,9 +72,10 @@
 #include "core/enhanced_eti_processor_qt.h"
 #include "core/crc16.hpp"  // shared CRC-16/CCITT-FALSE (AU + DL Data Group CRC)
 #include "core/dabplus_superframe.hpp"  // T38: shared DAB+ superframe/AU/PAD transport
-#include "core/advanced_fig_analyzer.h"
+#include "core/advanced_fig_analyser.h"
+#include "core/product_version.hpp"  // single-source DABX_VERSION
 #include "core/hex_viewer_formatter.h"
-#include "core/analyzer_settings.hpp"
+#include "core/analyser_settings.hpp"
 #include "core/etsi_compliance_engine.hpp"
 #include "core/multi_stream_processor.hpp"
 #include "core/advanced_error_detection.hpp"
@@ -91,7 +92,7 @@
 #include "cli/cli_main.hpp"  // PDCA Week 8: CLI mode integration
 
 // Wave B: adopted src/gui widgets (see docs/gui/SRC_GUI_AUDIT.md). These are
-// now compiled into the target and driven by DABAnalyzerWindow adapters.
+// now compiled into the target and driven by DABAnalyserWindow adapters.
 #include "gui/constellation_widget.h"
 #include "gui/about_dialog.h"
 #include "gui/performance_dashboard.h"
@@ -758,20 +759,20 @@ struct RetainedSlideStore {
     int nextId = 0;  // id assigned to the next decoded slide
 };
 
-class DABAnalyzerWindow : public QMainWindow
+class DABAnalyserWindow : public QMainWindow
 {
     Q_OBJECT
 
 public:
-    DABAnalyzerWindow(QWidget *parent = nullptr) : QMainWindow(parent)
+    DABAnalyserWindow(QWidget *parent = nullptr) : QMainWindow(parent)
     {
-        setWindowTitle("StreamDAB-Analyzer");
+        setWindowTitle("StreamDAB-Analyser");
         setMinimumSize(1200, 800);
         resize(1400, 1000);
 
         // Initialize core components
         m_etiProcessor = std::make_unique<EnhancedETIProcessorQt>();
-        m_figAnalyzer = std::make_unique<AdvancedFIGAnalyzer>();
+        m_figAnalyser = std::make_unique<AdvancedFIGAnalyser>();
 
         // Initialize hex viewer formatter with ETSI-compliant settings
         m_hexFormatter = std::make_unique<HexViewerFormatter>();
@@ -817,11 +818,11 @@ public:
 
         // MOT SlideShow (option A): wire the decoder + adapter to the panel.
         connect(&m_motProtocol, &eti::mot::MOTProtocol::objectComplete,
-                this, &DABAnalyzerWindow::onMotObjectComplete);
+                this, &DABAnalyserWindow::onMotObjectComplete);
         connect(&m_motProtocol, &eti::mot::MOTProtocol::parseError,
-                this, &DABAnalyzerWindow::onMotParseError);
+                this, &DABAnalyserWindow::onMotParseError);
         connect(&m_motProtocol, &eti::mot::MOTProtocol::reassemblyProgress,
-                this, &DABAnalyzerWindow::onMotProgress);
+                this, &DABAnalyserWindow::onMotProgress);
         m_motAdapter.setProgressCallback(
             [this](uint32_t transportId, double progress) {
                 onMotProgress(transportId, progress);
@@ -840,18 +841,18 @@ public:
         // T29: playback controller over the retained frame cache.
         initPlayback();
 
-        // Load the analyzer decode settings from QSettings (org
-        // "StreamDAB-Analyzer", app "DABAnalyzer", group "analyzer/").
+        // Load the analyser decode settings from QSettings (org
+        // "StreamDAB-Analyser", app "DABAnalyser", group "analyser/").
         // A fresh QSettings yields the defaults, keeping decode behavior
         // identical to the pre-settings baseline.
-        m_analyzerSettings.loadFromQSettings();
+        m_analyserSettings.loadFromQSettings();
 
-        // Wire the decode settings into the GUI FIG analyzer (FIB CRC
+        // Wire the decode settings into the GUI FIG analyser (FIB CRC
         // strictness, fic_mode raw/auto-fallback, force_charset).
-        m_figAnalyzer->setAnalyzerSettings(m_analyzerSettings);
+        m_figAnalyser->setAnalyserSettings(m_analyserSettings);
 
         // Wave B: export manager (real analysis rows are injected at export
-        // time from the live analyzer; see applyExportData()).
+        // time from the live analyser; see applyExportData()).
         m_exportManager = new ProfessionalExportManager(this);
         m_exportManager->initialize(nullptr, nullptr, nullptr);
 
@@ -860,7 +861,7 @@ public:
         m_perfSampleTimer = new QTimer(this);
         m_perfSampleTimer->setInterval(1000);
         connect(m_perfSampleTimer, &QTimer::timeout,
-                this, &DABAnalyzerWindow::updateDashboardSamples);
+                this, &DABAnalyserWindow::updateDashboardSamples);
         m_perfTimer.start();
         m_perfSampleTimer->start();
 
@@ -873,7 +874,7 @@ public:
         // applyTheme();
     }
 
-    ~DABAnalyzerWindow() override;
+    ~DABAnalyserWindow() override;
 
     // Public method for auto-loading files (for testing)
     void autoLoadFile(const QString& filePath)
@@ -920,28 +921,28 @@ public:
     QTreeWidget* ficOverviewTree() const { return m_ficOverviewTree; }
     QTableWidget* errorCounterTable() const { return m_errorCounterTable; }
 
-    // User-selected analyzer decode options (loaded from QSettings at startup).
-    const eti::AnalyzerSettings& analyzerSettings() const noexcept { return m_analyzerSettings; }
+    // User-selected analyser decode options (loaded from QSettings at startup).
+    const eti::AnalyserSettings& analyserSettings() const noexcept { return m_analyserSettings; }
 
-    // Public analyzer-state accessors (reload/reset GUI tests): the FIG
-    // analyzer's instance list / counters must restart cleanly per file.
+    // Public analyser-state accessors (reload/reset GUI tests): the FIG
+    // analyser's instance list / counters must restart cleanly per file.
     bool isFileLoaded() const { return m_fileLoaded; }
-    int analyzerFigInstanceCount() const
+    int analyserFigInstanceCount() const
     {
-        return m_figAnalyzer ? static_cast<int>(m_figAnalyzer->figInstances().size()) : 0;
+        return m_figAnalyser ? static_cast<int>(m_figAnalyser->figInstances().size()) : 0;
     }
-    // T32: the analyzer's service count (the service selector is populated 1:1).
-    int analyzerServiceCountForTest() const
+    // T32: the analyser's service count (the service selector is populated 1:1).
+    int analyserServiceCountForTest() const
     {
-        return m_figAnalyzer ? m_figAnalyzer->getServiceCount() : 0;
+        return m_figAnalyser ? m_figAnalyser->getServiceCount() : 0;
     }
-    int analyzerTotalFigCount() const
+    int analyserTotalFigCount() const
     {
-        return m_figAnalyzer ? m_figAnalyzer->getTotalFIGsProcessed() : 0;
+        return m_figAnalyser ? m_figAnalyser->getTotalFIGsProcessed() : 0;
     }
-    int analyzerFibCrcFailureCount() const
+    int analyserFibCrcFailureCount() const
     {
-        return m_figAnalyzer ? m_figAnalyzer->getFibCrcFailureCount() : 0;
+        return m_figAnalyser ? m_figAnalyser->getFibCrcFailureCount() : 0;
     }
 
     // ========================================================================
@@ -1048,8 +1049,8 @@ public:
     QList<quint32> dabPlusServiceIdsForTest() const
     {
         QList<quint32> ids;
-        if (m_figAnalyzer) {
-            for (const DABService& svc : m_figAnalyzer->getDABServices()) {
+        if (m_figAnalyser) {
+            for (const DABService& svc : m_figAnalyser->getDABServices()) {
                 if (serviceHasDabPlusAudio(svc)) {
                     ids.append(svc.service_id);
                 }
@@ -1086,17 +1087,17 @@ public:
         feedDlsAssembly(assembly, 0, QString());
         return true;
     }
-    // --- Review finding 2 hooks: feed a raw FIG stream to the analyzer and
+    // --- Review finding 2 hooks: feed a raw FIG stream to the analyser and
     // inspect the sub-channel -> service cache the DLS+ pipeline uses ---
     void feedFicForTest(const QByteArray& fic)
     {
-        if (m_figAnalyzer) {
-            m_figAnalyzer->analyzeFICData(fic);
+        if (m_figAnalyser) {
+            m_figAnalyser->analyzeFICData(fic);
         }
     }
     uint32_t figServiceRevisionForTest() const
     {
-        return m_figAnalyzer ? m_figAnalyzer->getServiceRevision() : 0u;
+        return m_figAnalyser ? m_figAnalyser->getServiceRevision() : 0u;
     }
     bool dabPlusSubChannelKnownForTest(int subChannelId)
     {
@@ -1360,7 +1361,7 @@ private slots:
     // Both a file load and a live-network connect start a fresh capture. This
     // drops every piece of per-capture derived state so the two paths can never
     // merge: DLS+/Now Playing, MOT slideshow, per-service media timelines +
-    // retained slides, the DAB+ sub-channel/service cache, the FIG analyzer,
+    // retained slides, the DAB+ sub-channel/service cache, the FIG analyser,
     // audio capture, the service selector, the adopted panels, playback, the
     // raw-frame caches and the associated capture UI.
     //
@@ -1445,12 +1446,12 @@ private slots:
             m_dlsPlusDecoder->resetHistory();
         }
 
-        // === Clear previous-capture decode state in the FIG analyzer ===
+        // === Clear previous-capture decode state in the FIG analyser ===
         // (Tab 3 instances/FIG counters/FIB-CRC counts must not accumulate
         // across captures) and re-apply the user's decode options.
-        if (m_figAnalyzer) {
-            m_figAnalyzer->reset();
-            m_figAnalyzer->setAnalyzerSettings(m_analyzerSettings);
+        if (m_figAnalyser) {
+            m_figAnalyser->reset();
+            m_figAnalyser->setAnalyserSettings(m_analyserSettings);
         }
 
         // === Clear the raw-frame caches ===
@@ -1657,19 +1658,19 @@ private slots:
         // DO NOT call formatToString - causes crash in this context
         
         
-        // === CRITICAL FIX: Pass FIC data to FIG analyzer ===
-        if (!frame.fic_data.isEmpty() && m_figAnalyzer) {
+        // === CRITICAL FIX: Pass FIC data to FIG analyser ===
+        if (!frame.fic_data.isEmpty() && m_figAnalyser) {
             // FIC-XTractor: tag the analyzed FIC with its real ETI frame
             // number so Tab 3's chronological FIG instance list has truth.
-            m_figAnalyzer->setFigFrameNumber(frame.frame_number);
-            m_figAnalyzer->analyzeFICData(frame.fic_data);
+            m_figAnalyser->setFigFrameNumber(frame.frame_number);
+            m_figAnalyser->analyzeFICData(frame.fic_data);
             // DEBUG: Log FIC processing
             static int ficProcessCount = 0;
             ficProcessCount++;
             if (ficProcessCount <= 10 || ficProcessCount % 100 == 0) {
-                qDebug() << "[DEBUG] FIC data passed to analyzer, count:" << ficProcessCount
+                qDebug() << "[DEBUG] FIC data passed to analyser, count:" << ficProcessCount
                          << "frame:" << frame.frame_number << "size:" << frame.fic_data.size();
-                int svcCount = m_figAnalyzer->getServiceCount();
+                int svcCount = m_figAnalyser->getServiceCount();
                 qDebug() << "[DEBUG] Current service count:" << svcCount;
             }
         }
@@ -1700,15 +1701,15 @@ private slots:
     }
 
     // Rebuild the DAB+ sub-channel -> (service id, label) view from the FIG
-    // analyzer when needed. Invalidated by the analyzer's monotonic
+    // analyser when needed. Invalidated by the analyser's monotonic
     // service/component/label revision (Finding 2) in addition to the
     // count/dirty guards. Kept as its own method so the cache can be exercised
     // directly by tests without fabricating a full ProcessedFrame.
     void rebuildDabPlusServiceMapIfNeeded()
     {
-        const int svcCount = m_figAnalyzer ? m_figAnalyzer->getServiceCount() : 0;
-        const int scCount = m_figAnalyzer ? m_figAnalyzer->getSubChannelCount() : 0;
-        const uint32_t revision = m_figAnalyzer ? m_figAnalyzer->getServiceRevision() : 0;
+        const int svcCount = m_figAnalyser ? m_figAnalyser->getServiceCount() : 0;
+        const int scCount = m_figAnalyser ? m_figAnalyser->getSubChannelCount() : 0;
+        const uint32_t revision = m_figAnalyser ? m_figAnalyser->getServiceRevision() : 0;
         if (!m_dabPlusServiceMapDirty && svcCount == m_cachedDabServiceCount
             && scCount == m_cachedSubChannelCount
             && revision == m_cachedServiceRevision) {
@@ -1717,8 +1718,8 @@ private slots:
         m_dabPlusSubChannels.clear();
         m_serviceBySubChannel.clear();
         m_audioSubChannelByService.clear();
-        if (m_figAnalyzer) {
-            for (const DABService& svc : m_figAnalyzer->getDABServices()) {
+        if (m_figAnalyser) {
+            for (const DABService& svc : m_figAnalyser->getDABServices()) {
                 for (const ServiceComponent& comp : svc.components) {
                     if (!comp.isDabPlus()) {
                         continue;
@@ -1754,7 +1755,7 @@ private slots:
     //
     // The superframe/AU/PAD parsing lives in DabPlusSubchannelParser above
     // (spec-correct, cross-checked against DABlin/etisnoop). This method just
-    // routes the FIG analyzer's DAB+ audio subchannels into it, one CIF per
+    // routes the FIG analyser's DAB+ audio subchannels into it, one CIF per
     // ETI frame; a parser emits an assembled DLS label per 120 ms superframe.
     //
     // One ETI frame carries exactly one CIF chunk per sub-channel, so
@@ -1773,7 +1774,7 @@ private slots:
 
         // DAB+ audio subchannels (FIG 0/8 ASCTy = 0x3F) + their service.
         // getDABServices() returns a full copy by value, so the derived view is
-        // cached; it is rebuilt whenever the analyzer's service/component/label
+        // cached; it is rebuilt whenever the analyser's service/component/label
         // revision advances. Service *counts* alone are insufficient: FIG 1/1
         // fills `service_label` later with no count change (and mid-stream
         // reconfigurations can remap components at equal counts).
@@ -2211,7 +2212,7 @@ private slots:
         //     list is disabled while parsing, so the first pass builds no
         //     detail-only widgets.
         //   * Kept in the first pass (needed for navigator + metadata): the
-        //     throttled frame-list entries and the FIC -> FIG analyzer
+        //     throttled frame-list entries and the FIC -> FIG analyser
         //     accumulation. DAB+ PAD->DLS parsing is also first-pass because
         //     it feeds Now Playing as data arrives.
         //   * Deferred: no detail-only work remains in the load loop.
@@ -2772,7 +2773,7 @@ private slots:
 
         // NOTE: The DAB Ensemble Explorer is owned by the real FIG
         // decode path (buildEnsembleTree()/updateEnsembleTree() via
-        // m_figAnalyzer). Frame selection must NOT rewrite it — the old
+        // m_figAnalyser). Frame selection must NOT rewrite it — the old
         // updateEnsembleExplorerForFrame() simulator (fake "Frame N FIC
         // Data" rows) was removed (PANEL_AUDIT fix #1).
 
@@ -2821,17 +2822,17 @@ private:
     {
         m_playbackTimer = new QTimer(this);
         m_playbackTimer->setTimerType(Qt::PreciseTimer);
-        connect(m_playbackTimer, &QTimer::timeout, this, &DABAnalyzerWindow::onPlaybackTick);
+        connect(m_playbackTimer, &QTimer::timeout, this, &DABAnalyserWindow::onPlaybackTick);
         updatePlaybackTimerInterval();
 
         if (m_playButton)
-            connect(m_playButton, &QPushButton::clicked, this, &DABAnalyzerWindow::playbackPlay);
+            connect(m_playButton, &QPushButton::clicked, this, &DABAnalyserWindow::playbackPlay);
         if (m_pauseButton)
-            connect(m_pauseButton, &QPushButton::clicked, this, &DABAnalyzerWindow::playbackPause);
+            connect(m_pauseButton, &QPushButton::clicked, this, &DABAnalyserWindow::playbackPause);
         if (m_stopButton)
-            connect(m_stopButton, &QPushButton::clicked, this, &DABAnalyzerWindow::playbackStop);
+            connect(m_stopButton, &QPushButton::clicked, this, &DABAnalyserWindow::playbackStop);
         if (m_resetButton)
-            connect(m_resetButton, &QPushButton::clicked, this, &DABAnalyzerWindow::playbackReset);
+            connect(m_resetButton, &QPushButton::clicked, this, &DABAnalyserWindow::playbackReset);
         if (m_skipBackButton)
             connect(m_skipBackButton, &QPushButton::clicked, this,
                     [this]() { playbackSkip(-PLAYBACK_SKIP_FRAMES); });
@@ -2840,16 +2841,16 @@ private:
                     [this]() { playbackSkip(PLAYBACK_SKIP_FRAMES); });
         if (m_playbackSpeedCombo)
             connect(m_playbackSpeedCombo, &QComboBox::currentIndexChanged,
-                    this, &DABAnalyzerWindow::onPlaybackSpeedChanged);
+                    this, &DABAnalyserWindow::onPlaybackSpeedChanged);
         if (m_playerProgressBar) {
             // M1: valueChanged covers drag, wheel, keyboard and trough-click;
             // the programmatic-update guard suppresses the echo from
             // updatePlaybackClockUi()/load progress. Live drags use the
             // throttled playhead path; sliderReleased does the forced rebuild.
             connect(m_playerProgressBar, &QSlider::valueChanged,
-                    this, &DABAnalyzerWindow::onPlaybackSliderValueChanged);
+                    this, &DABAnalyserWindow::onPlaybackSliderValueChanged);
             connect(m_playerProgressBar, &QSlider::sliderReleased,
-                    this, &DABAnalyzerWindow::onPlaybackSliderReleased);
+                    this, &DABAnalyserWindow::onPlaybackSliderReleased);
         }
 
         resetPlaybackControls();
@@ -2981,7 +2982,7 @@ private:
         m_populatingServiceSelector = false;
     }
 
-    // Populate from the analyzer's services after a completed load. Display is
+    // Populate from the analyser's services after a completed load. Display is
     // "label (0xSID)" (fallback "SId 0xSID" for unlabeled services; SIDs are
     // formatted by magnitude so 32-bit data SIDs are shown in full); the
     // default selection is the first service that has a DAB+ audio component
@@ -2998,8 +2999,8 @@ private:
 
         int defaultIndex = -1;
         int firstIndex = -1;
-        if (m_figAnalyzer) {
-            for (const DABService& svc : m_figAnalyzer->getDABServices()) {
+        if (m_figAnalyser) {
+            for (const DABService& svc : m_figAnalyser->getDABServices()) {
                 const QString label = svc.service_label.trimmed();
                 const QString sid = serviceSidHex(svc.service_id);
                 const QString itemText = label.isEmpty()
@@ -3073,10 +3074,10 @@ private:
     // The label part of the combo item for `serviceId` (empty when unlabeled).
     QString displayServiceLabel(quint32 serviceId) const
     {
-        if (!m_figAnalyzer) {
+        if (!m_figAnalyser) {
             return QString();
         }
-        for (const DABService& svc : m_figAnalyzer->getDABServices()) {
+        for (const DABService& svc : m_figAnalyser->getDABServices()) {
             if (svc.service_id == serviceId) {
                 return svc.service_label.trimmed();
             }
@@ -3996,7 +3997,7 @@ private:
         
         // Connect signals
         connect(m_networkReceiver.get(), &eti::NetworkStreamReceiver::frame_received,
-                this, &DABAnalyzerWindow::onNetworkFrameReceived);
+                this, &DABAnalyserWindow::onNetworkFrameReceived);
         
         connect(m_networkReceiver.get(), &eti::NetworkStreamReceiver::connection_status_changed,
                 this, [this](bool connected) {
@@ -4267,7 +4268,7 @@ private:
         // by processLiveFrame() via signals:
         // - frameProcessed(ProcessedFrame) → updates frame display
         // - figDiscovered(FIGInfo) → updates service discovery
-        // FIG analyzer receives updates via existing signal/slot connections
+        // FIG analyser receives updates via existing signal/slot connections
     }
     
     void updateStreamStatistics()
@@ -4989,15 +4990,15 @@ private:
         addColumn(QStringLiteral("mot_objects"), QStringLiteral("MOT objects"));
         addColumn(QStringLiteral("etsi_violations"), QStringLiteral("ETSI violations"));
 
-        const int figsTotal = m_figAnalyzer ? m_figAnalyzer->getTotalFIGsProcessed() : 0;
+        const int figsTotal = m_figAnalyser ? m_figAnalyser->getTotalFIGsProcessed() : 0;
         const int etsiCount = m_etsiMonitor
                                   ? m_etsiMonitor->getCurrentStatistics().totalViolations
                                   : 0;
         const int frameCount = static_cast<int>(m_totalFrames);
 
         std::vector<SubChannelInfo> subchannels;
-        if (m_figAnalyzer) {
-            subchannels = m_figAnalyzer->getAllSubChannels();
+        if (m_figAnalyser) {
+            subchannels = m_figAnalyser->getAllSubChannels();
         }
         auto bitrateForSubChannel = [&subchannels](uint8_t id) -> int {
             for (const SubChannelInfo& sc : subchannels) {
@@ -5027,8 +5028,8 @@ private:
             records.append(r);
         };
 
-        if (m_figAnalyzer) {
-            for (const DABService& svc : m_figAnalyzer->getDABServices()) {
+        if (m_figAnalyser) {
+            for (const DABService& svc : m_figAnalyser->getDABServices()) {
                 const ServiceComponent primary = svc.getPrimaryComponent();
                 addRow(QStringLiteral("0x%1").arg(svc.service_id, 0, 16).toUpper(),
                        svc.service_label.isEmpty() ? QStringLiteral("(unlabelled)")
@@ -5042,8 +5043,8 @@ private:
         }
         if (records.isEmpty()) {
             QString ens;
-            if (m_figAnalyzer) {
-                ens = m_figAnalyzer->getCurrentEnsemble().ensembleLabel;
+            if (m_figAnalyser) {
+                ens = m_figAnalyser->getCurrentEnsemble().ensembleLabel;
             }
             if (ens.isEmpty()) {
                 ens = QStringLiteral("(no services decoded)");
@@ -5065,9 +5066,9 @@ private:
 
     // File -> Settings: edits the live application settings. Every control is
     // wired to real behaviour (confirm-exit, sampler rate, network buffer, log
-    // level, shared T34 audio) plus the AnalyzerSettings decode options.
+    // level, shared T34 audio) plus the AnalyserSettings decode options.
     // "Apply"/"OK" persist to the app QSettings scope and apply immediately
-    // where possible; analyzer decode options take full effect on next load.
+    // where possible; analyser decode options take full effect on next load.
     void showSettingsDialog()
     {
         SettingsDialog dlg(this);
@@ -5090,16 +5091,16 @@ private:
         // settingsChanged after saveSettings()).
         connect(&dlg, &SettingsDialog::settingsChanged, this, [this]() {
             applyPersistedAppSettings();
-            m_analyzerSettings.loadFromQSettings();
-            if (m_figAnalyzer) {
-                m_figAnalyzer->setAnalyzerSettings(m_analyzerSettings);
+            m_analyserSettings.loadFromQSettings();
+            if (m_figAnalyser) {
+                m_figAnalyser->setAnalyserSettings(m_analyserSettings);
             }
         });
 
         if (dlg.exec() == QDialog::Accepted) {
             statusBar()->showMessage(
                 tr("Settings saved — applied now (exit confirmation, update rate, "
-                   "network buffer, log level, audio). Analyzer decode options take "
+                   "network buffer, log level, audio). Analyser decode options take "
                    "full effect on the next file load."), 6000);
         }
     }
@@ -5264,8 +5265,8 @@ protected:
         if (m_confirmExitOnClose && !m_closing && !isHeadlessPlatform() &&
             (event->spontaneous() || m_userCloseRequested)) {
             const QMessageBox::StandardButton answer = QMessageBox::question(
-                this, tr("Exit StreamDAB Analyzer"),
-                tr("Close StreamDAB Analyzer and discard the current session?"),
+                this, tr("Exit StreamDAB Analyser"),
+                tr("Close StreamDAB Analyser and discard the current session?"),
                 QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
             if (answer != QMessageBox::Yes) {
                 m_userCloseRequested = false;
@@ -5302,8 +5303,8 @@ protected:
         // onProcessingComplete/onProcessingError/onErrorDetected), which is the
         // actual crash fix. The disconnects are defense-in-depth so a still-live
         // emitter cannot post new events while teardown runs.
-        if (m_figAnalyzer) {
-            QObject::disconnect(m_figAnalyzer.get(), nullptr, this, nullptr);
+        if (m_figAnalyser) {
+            QObject::disconnect(m_figAnalyser.get(), nullptr, this, nullptr);
         }
         if (m_etiProcessor) {
             QObject::disconnect(m_etiProcessor.get(), nullptr, this, nullptr);
@@ -5352,9 +5353,9 @@ protected:
         }
         
         // Force destroy other components
-        if (m_figAnalyzer) {
-            qDebug() << "Destroying FIG analyzer...";
-            m_figAnalyzer.reset();
+        if (m_figAnalyser) {
+            qDebug() << "Destroying FIG analyser...";
+            m_figAnalyser.reset();
         }
         
         if (m_etsiComplianceEngine) {
@@ -5479,15 +5480,15 @@ private:
 
     // === PHASE 1.4: Ensemble Tree Builder ===
     void buildEnsembleTree() {
-        if (!m_ensembleTree || !m_figAnalyzer) {
-            return;  // Tree or analyzer not initialized
+        if (!m_ensembleTree || !m_figAnalyser) {
+            return;  // Tree or analyser not initialized
         }
         
         m_ensembleTree->clear();
         
         // Level 1: Ensemble root
         QTreeWidgetItem* ensembleRoot = new QTreeWidgetItem(m_ensembleTree);
-        EnsembleInfo ensemble = m_figAnalyzer->getCurrentEnsemble();
+        EnsembleInfo ensemble = m_figAnalyser->getCurrentEnsemble();
         
         ensembleRoot->setText(0, QString("0x%1").arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper());
         ensembleRoot->setText(1, ensemble.ensembleLabel.isEmpty() 
@@ -5503,7 +5504,7 @@ private:
         ensembleRoot->setFont(2, boldFont);
         
         // Level 2: Services
-        QList<ServiceInfo> services = m_figAnalyzer->getDiscoveredServices();
+        QList<ServiceInfo> services = m_figAnalyser->getDiscoveredServices();
         for (const ServiceInfo& service : services) {
             QTreeWidgetItem* serviceItem = new QTreeWidgetItem(ensembleRoot);
             serviceItem->setText(0, QString("0x%1").arg(service.serviceId, 4, 16, QChar('0')).toUpper());
@@ -5519,7 +5520,7 @@ private:
             // primary/secondary, DAB+/audio type); the fabricated
             // "Primary Audio / Service Detail" placeholders are gone.
             const DABService* dabService = nullptr;
-            const std::vector<DABService> dabServices = m_figAnalyzer->getDABServices();
+            const std::vector<DABService> dabServices = m_figAnalyser->getDABServices();
             for (const DABService& svc : dabServices) {
                 if (svc.service_id == service.serviceId) {
                     dabService = &svc;
@@ -5588,12 +5589,12 @@ private:
 
     // === PHASE 2.1: Subchannel Table Update ===
     void updateSubchannelTable() {
-        if (!m_subchannelTable || !m_figAnalyzer) {
-            return;  // Table or analyzer not initialized
+        if (!m_subchannelTable || !m_figAnalyser) {
+            return;  // Table or analyser not initialized
         }
         
-        // Get all subchannels from FIG analyzer
-        std::vector<SubChannelInfo> subchannels = m_figAnalyzer->getAllSubChannels();
+        // Get all subchannels from FIG analyser
+        std::vector<SubChannelInfo> subchannels = m_figAnalyser->getAllSubChannels();
         
         // FIX CRITICAL-001: Clear existing items to prevent memory leak
         // Note: clearContents() deletes all items properly, preventing leaks
@@ -5650,12 +5651,12 @@ private:
 
     // === PHASE 2.2: CU Usage Update ===
     void updateCUUsage() {
-        if (!m_cuUsageBar || !m_cuUsageLabel || !m_figAnalyzer) {
-            return;  // Widgets or analyzer not initialized
+        if (!m_cuUsageBar || !m_cuUsageLabel || !m_figAnalyser) {
+            return;  // Widgets or analyser not initialized
         }
         
         // Get all subchannels to calculate total CU usage
-        std::vector<SubChannelInfo> subchannels = m_figAnalyzer->getAllSubChannels();
+        std::vector<SubChannelInfo> subchannels = m_figAnalyser->getAllSubChannels();
         
         // Calculate total CUs used
         uint16_t totalCUs = 0;
@@ -5686,7 +5687,7 @@ private:
 
     // === PHASE 2.3: Stream Statistics Table Update ===
     void updateStreamStatistics(int totalFrames, int processingTimeMs) {
-        if (!m_streamStatsTable || !m_figAnalyzer || !m_etiProcessor) {
+        if (!m_streamStatsTable || !m_figAnalyser || !m_etiProcessor) {
             return;  // Widgets or components not initialized
         }
         
@@ -5720,12 +5721,12 @@ private:
         
         // Calculate statistics
         int ficBlocksProcessed = totalFrames;  // Each frame has 1 FIC block
-        int totalFIGCount = m_figAnalyzer->getTotalFIGsProcessed();
-        int serviceCount = m_figAnalyzer->getServiceCount();
-        int subchannelCount = m_figAnalyzer->getSubChannelCount();
+        int totalFIGCount = m_figAnalyser->getTotalFIGsProcessed();
+        int serviceCount = m_figAnalyser->getServiceCount();
+        int subchannelCount = m_figAnalyser->getSubChannelCount();
         
         // Calculate CU usage with mode awareness
-        std::vector<SubChannelInfo> subchannels = m_figAnalyzer->getAllSubChannels();
+        std::vector<SubChannelInfo> subchannels = m_figAnalyser->getAllSubChannels();
         uint16_t totalCUs = 0;
         for (const SubChannelInfo& subch : subchannels) {
             totalCUs += subch.sub_channel_size;
@@ -5736,7 +5737,7 @@ private:
         uint16_t maxCUs = getMaxCUForMode(dabMode);
         
         // Count service types
-        QList<ServiceInfo> services = m_figAnalyzer->getDiscoveredServices();
+        QList<ServiceInfo> services = m_figAnalyser->getDiscoveredServices();
         int dabCount = 0, dabPlusCount = 0, dataCount = 0;
         for (const ServiceInfo& service : services) {
             if (service.isData) {
@@ -5829,7 +5830,7 @@ private:
         m_errorCounterTable->clearContents();
         
         // Ensure correct size (5 error rows + FIB CRC row from the FIG
-        // analyzer — PANEL_AUDIT fix #4)
+        // analyser — PANEL_AUDIT fix #4)
         if (m_errorCounterTable->rowCount() != 6) {
             m_errorCounterTable->setRowCount(6);
         }
@@ -5864,9 +5865,9 @@ private:
             int count;
         };
         
-        // FIB CRC failures come from the FIG analyzer's real per-FIB CRC-16
+        // FIB CRC failures come from the FIG analyser's real per-FIB CRC-16
         // validation (getFibCrcFailureCount). Zero on a clean capture.
-        const int fibCrcErrors = m_figAnalyzer ? m_figAnalyzer->getFibCrcFailureCount() : 0;
+        const int fibCrcErrors = m_figAnalyser ? m_figAnalyser->getFibCrcFailureCount() : 0;
         
         ErrorRow errors[] = {
             {"FIC CRC Errors", ficCrcErrors},
@@ -5911,30 +5912,30 @@ private:
         
         m_ficOverviewTree->clear();
         
-        // Root: FIC Overview — real values from the FIG analyzer (the
+        // Root: FIC Overview — real values from the FIG analyser (the
         // "Data Available"/"Ready for data" literals are gone).
-        const bool hasData = m_fileLoaded && m_figAnalyzer;
+        const bool hasData = m_fileLoaded && m_figAnalyser;
         auto* rootItem = new QTreeWidgetItem(m_ficOverviewTree);
         rootItem->setText(0, "FIC Overview");
         rootItem->setText(1, hasData ? "Decoded" : "No Data");
         rootItem->setText(3, hasData ? "OK" : "N/A");
         
         if (hasData) {
-            const int ficBytes = m_figAnalyzer->getLastFicSize();
+            const int ficBytes = m_figAnalyser->getLastFicSize();
             const int fibPerFrame = ficBytes > 0 ? ficBytes / 32 : 0;  // FIBs per on-air FIC
-            const int totalFigs = m_figAnalyzer->getTotalFIGsProcessed();
-            const int crcFailures = m_figAnalyzer->getFibCrcFailureCount();
+            const int totalFigs = m_figAnalyser->getTotalFIGsProcessed();
+            const int crcFailures = m_figAnalyser->getFibCrcFailureCount();
 
             auto* streamItem = new QTreeWidgetItem(rootItem);
             streamItem->setText(0, "FIC stream");
             streamItem->setText(1, QString("%1 B / %2 FIBs per frame")
                                     .arg(ficBytes).arg(fibPerFrame));
-            streamItem->setText(3, m_figAnalyzer->rawFicFallbackUsed() ? "raw fallback" : "OK");
+            streamItem->setText(3, m_figAnalyser->rawFicFallbackUsed() ? "raw fallback" : "OK");
 
             auto* figsItem = new QTreeWidgetItem(rootItem);
             figsItem->setText(0, "FIGs processed");
             figsItem->setText(1, QString::number(totalFigs));
-            figsItem->setText(3, QString("%1 valid").arg(m_figAnalyzer->getValidFIGsCount()));
+            figsItem->setText(3, QString("%1 valid").arg(m_figAnalyser->getValidFIGsCount()));
 
             // Per FIG type/extension occurrence counts (chronological wire
             // order over the whole capture).
@@ -5942,9 +5943,9 @@ private:
             byTypeItem->setText(0, "FIG counts by type");
             byTypeItem->setText(1, "");
             byTypeItem->setText(3, "");
-            const QVector<AdvancedFIGAnalyzer::FigTypeCount> counts =
-                m_figAnalyzer->getFigTypeCounts();
-            for (const AdvancedFIGAnalyzer::FigTypeCount& tc : counts) {
+            const QVector<AdvancedFIGAnalyser::FigTypeCount> counts =
+                m_figAnalyser->getFigTypeCounts();
+            for (const AdvancedFIGAnalyser::FigTypeCount& tc : counts) {
                 auto* figItem = new QTreeWidgetItem(byTypeItem);
                 figItem->setText(0, QString("FIG %1/%2").arg(tc.type).arg(tc.ext));
                 figItem->setText(1, QString::number(tc.count));
@@ -5963,11 +5964,11 @@ private:
 
     // === PHASE 6: Tab 2 LEFT Panel Updates ===
     void updateTab2OverviewLabels() {
-        if (!m_figAnalyzer) return;
+        if (!m_figAnalyser) return;
 
-        // Real values from the FIG analyzer (PANEL_AUDIT fix #2): the
+        // Real values from the FIG analyser (PANEL_AUDIT fix #2): the
         // "Ready/Available" literals are gone.
-        EnsembleInfo ensemble = m_figAnalyzer->getCurrentEnsemble();
+        EnsembleInfo ensemble = m_figAnalyser->getCurrentEnsemble();
         const bool hasEnsemble = (ensemble.ensembleId != 0 || !ensemble.ensembleLabel.isEmpty());
 
         if (m_tab2_ensembleName) {
@@ -5982,18 +5983,18 @@ private:
         }
         if (m_tab2_ficContentSummary) {
             m_tab2_ficContentSummary->setText(
-                QString("FIC Content: %1 FIGs").arg(m_figAnalyzer->getTotalFIGsProcessed()));
+                QString("FIC Content: %1 FIGs").arg(m_figAnalyser->getTotalFIGsProcessed()));
         }
         if (m_tab2_subchannelOrgSummary) {
             m_tab2_subchannelOrgSummary->setText(
-                QString("Sub-Channels: %1").arg(m_figAnalyzer->getAllSubChannels().size()));
+                QString("Sub-Channels: %1").arg(m_figAnalyser->getAllSubChannels().size()));
         }
         // T33.1: compact summary of the FIC-decoded DATA services (service_type
         // 1 = data service, ETSI EN 300 401 §6.3.1 via FIG 0/2's P/D flag),
-        // sourced from the same analyzer data as the service tables.
+        // sourced from the same analyser data as the service tables.
         if (m_tab2_digitalServices) {
             QStringList digital;
-            for (const DABService& svc : m_figAnalyzer->getDABServices()) {
+            for (const DABService& svc : m_figAnalyser->getDABServices()) {
                 if (svc.service_type != 1) {
                     continue;
                 }
@@ -6016,13 +6017,13 @@ private:
     }
     
     void buildTab2ServiceTree() {
-        if (!m_tab2_serviceTree || !m_figAnalyzer) return;
+        if (!m_tab2_serviceTree || !m_figAnalyser) return;
         
         m_tab2_serviceTree->clear();
         
         if (m_fileLoaded) {
-            // Real services from the FIG analyzer's decoded MCI/SI data.
-            std::vector<DABService> services = m_figAnalyzer->getDABServices();
+            // Real services from the FIG analyser's decoded MCI/SI data.
+            std::vector<DABService> services = m_figAnalyser->getDABServices();
             auto* rootItem = new QTreeWidgetItem(m_tab2_serviceTree);
             rootItem->setText(0, QString("Services (%1)").arg(services.size()));
             rootItem->setText(1, "");
@@ -6056,12 +6057,12 @@ private:
     }
     
     void buildTab2ComponentsTree() {
-        if (!m_tab2_serviceComponents || !m_figAnalyzer) return;
+        if (!m_tab2_serviceComponents || !m_figAnalyser) return;
         
         m_tab2_serviceComponents->clear();
         
         if (m_fileLoaded) {
-            std::vector<DABService> services = m_figAnalyzer->getDABServices();
+            std::vector<DABService> services = m_figAnalyser->getDABServices();
             auto* rootItem = new QTreeWidgetItem(m_tab2_serviceComponents);
             rootItem->setText(0, QString("Components (%1 services)").arg(services.size()));
             rootItem->setText(1, "");
@@ -6102,11 +6103,11 @@ private:
 
     // === PHASE 7: Tab 2 CENTER Panel Table Updates ===
     void updateTab2EnsembleTable() {
-        if (!m_tab2_ensembleTable || !m_figAnalyzer) return;
+        if (!m_tab2_ensembleTable || !m_figAnalyser) return;
         
         m_tab2_ensembleTable->clearContents();
         
-        std::vector<DABService> services = m_figAnalyzer->getDABServices();
+        std::vector<DABService> services = m_figAnalyser->getDABServices();
         m_tab2_ensembleTable->setRowCount(static_cast<int>(services.size()));
         const int colCount = m_tab2_ensembleTable->columnCount();
         
@@ -6119,7 +6120,7 @@ private:
             
             QString bitrateStr = "-";
             if (primary.transport_mode == 0) {
-                uint16_t bitrate = m_figAnalyzer->getSubChannelInfo(primary.sub_channel_id).getBitrate();
+                uint16_t bitrate = m_figAnalyser->getSubChannelInfo(primary.sub_channel_id).getBitrate();
                 bitrateStr = QString("%1 kbps").arg(bitrate);
             }
             
@@ -6148,13 +6149,13 @@ private:
     }
     
     void updateTab2SubchannelTable() {
-        if (!m_tab2_subchannelTable || !m_figAnalyzer) return;
+        if (!m_tab2_subchannelTable || !m_figAnalyser) return;
         
         m_tab2_subchannelTable->clearContents();
         
         // Reverse map: subchannel id -> owning service (label/short label).
         QMap<uint8_t, const DABService*> serviceBySubChannel;
-        const std::vector<DABService> services = m_figAnalyzer->getDABServices();
+        const std::vector<DABService> services = m_figAnalyser->getDABServices();
         for (const DABService& service : services) {
             for (const ServiceComponent& comp : service.components) {
                 if (comp.transport_mode == 0) {
@@ -6163,7 +6164,7 @@ private:
             }
         }
         
-        std::vector<SubChannelInfo> subchannels = m_figAnalyzer->getAllSubChannels();
+        std::vector<SubChannelInfo> subchannels = m_figAnalyser->getAllSubChannels();
         m_tab2_subchannelTable->setRowCount(static_cast<int>(subchannels.size()));
         const int colCount = m_tab2_subchannelTable->columnCount();
         
@@ -6203,11 +6204,11 @@ private:
     }
     
     void updateTab2ServiceTable() {
-        if (!m_tab2_serviceTable || !m_figAnalyzer) return;
+        if (!m_tab2_serviceTable || !m_figAnalyser) return;
         
         m_tab2_serviceTable->clearContents();
         
-        std::vector<DABService> services = m_figAnalyzer->getDABServices();
+        std::vector<DABService> services = m_figAnalyser->getDABServices();
         m_tab2_serviceTable->setRowCount(static_cast<int>(services.size()));
         const int colCount = m_tab2_serviceTable->columnCount();
         
@@ -6231,13 +6232,13 @@ private:
     }
     
     void updateTab2FIGContentTable() {
-        if (!m_tab2_figContentTable || !m_figAnalyzer) return;
+        if (!m_tab2_figContentTable || !m_figAnalyser) return;
         
         m_tab2_figContentTable->clearContents();
         
         // Observed FIG types/extensions with block counts, fed by the
-        // analyzer's FIG-type counter (PANEL_AUDIT fix #2).
-        QVector<AdvancedFIGAnalyzer::FigTypeCount> counts = m_figAnalyzer->getFigTypeCounts();
+        // analyser's FIG-type counter (PANEL_AUDIT fix #2).
+        QVector<AdvancedFIGAnalyser::FigTypeCount> counts = m_figAnalyser->getFigTypeCounts();
         m_tab2_figContentTable->setRowCount(counts.size());
         const int colCount = m_tab2_figContentTable->columnCount();
         
@@ -6262,7 +6263,7 @@ private:
 
     // === PHASE 8: Tab 3 LEFT Panel - FIG Instance Tree ===
     // FIC-XTractor chronological FIG instance list (PANEL_AUDIT fix #3):
-    // real per-frame instances recorded by the analyzer's FIG collector.
+    // real per-frame instances recorded by the analyser's FIG collector.
     static QString tab2ServiceTypeString(const DABService& service) {
         if (service.is_dab_plus) return "DAB+";
         if (service.service_type == 0) return "Audio";
@@ -6338,7 +6339,7 @@ private:
     // FIG 1/1 = 20 bytes (SId 2 + char field 2 + label 16), FIG 1/4 = 22
     // bytes (SId 2 + SCIdS/rfa 2 + char field 2 + label 16).
     // Walk FIG 0/2 service entries with the same stride as
-    // AdvancedFIGAnalyzer::processFIG0_2 (the EN 300 401 6.3.1 layout,
+    // AdvancedFIGAnalyser::processFIG0_2 (the EN 300 401 6.3.1 layout,
     // etisnoop fig0_2.cpp parity):
     //   ext byte b0: P/D flag = bit 5; P/D=0 -> 16-bit SId, P/D=1 -> 32-bit
     //   entry     : SId (2/4 B) + ca_byte (local(1)|CAid(3)|ncomp(4))
@@ -6458,8 +6459,8 @@ private:
                          (b[3] & 0x20) ? "1" : "0", "Alarm flag (EN 300 401 6.4.1, bit 5)");
         }
         // Cross-reference the decoded ensemble label (if known).
-        if (m_figAnalyzer) {
-            EnsembleInfo ens = m_figAnalyzer->getCurrentEnsemble();
+        if (m_figAnalyser) {
+            EnsembleInfo ens = m_figAnalyser->getCurrentEnsemble();
             if (!ens.ensembleLabel.isEmpty()) {
                 addDetailRow(parent, "Ensemble Label", "-", ens.ensembleLabel,
                              "Decoded from FIG 1/0");
@@ -6516,7 +6517,7 @@ private:
 
     void buildFig0_2Details(QTreeWidgetItem* parent, const QByteArray& raw) {
         // FIG 0/2: real service-organization walk (EN 300 401 6.3.1), mirroring
-        // AdvancedFIGAnalyzer::processFIG0_2 — no invented TMId/NumClusters:
+        // AdvancedFIGAnalyser::processFIG0_2 — no invented TMId/NumClusters:
         //   ext byte b0: P/D flag = bit 5 (per FIG, not per entry)
         //   entry     : SId (16-bit P/D=0, 32-bit P/D=1) + ca_byte
         //               [local(1)|CAid(3)|ncomp(4)]
@@ -6530,7 +6531,7 @@ private:
             uint32_t sid = 0;
             if (!pd) {
                 // 16-bit programme SId (bit 15 = the P/D flag, kept out of
-                // the key — same 0x7FFF mask the analyzer applies).
+                // the key — same 0x7FFF mask the analyser applies).
                 if (offset + 2 > raw.size()) break;
                 sid = (static_cast<uint32_t>(b[offset] & 0x7F) << 8) | b[offset + 1];
                 offset += 2;
@@ -6590,8 +6591,8 @@ private:
             ++index;
         }
         // Cross-reference decoded service labels (short label included).
-        if (m_figAnalyzer) {
-            const std::vector<DABService> services = m_figAnalyzer->getDABServices();
+        if (m_figAnalyser) {
+            const std::vector<DABService> services = m_figAnalyser->getDABServices();
             for (const DABService& svc : services) {
                 if (!svc.service_label.isEmpty()) {
                     addDetailRow(parent, QString("Label 0x%1").arg(svc.service_id, 4, 16, QChar('0')).toUpper(),
@@ -6602,9 +6603,9 @@ private:
     }
 
     void buildFig0_9Details(QTreeWidgetItem* parent) {
-        // FIG 0/9: reuse the analyzer's decoded country/LTO table.
-        if (!m_figAnalyzer) return;
-        FIG0_9_CountryLTO lto = m_figAnalyzer->getCountryLTO();
+        // FIG 0/9: reuse the analyser's decoded country/LTO table.
+        if (!m_figAnalyser) return;
+        FIG0_9_CountryLTO lto = m_figAnalyser->getCountryLTO();
         addDetailRow(parent, "ECC", "8 bits",
                      QString("0x%1").arg(lto.ensemble_ecc, 2, 16, QChar('0')).toUpper(),
                      "Extended Country Code");
@@ -6619,9 +6620,9 @@ private:
     }
 
     void buildFig0_10Details(QTreeWidgetItem* parent) {
-        // FIG 0/10: reuse the analyzer's decoded date/time (MJD -> real date).
-        if (!m_figAnalyzer) return;
-        FIG0_10_DateTime dt = m_figAnalyzer->getDateTime();
+        // FIG 0/10: reuse the analyser's decoded date/time (MJD -> real date).
+        if (!m_figAnalyser) return;
+        FIG0_10_DateTime dt = m_figAnalyser->getDateTime();
         addDetailRow(parent, "MJD", "17 bits", QString::number(dt.mjd),
                      "Modified Julian Date");
         addDetailRow(parent, "UTC", "5 bits", QString::number(dt.hours),
@@ -6636,7 +6637,7 @@ private:
     }
 
     // Build a DABLabel from FIG 1 raw fields (returns empty on short data).
-    // Wire order per EN 300 401 8.1.13/8.1.14 (matches the analyzer's
+    // Wire order per EN 300 401 8.1.13/8.1.14 (matches the analyser's
     // parseLabel): the 16-character label starts at labelOffset, and the
     // 2-byte character flag follows it at labelOffset+16 — NOT before it.
     DABLabel parseFig1Label(const QByteArray& raw, int labelOffset) const {
@@ -6715,7 +6716,7 @@ private:
         
         m_tab3_figInstanceTree->clear();
         
-        if (!m_fileLoaded || !m_figAnalyzer) {
+        if (!m_fileLoaded || !m_figAnalyser) {
             auto* noDataItem = new QTreeWidgetItem(m_tab3_figInstanceTree);
             noDataItem->setText(0, "No FIG instances");
             noDataItem->setText(1, "");
@@ -6727,13 +6728,13 @@ private:
             return;
         }
         
-        // Chronological real FIG instances from the analyzer's collector
+        // Chronological real FIG instances from the analyser's collector
         // (FIC-XTractor view). Observation (d): the tree is now hierarchical —
         // one top-level group per (type, ext) with its instance count, and the
         // instances as children. Child items carry the collector index in
         // Qt::UserRole so the selection sync can rebuild the element tree.
-        const QVector<AdvancedFIGAnalyzer::FigInstance>& instances =
-            m_figAnalyzer->figInstances();
+        const QVector<AdvancedFIGAnalyser::FigInstance>& instances =
+            m_figAnalyser->figInstances();
 
         struct FigGroup {
             int type = 0;
@@ -6746,7 +6747,7 @@ private:
 
         m_tab3_figInstanceTree->setUpdatesEnabled(false);
         for (int i = 0; i < instances.size(); ++i) {
-            const AdvancedFIGAnalyzer::FigInstance& inst = instances.at(i);
+            const AdvancedFIGAnalyser::FigInstance& inst = instances.at(i);
             const quint16 key = static_cast<quint16>((inst.type << 8) | inst.ext);
             int gi = groupIndex.value(key, -1);
             if (gi < 0) {
@@ -6850,7 +6851,7 @@ private:
         
         m_tab3_figItemDetailsTree->clear();
         
-        if (!m_fileLoaded || !m_figAnalyzer || index < 0) {
+        if (!m_fileLoaded || !m_figAnalyser || index < 0) {
             auto* noDataItem = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
             noDataItem->setText(0, "No FIG selected");
             noDataItem->setText(1, "");
@@ -6859,12 +6860,12 @@ private:
             return;
         }
         
-        const QVector<AdvancedFIGAnalyzer::FigInstance>& instances =
-            m_figAnalyzer->figInstances();
+        const QVector<AdvancedFIGAnalyser::FigInstance>& instances =
+            m_figAnalyser->figInstances();
         if (index >= instances.size()) {
             return;
         }
-        const AdvancedFIGAnalyzer::FigInstance& inst = instances.at(index);
+        const AdvancedFIGAnalyser::FigInstance& inst = instances.at(index);
 
         auto* rootItem = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
         fillFIGInstanceDetails(rootItem, inst);
@@ -6878,7 +6879,7 @@ private:
     // builders (buildFig0_*/buildFig1_*) under it. Reused by the FIG-instance
     // details pane and by the Frame List's per-frame FIG tree — no new decoding.
     void fillFIGInstanceDetails(QTreeWidgetItem* rootItem,
-                                const AdvancedFIGAnalyzer::FigInstance& inst)
+                                const AdvancedFIGAnalyser::FigInstance& inst)
     {
         if (!rootItem) return;
         // Root: the real FIG block with its wire header (type/length/ext) plus
@@ -6952,7 +6953,7 @@ private:
     // T28: selecting a frame in the Frame List decodes that frame's FIGs and
     // shows them in the right dock (FIG Item Details). Each root is a FIG
     // present in the frame (type/ext/len/FIB/CRC markers) with the existing
-    // per-FIG element builders nested underneath. Reuses the analyzer's
+    // per-FIG element builders nested underneath. Reuses the analyser's
     // per-frame instance collector — no new decoding logic.
     //
     // L4 limitation: this REUSES the single m_tab3_figItemDetailsTree that the
@@ -6965,7 +6966,7 @@ private:
         if (!m_tab3_figItemDetailsTree) return;
         m_tab3_figItemDetailsTree->clear();
 
-        if (!m_fileLoaded || !m_figAnalyzer || frameIndex < 0) {
+        if (!m_fileLoaded || !m_figAnalyser || frameIndex < 0) {
             auto* noData = new QTreeWidgetItem(m_tab3_figItemDetailsTree);
             noData->setText(0, "No FIG selected");
             noData->setText(3, "Load a capture and select a frame");
@@ -6974,9 +6975,9 @@ private:
 
         const int frameNumber = frameIndex + 1;  // FigInstance::frame is 1-based
         int roots = 0;
-        const QVector<AdvancedFIGAnalyzer::FigInstance>& instances =
-            m_figAnalyzer->figInstances();
-        for (const AdvancedFIGAnalyzer::FigInstance& inst : instances) {
+        const QVector<AdvancedFIGAnalyser::FigInstance>& instances =
+            m_figAnalyser->figInstances();
+        for (const AdvancedFIGAnalyser::FigInstance& inst : instances) {
             if (inst.frame != frameNumber) {
                 continue;
             }
@@ -7049,11 +7050,11 @@ private:
     }
 
     // FIG Instance List selection -> the selected instance's raw bytes (the
-    // analyzer collector's `raw`) with a FIG t/e/length/FIB/CRC header.
+    // analyser collector's `raw`) with a FIG t/e/length/FIB/CRC header.
     void updateTab3HexFromFigInstance()
     {
         if (!m_tab3_hexViewer) return;
-        if (!m_fileLoaded || !m_figAnalyzer) {
+        if (!m_fileLoaded || !m_figAnalyser) {
             showTab3HexMessage(
                 "No capture loaded. Select a FIG instance or a frame after loading an ETI file.");
             return;
@@ -7062,14 +7063,14 @@ private:
         if (m_tab3_figInstanceTree && m_tab3_figInstanceTree->currentItem()) {
             index = m_tab3_figInstanceTree->currentItem()->data(0, Qt::UserRole).toInt();
         }
-        const QVector<AdvancedFIGAnalyzer::FigInstance>& instances =
-            m_figAnalyzer->figInstances();
+        const QVector<AdvancedFIGAnalyser::FigInstance>& instances =
+            m_figAnalyser->figInstances();
         if (index < 0 || index >= instances.size()) {
             showTab3HexMessage(
                 "No FIG instance selected. Pick an instance under a FIG group to view its raw bytes.");
             return;
         }
-        const AdvancedFIGAnalyzer::FigInstance& inst = instances.at(index);
+        const AdvancedFIGAnalyser::FigInstance& inst = instances.at(index);
         const QString header = QString(
             "FIG %1/%2  |  length=%3 bytes  |  FIB %4  |  %5  |  frame %6")
             .arg(inst.type)
@@ -7096,7 +7097,7 @@ private:
         // F2: mirror ModernETIFrameParser's nst_offset_1 legacy correction
         // (settings_.nst_offset_1 && nst < MAX_SUBCHANNEL_COUNT -> nst + 1).
         const int nst =
-            (m_analyzerSettings.nst_offset_1
+            (m_analyserSettings.nst_offset_1
              && nstField < static_cast<int>(eti::MAX_SUBCHANNEL_COUNT))
                 ? nstField + 1
                 : nstField;
@@ -7218,9 +7219,9 @@ private:
         QWidget* tab1 = createTab1_EnsembleAndETIAnalysis();
         mainTabs->addTab(tab1, "📡 DAB Ensemble & ETI Analysis");
 
-        // Tab 2: FIC-Analyzer (SECONDARY - FIC analysis)
-        QWidget* tab2 = createTab2_FICAnalyzer();
-        mainTabs->addTab(tab2, "🔬 FIC-Analyzer");
+        // Tab 2: FIC-Analyser (SECONDARY - FIC analysis)
+        QWidget* tab2 = createTab2_FICAnalyser();
+        mainTabs->addTab(tab2, "🔬 FIC-Analyser");
 
         // Tab 3: FIC-Extractor (TERTIARY - FIC data extraction)
         QWidget* tab3 = createTab3_FICExtractor();
@@ -7329,7 +7330,7 @@ private:
     //   selected : accent #4a8fd4 background with palette(highlightedText)
     //              text, bold
     //   pane     : 1px palette(mid) border
-    // The UI-redesign mockup (docs/gui/StreamDAB-Analyzer UI Redesign.html)
+    // The UI-redesign mockup (docs/gui/StreamDAB-Analyser UI Redesign.html)
     // uses accent #4a8fd4, border #363636 and text #c6c6c6. Only the brand
     // accent is used verbatim; the remaining colours are derived from
     // palette() so the app stays readable on the default light theme too.
@@ -7602,7 +7603,7 @@ private:
         }
     }
 
-    QList<DABAnalyzerWindow::DockSection> createTab1_LeftPanel()
+    QList<DABAnalyserWindow::DockSection> createTab1_LeftPanel()
     {
         QList<DockSection> sections;
 
@@ -7867,13 +7868,13 @@ private:
             onSourceTypeChanged(checked);
         });
         connect(m_quickExampleCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                this, &DABAnalyzerWindow::onQuickExampleSelected);
-        connect(m_connectBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onConnectClicked);
-        connect(m_disconnectBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onDisconnectClicked);
-        connect(m_recordBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onRecordClicked);
-        connect(m_udpSettingsBtn, &QToolButton::clicked, this, &DABAnalyzerWindow::showUDPSettings);
-        connect(m_browseFileButton, &QPushButton::clicked, this, &DABAnalyzerWindow::onBrowseFileClicked);
-        connect(m_loadFileButton, &QPushButton::clicked, this, &DABAnalyzerWindow::onLoadFileClicked);
+                this, &DABAnalyserWindow::onQuickExampleSelected);
+        connect(m_connectBtn, &QPushButton::clicked, this, &DABAnalyserWindow::onConnectClicked);
+        connect(m_disconnectBtn, &QPushButton::clicked, this, &DABAnalyserWindow::onDisconnectClicked);
+        connect(m_recordBtn, &QPushButton::clicked, this, &DABAnalyserWindow::onRecordClicked);
+        connect(m_udpSettingsBtn, &QToolButton::clicked, this, &DABAnalyserWindow::showUDPSettings);
+        connect(m_browseFileButton, &QPushButton::clicked, this, &DABAnalyserWindow::onBrowseFileClicked);
+        connect(m_loadFileButton, &QPushButton::clicked, this, &DABAnalyserWindow::onLoadFileClicked);
 
         // Initialize statistics timer (but don't start it)
         m_statsTimer = new QTimer(this);
@@ -7883,7 +7884,7 @@ private:
         return panel;
     }
 
-    QList<DABAnalyzerWindow::DockSection> createTab1_CenterPanel()
+    QList<DABAnalyserWindow::DockSection> createTab1_CenterPanel()
     {
         QList<DockSection> sections;
 
@@ -8020,7 +8021,7 @@ private:
         return widget;
     }
 
-    QList<DABAnalyzerWindow::DockSection> createTab1_RightPanel()
+    QList<DABAnalyserWindow::DockSection> createTab1_RightPanel()
     {
         QList<DockSection> sections;
 
@@ -8082,7 +8083,7 @@ private:
     }
 
     // ========================================================================
-    // TAB 2: FIC-ANALYZER (3-PANEL LAYOUT PER DATA_AVAILABILITY_MATRIX.md)
+    // TAB 2: FIC-ANALYSER (3-PANEL LAYOUT PER DATA_AVAILABILITY_MATRIX.md)
     // ========================================================================
     
     QWidget* createTab2_LeftPanel()
@@ -8108,7 +8109,7 @@ private:
         }
         // T33.1: the removed "Digital Org Info" panel's intent is folded into
         // Overview as one compact line summarising the FIC-decoded data
-        // services (same analyzer data the service tables use).
+        // services (same analyser data the service tables use).
         if (!m_tab2_digitalServices) {
             m_tab2_digitalServices = new QLabel("Digital services: awaiting decode");
         }
@@ -8248,7 +8249,7 @@ private:
         return panel;
     }
 
-    QWidget* createTab2_FICAnalyzer()
+    QWidget* createTab2_FICAnalyser()
     {
         QWidget* mainPanel = new QWidget();
         QVBoxLayout* mainLayout = new QVBoxLayout(mainPanel);
@@ -8545,7 +8546,7 @@ private:
         // Tab 2: Performance Dashboard (replaces the thin 3-label tab; fed real
         // FPS / RSS / CPU% / latency samples every second). Its own internal
         // timer is intentionally NOT started: with no legacy EtiProcessor it
-        // would push zeroed samples and clobber the real ones; DABAnalyzerWindow
+        // would push zeroed samples and clobber the real ones; DABAnalyserWindow
         // drives it via updatePerformanceMetrics() instead.
         m_performanceDashboard = new PerformanceDashboard();
         ads::CDockWidget* d2 = makeDock(m_bottomDockManager,
@@ -9019,15 +9020,15 @@ private:
                 [this]() { flushPendingLogEntries(); });
 
         connect(m_loggingLevelCombo, &QComboBox::currentIndexChanged,
-                this, &DABAnalyzerWindow::onLoggingLevelComboChanged);
+                this, &DABAnalyserWindow::onLoggingLevelComboChanged);
         connect(m_loggingClearButton, &QPushButton::clicked,
-                this, &DABAnalyzerWindow::clearLogEntries);
+                this, &DABAnalyserWindow::clearLogEntries);
 
         // Queued connection: the Logger signal may originate on another thread
         // (see the block comment above); deliver it to this GUI-thread slot.
         qRegisterMetaType<Logger::LogLevel>("Logger::LogLevel");
         connect(&Logger::instance(), &Logger::logMessageAdded,
-                this, &DABAnalyzerWindow::onLogMessageAdded,
+                this, &DABAnalyserWindow::onLogMessageAdded,
                 Qt::QueuedConnection);
 
         return widget;
@@ -9347,7 +9348,7 @@ private:
         serviceRow->addWidget(m_serviceCombo, 1);
         layout->addLayout(serviceRow, 4, 0, 1, 2);
         connect(m_serviceCombo, &QComboBox::currentIndexChanged,
-                this, &DABAnalyzerWindow::onServiceSelectionChanged);
+                this, &DABAnalyserWindow::onServiceSelectionChanged);
 
         // Row 5: Transport controls (Play / Pause / Stop / Reset), Skip -/+
         // T44: use Qt's built-in style media icons (never a blank/tofu button)
@@ -9892,7 +9893,7 @@ private:
     QWidget* createConstellationTab()
     {
         // Wave B: real ConstellationWidget replaces the dashed placeholder.
-        // ETI is post-demodulation (no true I/Q samples reach the analyzer), so
+        // ETI is post-demodulation (no true I/Q samples reach the analyser), so
         // the widget runs its synthetic / performance-derived path and the
         // banner states that honestly rather than implying a live DSP feed.
         QWidget* widget = new QWidget();
@@ -10003,11 +10004,11 @@ private:
         layout->addWidget(patternGroup);
         
         // Connect error detection button signals
-        connect(enableDetectionBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onEnableErrorDetection);
-        connect(disableDetectionBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onDisableErrorDetection);
-        connect(resetErrorsBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onResetErrors);
-        connect(exportErrorsBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onExportErrorReport);
-        connect(systemHealthBtn, &QPushButton::clicked, this, &DABAnalyzerWindow::onShowSystemHealth);
+        connect(enableDetectionBtn, &QPushButton::clicked, this, &DABAnalyserWindow::onEnableErrorDetection);
+        connect(disableDetectionBtn, &QPushButton::clicked, this, &DABAnalyserWindow::onDisableErrorDetection);
+        connect(resetErrorsBtn, &QPushButton::clicked, this, &DABAnalyserWindow::onResetErrors);
+        connect(exportErrorsBtn, &QPushButton::clicked, this, &DABAnalyserWindow::onExportErrorReport);
+        connect(systemHealthBtn, &QPushButton::clicked, this, &DABAnalyserWindow::onShowSystemHealth);
         
         return errorDetectionTab;
     }
@@ -10019,23 +10020,23 @@ private:
         // File menu
         QMenu* fileMenu = menuBar->addMenu("File");
         QAction* openAction = fileMenu->addAction("Open ETI File...");
-        connect(openAction, &QAction::triggered, this, &DABAnalyzerWindow::openFile);
+        connect(openAction, &QAction::triggered, this, &DABAnalyserWindow::openFile);
 
         fileMenu->addSeparator();
-        // Wave B: Settings edits the real AnalyzerSettings (QSettings group
-        // "analyzer/"); Export writes the current analysis via the adopted
+        // Wave B: Settings edits the real AnalyserSettings (QSettings group
+        // "analyser/"); Export writes the current analysis via the adopted
         // ProfessionalExportManager writers.
         m_settingsAction = fileMenu->addAction("Settings...");
         connect(m_settingsAction, &QAction::triggered,
-                this, &DABAnalyzerWindow::showSettingsDialog);
+                this, &DABAnalyserWindow::showSettingsDialog);
         m_exportAction = fileMenu->addAction("Export...");
         m_exportAction->setEnabled(false);  // enabled once a capture is loaded
         connect(m_exportAction, &QAction::triggered,
-                this, &DABAnalyzerWindow::showExportDialog);
+                this, &DABAnalyserWindow::showExportDialog);
 
         fileMenu->addSeparator();
         QAction* exitAction = fileMenu->addAction("Exit");
-        connect(exitAction, &QAction::triggered, this, &DABAnalyzerWindow::requestExit);
+        connect(exitAction, &QAction::triggered, this, &DABAnalyserWindow::requestExit);
         
         // T23 (option A): the Input menu is gone. Input mode is owned solely by
         // the File/Network radios + Connect/Disconnect/Record in the input
@@ -10052,7 +10053,7 @@ private:
         QMenu* helpMenu = menuBar->addMenu("Help");
         QAction* aboutAction = helpMenu->addAction("About");
         connect(aboutAction, &QAction::triggered,
-                this, &DABAnalyzerWindow::showAboutDialog);
+                this, &DABAnalyserWindow::showAboutDialog);
     }
 
     void setupSignalConnections()
@@ -10060,35 +10061,35 @@ private:
         // CRITICAL TEST: Use Qt::DirectConnection to bypass queuing mechanism
         // This will call slots immediately in the same thread (no queuing, no async copy)
         connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::frameProcessed,
-                this, &DABAnalyzerWindow::onFrameProcessed, Qt::DirectConnection);
+                this, &DABAnalyserWindow::onFrameProcessed, Qt::DirectConnection);
         connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingProgress,
-                this, &DABAnalyzerWindow::onProcessingProgress, Qt::DirectConnection);
+                this, &DABAnalyserWindow::onProcessingProgress, Qt::DirectConnection);
         connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingComplete,
-                this, &DABAnalyzerWindow::onProcessingComplete, Qt::QueuedConnection);
+                this, &DABAnalyserWindow::onProcessingComplete, Qt::QueuedConnection);
         connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::processingError,
-                this, &DABAnalyzerWindow::onProcessingError, Qt::QueuedConnection);
+                this, &DABAnalyserWindow::onProcessingError, Qt::QueuedConnection);
         connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::frameError,
-                this, &DABAnalyzerWindow::onFrameError, Qt::QueuedConnection);
+                this, &DABAnalyserWindow::onFrameError, Qt::QueuedConnection);
         
-        // FIG Analysis signals for real-time FIC-Analyzer updates
+        // FIG Analysis signals for real-time FIC-Analyser updates
         connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::figDiscovered,
-                this, &DABAnalyzerWindow::onFIGDiscovered);
+                this, &DABAnalyserWindow::onFIGDiscovered);
         connect(m_etiProcessor.get(), &EnhancedETIProcessorQt::formatDetected,
-                this, &DABAnalyzerWindow::onETIFormatDetected);
+                this, &DABAnalyserWindow::onETIFormatDetected);
         
         // Code Review LOW-002: Deleted empty FIG filter comment (no longer relevant)
 
-        // FIG Analyzer signals (if available)
-        connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceDiscovered,
-                this, &DABAnalyzerWindow::onServiceDiscovered);
+        // FIG Analyser signals (if available)
+        connect(m_figAnalyser.get(), &AdvancedFIGAnalyser::serviceDiscovered,
+                this, &DABAnalyserWindow::onServiceDiscovered);
 
         // Error Detection signal connections (immediate, no timer)
         if (m_errorDetector) {
             connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::errorDetected,
-                    this, &DABAnalyzerWindow::onErrorDetected,
+                    this, &DABAnalyserWindow::onErrorDetected,
                     Qt::QueuedConnection);
             connect(m_errorDetector.get(), &error_detection::AdvancedErrorDetector::systemHealthChanged,
-                    this, &DABAnalyzerWindow::onSystemHealthChanged,
+                    this, &DABAnalyserWindow::onSystemHealthChanged,
                     Qt::QueuedConnection);
             qDebug() << "Error Detection signals connected immediately";
         }
@@ -10119,22 +10120,22 @@ private:
         
         // UI signals
         connect(m_frameList, &QListWidget::currentRowChanged,
-                this, &DABAnalyzerWindow::onFrameSelectionChanged);
+                this, &DABAnalyserWindow::onFrameSelectionChanged);
 
-        // === PHASE 3: FIG Analyzer → GUI Enhanced Connections ===
-        connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::ensembleInfoUpdated,
-                this, &DABAnalyzerWindow::onEnsembleInfoUpdated,
+        // === PHASE 3: FIG Analyser → GUI Enhanced Connections ===
+        connect(m_figAnalyser.get(), &AdvancedFIGAnalyser::ensembleInfoUpdated,
+                this, &DABAnalyserWindow::onEnsembleInfoUpdated,
                 Qt::QueuedConnection);
 
-        connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::servicesUpdated,
-                this, &DABAnalyzerWindow::onServicesUpdated,
+        connect(m_figAnalyser.get(), &AdvancedFIGAnalyser::servicesUpdated,
+                this, &DABAnalyserWindow::onServicesUpdated,
                 Qt::QueuedConnection);
 
         qDebug() << "[PHASE 3] Enhanced signal connections established";
 
         // === PHASE 2: Tab 1 Data Widgets Signal Connections ===
-        connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::subChannelsUpdated,
-                this, &DABAnalyzerWindow::onSubChannelsUpdated,
+        connect(m_figAnalyser.get(), &AdvancedFIGAnalyser::subChannelsUpdated,
+                this, &DABAnalyserWindow::onSubChannelsUpdated,
                 Qt::QueuedConnection);
 
         qDebug() << "[PHASE 2] Tab 1 data widget connections established";
@@ -10167,7 +10168,7 @@ private:
         // dock (FIG Item Details).
         if (m_tab3_frameList) {
             connect(m_tab3_frameList, &QListWidget::currentRowChanged,
-                    this, &DABAnalyzerWindow::onTab3FrameSelected);
+                    this, &DABAnalyserWindow::onTab3FrameSelected);
             qDebug() << "[PHASE 10b] Tab 3 Frame List connection established";
         }
 
@@ -10224,23 +10225,23 @@ private:
         
         // Pattern 5: Worker thread frame updates -> SharedETIData (queued connection)
         connect(m_readerThread, &ETIReaderThread::frameReceived,
-                this, &DABAnalyzerWindow::onWorkerFrameReceived, Qt::QueuedConnection);
+                this, &DABAnalyserWindow::onWorkerFrameReceived, Qt::QueuedConnection);
         
         // FIC data updates from worker thread
         connect(m_readerThread, &ETIReaderThread::ficDataUpdated,
-                this, &DABAnalyzerWindow::onWorkerFICDataUpdated, Qt::QueuedConnection);
+                this, &DABAnalyserWindow::onWorkerFICDataUpdated, Qt::QueuedConnection);
         
         // MSC data updates from worker thread
         connect(m_readerThread, &ETIReaderThread::mscDataUpdated,
-                this, &DABAnalyzerWindow::onWorkerMSCDataUpdated, Qt::QueuedConnection);
+                this, &DABAnalyserWindow::onWorkerMSCDataUpdated, Qt::QueuedConnection);
         
         // Error statistics updates
         connect(m_readerThread, &ETIReaderThread::errorStatsUpdated,
-                this, &DABAnalyzerWindow::onWorkerErrorStatsUpdated, Qt::QueuedConnection);
+                this, &DABAnalyserWindow::onWorkerErrorStatsUpdated, Qt::QueuedConnection);
         
         // Ensemble info updates
         connect(m_readerThread, &ETIReaderThread::ensembleInfoChanged,
-                this, &DABAnalyzerWindow::onWorkerEnsembleInfoChanged, Qt::QueuedConnection);
+                this, &DABAnalyserWindow::onWorkerEnsembleInfoChanged, Qt::QueuedConnection);
         
         // Processing lifecycle signals
         connect(m_readerThread, &ETIReaderThread::processingStarted,
@@ -10516,8 +10517,8 @@ private:
     // PHASE 3 AGENT 2: Real FIG Data Service Tree Implementation
     void updateEnsembleTree()
     {
-        if (!m_figAnalyzer) {
-            qWarning() << "[SERVICE TREE] FIG analyzer not initialized";
+        if (!m_figAnalyser) {
+            qWarning() << "[SERVICE TREE] FIG analyser not initialized";
             return;
         }
 
@@ -10527,9 +10528,9 @@ private:
         // Clear existing tree
         m_ensembleTree->clear();
 
-        // Get REAL data from FIG analyzer
-        EnsembleInfo ensemble = m_figAnalyzer->getCurrentEnsemble();
-        std::vector<DABService> services = m_figAnalyzer->getDABServices();
+        // Get REAL data from FIG analyser
+        EnsembleInfo ensemble = m_figAnalyser->getCurrentEnsemble();
+        std::vector<DABService> services = m_figAnalyser->getDABServices();
 
         // Handle no services discovered yet
         if (services.empty()) {
@@ -10836,12 +10837,12 @@ private:
     void onServicesUpdated()
     {
         // T25: a queued emission may race teardown — never dereference a
-        // destroyed/cleared analyzer.
-        if (!m_figAnalyzer) {
+        // destroyed/cleared analyser.
+        if (!m_figAnalyser) {
             return;
         }
         qDebug() << "\n***** [DEBUG onServicesUpdated] SIGNAL RECEIVED *****";
-        int count = m_figAnalyzer->getServiceCount();
+        int count = m_figAnalyser->getServiceCount();
         qDebug() << "[DEBUG onServicesUpdated] Service count:" << count;
         qDebug() << "[PHASE 3] Services updated - batch update received";
 
@@ -10855,13 +10856,13 @@ private:
     void onSubChannelsUpdated()
     {
         // T25: guard against teardown races (see onServicesUpdated).
-        if (!m_figAnalyzer) {
+        if (!m_figAnalyser) {
             return;
         }
         qDebug() << "[PHASE 2.1] Subchannels updated - updating table and CU usage";
 
         // Get subchannel count for logging
-        int subchannelCount = m_figAnalyzer->getSubChannelCount();
+        int subchannelCount = m_figAnalyser->getSubChannelCount();
         m_systemMessages->append(QString("📊 Subchannels discovered: %1 subchannels")
             .arg(subchannelCount));
 
@@ -10875,19 +10876,19 @@ private:
 private:
     // Core components
     std::unique_ptr<EnhancedETIProcessorQt> m_etiProcessor;
-    std::unique_ptr<AdvancedFIGAnalyzer> m_figAnalyzer;
+    std::unique_ptr<AdvancedFIGAnalyser> m_figAnalyser;
     std::unique_ptr<HexViewerFormatter> m_hexFormatter;
     std::unique_ptr<etsi::ETSIComplianceEngine> m_etsiComplianceEngine;
     std::unique_ptr<multistream::MultiStreamProcessor> m_multiStreamProcessor;
     std::unique_ptr<error_detection::AdvancedErrorDetector> m_errorDetector;
 
-    // User-selected analyzer decode options (option-variant matrix rows 1-14).
-    // Loaded once at startup from QSettings (org StreamDAB-Analyzer / app
-    // DABAnalyzer, group "analyzer/"); edited via the Settings dialog. The
+    // User-selected analyser decode options (option-variant matrix rows 1-14).
+    // Loaded once at startup from QSettings (org StreamDAB-Analyser / app
+    // DABAnalyser, group "analyser/"); edited via the Settings dialog. The
     // current GUI decode path uses the legacy EnhancedETIProcessorQt parser;
     // these settings are honored by the CLI/headless path and by any future
     // decode path that consumes ModernETIFrameParser (apply on next file load).
-    eti::AnalyzerSettings m_analyzerSettings{eti::AnalyzerSettings::defaults()};
+    eti::AnalyserSettings m_analyserSettings{eti::AnalyserSettings::defaults()};
     
     // Phase A: Worker thread architecture (Pattern 3 + Pattern 5)
     streamdab::core::SharedETIData* m_sharedData = nullptr;
@@ -11017,7 +11018,7 @@ private:
     QTimer* m_statsTimer = nullptr;
     
     // Professional FIC Analysis Hub widgets
-    // Tab 2: FIC-Analyzer widgets (3-panel layout per DATA_AVAILABILITY_MATRIX.md)
+    // Tab 2: FIC-Analyser widgets (3-panel layout per DATA_AVAILABILITY_MATRIX.md)
     // LEFT Panel widgets
     QLabel* m_tab2_ensembleName = nullptr;
     QLabel* m_tab2_ficContentSummary = nullptr;
@@ -11150,7 +11151,7 @@ private:
     // to exercise eviction. Kept in sync with the byte counter (both qint64).
     qint64 m_retainedSlideByteCap{RETAINED_SLIDE_BYTE_CAP};
     // Cached DAB+ subchannel -> (service id, label) map (Finding 4): the
-    // analyzer's getDABServices() copies the whole service vector, so it is
+    // analyser's getDABServices() copies the whole service vector, so it is
     // only re-read when a service/subchannel count changes or a discovery
     // invalidates the cache.
     QSet<int> m_dabPlusSubChannels;
@@ -11170,7 +11171,7 @@ private:
     bool m_dabPlusServiceMapDirty{true};
     int m_cachedDabServiceCount{-1};
     int m_cachedSubChannelCount{-1};
-    uint32_t m_cachedServiceRevision{0};  // AdvancedFIGAnalyzer::getServiceRevision()
+    uint32_t m_cachedServiceRevision{0};  // AdvancedFIGAnalyser::getServiceRevision()
     qint64 m_dlsPipelineNs{0};        // accumulated DLS+ pipeline wall time
     int m_dlsPlusMessages{0};
     QStringList m_dlsLabelsSeen;       // distinct decoded DLS labels (GUI tests)
@@ -11344,7 +11345,7 @@ protected:
 
 };
 
-DABAnalyzerWindow::~DABAnalyzerWindow()
+DABAnalyserWindow::~DABAnalyserWindow()
 {
     // T25 (F5): direct `delete` may skip closeEvent(); mark teardown so stale
     // queued slots degrade gracefully / suppress dialogs.
@@ -11362,12 +11363,12 @@ DABAnalyzerWindow::~DABAnalyzerWindow()
     // T25 (F3/F9/F10): disconnect every sender from this receiver BEFORE member
     // destruction. disconnect stops FUTURE emissions only; already-posted queued
     // calls are handled by the slots' null-guards. This set mirrors closeEvent()
-    // exactly (fig analyzer, ETI processor, error detector, multi-stream,
+    // exactly (fig analyser, ETI processor, error detector, multi-stream,
     // ETSI engine, DLS+ decoder, MOT protocol, reader thread, shared data,
     // stream receiver). The NetworkStreamReceiver joins its own thread in its
     // destructor, so no explicit stop/wait is needed here.
-    if (m_figAnalyzer) {
-        QObject::disconnect(m_figAnalyzer.get(), nullptr, this, nullptr);
+    if (m_figAnalyser) {
+        QObject::disconnect(m_figAnalyser.get(), nullptr, this, nullptr);
     }
     if (m_etiProcessor) {
         QObject::disconnect(m_etiProcessor.get(), nullptr, this, nullptr);
@@ -11420,7 +11421,7 @@ DABAnalyzerWindow::~DABAnalyzerWindow()
     // Brief wait for any pending queued signals to complete
     QThread::msleep(100);
 
-    qDebug() << "DABAnalyzerWindow: Clean shutdown complete";
+    qDebug() << "DABAnalyserWindow: Clean shutdown complete";
 }
 
 // CLI Mode: Process ETI file without GUI
@@ -11444,16 +11445,21 @@ int main(int argc, char *argv[])
     if (cli_mode) {
         // CLI mode - no GUI (QCoreApplication)
         QCoreApplication app(argc, argv);
-        app.setApplicationName("StreamDAB Analyzer");
-        app.setApplicationVersion("1.3.0");
+        app.setApplicationName("StreamDAB Analyser");
+        app.setApplicationVersion(DABX_VERSION);
         return cli::cli_main(argc, argv);
     }
     
     // GUI Mode (default)
     QApplication app(argc, argv);
-    app.setOrganizationName("StreamDAB-Analyzer");
-    app.setApplicationName("DABAnalyzer");
-    app.setApplicationVersion("1.3.0");
+    app.setOrganizationName("StreamDAB-Analyser");
+    app.setApplicationName("DABAnalyser");
+    app.setApplicationVersion(DABX_VERSION);
+
+    // v1.3 rename: fold the pre-rename (American-spelling) QSettings scope
+    // into the new "StreamDAB-Analyser" / "DABAnalyser" store once, before any
+    // component reads or writes preferences. See src/utils/app_settings.hpp.
+    streamdab::app_settings::migrateLegacyScope();
 
     // W1 #9: pin the Logger singleton to the main (GUI) thread explicitly,
     // before the window (or any worker/CLI path) can first create it. The
@@ -11463,7 +11469,7 @@ int main(int argc, char *argv[])
     // and GUI log consumers would see nothing. See src/utils/logger.h.
     (void)Logger::instance();
 
-    DABAnalyzerWindow window;
+    DABAnalyserWindow window;
     window.show();
 
     // Auto-load file from command line if provided (for testing)

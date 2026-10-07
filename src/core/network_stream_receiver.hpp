@@ -8,7 +8,7 @@
  * 
  * @author Network/Stream Agent
  * @date 2025
- * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2025 ETI Stream Analyser Team
  */
 
 #ifndef NETWORK_STREAM_RECEIVER_H

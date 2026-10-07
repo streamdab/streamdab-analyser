@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# TDD Development Workflow Script for ETI Stream Analyzer
+# TDD Development Workflow Script for ETI Stream Analyser
 # Provides easy-to-use commands for TDD Red-Green-Refactor cycle
 
 set -e
@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"
 BUILD_DIR="${PROJECT_ROOT}/build"
+
+# Build parallelism: bounded by CPU *and* RAM (see scripts/build_jobs.sh).
+# Override with JOBS=<n> or CMAKE_BUILD_PARALLEL_LEVEL=<n>.
+. "${SCRIPT_DIR}/build_jobs.sh"
+JOBS=$(streamdab_build_jobs)
+export CMAKE_BUILD_PARALLEL_LEVEL="${JOBS}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -42,7 +48,7 @@ print_error() {
 # Help function
 show_help() {
     cat << EOF
-ETI Stream Analyzer TDD Development Workflow
+ETI Stream Analyser TDD Development Workflow
 
 Usage: $0 <command> [options]
 
@@ -138,7 +144,7 @@ tdd_refactor() {
     cd "${BUILD_DIR}"
 
     # First rebuild to ensure changes are compiled
-    if cmake --build . --config Debug --parallel; then
+    if cmake --build . --config Debug --parallel "${JOBS}"; then
         print_info "Code rebuilt successfully"
     else
         print_error "Build failed during refactor phase"
@@ -255,7 +261,7 @@ watch_mode() {
         echo ""
         print_info "${TDD_BLUE} File changed, running tests..."
         cd "${BUILD_DIR}"
-        cmake --build . --config Debug --parallel
+        cmake --build . --config Debug --parallel "${JOBS}"
         if ctest --output-on-failure; then
             print_success "${TDD_GREEN} Tests passed!"
         else

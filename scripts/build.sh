@@ -1,5 +1,5 @@
 #!/bin/bash
-# Cross-platform build script for ETI Stream Analyzer
+# Cross-platform build script for ETI Stream Analyser
 # Supports Linux, macOS, and Windows (via Git Bash/MSYS2)
 
 set -e
@@ -50,7 +50,7 @@ print_error() {
 # Help function
 show_help() {
     cat << EOF
-ETI Stream Analyzer TDD-Integrated Build Script
+ETI Stream Analyser TDD-Integrated Build Script
 
 Usage: $0 [OPTIONS]
 
@@ -424,11 +424,11 @@ create_package() {
 # Main execution
 main() {
     if [[ "${TDD_MODE}" == true ]]; then
-        print_info "ETI Stream Analyzer TDD Build Workflow"
+        print_info "ETI Stream Analyser TDD Build Workflow"
         print_info "======================================"
         print_info "🔴🟢🔵 TDD Mode: Debug + Tests + Coverage"
     else
-        print_info "ETI Stream Analyzer Build Script"
+        print_info "ETI Stream Analyser Build Script"
         print_info "==============================="
     fi
 
@@ -471,10 +471,10 @@ main() {
         print_info "To run the application:"
         case "${PLATFORM}" in
             Linux|macOS)
-                print_info "  ${BUILD_DIR}/ETIStreamAnalyzer"
+                print_info "  ${BUILD_DIR}/ETIStreamAnalyser"
                 ;;
             Windows)
-                print_info "  ${BUILD_DIR}\\${BUILD_TYPE}\\ETIStreamAnalyzer.exe"
+                print_info "  ${BUILD_DIR}\\${BUILD_TYPE}\\ETIStreamAnalyser.exe"
                 ;;
         esac
     fi

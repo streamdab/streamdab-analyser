@@ -18,7 +18,7 @@
  * @author Agent 21 - Standards Compliance Perfection Specialist  
  * @date 2025-09-26
  * @version 1.0.0
- * @copyright Professional Broadcast Solutions - StreamDAB Analyzer
+ * @copyright Professional Broadcast Solutions - StreamDAB Analyser
  */
 
 #pragma once

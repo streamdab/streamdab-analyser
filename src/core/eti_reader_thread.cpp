@@ -1,7 +1,7 @@
-// /home/seksan/workspace/streamdab-analyzer/src/core/eti_reader_thread.cpp
+// src/core/eti_reader_thread.cpp
 #include "eti_reader_thread.hpp"
 #include "enhanced_eti_processor_qt.h"
-#include "advanced_fig_analyzer.h"
+#include "advanced_fig_analyser.h"
 #include <QElapsedTimer>
 #include <QDebug>
 
@@ -103,7 +103,7 @@ void ETIReaderThread::run()
 {
     // Initialize in worker thread context
     m_processor = std::make_unique<EnhancedETIProcessorQt>();
-    m_figAnalyzer = std::make_unique<AdvancedFIGAnalyzer>();
+    m_figAnalyser = std::make_unique<AdvancedFIGAnalyser>();
     
     m_currentFrame = 0;
     m_framesProcessed = 0;
@@ -401,13 +401,13 @@ ErrorStats ETIReaderThread::extractErrorStats()
 EnsembleInfo ETIReaderThread::extractEnsembleInfo()
 {
     // Stub for Phase A
-    // Future: Extract from FIG analyzer via signals
+    // Future: Extract from FIG analyser via signals
     return EnsembleInfo();
 }
 
 QList<ServiceInfo> ETIReaderThread::extractServiceList()
 {
     // Stub for Phase A
-    // Future: Extract from FIG analyzer via signals
+    // Future: Extract from FIG analyser via signals
     return QList<ServiceInfo>();
 }

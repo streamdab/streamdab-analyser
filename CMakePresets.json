@@ -29,10 +29,10 @@
   "buildPresets": [
     {
       "name": "default",
-      "displayName": "Build - RAM-safe parallelism (12 jobs)",
-      "description": "Caps parallelism so gmake cannot over-fork on many-core boxes. Override per invocation with: cmake --build --preset default --parallel N, or JOBS=N bash scripts/build.sh.",
+      "displayName": "Build - RAM-safe parallelism (8 jobs)",
+      "description": "Caps parallelism so gmake cannot over-fork on many-core boxes. Override per invocation with: cmake --build --preset default --parallel N, or JOBS=N bash scripts/build.sh. Never use a bare '-j' (unbounded).",
       "configurePreset": "default",
-      "jobs": 12
+      "jobs": 8
     },
     {
       "name": "serial",
@@ -51,6 +51,21 @@
       "displayName": "Build Debug - 4 jobs",
       "configurePreset": "debug",
       "jobs": 4
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "default",
+      "displayName": "Test - serial (offscreen)",
+      "description": "55/55 gate. Serial on purpose: several GUI/dock tests share QSettings stores and a bounded-but-parallel ctest has not been validated.",
+      "configurePreset": "default",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 1,
+        "noTestsAction": "error"
+      }
     }
   ]
 }

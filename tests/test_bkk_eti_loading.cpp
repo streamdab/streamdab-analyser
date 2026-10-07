@@ -7,7 +7,7 @@
 #include <QFile>
 #include <memory>
 #include "../src/core/enhanced_eti_processor_qt.h"
-#include "../src/core/advanced_fig_analyzer.h"
+#include "../src/core/advanced_fig_analyser.h"
 
 int main(int argc, char *argv[])
 {
@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
     
     // Create components
     auto processor = std::make_unique<EnhancedETIProcessorQt>();
-    auto analyzer = std::make_unique<AdvancedFIGAnalyzer>();
+    auto analyser = std::make_unique<AdvancedFIGAnalyser>();
     
     int frameCount = 0;
     int ficFrameCount = 0;
@@ -51,28 +51,28 @@ int main(int argc, char *argv[])
                              }
                          }
                          
-                         // THIS IS THE CRITICAL PART - pass FIC to analyzer
+                         // THIS IS THE CRITICAL PART - pass FIC to analyser
                          if (!frame.fic_data.isEmpty()) {
                              ficFrameCount++;
-                             analyzer->analyzeFICData(frame.fic_data);
+                             analyser->analyzeFICData(frame.fic_data);
                          }
                      });
     
-    QObject::connect(analyzer.get(), &AdvancedFIGAnalyzer::servicesUpdated,
+    QObject::connect(analyser.get(), &AdvancedFIGAnalyser::servicesUpdated,
                      [&]() {
                          serviceUpdateCount++;
-                         int count = analyzer->getServiceCount();
+                         int count = analyser->getServiceCount();
                          qDebug() << "\n***** servicesUpdated signal #" << serviceUpdateCount << "*****";
                          qDebug() << "Service count:" << count;
                          
-                         QList<ServiceInfo> services = analyzer->getDiscoveredServices();
+                         QList<ServiceInfo> services = analyser->getDiscoveredServices();
                          for (const auto& service : services) {
                              qDebug() << "  -" << service.label 
                                       << "(0x" << QString::number(service.serviceId, 16) << ")";
                          }
                      });
     
-    QObject::connect(analyzer.get(), &AdvancedFIGAnalyzer::ensembleInfoUpdated,
+    QObject::connect(analyser.get(), &AdvancedFIGAnalyser::ensembleInfoUpdated,
                      [&](const EnsembleInfo& info) {
                          qDebug() << "\n***** ensembleInfoUpdated signal *****";
                          qDebug() << "Ensemble:" << info.ensembleLabel;
@@ -95,10 +95,10 @@ int main(int argc, char *argv[])
     qDebug() << "Total frames processed:" << frameCount;
     qDebug() << "Frames with FIC data:" << ficFrameCount;
     qDebug() << "servicesUpdated signals:" << serviceUpdateCount;
-    qDebug() << "Final service count:" << analyzer->getServiceCount();
+    qDebug() << "Final service count:" << analyser->getServiceCount();
     
     // Print final services
-    QList<ServiceInfo> finalServices = analyzer->getDiscoveredServices();
+    QList<ServiceInfo> finalServices = analyser->getDiscoveredServices();
     qDebug() << "\nDiscovered Services:";
     for (const auto& service : finalServices) {
         qDebug() << "  -" << service.label 
@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
         qCritical() << "\n❌ NO SERVICES DISCOVERED - THIS IS THE PROBLEM";
         qDebug() << "Possible reasons:";
         qDebug() << "1. FIC data is empty in all frames";
-        qDebug() << "2. FIG analyzer is not parsing FIC correctly";
+        qDebug() << "2. FIG analyser is not parsing FIC correctly";
         qDebug() << "3. Signal/slot connection broken";
         return 1;
     } else {
