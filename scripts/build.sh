@@ -14,7 +14,11 @@ BUILD_TYPE="Release"
 CLEAN_BUILD=false
 INSTALL=false
 PACKAGE=false
-JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+# Build parallelism: bounded by CPU *and* RAM (see scripts/build_jobs.sh).
+# Override with JOBS=<n> or CMAKE_BUILD_PARALLEL_LEVEL=<n>.
+. "${SCRIPT_DIR}/build_jobs.sh"
+JOBS=$(streamdab_build_jobs)
+export CMAKE_BUILD_PARALLEL_LEVEL="${JOBS}"
 RUN_TESTS=false
 TDD_MODE=false
 COVERAGE=false

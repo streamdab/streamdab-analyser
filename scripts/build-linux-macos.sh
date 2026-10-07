@@ -23,7 +23,10 @@ CLEAN_BUILD=false
 INSTALL_DEPS=false
 PACKAGE=false
 HELP=false
-JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+# Build parallelism: bounded by CPU *and* RAM (see scripts/build_jobs.sh).
+. "${SCRIPT_DIR}/build_jobs.sh"
+JOBS=$(streamdab_build_jobs)
+export CMAKE_BUILD_PARALLEL_LEVEL="${JOBS}"
 
 # Application metadata
 APP_NAME="ETI Stream Analyzer"

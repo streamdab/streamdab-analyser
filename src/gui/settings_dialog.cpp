@@ -24,7 +24,25 @@
 #include <QApplication>
 #include <QMessageBox>
 #include <QIcon>
+#include <QScrollArea>
 #include <QFormLayout>
+
+namespace {
+// Long tabs (notably Analyzer with groups A..I) must scroll instead of being
+// squeezed until only the group titles remain visible.
+QWidget* wrapTabInScrollArea(QWidget* content)
+{
+    auto* scroll = new QScrollArea();
+    scroll->setObjectName(content->objectName().isEmpty()
+                              ? QStringLiteral("settingsTabScroll")
+                              : content->objectName() + QStringLiteral("Scroll"));
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scroll->setWidget(content);
+    return scroll;
+}
+} // namespace
 
 SettingsDialog::SettingsDialog(QWidget *parent)
     : QDialog(parent)
@@ -81,8 +99,8 @@ void SettingsDialog::createUI()
     setWindowTitle(tr("StreamDAB Stream Analyzer - Settings"));
     setWindowIcon(QIcon(":/icons/settings.png"));
     setModal(true);
-    setMinimumSize(600, 450);
-    resize(700, 550);
+    setMinimumSize(640, 480);
+    resize(780, 620);
 
     if (parentWidget()) {
         QRect parentGeometry = parentWidget()->geometry();
@@ -124,7 +142,7 @@ void SettingsDialog::createGeneralTab()
     layout->addWidget(storeGroup);
     layout->addStretch();
 
-    m_tabWidget->addTab(m_generalTab, tr("General"));
+    m_tabWidget->addTab(wrapTabInScrollArea(m_generalTab), tr("General"));
 }
 
 void SettingsDialog::createAnalysisTab()
@@ -165,7 +183,7 @@ void SettingsDialog::createAnalysisTab()
     layout->addWidget(performanceGroup);
     layout->addStretch();
 
-    m_tabWidget->addTab(m_analysisTab, tr("Processing"));
+    m_tabWidget->addTab(wrapTabInScrollArea(m_analysisTab), tr("Processing"));
 }
 
 void SettingsDialog::createAudioTab()
@@ -209,7 +227,7 @@ void SettingsDialog::createAudioTab()
     layout->addWidget(levelGroup);
     layout->addStretch();
 
-    m_tabWidget->addTab(m_audioTab, tr("Audio"));
+    m_tabWidget->addTab(wrapTabInScrollArea(m_audioTab), tr("Audio"));
 }
 
 void SettingsDialog::createAdvancedTab()
@@ -240,7 +258,7 @@ void SettingsDialog::createAdvancedTab()
     layout->addWidget(debugGroup);
     layout->addStretch();
 
-    m_tabWidget->addTab(m_advancedTab, tr("Advanced"));
+    m_tabWidget->addTab(wrapTabInScrollArea(m_advancedTab), tr("Advanced"));
 }
 
 void SettingsDialog::createAnalyzerTab()
@@ -401,7 +419,7 @@ void SettingsDialog::createAnalyzerTab()
     sidLayout->addRow(tr("SId display:"), m_sidDisplayCombo);
 
     layout->addStretch();
-    m_tabWidget->addTab(m_analyzerTab, tr("Analyzer"));
+    m_tabWidget->addTab(wrapTabInScrollArea(m_analyzerTab), tr("Analyzer"));
 }
 
 bool SettingsDialog::initialize()

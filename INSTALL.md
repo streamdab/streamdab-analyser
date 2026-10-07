@@ -20,7 +20,7 @@ sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev 
 # Configure — MUST export offscreen BEFORE configure so GUI tests register
 export QT_QPA_PLATFORM=offscreen
 cmake -B build -S .          # or: -G Ninja
-cmake --build build -j$(nproc)
+cmake --build build --parallel "$(bash scripts/build_jobs.sh)"
 
 # Test (all 49 targets)
 cd build && ctest --output-on-failure
@@ -30,6 +30,26 @@ cd build && ctest --output-on-failure
 ./build/streamdab-cli --input eti/x.eti --output out.yaml   # CLI (headless ok)
 ./build/StreamDABAnalyzer --cli --input eti/x.eti  # CLI mode via the GUI binary
 ```
+
+### Build parallelism (avoid over-forking)
+
+`-j$(nproc)` is **not** safe on many-core machines: each `g++` with the project's
+`-O3 -march=native` flags can hold 1–2 GB, and recursive sub-makes (e.g. the
+Qt-ADS FetchContent subproject) can add more, so a 16-core box can thrash.
+
+Use the bounded helper (CPU **and** RAM aware, default cap 12 jobs):
+
+```bash
+JOBS="$(bash scripts/build_jobs.sh)"       # e.g. min(nproc, RAM_GB/2, 12)
+export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"  # nested cmake/make honour this
+cmake --build build --parallel "$JOBS"
+# or with presets:
+cmake --preset default && cmake --build --preset default   # 12 jobs
+# overrides: JOBS=8 bash scripts/build.sh --jobs 8 | STREAMDAB_MAX_JOBS=6 ...
+```
+
+`scripts/build.sh`, `build-linux-macos.sh`, `build_with_audio_validation.sh`,
+`tdd_quality_gate.sh` and `verify_build_quality.sh` all use the helper now.
 
 Binary names: **`StreamDABAnalyzer`** (GUI) and **`streamdab-cli`** (headless).
 Build requirements: **zero errors / zero warnings**.
@@ -105,7 +125,7 @@ that stage first.
 brew install qt@6 faad2 fftw libzmq googletest cmake ninja
 export QT_QPA_PLATFORM=offscreen     # for headless tests
 cmake -B build -S . -DCMAKE_PREFIX_PATH="$(brew --prefix qt@6)"
-cmake --build build -j$(nproc) && (cd build && ctest --output-on-failure)
+cmake --build build --parallel "$(bash scripts/build_jobs.sh)" && (cd build && ctest --output-on-failure)
 # config hooks already exist: cmake/MacOSConfig.cmake
 ```
 

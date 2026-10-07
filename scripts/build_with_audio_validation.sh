@@ -128,7 +128,10 @@ echo
 echo "Step 5: Building the project..."
 
 # Determine number of parallel jobs
-NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+# RAM/CPU-bounded parallelism (see scripts/build_jobs.sh)
+. "${SCRIPT_DIR}/build_jobs.sh"
+NPROC=$(streamdab_build_jobs)
+export CMAKE_BUILD_PARALLEL_LEVEL="${NPROC}"
 echo "Building with $NPROC parallel jobs..."
 
 if ! cmake --build . --parallel $NPROC; then

@@ -1216,7 +1216,7 @@ target_link_libraries(dab-analyzer PRIVATE
 # Build
 mkdir build && cd build
 cmake ..
-make -j$(nproc)
+make -j"$(bash scripts/build_jobs.sh)"
 
 # Run
 ./dab-analyzer
