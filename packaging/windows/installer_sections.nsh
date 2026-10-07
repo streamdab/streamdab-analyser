@@ -1,38 +1,37 @@
-# ETI Stream Analyser - Professional Windows Installer Sections
-
-# =============================================================================
-# PROFESSIONAL INSTALLER SECTIONS
-# =============================================================================
+# StreamDAB Analyser — NSIS installer component sections
+# ---------------------------------------------------------------------------
+# Included by installer.nsi via "${__FILEDIR__}\installer_sections.nsh".
+# Uses ${SOURCE_DIR} / ${BUILD_DIR} defined in nsis_config.nsh (repo-resolved).
 
 # Core application section (required)
-Section "ETI Stream Analyser" SEC_CORE
+Section "StreamDAB Analyser" SEC_CORE
     SectionIn RO  ; Read-only, cannot be deselected
 
     SetOutPath "$INSTDIR\bin"
-    File "${BUILD_DIR}\ETIStreamAnalyser.exe"
+    File "${BUILD_DIR}\StreamDABAnalyser.exe"
     File "${BUILD_DIR}\*.dll"  ; Qt and other required DLLs
 
     SetOutPath "$INSTDIR"
     File "${SOURCE_DIR}\README.md"
     File "${SOURCE_DIR}\LICENSE"
 
-    # Create professional application data directory
-    CreateDirectory "$APPDATA\ETI Stream Analyser"
-    CreateDirectory "$APPDATA\ETI Stream Analyser\Settings"
-    CreateDirectory "$APPDATA\ETI Stream Analyser\Logs"
-    CreateDirectory "$APPDATA\ETI Stream Analyser\Reports"
+    ; Application data directory
+    CreateDirectory "$APPDATA\StreamDAB Analyser"
+    CreateDirectory "$APPDATA\StreamDAB Analyser\Settings"
+    CreateDirectory "$APPDATA\StreamDAB Analyser\Logs"
+    CreateDirectory "$APPDATA\StreamDAB Analyser\Reports"
 
-    # Professional registry entries
-    WriteRegStr HKLM "Software\ETI Stream Analyser" "InstallDir" "$INSTDIR"
-    WriteRegStr HKLM "Software\ETI Stream Analyser" "Version" "${PRODUCT_VERSION}"
-    WriteRegStr HKLM "Software\ETI Stream Analyser" "Publisher" "${PRODUCT_PUBLISHER}"
+    ; Registry entries
+    WriteRegStr HKLM "Software\StreamDAB Analyser" "InstallDir" "$INSTDIR"
+    WriteRegStr HKLM "Software\StreamDAB Analyser" "Version" "${PRODUCT_VERSION}"
+    WriteRegStr HKLM "Software\StreamDAB Analyser" "Publisher" "${PRODUCT_PUBLISHER}"
 
-    # Professional uninstaller
+    ; Uninstaller + uninstall registry
     WriteUninstaller "$INSTDIR\uninstall.exe"
 
     WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayName" "$(^Name)"
     WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "UninstallString" "$INSTDIR\uninstall.exe"
-    WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayIcon" "$INSTDIR\bin\ETIStreamAnalyser.exe"
+    WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayIcon" "$INSTDIR\bin\StreamDABAnalyser.exe"
     WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
     WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
     WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "URLInfoAbout" "${PRODUCT_WEB_SITE}"
@@ -40,94 +39,82 @@ Section "ETI Stream Analyser" SEC_CORE
     WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "HelpLink" "${PRODUCT_SUPPORT_URL}"
     WriteRegDWORD ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "NoModify" 1
     WriteRegDWORD ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "NoRepair" 1
+
+    ; Shortcuts
+    CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\bin\StreamDABAnalyser.exe"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Readme.lnk" "$INSTDIR\README.md"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\uninstall.exe"
+    CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\bin\StreamDABAnalyser.exe"
+
+    ; File associations
+    Call RegisterFileAssociations
 SectionEnd
 
 # Documentation section
 Section "Documentation" SEC_DOCS
     SetOutPath "$INSTDIR\docs"
+    !if /FileExists "${SOURCE_DIR}\docs"
     File /r "${SOURCE_DIR}\docs\*.*"
+    !endif
 
-    # Professional documentation shortcuts
-    CreateDirectory "$SMPROGRAMS\ETI Stream Analyser"
-    CreateShortCut "$SMPROGRAMS\ETI Stream Analyser\User Manual.lnk" "$INSTDIR\docs\user_manual.pdf"
-    CreateShortCut "$SMPROGRAMS\ETI Stream Analyser\API Documentation.lnk" "$INSTDIR\docs\api\index.html"
+    CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
+    !if /FileExists "$INSTDIR\docs\user_manual.pdf"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\User Manual.lnk" "$INSTDIR\docs\user_manual.pdf"
+    !else
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Read Me.lnk" "$INSTDIR\README.md"
+    !endif
 SectionEnd
 
-# Sample files section
+# Sample files section (guarded: the repo has no samples/ tree by default)
 Section "Sample ETI Files" SEC_SAMPLES
+    !if /FileExists "${SOURCE_DIR}\samples"
     SetOutPath "$INSTDIR\samples"
     File /r "${SOURCE_DIR}\samples\*.*"
-
-    # Professional samples organization
-    CreateDirectory "$INSTDIR\samples\eti_streams"
-    CreateDirectory "$INSTDIR\samples\reports"
-    CreateDirectory "$INSTDIR\samples\configurations"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Sample ETI Files.lnk" "$INSTDIR\samples\"
+    !endif
 SectionEnd
 
-# Development headers section (optional)
-Section /o "Development Headers" SEC_DEV
-    SetOutPath "$INSTDIR\include"
-    File /r "${SOURCE_DIR}\src\*.h"
-
-    SetOutPath "$INSTDIR\lib"
-    File "${BUILD_DIR}\*.lib"  ; Static libraries for development
-
-    # Professional development environment setup
-    WriteRegStr HKLM "Software\ETI Stream Analyser\SDK" "IncludeDir" "$INSTDIR\include"
-    WriteRegStr HKLM "Software\ETI Stream Analyser\SDK" "LibDir" "$INSTDIR\lib"
-SectionEnd
-
-# Professional file associations section
-Section "File Associations" SEC_ASSOC
-    # Register .eti file extension
+# File associations
+Function RegisterFileAssociations
+    ; ETI files
     WriteRegStr HKCR ".eti" "" "ETIStreamFile"
     WriteRegStr HKCR ".eti" "Content Type" "application/x-eti-stream"
-    WriteRegStr HKCR ".eti" "PerceivedType" "audio"
-
-    # Register ETI file type
     WriteRegStr HKCR "ETIStreamFile" "" "ETI Stream File"
-    WriteRegStr HKCR "ETIStreamFile\DefaultIcon" "" "$INSTDIR\bin\ETIStreamAnalyser.exe,0"
+    WriteRegStr HKCR "ETIStreamFile\DefaultIcon" "" "$INSTDIR\bin\StreamDABAnalyser.exe,0"
     WriteRegStr HKCR "ETIStreamFile\shell" "" "open"
-    WriteRegStr HKCR "ETIStreamFile\shell\open" "" "Analyze with ETI Stream Analyser"
-    WriteRegStr HKCR "ETIStreamFile\shell\open\command" "" '"$INSTDIR\bin\ETIStreamAnalyser.exe" "%1"'
-
-    # Professional context menu integration
+    WriteRegStr HKCR "ETIStreamFile\shell\open" "" "Analyze with StreamDAB Analyser"
+    WriteRegStr HKCR "ETIStreamFile\shell\open\command" "" '"$INSTDIR\bin\StreamDABAnalyser.exe" "%1"'
     WriteRegStr HKCR "ETIStreamFile\shell\analyze" "" "Quick Analysis"
-    WriteRegStr HKCR "ETIStreamFile\shell\analyze\command" "" '"$INSTDIR\bin\ETIStreamAnalyser.exe" "--quick-analyze" "%1"'
+    WriteRegStr HKCR "ETIStreamFile\shell\analyze\command" "" '"$INSTDIR\bin\StreamDABAnalyser.exe" "--quick-analyze" "%1"'
 
-    # Register with Windows for broadcast file handling
-    WriteRegStr HKLM "SOFTWARE\Classes\Applications\ETIStreamAnalyser.exe\SupportedTypes" ".eti" ""
-    WriteRegStr HKLM "SOFTWARE\Classes\Applications\ETIStreamAnalyser.exe\shell\open\command" "" '"$INSTDIR\bin\ETIStreamAnalyser.exe" "%1"'
+    ; ETI-NI / ETI-LI extensions
+    WriteRegStr HKCR ".etini" "" "ETINIStreamFile"
+    WriteRegStr HKCR "ETINIStreamFile" "" "ETI-NI Stream File"
+    WriteRegStr HKCR "ETINIStreamFile\DefaultIcon" "" "$INSTDIR\bin\StreamDABAnalyser.exe,0"
+    WriteRegStr HKCR "ETINIStreamFile\shell\open\command" "" '"$INSTDIR\bin\StreamDABAnalyser.exe" "%1"'
+    WriteRegStr HKCR ".etili" "" "ETILIStreamFile"
+    WriteRegStr HKCR "ETILIStreamFile" "" "ETI-LI Stream File"
+    WriteRegStr HKCR "ETILIStreamFile\DefaultIcon" "" "$INSTDIR\bin\StreamDABAnalyser.exe,0"
+    WriteRegStr HKCR "ETILIStreamFile\shell\open\command" "" '"$INSTDIR\bin\StreamDABAnalyser.exe" "%1"'
 
-    # Notify system of file association changes
+    ; Application registration
+    WriteRegStr HKLM "SOFTWARE\Classes\Applications\StreamDABAnalyser.exe\SupportedTypes" ".eti" ""
+    WriteRegStr HKLM "SOFTWARE\Classes\Applications\StreamDABAnalyser.exe\SupportedTypes" ".etini" ""
+    WriteRegStr HKLM "SOFTWARE\Classes\Applications\StreamDABAnalyser.exe\SupportedTypes" ".etili" ""
+    WriteRegStr HKLM "SOFTWARE\Classes\Applications\StreamDABAnalyser.exe\shell\open\command" "" '"$INSTDIR\bin\StreamDABAnalyser.exe" "%1"'
+
+    ; Add to Windows Programs list
+    WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\StreamDABAnalyser.exe" "" "$INSTDIR\bin\StreamDABAnalyser.exe"
+    WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\StreamDABAnalyser.exe" "Path" "$INSTDIR\bin"
+
+    ; Notify the system of file association changes
     System::Call 'shell32.dll::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)'
-SectionEnd
+FunctionEnd
 
-# Desktop integration section
-Section "Desktop Integration" SEC_DESKTOP
-    # Professional desktop shortcut
-    CreateShortCut "$DESKTOP\ETI Stream Analyser.lnk" "$INSTDIR\bin\ETIStreamAnalyser.exe" "" "$INSTDIR\bin\ETIStreamAnalyser.exe" 0
-
-    # Professional Start Menu integration
-    CreateDirectory "$SMPROGRAMS\ETI Stream Analyser"
-    CreateShortCut "$SMPROGRAMS\ETI Stream Analyser\ETI Stream Analyser.lnk" "$INSTDIR\bin\ETIStreamAnalyser.exe"
-    CreateShortCut "$SMPROGRAMS\ETI Stream Analyser\Uninstall.lnk" "$INSTDIR\uninstall.exe"
-    CreateShortCut "$SMPROGRAMS\ETI Stream Analyser\Website.lnk" "${PRODUCT_WEB_SITE}"
-
-    # Professional Quick Launch (if available)
-    IfFileExists "$QUICKLAUNCH" 0 +2
-    CreateShortCut "$QUICKLAUNCH\ETI Stream Analyser.lnk" "$INSTDIR\bin\ETIStreamAnalyser.exe"
-SectionEnd
-
-# =============================================================================
-# SECTION DESCRIPTIONS FOR PROFESSIONAL APPEARANCE
-# =============================================================================
-
+# Section descriptions
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_CORE} "Core ETI Stream Analyser application and required runtime libraries. This component is required."
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DOCS} "Complete user documentation, API reference, and broadcast engineering guides."
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_SAMPLES} "Example ETI stream files and sample configurations for testing and demonstration."
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DEV} "Development headers and libraries for custom ETI processing applications."
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_ASSOC} "Register ETI Stream Analyser as the default application for .eti files."
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DESKTOP} "Create desktop shortcuts and Start Menu entries for easy access."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_CORE} "Core StreamDAB Analyser application and required runtime libraries. This component is required."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DOCS} "User documentation and engineering guides."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_SAMPLES} "Example ETI stream files for testing and demonstration."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END

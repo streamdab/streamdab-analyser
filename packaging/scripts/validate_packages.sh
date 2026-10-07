@@ -1,14 +1,14 @@
 #!/bin/bash
-# Package Validation Script for StreamDAB Stream Analyser
+# Package Validation Script for StreamDAB Analyser
 # Validates created packages for distribution readiness
 
 set -e
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build"
-PACKAGE_DIR="${BUILD_DIR}/packages"
+PACKAGE_DIR="${BUILD_DIR}"  # CPack artifacts land in build/ (CPACK_PACKAGE_DIRECTORY)
 
-echo "=== StreamDAB Stream Analyser Package Validation ==="
+echo "=== StreamDAB Analyser Package Validation ==="
 echo "Project Root: ${PROJECT_ROOT}"
 echo "Build Directory: ${BUILD_DIR}"
 echo "Package Directory: ${PACKAGE_DIR}"
@@ -76,7 +76,7 @@ log_info "Validating main executable..."
 EXECUTABLE_FOUND=false
 
 # Check different possible locations
-for executable_path in "ETIStreamAnalyser" "bin/ETIStreamAnalyser" "./ETIStreamAnalyser"; do
+for executable_path in "StreamDABAnalyser" "bin/StreamDABAnalyser" "./StreamDABAnalyser"; do
     if [ -f "${executable_path}" ]; then
         log_success "Main executable found: ${executable_path}"
         EXECUTABLE_FOUND=true
@@ -109,12 +109,12 @@ fi
 
 # 3. Validate Qt Integration
 log_info "Validating Qt integration..."
-if [ -d "ETIStreamAnalyser_autogen" ]; then
+if [ -d "DABAnalyser_Enhanced_FilteringBuild_autogen" ]; then
     log_success "Qt MOC/UIC integration found"
 
     # Check for generated UI headers
     UI_HEADERS_FOUND=0
-    for ui_header in ETIStreamAnalyser_autogen/include/ui_*.h; do
+    for ui_header in DABAnalyser_Enhanced_FilteringBuild_autogen/include/ui_*.h; do
         if [ -f "$ui_header" ]; then
             ((UI_HEADERS_FOUND++))
         fi
@@ -247,7 +247,7 @@ fi
 # Check for debug symbols in release build
 if [ "$EXECUTABLE_FOUND" = true ]; then
     if command -v file >/dev/null 2>&1; then
-        EXECUTABLE_PATH=$(find . -name "ETIStreamAnalyser" -type f -executable | head -1)
+        EXECUTABLE_PATH=$(find . -name "StreamDABAnalyser" -type f -executable | head -1)
         if [ -n "$EXECUTABLE_PATH" ]; then
             FILE_INFO=$(file "$EXECUTABLE_PATH")
             if echo "$FILE_INFO" | grep -q "not stripped"; then

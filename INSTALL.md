@@ -1,9 +1,9 @@
 # INSTALL — StreamDAB-Analyser
 
-Build & install instructions for **DAB-XPlorer** (Qt 6 / C++20 / CMake GUI + CLI).
+Build & install instructions for **StreamDAB Analyser** (Qt 6 / C++20 / CMake GUI + CLI).
 Reference runtime: **Qt 6.11 / g++ 13 / Ubuntu** — see the version matrix at the end.
 
-Test suite: **55/55 (100 %)** with `QT_QPA_PLATFORM=offscreen`. The main fixture
+Test suite: **56/56 (100 %)** with `QT_QPA_PLATFORM=offscreen`. The main fixture
 `eti/bkk_20062022_141637.eti` (30 MB) is **committed** — several tests (GUI dock
 layout, CLI E2E) and the CI parity/smoke gates require it and run on GitHub too.
 The other, larger capture directories in `eti/` stay gitignored; obtain them
@@ -25,7 +25,7 @@ JOBS="$(bash scripts/build_jobs.sh)"          # bounded: min(nproc, RAM_GB/2, 8)
 export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"     # nested cmake/make honour this too
 cmake --build build --parallel "$JOBS"        # NEVER a bare -j (that is unbounded)
 
-# Test (all 55 targets)
+# Test (all 56 targets)
 cd build && ctest --output-on-failure
 
 # Run
@@ -144,8 +144,8 @@ yet** — DAB+ decode works, playback does not.
 | Test preset (serial) | `test-linux` | `test-windows` | `test-macos` |
 | Env vars | — | `VCPKG_ROOT` (vcpkg checkout) | `QT_DIR` (`brew --prefix qt@6`) |
 | Docs | this file | `docs/WINDOWS_BUILD.md` | `docs/MACOS_BUILD.md` |
-| Audio output | ALSA (default) | none yet | none yet |
-| Packaging | CPack/AppImage (roadmap) | NSIS/ZIP (roadmap) | `.app`/`.dmg` (roadmap) |
+| Audio output | ALSA (default) | Qt Multimedia (QAudioSink) | Qt Multimedia (QAudioSink) |
+| Packaging | **implemented** — TGZ/DEB via CPack + AppImage script (§5) | **implemented** — NSIS/ZIP via CPack (§5) | **implemented** — `.app`/`.dmg` via `scripts/bundle-macos.sh` (§5) |
 
 ## 4. macOS
 
@@ -168,10 +168,12 @@ cmake --build --preset build-macos   # 8 jobs — never a bare -j (unbounded)
 ctest --preset test-macos
 ```
 
-Gaps: no audio output backend yet (ALSA is Linux-only; DAB+ decode works); no
-`.app`/`.dmg` packaging yet (CPack roadmap). `cmake/MacOSConfig.cmake` is a dead
-config file (not included by `CMakeLists.txt`) — tracked for the wire-or-delete
-decision, `docs/CROSS_PLATFORM_BUILD_PLAN.md` B8.
+Gaps: no audio output backend on macOS yet when the Qt kit lacks Multimedia
+(ALSA is Linux-only; DAB+ decode works), and no code-signing/notarization yet.
+`.app`/`.dmg` packaging is implemented — see §5. The legacy
+`cmake/{Linux,MacOS,Windows}Config.cmake` files are deleted (they were never
+included; the portable detection ladder in `CMakeLists.txt` is the only path —
+`docs/CROSS_PLATFORM_BUILD_PLAN.md` B8 resolved).
 
 ## 5. Alternatives / other build routes
 
@@ -179,28 +181,61 @@ decision, `docs/CROSS_PLATFORM_BUILD_PLAN.md` B8.
 |---|---|---|
 | **Reproducible container** | §2 above | ✅ canonical |
 | **Script wrapper** | `scripts/build.sh` (Linux/macOS/Git-Bash) | ✅ exists, thin wrapper |
-| **GitHub Actions CI** | `.github/workflows/ci.yml` (ubuntu-24.04 / windows-2022 / macos-14, Qt 6.8, `QT_QPA_PLATFORM=offscreen`, per-OS presets) | ✅ current — builds + 55/55 suite + CLI smoke on the real fixture |
-| **GitHub Releases** | `.github/workflows/release.yml` (tag `v*` → per-OS binary archives + release notes) | ✅ current — upgraded to CPack artifacts when packaging lands |
-| **AppImage (Linux)** | linuxdeploy + plugin-qt (legacy build Dockerfile `appimage` stage, now removed) | ⚠️ needs the install/CPack rules (see §6) |
-| **DEB/RPM/TGZ packages** | CPack — `cmake/packaging.cmake` defines metadata | ⚠️ needs `install()` rules added to `CMakeLists.txt` first |
+| **GitHub Actions CI** | `.github/workflows/ci.yml` (ubuntu-24.04 / windows-2022 / macos-14, Qt 6.8, `QT_QPA_PLATFORM=offscreen`, per-OS presets) | ✅ current — builds + 56/56 suite + CLI smoke on the real fixture |
+| **GitHub Releases** | `.github/workflows/release.yml` (tag `v*` → per-OS binary archives + release notes) | ✅ current — upgraded to CPack artifacts |
+| **AppImage (Linux)** | `packaging/linux/create_appimage.sh` (linuxdeploy + linuxdeploy-plugin-qt) | ✅ implemented — see §6 |
+| **DEB / TGZ (Linux)** | CPack (`cmake/packaging.cmake`) — `cmake --install build --prefix <p>` + `cpack --config build/CPackConfig.cmake -G TGZ\|DEB` | ✅ implemented — see §6 |
+| **NSIS / ZIP (Windows)** | CPack NSIS generator via `CPACK_NSIS_*` vars (+ standalone template `packaging/windows/installer.nsi`); ZIP fallback | ✅ implemented — see §6 |
+| **App / DMG (macOS)** | `scripts/bundle-macos.sh` (macdeployqt + hdiutil); `cpack -G BUNDLE\|DragNDrop` alternative | ✅ implemented — see §6 |
 | **CMake presets** | per-OS: `linux-gcc` / `windows-msvc` / `macos-brew`, builds `build-linux` / `build-windows` / `build-macos` (8 jobs), tests `test-linux` / `test-windows` / `test-macos` | ✅ provided (`CMakePresets.json`) |
 
-## 6. Known gaps for production packaging (roadmap)
+## 6. Production packaging (implemented)
 
-1. No `install()` rules in `CMakeLists.txt` → CPack/AppImage/`--target install`
-   currently do nothing. Add `install(TARGETS StreamDABAnalyser streamdab-cli ...)`
-   + `install(DIRECTORY ...)` for docs, then CPack becomes usable.
-2. GitHub Actions workflows must be rebased on the current build (Qt 6.8+,
-   `QT_QPA_PLATFORM=offscreen`, fixture provision step for E2E).
-3. `CMakePresets.json` for one-command configure/build/test.
-4. Windows Route A needs a vcpkg manifest (`vcpkg.json`) to be fully
-   reproducible — add when the MSVC path is exercised in CI.
+`install()` rules + CPack are wired (`CMakeLists.txt` install section +
+`cmake/packaging.cmake`). The version is single-sourced from `DABX_VERSION`
+(git tag → `-DDABX_VERSION` → `PROJECT_VERSION`); CPack mirrors it into
+`build/CMakeCache.txt` as `CPACK_PACKAGE_VERSION`.
+
+```bash
+# 1) Stage the install tree anywhere (no root needed):
+cmake --install build --prefix /tmp/opencode/pack-stage
+#    -> bin/{StreamDABAnalyser,streamdab-cli}
+#       share/applications/eti-stream-analyser.desktop
+#       share/mime/packages/eti-stream-analyser.xml
+#       share/icons/hicolor/scalable/apps/eti-stream-analyser.svg
+#       share/doc/streamdab-analyser/{LICENSE,README.md}
+
+# 2) CPack artifacts (run inside build/ so they land in build/):
+cd build
+cpack --config CPackConfig.cmake            # default generator for this OS
+cpack -G TGZ                                # Linux tarball
+cpack -G DEB                                # Debian/Ubuntu package
+cpack -G NSIS                               # Windows installer (on Windows)
+cpack -G ZIP                                # Windows zip fallback
+cpack -G BUNDLE                             # macOS .app (raw, no Qt)
+cpack -G DragNDrop                          # macOS .dmg
+#    -> streamdab-analyser-<DABX_VERSION>-Linux.tar.gz (TGZ)
+#       streamdab-analyser_<DABX_VERSION>_amd64.deb        (DEB)
+#       streamdab-analyser-<DABX_VERSION>-win64.zip etc.
+
+# 3) AppImage (Linux) — packaging/linux/create_appimage.sh
+./packaging/linux/create_appimage.sh         # needs linuxdeploy + plugin-qt
+
+# 4) macOS .app + .dmg — scripts/bundle-macos.sh
+./scripts/bundle-macos.sh                    # macdeployqt + hdiutil
+```
+
+Remaining follow-ups (not blocks): GitHub Actions release.yml already consumes
+CPack artifacts; Windows NSIS icons and a macOS `.icns` are missing (no
+`.ico`/`.icns` assets exist yet); code-signing/notarization is a later task.
+`CMakePresets.json` exists. A vcpkg manifest (`vcpkg.json`) for Windows
+reproducibility is still a follow-up.
 
 ## 7. Qt/compiler version matrix
 
 | Platform | Qt | Compiler | Status |
 |---|---|---|---|
-| Ubuntu (host reference) | **6.11** | g++ 13 | ✅ full suite 55/55 |
+| Ubuntu (host reference) | **6.11** | g++ 13 | ✅ full suite 56/56 |
 | Docker (ubuntu:24.04) | 6.4.2 | gcc 13 | ✅ container build validated |
 | Windows (MSVC / vcpkg) | 6.8+ (6.11 rec.) | MSVC 2022 | 🚧 plan in §3A |
 | Windows (MinGW cross/Wine) | 6.11 win64_mingw | x86_64-w64-mingw32-g++ | 🚧 needs Qt toolchain added |

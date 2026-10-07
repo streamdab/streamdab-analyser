@@ -1,49 +1,51 @@
--- ETI Stream Analyser Professional DMG Setup Script
--- Professional macOS disk image layout and styling
+-- StreamDAB Analyser — DMG setup script (used by CPack DragNDrop)
+-- Simple, failure-tolerant window layout for the .dmg volume
+-- "StreamDAB Analyser". Every decorative step is guarded so a missing
+-- asset (background, README/LICENSE) never aborts the packaging run.
 
 tell application "Finder"
-    tell disk "ETI Stream Analyser"
+    tell disk "StreamDAB Analyser"
         open
 
-        -- Professional window settings
+        -- window settings
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
 
-        -- Professional window size and position
+        -- window size and position
         set the bounds of container window to {400, 100, 900, 400}
 
-        -- Professional icon view settings
+        -- icon view options
         set theViewOptions to the icon view options of container window
         set arrangement of theViewOptions to not arranged
         set icon size of theViewOptions to 72
-        set background picture of theViewOptions to file ".background:background.png"
 
-        -- Professional icon positioning for broadcast industry appeal
-        -- Application icon positioned for easy access
-        set position of item "ETI Stream Analyser.app" of container window to {150, 175}
+        -- optional background (not shipped; keep the default look)
+        try
+            set background picture of theViewOptions to file ".background:background.png"
+        on error
+            -- no background asset packaged; keep default
+        end try
 
-        -- Applications folder link for professional installation
+        -- application icon
+        set position of item "StreamDAB-Analyser.app" of container window to {150, 175}
+
+        -- Applications folder link for installation
         set position of item "Applications" of container window to {350, 175}
 
-        -- Professional documentation positioning
-        if exists item "README.txt" then
-            set position of item "README.txt" of container window to {250, 275}
-        end if
+        -- optional documentation/license positions
+        try
+            set position of item "README.md" of container window to {250, 275}
+        on error
+        end try
+        try
+            set position of item "LICENSE" of container window to {150, 275}
+        on error
+        end try
 
-        -- Professional license positioning
-        if exists item "LICENSE.txt" then
-            set position of item "LICENSE.txt" of container window to {150, 275}
-        end if
-
-        -- Professional samples folder positioning
-        if exists item "Samples" then
-            set position of item "Samples" of container window to {350, 275}
-        end if
-
-        -- Update and close for professional appearance
+        -- update and close
         update without registering applications
-        delay 2
+        delay 1
         close
     end tell
 end tell

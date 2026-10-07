@@ -24,7 +24,7 @@
 | B5 | Audio output backend is **ALSA only** | `src/core/audio_output_sink.cpp` (`HAVE_ALSA`) | Windows/macOS get no audio out (decode/analysis fine) | **Implemented** — Qt Multimedia sink (`src/core/qt_audio_output_sink.cpp`, `HAVE_QMULTIMEDIA`) compiled in automatically when the Qt kit ships Multimedia (aqt desktop Qt / brew `qt@6`); ALSA stays the Linux primary, Qt Multimedia the Windows/macOS backend, via `AudioPlaybackController::preferredBackendName()`. Disable with `-DDABX_ENABLE_QMULTIMEDIA=OFF`; the no-backend path remains for qtbase-only installs |
 | B6 | No platform guards at all | `CMakeLists.txt` (`grep WIN32/APPLE/MSVC` = 0) | — | Add explicit, minimal `if(MSVC)/if(APPLE)/if(UNIX)` blocks where needed |
 | B7 | Stale `scripts/build-windows.ps1` (options that no longer exist; version drift) | `scripts/` | Misleading | Rewrite to the real flow (vcpkg + Qt prefix + bounded `--parallel` + offscreen tests) |
-| B8 | Dead platform config files, never included | `cmake/{Linux,MacOS,Windows}Config.cmake`, `cmake/packaging.cmake` | Confusing (looks like support that is not wired) | Decide: wire the useful parts (e.g. packaging) or delete; do **not** leave as-is |
+| B8 | Dead platform config files, never included | `cmake/{Linux,MacOS,Windows}Config.cmake`, `cmake/packaging.cmake` | Confusing (looks like support that is not wired) | **Resolved (packaging pass, `main` 7251684+):** the three `*Config.cmake` files were **deleted** (never included anywhere — verified by grep); `cmake/packaging.cmake` was **rewritten** (StreamDAB Analyser branding, `DABX_VERSION` single-source, TGZ/DEB on Linux, NSIS/ZIP on Windows, BUNDLE/DragNDrop on macOS) and is now **included from `CMakeLists.txt`** with the new `install()` rules. The detection ladder in `CMakeLists.txt` is the only config path. |
 | B9 | No presets / no per-OS Qt prefix hints | — | Users hand-craft commands | `CMakePresets.json` presets conditioned on `hostSystemName`, Qt prefix from `$env{QT_DIR}`, vcpkg toolchain hint for Windows |
 | B10 | `find_package(GTest REQUIRED)` | `CMakeLists.txt:197` | Fine on all three (vcpkg/brew/git), but makes a GUI-only build impossible | Keep REQUIRED for the current always-build-tests setup; document the vcpkg/brew package names |
 
@@ -70,11 +70,12 @@ find_package(Threads REQUIRED)      # replaces the raw `pthread` link
 - Optional `scripts/build-macos.sh` wrapper (brew paths + presets) — not yet written; the presets + `docs/MACOS_BUILD.md` cover the same flow.
 
 ### 3.5 Docs
-- `docs/WINDOWS_BUILD.md` (detailed Windows 10/11 guide) — prerequisites (VS 2022 Build Tools, aqt, vcpkg), exact commands, run/test, troubleshooting (Qt vs toolchain mismatch: **never mix `win64_mingw` with MSVC**; triplet mismatch; bounded jobs).
-- `docs/MACOS_BUILD.md` (detailed macOS guide) — Homebrew deps, keg-only `qt@6` / `QT_DIR`, presets, known gaps (Qt Multimedia audio backend status, no `.app`/`.dmg` yet), troubleshooting.
-- `docs/MACOS_BUILD.md` (new) — Homebrew deps, `cmake -DCMAKE_PREFIX_PATH="$(brew --prefix qt@6)"`, arm64 vs x86_64 (`-march=native` removed for arm64), offscreen tests, codesign/notarize notes for shipping a `.app`, known gaps.
+- `docs/WINDOWS_BUILD.md` (detailed Windows 10/11 guide) — prerequisites (VS 2022 Build Tools, aqt, vcpkg), exact commands, run/test, troubleshooting (Qt vs toolchain mismatch: **never mix `win64_mingw` with MSVC**; triplet mismatch; bounded jobs). Packaging note added for NSIS/ZIP (§7.5).
+- `docs/MACOS_BUILD.md` (detailed macOS guide) — Homebrew deps, keg-only `qt@6` / `QT_DIR`, presets, known gaps, troubleshooting.
+- `docs/MACOS_BUILD.md` (new) — Homebrew deps, `cmake -DCMAKE_PREFIX_PATH="$(brew --prefix qt@6)"`, arm64 vs x86_64 (`-march=native` removed for arm64), offscreen tests, codesign/notarize notes for shipping a `.app`, known gaps. `.app`/`.dmg` **implemented** via `scripts/bundle-macos.sh` (§3.5).
 - `INSTALL.md` — a cross-platform matrix at the top (OS → packages → configure/build/test commands) linking both platform docs; `docs/README.md` updated.
 - Honest statements: audio-out is ALSA (Linux) + Qt Multimedia (Windows/macOS, auto-detected; graceful no-backend fallback otherwise); ZMQ requires cppzmq; fixtures (`eti/*.eti`) are not in git so fixture-based suites skip without them.
+- **B8 resolution (packaging pass):** the dead `cmake/*Config.cmake` files are deleted; `cmake/packaging.cmake` is rewritten and wired; the documentation statements above were updated to match.
 
 ## 4. Verification strategy
 
@@ -90,7 +91,7 @@ find_package(Threads REQUIRED)      # replaces the raw `pthread` link
 ## 6. Tasks / sequencing
 1. **B1+B2 (ZMQ portability)** — in progress (Windows worker): detection ladder + `HAVE_ZMQ` guard + docs.
 2. **B3+B4 (flags, Threads)** — cross-platform hardening in `CMakeLists.txt` + `tests/CMakeLists.txt` (do after step 1 lands to avoid CMakeLists conflicts).
-3. **B7–B9 (script, dead configs, presets)** — same pass as step 2.
+3. **B7–B9 (script, dead configs, presets)** — **done**: B7 script rewrite; **B8 resolved (dead configs deleted; `packaging.cmake` rewritten + wired with `install()` rules)**; B9 presets provided.
 4. **B5 (audio backend)** — **implemented** (Qt Multimedia sink; ALSA stays the Linux primary). Windows/macOS verification remains a manual/CI checklist until a `windows-2022`/`macos-14` job lands (§5), since this host has no Qt Multimedia to compile it.
 5. **Docs (§3.5)** + CI matrix (§5).
 6. Each step: build + `ctest` 56/56 + parity on Linux; commit separately.
@@ -98,5 +99,5 @@ find_package(Threads REQUIRED)      # replaces the raw `pthread` link
 ## 7. Risks / open questions
 - **Audio backend scope** (B5): **implemented** — the Qt Multimedia sink is compiled in automatically when the Qt kit ships Multimedia and is compiled out cleanly otherwise. Follow-up risk is verification-only: this Linux host cannot compile `HAVE_QMULTIMEDIA`, so the Windows/macOS build of the sink is exercised by the aqt/brew toolchains (guarded code reviewed by inspection + the module-set unit tests).
 - **MSVC flag semantics**: replacing `-ffast-math -O3` with `/O2` changes numerics slightly; the perf-threshold tests are Linux-tuned (<50 µs), so Windows runs may need the same budget treatment as v1.4 (documented).
-- **macOS deployment**: shipping a `.app` needs an install()/CPack step (currently absent — INSTALL.md §6 gap).
+- **macOS deployment**: **implemented** — `install()`/CPack `BUNDLE`/`DragNDrop` and `scripts/bundle-macos.sh` (macdeployqt + hdiutil) ship a `.app`/`.dmg`; INSTALL.md §6 documents the commands. Remaining: `.icns` icon + code-signing/notarization.
 - **Fixtures in CI**: `eti/*.eti` (~30 MB) are gitignored; CI either skips fixture suites or downloads them.

@@ -6,10 +6,10 @@ transparently. The project is a C++20 / Qt 6 desktop application with an
 optional ZeroMQ ETI input transport; nothing here requires Xcode GUI — only the
 Command Line Tools.
 
-> The legacy `cmake/MacOSConfig.cmake` is **not** included by `CMakeLists.txt`
-> (dead config, tracked for the wire-or-delete decision in
-> `docs/CROSS_PLATFORM_BUILD_PLAN.md` B8). Everything below is handled by the
-> portable detection ladder in the top-level `CMakeLists.txt`.
+> The legacy `cmake/MacOSConfig.cmake` was **deleted** in the packaging pass
+> (it was never included by `CMakeLists.txt`; `docs/CROSS_PLATFORM_BUILD_PLAN.md`
+> B8 resolved). Everything below is handled by the portable detection ladder in
+> the top-level `CMakeLists.txt`.
 
 ## 1. Prerequisites
 
@@ -55,8 +55,8 @@ cmake --build build --parallel "$JOBS"        # NEVER a bare -j (unbounded)
 cd build && ctest --output-on-failure
 ```
 
-`macOSConfig.cmake` is **not** wired into the build (see note above); the
-detection ladder in `CMakeLists.txt` is what finds Qt/FAAD2/FFTW/libzmq.
+`MacOSConfig.cmake` is deleted (see the note above); the detection ladder in
+`CMakeLists.txt` is what finds Qt/FAAD2/FFTW/libzmq.
 
 ### What the suite expects
 
@@ -69,19 +69,46 @@ detection ladder in `CMakeLists.txt` is what finds Qt/FAAD2/FFTW/libzmq.
 ## 3. Run
 
 ```bash
-./build/StreamDABAnalyser                 # GUI (native macOS window)
+# GUI — the bundled .app (MACOSX_BUNDLE=TRUE builds StreamDAB-Analyser.app in
+# build/); inside a bundle the executable is
+#   build/StreamDAB-Analyser.app/Contents/MacOS/StreamDAB-Analyser
+# or install + open:
+#   cmake --install build --prefix dist && open dist/StreamDAB-Analyser.app
+
+# CLI (headless) — the standalone binary is not bundled:
 ./build/streamdab-cli --input eti/bkk_20062022_141637.eti --output out.yaml
 ```
 
-CLI mode is available both as the standalone `streamdab-cli` and via
-`./build/StreamDABAnalyser --cli --input ... --output ...`.
+CLI mode is available as the standalone `streamdab-cli` and via the bundled GUI
+(`build/StreamDAB-Analyser.app/Contents/MacOS/StreamDAB-Analyser --cli --input
+... --output ...`).
+
+## 3.5 Packaging — `.app` + `.dmg` (implemented)
+
+`scripts/bundle-macos.sh` is the canonical one-stop flow (run on the Mac):
+
+```bash
+./scripts/bundle-macos.sh
+# 1. cmake --install build --prefix dist      (installs StreamDAB-Analyser.app)
+# 2. macdeployqt dist/StreamDAB-Analyser.app  (bundles the Qt frameworks)
+# 3. hdiutil create -volname "StreamDAB Analyser" -srcfolder dist -ov \
+#      -format UDZO build/StreamDAB-Analyser-<ver>.dmg
+```
+
+The bundle is produced by `install(TARGETS ... BUNDLE DESTINATION .)` with the
+`MACOSX_BUNDLE_*` properties in `CMakeLists.txt` (bundle name, GUI identifier
+`com.streamdab-analyser.app`, version = `DABX_VERSION`, Info.plist from
+`packaging/macos/Info.plist.in`). CPack mirrors it as `cpack -G BUNDLE` and
+`cpack -G DragNDrop`; run `bundle-macos.sh` **before** either so the `.dmg`
+carries its Qt frameworks. `CMAKE_INSTALL_RPATH_USE_LINK_PATH` keeps @rpath
+Qt links working until macdeployqt rewrites them.
 
 ## 4. Known gaps on macOS
 
 | Area | Status |
 |---|---|
 | Audio output backend | **Implemented** — the Qt Multimedia backend (`QAudioSink` → CoreAudio, `src/core/qt_audio_output_sink.cpp`) is compiled in automatically when the Qt kit ships Multimedia; Homebrew's `qt@6` does. The ALSA backend remains Linux-only. Disable with `-DDABX_ENABLE_QMULTIMEDIA=OFF`; DAB+ **decode** is independent and always works. |
-| `.app` bundle / `.dmg` | **Not yet** — `install()` rules + CPack (`BUNDLE`/`DragNDrop`) are on the roadmap; until then run the binary from `build/`. |
+| `.app` bundle / `.dmg` | **Implemented** — `MACOSX_BUNDLE` install rules produce `StreamDAB-Analyser.app`; `scripts/bundle-macos.sh` bundles Qt via macdeployqt and creates the `.dmg` (see §3.5). CPack `BUNDLE`/`DragNDrop` generators mirror the flow. No `.icns` icon yet (SVG only) and no code-signing/notarization. |
 | ZeroMQ transport | Optional; compiled in when `zmq.hpp` + libzmq are found (brew provides both), or disabled with `-DDABX_ENABLE_ZMQ=OFF`. The validator then rejects `zmq+tcp://` with a clear "not built in" message. |
 | Notarisation / signing | Not configured; a `release.yml` GitHub Actions job is planned (unsigned for now). |
 

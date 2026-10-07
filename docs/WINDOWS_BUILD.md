@@ -233,6 +233,37 @@ and `build\tests\Release\` (test binaries).
 
 ---
 
+## 7.5 Packaging — NSIS installer + ZIP (implemented)
+
+`install()` rules + CPack are wired (`CMakeLists.txt` install section +
+`cmake/packaging.cmake`), so Windows ships an NSIS installer plus a ZIP
+fallback:
+
+```powershell
+# 1) Stage the install tree (bin\StreamDABAnalyser.exe, bin\streamdab-cli.exe,
+#    share\doc\streamdab-analyser\...):
+cmake --install build --prefix C:\staging
+
+# 2) CPack artifacts (run inside build\ so they land there):
+cd build
+cpack -G NSIS      # StreamDAB_Analyser_<ver>_Setup.exe — needs makensis on PATH
+cpack -G ZIP       # streamdab-analyser-<ver>-win64.zip (no tooling required)
+```
+
+The CPack NSIS generator is branded through the `CPACK_NSIS_*` variables
+`cmake/packaging.cmake` (product name **StreamDAB Analyser**, homepage/contact
+pointing at the repo). The standalone advanced template
+`packaging/windows/installer.nsi` (with `installer_sections.nsh` and
+`nsis_config.nsh`, all repo-relative via `${__FILEDIR__}`) is documented in
+`packaging/README.md`; build it directly with:
+
+```bat
+makensis -DPRODUCT_VERSION=1.5.0 packaging\windows\installer.nsi
+```
+
+`PRODUCT_VERSION` is deliberately not hardcoded — read it from the build
+(`build\CMakeCache.txt`, `CPACK_PACKAGE_VERSION:STRING=<ver>`).
+
 ## 8. Known gaps and limitations (honest)
 
 - **Audio output now has a Windows backend when Qt Multimedia is installed.**

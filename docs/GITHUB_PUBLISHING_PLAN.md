@@ -21,7 +21,7 @@
 ## 2. Path classification
 
 ### Publish (public)
-`src/`, `tests/`, `include/`, `cmake/` (after the dead-config decision), `docker/`, `packaging/` (after cleanup),
+`src/`, `tests/`, `include/`, `cmake/` (**dead-config decision resolved**: the stale `*Config.cmake` files were deleted, `packaging.cmake` rewritten + wired), `docker/`, `packaging/` (rebranded + wired; AppImage/macOS/Windows scripts kept),
 `resources/`, `CMakeLists.txt`, `CMakePresets.json`, `.github/` (CI workflows), `.gitignore`, `.gitattributes`,
 `README.md`, `LICENSE`, `INSTALL.md`, `scripts/` (only the build/CI helpers that stay after the cleanup).
 
@@ -104,13 +104,13 @@ cd ../streamdab-public-tree && git init && git add -A \
 
 Planned workflow set (see the cross-platform plan for the build matrix):
 1. **`ci.yml`** — matrix `ubuntu-24.04`, `windows-2022`, `macos-14`: install deps per platform (apt / vcpkg / brew), configure with the OS preset, build with **bounded** parallelism, run the offscreen suites (fixture-dependent suites skipped without the asset). This directly answers "does it build on Windows/macOS?" for every push.
-2. **`release.yml`** — on tag `v*`: build Release on all three OSes, produce artifacts (Linux `.tar.gz`/`.deb`/AppImage via CPack, Windows `.zip`/`.exe` installer, macOS `.dmg`/`.app`), attach them to the GitHub Release, and generate release notes from the changelog. Requires the `install()`/CPack work (INSTALL.md §6 gap) + macOS codesigning/notarization decision for a signed `.app`.
+2. **`release.yml`** — on tag `v*`: build Release on all three OSes, produce artifacts (**CPack now exists**: Linux `.tar.gz`/`.deb` via CPack + AppImage via `packaging/linux/create_appimage.sh`, Windows `.zip`/NSIS `.exe` installer via CPack, macOS `.app`/`.dmg` via `scripts/bundle-macos.sh`), attach them to the GitHub Release, and generate release notes from the changelog. Remaining: macOS codesigning/notarization decision for a signed `.app`.
 3. **`codeql.yml`** (optional) — C++ static analysis on the public repo.
 4. **Secret scanning** — enable GitHub's push protection; optionally `gitleaks` job.
 
 ## 6. Sequencing
 
-1. **Cleanup pass (in progress)**: delete junk + move scripts → `scripts/`; drop the dead `cmake/*Config.cmake`/`packaging/` decision from the cross-platform plan.
+1. **Cleanup pass (done)**: delete junk + move scripts → `scripts/`; **dead `cmake/*Config.cmake` deleted, `cmake/packaging.cmake` rewritten + wired with `install()` rules (B8 resolved)**.
 2. **Docs reorg**: root keeps `README.md`, `LICENSE`, `INSTALL.md` (+ `AGENTS.md` private-only, excluded above); `CLAUDE.md` → `docs/archive/`.
 3. **`.gitattributes`** (export-ignore list) + `.gitignore` updates.
 4. **`scripts/publish-public.sh`** — implements §3 (filter-repo on a temp clone) with a `--single-commit` alternative flag, a pre-flight secret/licence check, and a confirmation prompt.
