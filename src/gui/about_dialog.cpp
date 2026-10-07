@@ -1,6 +1,6 @@
 /**
  * @file about_dialog.cpp
- * @brief Professional about dialog implementation for ETI Stream Analyser
+ * @brief Professional about dialog implementation for StreamDAB Analyser
  * 
  * This file implements the AboutDialog class providing comprehensive
  * application information, credits, license, and system details for
@@ -73,9 +73,9 @@ void AboutDialog::createUI()
     m_copyrightLabel = new QLabel(APP_COPYRIGHT);
     
     m_descriptionLabel = new QLabel(
-        tr("Professional ETI Stream Analyser for broadcast DAB/DAB+ monitoring and analysis. "
-           "Built on ETISnoop technology with advanced Qt GUI framework for comprehensive "
-           "stream analysis and real-time monitoring capabilities.")
+        tr("Professional DAB/DAB+ stream analyser for broadcast monitoring and "
+           "analysis of ETI (Ensemble Transport Interface) streams. Built with "
+           "Qt 6 for a comprehensive real-time monitoring experience.")
     );
     m_descriptionLabel->setWordWrap(true);
     
@@ -250,16 +250,15 @@ QPixmap AboutDialog::getApplicationLogo() const
 QString AboutDialog::getCreditsText() const
 {
     return tr(
-        "ETI Stream Analyser Development Team\n"
-        "====================================\n\n"
+        "StreamDAB Analyser Development & Contributors\n"
+        "==============================================\n\n"
         
         "Core Development:\n"
-        "• Lead Developer - ETI Processing Engine\n"
-        "• GUI Developer - Qt Interface Design\n"
-        "• Standards Compliance - ETSI Integration\n"
-        "• Testing Engineer - Quality Assurance\n"
+        "• Lead Developer - ETI Processing Engine & GUI\n"
+        "• Standards Compliance - ETSI EN 300 401/799 Integration\n"
+        "• Testing Engineer - Quality Assurance & Fixture Parity\n"
         "• Build Manager - Cross-platform Support\n"
-        "• Network Engineer - Streaming Implementation\n\n"
+        "• Network Engineer - Streaming (UDP/TCP/ZeroMQ) Implementation\n\n"
         
         "Special Thanks:\n"
         "• ETISnoop Project - Original ETI processing foundation\n"
@@ -268,18 +267,20 @@ QString AboutDialog::getCreditsText() const
         "• Professional Broadcast Engineers - Feedback and requirements\n\n"
         
         "Third-Party Libraries:\n"
-        "• Qt Framework - Cross-platform GUI toolkit\n"
-        "• libfaad2 - AAC audio decoder\n"
+        "• Qt Framework (incl. Qt Multimedia) - Cross-platform GUI toolkit\n"
+        "• Qt-ADS (qtadvanceddocking) - Advanced docking framework\n"
+        "• libfaad2 - AAC/DAB+ audio decoder\n"
         "• libfftw3 - Fast Fourier Transform library\n"
-        "• yaml-cpp - YAML configuration parser\n"
+        "• libzmq - ZeroMQ ETI transport\n"
+        "• ALSA (Linux) - Audio output backend\n"
         "• Google Test - Testing framework\n"
         "• CMake - Build system\n\n"
         
         "Documentation and Resources:\n"
         "• ETSI EN 300 401 - DAB Standard\n"
+        "• ETSI EN 300 799 - ETI Standard\n"
         "• ETSI TS 102 563 - DAB+ Standard\n"
-        "• Professional Broadcasting Community\n"
-        "• Technical Standards Organizations\n\n"
+        "• Professional Broadcasting Community\n\n"
         
         "Beta Testers:\n"
         "• Professional broadcast engineers\n"
@@ -296,12 +297,13 @@ QString AboutDialog::getCreditsText() const
 QString AboutDialog::getLicenseText() const
 {
     return tr(
-        "ETI Stream Analyser License Agreement\n"
-        "=====================================\n\n"
+        "StreamDAB Analyser License Agreement\n"
+        "====================================\n\n"
         
-        "This software is released under the GNU General Public License v3.0\n\n"
+        "This software is released under the GNU General Public License v3.0\n"
+        "(or, at your option, any later version).\n\n"
         
-        "Copyright (C) 2024 ETI Stream Analyser Team\n\n"
+        "Copyright (C) 2026 StreamDAB Analyser contributors\n\n"
         
         "This program is free software: you can redistribute it and/or modify\n"
         "it under the terms of the GNU General Public License as published by\n"
@@ -316,29 +318,23 @@ QString AboutDialog::getLicenseText() const
         "You should have received a copy of the GNU General Public License\n"
         "along with this program. If not, see <https://www.gnu.org/licenses/>.\n\n"
         
-        "ADDITIONAL TERMS FOR PROFESSIONAL USE:\n"
-        "======================================\n\n"
-        
-        "This software is designed for professional broadcast monitoring\n"
-        "and analysis. While provided under GPL v3.0, users are encouraged\n"
-        "to contribute improvements back to the community.\n\n"
-        
-        "For commercial licensing options or professional support,\n"
-        "please contact the development team.\n\n"
-        
         "THIRD-PARTY LICENSES:\n"
         "====================\n\n"
         
         "This software incorporates code from several open source projects:\n\n"
         
-        "• Qt Framework - LGPL v3 / Commercial License\n"
-        "• libfaad2 - GPL v2\n"
-        "• libfftw3 - GPL v2 or later\n"
-        "• yaml-cpp - MIT License\n"
-        "• Google Test - BSD 3-Clause License\n\n"
+        "• Qt Framework (Core/Widgets/Network/Multimedia) - LGPL-3.0 / GPL-3.0\n"
+        "• Qt-ADS (qtadvanceddocking) - LGPL-2.1\n"
+        "• libfaad2 - GPL-2.0\n"
+        "• libfftw3 - GPL-2.0 or later\n"
+        "• libzmq - MPL-2.0 (subject to its BSD-3 xsub permission notice)\n"
+        "• ALSA (libasound2) - LGPL-2.1\n"
+        "• Google Test - BSD-3-Clause\n"
+        "• CMake - BSD-3-Clause\n\n"
         
-        "Please refer to the individual license files for complete terms\n"
-        "and conditions of these third-party components.\n\n"
+        "Please refer to the individual license files for the complete terms\n"
+        "and conditions of these third-party components, and to the LICENSE\n"
+        "file in the repository root for the combined-work permissions.\n\n"
         
         "DISCLAIMER:\n"
         "===========\n\n"
@@ -348,7 +344,12 @@ QString AboutDialog::getLicenseText() const
         "arising from the use of this software.\n\n"
         
         "Users are responsible for ensuring compliance with applicable\n"
-        "broadcasting standards and regulations in their jurisdiction."
+        "broadcasting standards and regulations in their jurisdiction.\n\n"
+        
+        "The sample capture eti/bkk_20062022_141637.eti is a recording of a\n"
+        "Bangkok DAB ensemble (June 20, 2022) published with the project for\n"
+        "test and validation purposes; it is not part of the GPL-licensed\n"
+        "source code."
     );
 }
 
