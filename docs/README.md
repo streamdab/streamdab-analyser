@@ -31,6 +31,8 @@
 - **Test status:** `releases/TEST_STATUS_REPORT.md` (97.7% pass, 34.4% coverage)
 - **Instructions:** `../AGENTS.md` (build/test commands, workflow, repo rules)
 - **Cross-platform build plan (Linux/Windows/macOS):** [`CROSS_PLATFORM_BUILD_PLAN.md`](CROSS_PLATFORM_BUILD_PLAN.md)
+- **Windows build guide (detailed):** [`WINDOWS_BUILD.md`](WINDOWS_BUILD.md) — VS 2022 + Qt 6 MSVC + vcpkg,
+  `DABX_ENABLE_ZMQ`/`DABX_ENABLE_ALSA`, offscreen tests, fixture requirements, known gaps, troubleshooting
 - **Configuration:** `CONFIGURATION.md` (store location per platform, key groups, reset/export, removed options)
 - **v1.3 spec:** GUI migration to Qt-ADS — task list [`TASK_LIST.md`](TASK_LIST.md), design
   [`gui/QT_ADS_DOCKING.md`](gui/QT_ADS_DOCKING.md), plan `PHASE_E_PLAN.md` v1.3 section

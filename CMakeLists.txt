@@ -10,10 +10,112 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# ZeroMQ library (libzmq3-dev installed)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(ZMQ REQUIRED libzmq)
-include_directories(${ZMQ_INCLUDE_DIRS})
+# Threads (portable replacement for a bare `pthread`: empty on MSVC, -pthread
+# on GCC/Clang). Never link `pthread` directly -- it does not exist on Windows.
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
+# ============================================================================
+# pkg-config (OPTIONAL). Windows has no pkg-config by default and vcpkg's .pc
+# files are not guaranteed, so it must NEVER be REQUIRED. Every dependency
+# below has a non-pkg-config fallback.
+# ============================================================================
+find_package(PkgConfig QUIET)
+
+# ============================================================================
+# ZeroMQ (OPTIONAL; T48 zmq+tcp:// ETI transport).
+# Portable detection ladder, with no hard pkg-config dependency:
+#   1. CMake config packages -- vcpkg ships `zeromq` (libzmq) and `cppzmq`
+#      (the cppzmq::cppzmq interface target carrying <zmq.hpp>).
+#   2. pkg-config `libzmq` (Linux/macOS), only when PkgConfig was found.
+#   3. find_path/find_library fallback with vcpkg-style + CMAKE_PREFIX_PATH
+#      hints.
+# HAVE_ZMQ (and the include dirs/link target) is defined ONLY when both the
+# C++ header <zmq.hpp> and libzmq are available. Otherwise the transport is
+# compiled out (network_stream_receiver.cpp) and the validator rejects
+# zmq+tcp:// with a clear "not built in" message. Force off with
+# -DDABX_ENABLE_ZMQ=OFF.
+# ============================================================================
+option(DABX_ENABLE_ZMQ "Enable the ZeroMQ (zmq+tcp://) ETI stream transport" ON)
+
+# Defensively drop detection results cached by a PREVIOUS configure of the same
+# build directory. pkg_check_modules() stores <prefix>_FOUND as an INTERNAL
+# cache variable, so a stale ZMQ_FOUND=1 would otherwise survive with the
+# option OFF (the guard skips the lookup but the cached TRUE is still read by
+# the ladder's `if(ZMQ_FOUND)`). ZMQ_HAVE_ZMQ is a normal variable recomputed
+# every configure, but the cache vars must be cleared for ON->OFF->ON to flip.
+unset(ZMQ_FOUND CACHE)
+unset(ZMQ_FOUND)
+set(ZMQ_HAVE_ZMQ FALSE)
+set(ZMQ_LIBRARIES "")
+set(ZMQ_INCLUDE_DIRS "")
+set(ZMQ_LIBRARY_DIRS "")
+set(ZMQ_DEFINES "")
+
+if(DABX_ENABLE_ZMQ)
+    # --- 1) CMake config packages (vcpkg: zeromq + cppzmq) ----------------
+    find_package(ZeroMQ CONFIG QUIET)
+    find_package(cppzmq CONFIG QUIET)
+
+    if(TARGET cppzmq::cppzmq)
+        set(ZMQ_HAVE_ZMQ TRUE)
+        set(ZMQ_LIBRARIES cppzmq::cppzmq)
+    elseif(TARGET cppzmq)
+        set(ZMQ_HAVE_ZMQ TRUE)
+        set(ZMQ_LIBRARIES cppzmq)
+    endif()
+
+    # --- 2) pkg-config libzmq (Linux/macOS) ------------------------------
+    if(NOT ZMQ_HAVE_ZMQ AND PkgConfig_FOUND)
+        pkg_check_modules(ZMQ QUIET libzmq)
+        if(ZMQ_FOUND)
+            # libzmq ships zmq.h; the C++ bindings header zmq.hpp (cppzmq) must
+            # also be present for <zmq.hpp>. On Debian/Ubuntu libzmq3-dev
+            # provides both.
+            find_path(ZMQ_CPP_HEADER zmq.hpp HINTS ${ZMQ_INCLUDE_DIRS})
+            if(ZMQ_CPP_HEADER)
+                set(ZMQ_HAVE_ZMQ TRUE)
+                set(ZMQ_LIBRARIES ${ZMQ_LINK_LIBRARIES})
+                set(ZMQ_LIBRARY_DIRS ${ZMQ_LIBRARY_DIRS})
+                list(APPEND ZMQ_INCLUDE_DIRS ${ZMQ_CPP_HEADER})
+            endif()
+        endif()
+    endif()
+
+    # --- 3) find_path / find_library fallback ----------------------------
+    if(NOT ZMQ_HAVE_ZMQ)
+        set(_zmq_hints "")
+        if(DEFINED ENV{VCPKG_ROOT})
+            list(APPEND _zmq_hints
+                "$ENV{VCPKG_ROOT}/installed/x64-windows"
+                "$ENV{VCPKG_ROOT}/installed/x64-linux"
+                "$ENV{VCPKG_ROOT}/installed/x64-osx")
+        endif()
+        find_path(ZMQ_INCLUDE_DIR NAMES zmq.hpp
+                  HINTS ${_zmq_hints} PATH_SUFFIXES include)
+        find_library(ZMQ_LIBRARY NAMES libzmq libzmq-mt zeromq zmq
+                     HINTS ${_zmq_hints} PATH_SUFFIXES lib)
+        if(ZMQ_INCLUDE_DIR AND ZMQ_LIBRARY)
+            set(ZMQ_HAVE_ZMQ TRUE)
+            set(ZMQ_LIBRARIES ${ZMQ_LIBRARY})
+            list(APPEND ZMQ_INCLUDE_DIRS ${ZMQ_INCLUDE_DIR})
+        endif()
+    endif()
+
+    if(ZMQ_HAVE_ZMQ)
+        list(APPEND ZMQ_DEFINES HAVE_ZMQ)
+        message(STATUS "ZeroMQ: found -> zmq+tcp:// ETI transport enabled")
+    else()
+        message(STATUS "ZeroMQ: NOT found -> zmq+tcp:// transport disabled "
+                       "(install zeromq + cppzmq; or -DDABX_ENABLE_ZMQ=OFF)")
+    endif()
+else()
+    message(STATUS "ZeroMQ: disabled (-DDABX_ENABLE_ZMQ=OFF) -> zmq+tcp:// transport disabled")
+endif()
+
+if(ZMQ_INCLUDE_DIRS)
+    include_directories(${ZMQ_INCLUDE_DIRS})
+endif()
 
 # ============================================================================
 # T34: audio decode/output dependencies.
@@ -24,7 +126,16 @@ include_directories(${ZMQ_INCLUDE_DIRS})
 # ============================================================================
 find_path(FAAD2_INCLUDE_DIR neaacdec.h)
 find_library(FAAD2_LIBRARY NAMES faad)
-pkg_check_modules(ALSA alsa)
+option(DABX_ENABLE_ALSA "Enable the ALSA audio output backend (Linux only)" ON)
+# Clear the cached ALSA detection result first: pkg_check_modules() stores
+# ALSA_FOUND as an INTERNAL cache variable, so on an incremental reconfigure
+# with -DDABX_ENABLE_ALSA=OFF the guard would skip the lookup while the stale
+# ALSA_FOUND=1 kept HAVE_ALSA defined. Reset both the cache and the normal var.
+unset(ALSA_FOUND CACHE)
+set(ALSA_FOUND FALSE)
+if(DABX_ENABLE_ALSA AND PkgConfig_FOUND)
+    pkg_check_modules(ALSA alsa)
+endif()
 
 set(T34_AUDIO_LIBS "")
 set(T34_AUDIO_INCLUDES "")
@@ -44,7 +155,8 @@ if(ALSA_FOUND)
     list(APPEND T34_AUDIO_DEFINES HAVE_ALSA)
     message(STATUS "T34 audio: ALSA found -> audio output enabled")
 else()
-    message(STATUS "T34 audio: ALSA NOT found -> audio output disabled")
+    message(STATUS "T34 audio: ALSA NOT found -> audio output disabled "
+                   "(no playback backend on Windows/macOS yet; decode still works)")
 endif()
 
 # Qt-Advanced-Docking-System (Qt-ADS) via FetchContent
@@ -59,8 +171,19 @@ FetchContent_Declare(
 set(BUILD_EXAMPLES OFF CACHE BOOL "Build Qt-ADS examples/demo" FORCE)
 FetchContent_MakeAvailable(QtAdvancedDockingSystem)
 
-# Enhanced build flags (LTO disabled to avoid compiler internal error)
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native -mtune=native -ffast-math -funroll-loops -finline-functions -DRELEASE_BUILD")
+# Enhanced build flags (LTO disabled to avoid compiler internal error).
+# GCC/Clang keep the project's tuned -O3 flags; MSVC cannot parse them and uses
+# its own equivalents instead (a bare `-march=native` breaks every MSVC build).
+if(MSVC)
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG /DRELEASE_BUILD")
+else()
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -funroll-loops -finline-functions -DRELEASE_BUILD")
+    # -march/-mtune=native are x86_64-only: Apple Clang on arm64 rejects both
+    # (docs/CROSS_PLATFORM_BUILD_PLAN.md §3.1).
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
+        string(APPEND CMAKE_CXX_FLAGS_RELEASE " -march=native -mtune=native")
+    endif()
+endif()
 set(CMAKE_BUILD_TYPE Release)
 
 # Source files
@@ -152,12 +275,13 @@ target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
     qtadvanceddocking-qt6
     ${ZMQ_LIBRARIES}
     ${T34_AUDIO_LIBS}
-    pthread
+    Threads::Threads
 )
 
 # T34: audio decode/output includes + feature defines (HAVE_FAAD2 / HAVE_ALSA).
+# ZMQ_DEFINES carries HAVE_ZMQ only when the ZeroMQ transport was found.
 target_include_directories(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${T34_AUDIO_INCLUDES})
-target_compile_definitions(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${T34_AUDIO_DEFINES})
+target_compile_definitions(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${T34_AUDIO_DEFINES} ${ZMQ_DEFINES})
 
 # Add ZeroMQ library directories
 target_link_directories(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${ZMQ_LIBRARY_DIRS})

@@ -3,7 +3,7 @@
 Build & install instructions for **DAB-XPlorer** (Qt 6 / C++20 / CMake GUI + CLI).
 Reference runtime: **Qt 6.11 / g++ 13 / Ubuntu** — see the version matrix at the end.
 
-Test suite: **49/49 (100 %)** with `QT_QPA_PLATFORM=offscreen`. Real ETI fixtures live in
+Test suite: **55/55 (100 %)** with `QT_QPA_PLATFORM=offscreen`. Real ETI fixtures live in
 `eti/` and are **gitignored** — several tests (GUI dock layout, CLI E2E) require them;
 without fixtures those tests are skipped/fail, so obtain captures (e.g.
 `bkk_20062022_141637.eti`) before running the full suite.
@@ -89,35 +89,49 @@ Notes:
 
 ## 3. Windows
 
-Two routes — both target the configs already in `cmake/WindowsConfig.cmake`
-(winmm/ws2_32, fdk-aac & faad2 detection).
+**→ Full guide: [`docs/WINDOWS_BUILD.md`](docs/WINDOWS_BUILD.md)** (Windows
+10/11 x64, Visual Studio 2022 Build Tools, aqtinstall Qt 6.11 MSVC, vcpkg,
+tests, running, known gaps and troubleshooting).
 
-**Route A (recommended): MSVC + Qt with aqtinstall + vcpkg**
+**Route A (recommended): MSVC + Qt with aqtinstall + vcpkg** — short version:
+
 ```powershell
-# 1. Qt 6.8 desktop for MSVC (at least 6.4+; 6.11 recommended)
+# 1. Qt 6 desktop for MSVC (6.11 recommended; qtbase is all the app needs)
 pip install aqtinstall
 aqt install-qt windows desktop 6.11.0 win64_msvc2022_64 -O C:\Qt
-#    add archive: aqt install-qt ... --archives qtbase qtdeclarative? (only
-#    what the app needs: qtbase covers Widgets/Network/Core/Test)
 
-# 2. Native deps (faad, fftw, zmq, gtest) via vcpkg:
-git clone https://github.com/microsoft/vcpkg; .\vcpkg\bootstrap-vcpkg.bat
-vcpkg install faad2 fftw3 zeromq gtest:x64-windows
+# 2. Native deps via vcpkg. zeromq + cppzmq enable the zmq+tcp:// transport;
+#    faad2 enables DAB+ decode; gtest is required by the test subdirectory.
+git clone https://github.com/microsoft/vcpkg C:\vcpkg
+C:\vcpkg\bootstrap-vcpkg.bat
+C:\vcpkg\vcpkg install faad2 fftw3 zeromq cppzmq gtest --triplet x64-windows
 
-# 3. Configure with the toolchain + Qt prefix:
-cmake -B build -S . -DCMAKE_PREFIX_PATH=C:\Qt\6.11.0\msvc2022_64
-    -DCMAKE_TOOLCHAIN_FILE=...\vcpkg\scripts\buildsystems\vcpkg.cmake
+# 3. Configure (VS 2022 generator, x64) and build with bounded parallelism:
+cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
+    -DCMAKE_PREFIX_PATH=C:\Qt\6.11.0\msvc2022_64 `
+    -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake `
     -DVCPKG_TARGET_TRIPLET=x64-windows
-cmake --build build --config Release
-# tests need QT_QPA_PLATFORM=offscreen (set beforehand)
-# run: .\build\Release\StreamDABAnalyzer.exe ; git-bash style: scripts/build.sh
+cmake --build build --config Release --parallel 8
+
+# 4. Tests need QT_QPA_PLATFORM=offscreen (set BEFORE configure):
+$env:QT_QPA_PLATFORM = "offscreen"
+ctest --test-dir build -C Release --output-on-failure
+
+# Run: .\build\Release\StreamDABAnalyzer.exe
+#      .\build\Release\streamdab-cli.exe --input <x.eti> --output out.yaml
+# or use the wrapper: .\scripts\build-windows.ps1
 ```
+
+Features are optional and detected portably (no `pkg-config` required):
+`-DDABX_ENABLE_ZMQ=OFF` drops the ZeroMQ transport; the (Linux-only) ALSA
+backend is off by default on Windows. **Windows has no audio output backend
+yet** — DAB+ decode works, playback does not.
 
 **Route B: MinGW cross (experimental)** — the old `Dockerfile.build`'s
 `windows-builder` stage is **unsupported**: it sets `CC=x86_64-w64-mingw32-gcc`
 but never installs Qt-for-Windows, so `find_package(Qt6)` fails. To make it work
 you must add an aqt Qt 6.11 `win64_mingw` install + matching mingw prefix into
-that stage first.
+that stage first. Never mix a `win64_mingw` Qt kit with the MSVC toolchain.
 
 ## 4. macOS
 
@@ -155,7 +169,7 @@ cmake --build build --parallel "$(bash scripts/build_jobs.sh)" && (cd build && c
 
 | Platform | Qt | Compiler | Status |
 |---|---|---|---|
-| Ubuntu (host reference) | **6.11** | g++ 13 | ✅ full suite 49/49 |
+| Ubuntu (host reference) | **6.11** | g++ 13 | ✅ full suite 55/55 |
 | Docker (ubuntu:24.04) | 6.4.2 | gcc 13 | ✅ container build validated |
 | Windows (MSVC / vcpkg) | 6.8+ (6.11 rec.) | MSVC 2022 | 🚧 plan in §3A |
 | Windows (MinGW cross/Wine) | 6.11 win64_mingw | x86_64-w64-mingw32-g++ | 🚧 needs Qt toolchain added |

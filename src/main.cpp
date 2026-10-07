@@ -3877,7 +3877,11 @@ private:
                 m_streamUrlEdit->setText("tcp://192.168.1.100:9200");
                 break;
             case 3:
+#ifdef HAVE_ZMQ
                 m_streamUrlEdit->setText("zmq+tcp://localhost:9201");
+#endif
+                // Without HAVE_ZMQ this entry is disabled/annotated (see the
+                // combo setup); never fill an unsupported URL.
                 break;
             default:
                 break;
@@ -3927,14 +3931,22 @@ private:
                                              .arg(validation.error));
             }
             if (showDialogs) {
+                // Build the supported-format list so the ZeroMQ line reflects
+                // whether that transport was compiled in. Each fragment goes
+                // through tr() so the list stays translatable (the old single
+                // tr() literal was split up by the #ifdef).
+                QString supportedFormats =
+                    tr("  udp://239.192.0.1:9200  (IPv4 multicast)\n"
+                       "  239.192.0.1:9200        (IPv4 multicast)\n"
+                       "  tcp://host:9200         (raw ETI stream)\n");
+#ifdef HAVE_ZMQ
+                supportedFormats +=
+                    tr("  zmq+tcp://host:9201     (ODR-DabMux ZeroMQ)\n");
+#endif
+                supportedFormats += tr("Port is optional and defaults to 9200.");
                 QMessageBox::warning(
                     this, tr("Cannot connect"),
-                    tr("%1\n\nSupported formats:\n"
-                       "  udp://239.192.0.1:9200  (IPv4 multicast)\n"
-                       "  239.192.0.1:9200        (IPv4 multicast)\n"
-                       "  tcp://host:9200         (raw ETI stream)\n"
-                       "  zmq+tcp://host:9201     (ODR-DabMux ZeroMQ)\n"
-                       "Port is optional and defaults to 9200.").arg(validation.error));
+                    tr("%1\n\nSupported formats:\n%2").arg(validation.error, supportedFormats));
             }
             // No state change, no receiver, no log loop.
             return false;
@@ -7689,10 +7701,17 @@ private:
         m_streamUrlEdit = new QLineEdit();
         m_streamUrlEdit->setPlaceholderText("udp://239.192.0.1:9200");
         m_streamUrlEdit->setFont(QFont("Consolas", 9));
+#ifdef HAVE_ZMQ
         m_streamUrlEdit->setToolTip(
             "Supported: udp://A.B.C.D:port or A.B.C.D:port (IPv4 multicast), "
             "tcp://host:port (raw ETI stream), zmq+tcp://host:port "
             "(ODR-DabMux ZeroMQ). Port defaults to 9200.");
+#else
+        m_streamUrlEdit->setToolTip(
+            "Supported: udp://A.B.C.D:port or A.B.C.D:port (IPv4 multicast) "
+            "and tcp://host:port (raw ETI stream). Port defaults to 9200. "
+            "ZeroMQ (zmq+tcp://) is not built in.");
+#endif
         urlLayout->addWidget(urlLabel);
         urlLayout->addWidget(m_streamUrlEdit, 1);
         networkLayout->addLayout(urlLayout);
@@ -7705,11 +7724,23 @@ private:
         m_quickExampleCombo->addItem("udp://239.192.0.1:9200 (multicast)");
         m_quickExampleCombo->addItem("239.192.0.1:9200 (multicast, plain)");
         m_quickExampleCombo->addItem("tcp://192.168.1.100:9200 (raw ETI TCP)");
+#ifdef HAVE_ZMQ
         m_quickExampleCombo->addItem("zmq+tcp://localhost:9201 (ODR-DabMux ZMQ)");
-        m_quickExampleCombo->setCurrentIndex(-1);  // No selection by default
         m_quickExampleCombo->setToolTip(
             "Supported transports: UDP multicast (udp:// or plain address), "
             "raw ETI over TCP (tcp://) and ODR-DabMux ZeroMQ (zmq+tcp://).");
+#else
+        // Annotated AND disabled: selecting it would only be rejected by the
+        // validator, so make the missing backend explicit up front instead of
+        // letting it fail silently later (item data QVariant(0) @ UserRole-1 is
+        // the QComboBox "disable item" idiom).
+        m_quickExampleCombo->addItem("zmq+tcp://localhost:9201 (ZeroMQ not built in)");
+        m_quickExampleCombo->setItemData(3, QVariant(0), Qt::UserRole - 1);
+        m_quickExampleCombo->setToolTip(
+            "Supported transports: UDP multicast (udp:// or plain address) and "
+            "raw ETI over TCP (tcp://). ZeroMQ (zmq+tcp://) is not built in.");
+#endif
+        m_quickExampleCombo->setCurrentIndex(-1);  // No selection by default
         examplesLayout->addWidget(examplesLabel);
         examplesLayout->addWidget(m_quickExampleCombo, 1);
         networkLayout->addLayout(examplesLayout);

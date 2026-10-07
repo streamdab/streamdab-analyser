@@ -47,7 +47,7 @@ set(GUI_TEST_LIBRARIES
     Qt6::Core
     Qt6::Gui
     Qt6::Network
-    pthread
+    Threads::Threads
 )
 
 # ============================================================================

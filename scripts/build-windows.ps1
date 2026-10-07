@@ -1,445 +1,192 @@
 # ============================================================================
-# ETI Stream Analyzer - Windows Native Build Script
-# Professional PowerShell build automation for Windows development
+# StreamDAB Analyzer - Windows native build helper (MSVC + Qt6 + vcpkg)
+#
+# Configures with the Visual Studio 2022 generator, builds with bounded
+# parallelism, then (optionally) runs the test suite offscreen. See
+# docs/WINDOWS_BUILD.md for the full, detailed guide.
+#
+# Deliberately simple and correct rather than feature-complete: it does not
+# install dependencies, package, or measure coverage.
 # ============================================================================
-
+[CmdletBinding()]
 param(
-    [string]$BuildType = "Release",
-    [switch]$EnableTesting = $true,
-    [switch]$EnableCoverage = $false,
-    [switch]$CleanBuild = $false,
-    [switch]$InstallDeps = $false,
-    [switch]$Package = $false,
-    [switch]$Help = $false
+    [ValidateSet("Release", "Debug", "RelWithDebInfo")]
+    [string]$Config = "Release",
+
+    # Build directory, relative to the repository root.
+    [string]$BuildDir = "build",
+
+    # Qt MSVC prefix: the directory containing lib\cmake\Qt6 (e.g.
+    # C:\Qt\6.11.0\msvc2022_64). Auto-detected when empty.
+    [string]$QtDir = "",
+
+    # vcpkg root: the directory containing scripts\buildsystems\vcpkg.cmake.
+    # Falls back to the VCPKG_ROOT environment variable.
+    [string]$VcpkgRoot = "",
+
+    # Bounded parallelism. Never leave this unbounded on Windows (each cl.exe
+    # holds 1-2 GB; recursive subprojects add more).
+    [ValidateRange(1, 64)]
+    [int]$Parallel = 8,
+
+    [switch]$DisableZmq,
+    [switch]$EnableAlsa,
+    [switch]$SkipTests,
+    [switch]$Clean,
+    [switch]$Help
 )
 
-# ============================================================================
-# Configuration and Constants
-# ============================================================================
-
 $ErrorActionPreference = "Stop"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$ProjectRoot = Split-Path -Parent $ScriptDir
-$BuildDir = Join-Path $ProjectRoot "build"
-$InstallDir = Join-Path $ProjectRoot "install"
 
-# Version information
-$AppName = "ETI Stream Analyzer"
-$AppVersion = "1.0.0"
+$RepoRoot  = Split-Path -Parent $PSScriptRoot
+$BuildPath = Join-Path $RepoRoot $BuildDir
+$DefaultQt = "C:\Qt\6.11.0\msvc2022_64"
 
-# ============================================================================
-# Helper Functions
-# ============================================================================
+function Write-Step([string]$Message) { Write-Host "`n==> $Message" -ForegroundColor Cyan }
+function Write-Ok([string]$Message)   { Write-Host "  [ok] $Message" -ForegroundColor Green }
+function Write-Warn2([string]$Message){ Write-Host "  [!!] $Message" -ForegroundColor Yellow }
 
-function Write-Banner {
-    param([string]$Message)
-    Write-Host ""
-    Write-Host "============================================================================" -ForegroundColor Green
-    Write-Host " $Message" -ForegroundColor Green
-    Write-Host "============================================================================" -ForegroundColor Green
-    Write-Host ""
-}
-
-function Write-Step {
-    param([string]$Message)
-    Write-Host ""
-    Write-Host "==> $Message" -ForegroundColor Cyan
-}
-
-function Write-Success {
-    param([string]$Message)
-    Write-Host "✓ $Message" -ForegroundColor Green
-}
-
-function Write-Error {
-    param([string]$Message)
-    Write-Host "✗ $Message" -ForegroundColor Red
-}
-
-function Write-Warning {
-    param([string]$Message)
-    Write-Host "⚠ $Message" -ForegroundColor Yellow
-}
-
-function Test-Command {
-    param([string]$Command)
-    try {
-        Get-Command $Command -ErrorAction Stop | Out-Null
-        return $true
-    }
-    catch {
-        return $false
-    }
+function Fail([string]$Message) {
+    Write-Host "`n[error] $Message" -ForegroundColor Red
+    exit 1
 }
 
 function Show-Help {
-    Write-Banner "$AppName - Windows Build Script"
-    Write-Host "USAGE:"
-    Write-Host "  .\build-windows.ps1 [OPTIONS]"
-    Write-Host ""
-    Write-Host "OPTIONS:"
-    Write-Host "  -BuildType <Debug|Release>  Build configuration (default: Release)"
-    Write-Host "  -EnableTesting              Enable test suite compilation"
-    Write-Host "  -EnableCoverage             Enable code coverage reporting"
-    Write-Host "  -CleanBuild                 Clean build directory before building"
-    Write-Host "  -InstallDeps                Install required dependencies"
-    Write-Host "  -Package                    Create distribution packages"
-    Write-Host "  -Help                       Show this help message"
-    Write-Host ""
-    Write-Host "EXAMPLES:"
-    Write-Host "  .\build-windows.ps1                          # Default release build"
-    Write-Host "  .\build-windows.ps1 -BuildType Debug         # Debug build"
-    Write-Host "  .\build-windows.ps1 -CleanBuild -Package     # Clean build with packaging"
-    Write-Host "  .\build-windows.ps1 -InstallDeps             # Install dependencies only"
-    Write-Host ""
-    Write-Host "REQUIREMENTS:"
-    Write-Host "  - Visual Studio 2019/2022 with C++ workload"
-    Write-Host "  - CMake 3.21 or later"
-    Write-Host "  - vcpkg package manager"
-    Write-Host "  - Qt6 development libraries"
-    Write-Host ""
+    Write-Host @"
+StreamDAB Analyzer - Windows build (MSVC + Qt6 + vcpkg)
+
+USAGE:
+  .\scripts\build-windows.ps1 [options]
+
+OPTIONS:
+  -Config <Release|Debug|RelWithDebInfo>  Build configuration (default: Release)
+  -BuildDir <dir>     Build directory relative to the repo (default: build)
+  -QtDir <dir>        Qt MSVC prefix (dir containing lib\cmake\Qt6)
+  -VcpkgRoot <dir>    vcpkg root (dir containing scripts\buildsystems\vcpkg.cmake)
+  -Parallel <n>       Bounded parallel build jobs (default: 8)
+  -DisableZmq         Configure with -DDABX_ENABLE_ZMQ=OFF
+  -EnableAlsa         Configure with -DDABX_ENABLE_ALSA=ON (Linux only; no-op here)
+  -SkipTests          Do not run ctest
+  -Clean              Delete the build directory before configuring
+  -Help               Show this help
+
+PREREQUISITES (see docs/WINDOWS_BUILD.md):
+  VS 2022 Build Tools (Desktop C++), Git, Python + aqtinstall, and vcpkg with
+  faad2 fftw3 zeromq cppzmq gtest installed for the x64-windows triplet.
+
+EXAMPLES:
+  .\scripts\build-windows.ps1
+  .\scripts\build-windows.ps1 -Clean -Parallel 6
+  .\scripts\build-windows.ps1 -DisableZmq -SkipTests
+"@
 }
 
-# ============================================================================
-# Dependency Installation
-# ============================================================================
-
-function Install-Dependencies {
-    Write-Step "Installing Windows dependencies"
-
-    # Check for vcpkg
-    if (-not (Test-Command "vcpkg")) {
-        Write-Error "vcpkg not found. Please install vcpkg first:"
-        Write-Host "  git clone https://github.com/Microsoft/vcpkg.git"
-        Write-Host "  cd vcpkg"
-        Write-Host "  .\bootstrap-vcpkg.bat"
-        Write-Host "  .\vcpkg integrate install"
-        exit 1
+function Resolve-QtPath {
+    if ($QtDir) {
+        if (Test-Path (Join-Path $QtDir "lib\cmake\Qt6")) { return (Resolve-Path $QtDir).Path }
+        Fail "QtDir '$QtDir' does not contain lib\cmake\Qt6."
     }
-    Write-Success "vcpkg found"
+    if ($env:QTDIR -and (Test-Path (Join-Path $env:QTDIR "lib\cmake\Qt6"))) {
+        return $env:QTDIR
+    }
+    if (Test-Path (Join-Path $DefaultQt "lib\cmake\Qt6")) { return $DefaultQt }
 
-    # Install required packages via vcpkg
-    Write-Step "Installing packages via vcpkg"
-    $packages = @(
-        "qt6[core,widgets,network,multimedia,test]",
-        "faad2",
-        "fftw3",
-        "yaml-cpp",
-        "gtest",
-        "gmock"
-    )
-
-    foreach ($package in $packages) {
-        Write-Host "Installing $package..."
-        & vcpkg install $package --triplet x64-windows
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to install $package"
-            exit 1
+    # Last resort: find a msvc* desktop kit under C:\Qt. The standard layout is
+    # C:\Qt\<version>\msvc2022_64, so scan two levels deep (-Depth 2).
+    if (Test-Path "C:\Qt") {
+        $candidate = Get-ChildItem "C:\Qt" -Directory -Recurse -Depth 2 -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.Name -like "msvc*" -and
+                (Test-Path (Join-Path $_.FullName "lib\cmake\Qt6"))
+            } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+        if ($candidate) {
+            return $candidate.FullName
         }
     }
-    Write-Success "All packages installed successfully"
-
-    # Set environment variables
-    $vcpkgRoot = & vcpkg list | Select-String "vcpkg-root" | ForEach-Object { ($_ -split ": ")[1] }
-    if ($vcpkgRoot) {
-        [Environment]::SetEnvironmentVariable("VCPKG_ROOT", $vcpkgRoot, "User")
-        Write-Success "VCPKG_ROOT set to $vcpkgRoot"
-    }
+    Fail ("Qt (MSVC) not found. Install it with aqtinstall and pass -QtDir, e.g. " +
+          "-QtDir C:\Qt\6.11.0\msvc2022_64.")
 }
 
-# ============================================================================
-# Build System Check
-# ============================================================================
-
-function Test-BuildEnvironment {
-    Write-Step "Checking build environment"
-
-    # Check CMake
-    if (-not (Test-Command "cmake")) {
-        Write-Error "CMake not found. Please install CMake 3.21 or later"
-        exit 1
-    }
-    $cmakeVersion = & cmake --version | Select-String "version" | ForEach-Object { ($_ -split " ")[2] }
-    Write-Success "CMake $cmakeVersion found"
-
-    # Check Visual Studio
-    $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-    if (Test-Path $vsWhere) {
-        $vsInstances = & $vsWhere -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -format json | ConvertFrom-Json
-        if ($vsInstances.Count -gt 0) {
-            $vsVersion = $vsInstances[0].catalog.productDisplayVersion
-            Write-Success "Visual Studio $vsVersion found"
-        } else {
-            Write-Error "Visual Studio with C++ tools not found"
-            exit 1
+function Resolve-VcpkgRoot {
+    if ($VcpkgRoot) {
+        if (Test-Path (Join-Path $VcpkgRoot "scripts\buildsystems\vcpkg.cmake")) {
+            return (Resolve-Path $VcpkgRoot).Path
         }
-    } else {
-        Write-Warning "Visual Studio installer not found, assuming Visual Studio is available"
+        Fail "VcpkgRoot '$VcpkgRoot' does not contain scripts\buildsystems\vcpkg.cmake."
     }
-
-    # Check Qt6
-    if ($env:Qt6_DIR -or $env:QTDIR) {
-        Write-Success "Qt6 environment detected"
-    } else {
-        Write-Warning "Qt6 environment variables not set. Trying vcpkg..."
-        if (Test-Path "vcpkg_installed") {
-            Write-Success "Qt6 via vcpkg detected"
-        } else {
-            Write-Error "Qt6 not found. Please install Qt6 or use -InstallDeps"
-            exit 1
-        }
+    if ($env:VCPKG_ROOT -and
+        (Test-Path (Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"))) {
+        return $env:VCPKG_ROOT
     }
+    Fail "vcpkg not found. Set VCPKG_ROOT or pass -VcpkgRoot (see docs/WINDOWS_BUILD.md)."
 }
 
 # ============================================================================
-# Build Configuration
+# Main
 # ============================================================================
 
-function Configure-Build {
-    Write-Step "Configuring CMake build"
-
-    if ($CleanBuild -and (Test-Path $BuildDir)) {
-        Write-Step "Cleaning build directory"
-        Remove-Item -Recurse -Force $BuildDir
-        Write-Success "Build directory cleaned"
-    }
-
-    if (-not (Test-Path $BuildDir)) {
-        New-Item -ItemType Directory -Path $BuildDir | Out-Null
-    }
-
-    Set-Location $BuildDir
-
-    # CMake configuration arguments
-    $cmakeArgs = @(
-        "-S", $ProjectRoot,
-        "-B", ".",
-        "-DCMAKE_BUILD_TYPE=$BuildType",
-        "-DBUILD_TESTING=$($EnableTesting.ToString().ToLower())",
-        "-DENABLE_COVERAGE=$($EnableCoverage.ToString().ToLower())",
-        "-DCMAKE_INSTALL_PREFIX=$InstallDir"
-    )
-
-    # Add vcpkg toolchain if available
-    if ($env:VCPKG_ROOT) {
-        $vcpkgToolchain = Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"
-        if (Test-Path $vcpkgToolchain) {
-            $cmakeArgs += "-DCMAKE_TOOLCHAIN_FILE=$vcpkgToolchain"
-            Write-Success "Using vcpkg toolchain"
-        }
-    }
-
-    # Configure with Visual Studio generator
-    $cmakeArgs += "-G", "Visual Studio 17 2022", "-A", "x64"
-
-    Write-Host "Running: cmake $($cmakeArgs -join ' ')"
-    & cmake @cmakeArgs
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "CMake configuration failed"
-        exit 1
-    }
-    Write-Success "CMake configuration completed"
+if ($Help) {
+    Show-Help
+    exit 0
 }
 
-# ============================================================================
-# Build Execution
-# ============================================================================
+Write-Host "StreamDAB Analyzer - Windows build" -ForegroundColor Green
+Write-Host "  Config:   $Config"
+Write-Host "  BuildDir: $BuildPath"
 
-function Build-Project {
-    Write-Step "Building project ($BuildType)"
-
-    Set-Location $BuildDir
-
-    # Build with maximum parallel jobs
-    $buildArgs = @(
-        "--build", ".",
-        "--config", $BuildType,
-        "--parallel"
-    )
-
-    Write-Host "Running: cmake $($buildArgs -join ' ')"
-    & cmake @buildArgs
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Build failed"
-        exit 1
-    }
-    Write-Success "Build completed successfully"
+if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+    Fail "cmake was not found on PATH."
 }
 
-# ============================================================================
-# Testing
-# ============================================================================
+$qt        = Resolve-QtPath
+$vcpkg     = Resolve-VcpkgRoot
+$toolchain = Join-Path $vcpkg "scripts\buildsystems\vcpkg.cmake"
+Write-Ok "Qt:    $qt"
+Write-Ok "vcpkg: $vcpkg"
 
-function Run-Tests {
-    if (-not $EnableTesting) {
-        Write-Step "Testing disabled, skipping tests"
-        return
-    }
-
-    Write-Step "Running test suite"
-    Set-Location $BuildDir
-
-    # Run CTest
-    $testArgs = @(
-        "--output-on-failure",
-        "--parallel", [Environment]::ProcessorCount,
-        "--config", $BuildType
-    )
-
-    Write-Host "Running: ctest $($testArgs -join ' ')"
-    & ctest @testArgs
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Some tests failed"
-        exit 1
-    }
-    Write-Success "All tests passed"
+if ($Clean -and (Test-Path $BuildPath)) {
+    Write-Step "Cleaning $BuildPath"
+    Remove-Item -Recurse -Force $BuildPath
 }
 
-# ============================================================================
-# Coverage Analysis
-# ============================================================================
+# Set BEFORE configure: tests/CMakeLists.txt latches CAN_RUN_GUI_TESTS at
+# configure time, so without this a fresh run would silently register only the
+# non-GUI suites. It stays set for the ctest step below.
+$env:QT_QPA_PLATFORM = "offscreen"
 
-function Generate-Coverage {
-    if (-not $EnableCoverage) {
-        Write-Step "Coverage disabled, skipping coverage analysis"
-        return
-    }
+Write-Step "Configuring (Visual Studio 17 2022, x64, $Config)"
+$configureArgs = @(
+    "-B", $BuildPath,
+    "-S", $RepoRoot,
+    "-G", "Visual Studio 17 2022",
+    "-A", "x64",
+    "-DCMAKE_PREFIX_PATH=$qt",
+    "-DCMAKE_TOOLCHAIN_FILE=$toolchain",
+    "-DVCPKG_TARGET_TRIPLET=x64-windows"
+)
+if ($DisableZmq) { $configureArgs += "-DDABX_ENABLE_ZMQ=OFF" }
+if ($EnableAlsa) { $configureArgs += "-DDABX_ENABLE_ALSA=ON" }
 
-    Write-Step "Generating coverage report"
-    Set-Location $BuildDir
+Write-Host "  cmake $($configureArgs -join ' ')"
+& cmake @configureArgs
+if ($LASTEXITCODE -ne 0) { Fail "CMake configuration failed." }
+Write-Ok "Configuration complete"
 
-    # Generate coverage (requires Visual Studio Enterprise or specialized tools)
-    if (Test-Command "OpenCppCoverage") {
-        Write-Host "Using OpenCppCoverage for coverage analysis"
-        # Add OpenCppCoverage commands here
-        Write-Success "Coverage report generated"
-    } else {
-        Write-Warning "OpenCppCoverage not found. Coverage analysis skipped"
-        Write-Host "Install OpenCppCoverage for Windows coverage support"
-    }
+Write-Step "Building ($Config, $Parallel jobs)"
+& cmake --build $BuildPath --config $Config --parallel $Parallel
+if ($LASTEXITCODE -ne 0) { Fail "Build failed." }
+Write-Ok "Build complete"
+
+if (-not $SkipTests) {
+    Write-Step "Testing (QT_QPA_PLATFORM=offscreen, set before configure)"
+    Write-Warn2 ("Tests that read eti\*.eti (gitignored) fail without the fixtures; " +
+                 "obtain them or run with -SkipTests.")
+    & ctest --test-dir $BuildPath -C $Config --output-on-failure
+    if ($LASTEXITCODE -ne 0) { Fail "Some tests failed." }
+    Write-Ok "All tests passed"
 }
 
-# ============================================================================
-# Installation
-# ============================================================================
-
-function Install-Application {
-    Write-Step "Installing application"
-    Set-Location $BuildDir
-
-    $installArgs = @(
-        "--install", ".",
-        "--config", $BuildType,
-        "--prefix", $InstallDir
-    )
-
-    Write-Host "Running: cmake $($installArgs -join ' ')"
-    & cmake @installArgs
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Installation failed"
-        exit 1
-    }
-    Write-Success "Application installed to $InstallDir"
-}
-
-# ============================================================================
-# Packaging
-# ============================================================================
-
-function Create-Packages {
-    if (-not $Package) {
-        Write-Step "Packaging disabled, skipping package creation"
-        return
-    }
-
-    Write-Step "Creating distribution packages"
-    Set-Location $BuildDir
-
-    # Create NSIS installer
-    Write-Host "Creating Windows installer..."
-    & cpack -G NSIS -C $BuildType
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "Windows installer created"
-    } else {
-        Write-Warning "Windows installer creation failed"
-    }
-
-    # Create ZIP package
-    Write-Host "Creating ZIP package..."
-    & cpack -G ZIP -C $BuildType
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "ZIP package created"
-    } else {
-        Write-Warning "ZIP package creation failed"
-    }
-
-    # List created packages
-    $packages = Get-ChildItem -Path . -Name "*.exe", "*.zip", "*.msi" | Where-Object { $_ -like "*$AppName*" }
-    if ($packages) {
-        Write-Success "Created packages:"
-        foreach ($pkg in $packages) {
-            Write-Host "  - $pkg"
-        }
-    }
-}
-
-# ============================================================================
-# Main Execution
-# ============================================================================
-
-function Main {
-    try {
-        Write-Banner "$AppName v$AppVersion - Windows Build System"
-
-        if ($Help) {
-            Show-Help
-            return
-        }
-
-        # Store original location
-        $originalLocation = Get-Location
-
-        if ($InstallDeps) {
-            Install-Dependencies
-            Write-Success "Dependencies installation completed"
-            return
-        }
-
-        # Execute build pipeline
-        Test-BuildEnvironment
-        Configure-Build
-        Build-Project
-        Run-Tests
-        Generate-Coverage
-        Install-Application
-        Create-Packages
-
-        Write-Banner "Build Completed Successfully!"
-        Write-Host "Build Type: $BuildType" -ForegroundColor Green
-        Write-Host "Testing: $($EnableTesting ? 'Enabled' : 'Disabled')" -ForegroundColor Green
-        Write-Host "Coverage: $($EnableCoverage ? 'Enabled' : 'Disabled')" -ForegroundColor Green
-        Write-Host "Install Directory: $InstallDir" -ForegroundColor Green
-
-        if ($Package) {
-            Write-Host "Packages: Created in $BuildDir" -ForegroundColor Green
-        }
-
-    }
-    catch {
-        Write-Error "Build failed: $($_.Exception.Message)"
-        exit 1
-    }
-    finally {
-        # Restore original location
-        Set-Location $originalLocation
-    }
-}
-
-# Execute main function
-Main
+Write-Host "`nDone. Binaries are in $BuildPath\$Config" -ForegroundColor Green
+exit 0

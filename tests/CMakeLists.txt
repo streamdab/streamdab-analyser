@@ -57,7 +57,7 @@ target_link_libraries(test_eti_frame_parser
     Qt6::Widgets
     Qt6::Network
     Qt6::Network
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_eti_frame_parser COMMAND test_eti_frame_parser)
 
@@ -71,7 +71,7 @@ target_link_libraries(test_fig0_processor
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_fig0_processor COMMAND test_fig0_processor)
 
@@ -85,7 +85,7 @@ target_link_libraries(test_fig1_processor
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_fig1_processor COMMAND test_fig1_processor)
 
@@ -101,7 +101,7 @@ add_executable(test_advanced_fig_analyzer
 target_link_libraries(test_advanced_fig_analyzer
     Qt6::Test
     Qt6::Core
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_advanced_fig_analyzer COMMAND test_advanced_fig_analyzer)
 
@@ -144,7 +144,7 @@ target_link_libraries(test_eti_li_crc_validation
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_eti_li_crc_validation COMMAND test_eti_li_crc_validation)
 
@@ -662,7 +662,7 @@ if(CAN_RUN_GUI_TESTS)
     target_link_libraries(test_settings_dialog
         Qt6::Core Qt6::Widgets
         GTest::GTest GTest::Main
-        pthread
+        Threads::Threads
     )
     add_test(NAME test_settings_dialog COMMAND test_settings_dialog)
     set_tests_properties(test_settings_dialog PROPERTIES
@@ -696,9 +696,9 @@ if(CAN_RUN_GUI_TESTS)
         qtadvanceddocking-qt6
         ${ZMQ_LIBRARIES}
         ${T34_AUDIO_LIBS}
-        pthread
+        Threads::Threads
     )
-    target_compile_definitions(test_gui_dock_layout PRIVATE GUI_TEST_MODE ${T34_AUDIO_DEFINES})
+    target_compile_definitions(test_gui_dock_layout PRIVATE GUI_TEST_MODE ${T34_AUDIO_DEFINES} ${ZMQ_DEFINES})
     target_include_directories(test_gui_dock_layout PRIVATE ${T34_AUDIO_INCLUDES})
     # test_gui_dock_layout.cpp includes ../src/main.cpp, whose trailing
     # `#include "main.moc"` needs the moc output that AUTOMOC generates for the
@@ -737,9 +737,9 @@ if(CAN_RUN_GUI_TESTS)
         qtadvanceddocking-qt6
         ${ZMQ_LIBRARIES}
         ${T34_AUDIO_LIBS}
-        pthread
+        Threads::Threads
     )
-    target_compile_definitions(test_dock_interactions PRIVATE GUI_TEST_MODE ${T34_AUDIO_DEFINES})
+    target_compile_definitions(test_dock_interactions PRIVATE GUI_TEST_MODE ${T34_AUDIO_DEFINES} ${ZMQ_DEFINES})
     target_include_directories(test_dock_interactions PRIVATE ${T34_AUDIO_INCLUDES})
     # Same main.moc contract as test_gui_dock_layout (see above).
     add_dependencies(test_dock_interactions DABAnalyzer_Enhanced_FilteringBuild)
@@ -781,7 +781,7 @@ target_link_libraries(test_e2e_eti_to_audio
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_e2e_eti_to_audio COMMAND test_e2e_eti_to_audio)
 
@@ -794,7 +794,7 @@ target_link_libraries(test_e2e_mot_slideshow
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_e2e_mot_slideshow COMMAND test_e2e_mot_slideshow)
 set_tests_properties(test_e2e_mot_slideshow PROPERTIES
@@ -811,7 +811,7 @@ target_link_libraries(test_e2e_epg_journaline
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_e2e_epg_journaline COMMAND test_e2e_epg_journaline)
 
@@ -834,7 +834,7 @@ target_link_libraries(test_edi_packet_parser
     Qt6::Test
     Qt6::Core
     Qt6::Network
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_edi_packet_parser COMMAND test_edi_packet_parser)
 
@@ -848,7 +848,7 @@ target_link_libraries(test_pft_reassembler
     Qt6::Network
     GTest::GTest
     GTest::Main
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_pft_reassembler COMMAND test_pft_reassembler)
 
@@ -1031,11 +1031,13 @@ target_link_libraries(test_network_stream_validation
     Qt6::Core
     Qt6::Network
     ${ZMQ_LIBRARIES}
-    pthread
+    Threads::Threads
 )
 # item 4: the TCP/ZMQ loopback tests link libzmq directly (the GUI target
-# already does; the CLI target deliberately does not).
+# already does; the CLI target deliberately does not). HAVE_ZMQ is only defined
+# when the transport was found; without it the ZMQ cases compile to a QSKIP.
 target_link_directories(test_network_stream_validation PRIVATE ${ZMQ_LIBRARY_DIRS})
+target_compile_definitions(test_network_stream_validation PRIVATE ${ZMQ_DEFINES})
 add_test(NAME test_network_stream_validation COMMAND test_network_stream_validation)
 set_tests_properties(test_network_stream_validation PROPERTIES TIMEOUT 30)
 
@@ -1056,7 +1058,7 @@ target_link_libraries(test_segfault_fixes
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_segfault_fixes COMMAND test_segfault_fixes)
 set_tests_properties(test_segfault_fixes PROPERTIES
@@ -1083,7 +1085,7 @@ target_link_libraries(test_dabplus_audio_decoder
     Qt6::Widgets
     Qt6::Network
     ${T34_AUDIO_LIBS}
-    pthread
+    Threads::Threads
 )
 target_include_directories(test_dabplus_audio_decoder PRIVATE ${T34_AUDIO_INCLUDES})
 target_compile_definitions(test_dabplus_audio_decoder PRIVATE ${T34_AUDIO_DEFINES})
@@ -1106,7 +1108,7 @@ target_link_libraries(test_audio_output_sink
     Qt6::Test
     Qt6::Core
     ${T34_AUDIO_LIBS}
-    pthread
+    Threads::Threads
 )
 target_include_directories(test_audio_output_sink PRIVATE ${T34_AUDIO_INCLUDES})
 target_compile_definitions(test_audio_output_sink PRIVATE ${T34_AUDIO_DEFINES})
