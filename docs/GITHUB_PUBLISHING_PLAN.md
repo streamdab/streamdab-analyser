@@ -60,10 +60,7 @@ git filter-repo --force \
   --path build \
   --path Testing \
   --path tests/tests \
-  --path output.yaml \
-  --path test10.yaml \
-  --path test_cli_standalone.cpp \
-  --path phase3_agent4_frame_navigation.patch
+  --path output.yaml
 
 # 3) Add the public remote and push
 git remote add public git@github.com:<org>/<repo>.git
@@ -84,7 +81,7 @@ cd ../streamdab-public-tree && git init && git add -A \
 ## 4. Safeguards before the first push
 
 1. **Secret scan**: `grep -rInE "(api[_-]?key|token|password|secret|BEGIN .*PRIVATE KEY)" --exclude-dir=.git .` over the *filtered* tree; add a `gitleaks`/`trufflehog` run in CI.
-2. **License check**: `LICENSE` is the project license (verify: GPL-3.0 indicated earlier in `Dockerfile.build`) and **third-party compliance** — Qt-ADS (LGPL-2.1), Qt (LGPL/GPL), libfaad (GPL-2.0 — verify redistribution implications for a **public** binary!), libzmq (MPL-2.0), FFTW (GPL-2.0). `docs/LICENSE_COMPLIANCE_REPORT.md` (private) has the audit; the **public** repo must ship a correct `LICENSE` + `THIRD_PARTY_NOTICES.md`.
+2. **License check**: `LICENSE` is the project license (verify: GPL-3.0) and **third-party compliance** — Qt-ADS (LGPL-2.1), Qt (LGPL/GPL), libfaad (GPL-2.0 — verify redistribution implications for a **public** binary!), libzmq (MPL-2.0), FFTW (GPL-2.0). `docs/LICENSE_COMPLIANCE_REPORT.md` (private) has the audit; the **public** repo must ship a correct `LICENSE` + `THIRD_PARTY_NOTICES.md`.
 3. **`.gitattributes`** with `export-ignore` for every non-public path (protects `git archive` users from accidentally exporting them):
    ```
    docs/ export-ignore

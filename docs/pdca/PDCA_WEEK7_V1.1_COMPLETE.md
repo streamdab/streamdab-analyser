@@ -342,7 +342,7 @@ All parsers meet or exceed <15µs performance target.
 - [FIG024_COMPLETION_REPORT.md](FIG024_COMPLETION_REPORT.md) - FIG 0/24 complete report
 
 ### **Updated Core Documentation**
-- [CLAUDE.md](CLAUDE.md) - Updated with v1.1 status (pending)
+- [CLAUDE.md](../archive/CLAUDE.md) - Updated with v1.1 status (pending)
 - [README.md](README.md) - Project overview
 - [docs/ETSI_COMPLIANCE_FRAMEWORK.md](docs/ETSI_COMPLIANCE_FRAMEWORK.md) - Standards framework
 

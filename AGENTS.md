@@ -30,7 +30,7 @@ Coding (`cpp-qt-developer` subagent) → unit tests → build → E2E on real `e
 
 ## Repo rules
 
-- Root stays clean: only `README.md`, `CLAUDE.md` (historical), `AGENTS.md`. New docs go to themed `docs/` folders (`pdca/`, `fig/`, `agents/`, `fixes/`, `eti-ni/`, `releases/`); completed-phase docs move to `docs/archive/`.
+- Root stays clean: only `README.md`, `INSTALL.md`, `AGENTS.md`. New docs go to themed `docs/` folders (`pdca/`, `fig/`, `agents/`, `fixes/`, `eti-ni/`, `releases/`); completed-phase docs move to `docs/archive/`. `CLAUDE.md` is historical and lives at `docs/archive/CLAUDE.md`.
 - Never commit build output, `output.yaml` churn, or test artifacts.
 
 ## Agents

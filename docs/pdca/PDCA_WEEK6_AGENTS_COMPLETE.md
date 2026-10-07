@@ -91,7 +91,7 @@
 5. ✅ `AGENT21_FIG014_IMPLEMENTATION_COMPLETE.md` - Technical docs (14K)
 6. ✅ `AGENT21_FINAL_REPORT.md` - Executive summary (14K)
 7. ✅ `AGENT21_DELIVERY_SUMMARY.txt` - Integration checklist (14K)
-8. ✅ `verify_fig014_integration.sh` - Automated verification script (7.1K)
+8. ✅ `scripts/verify_fig014_integration.sh` - Automated verification script (7.1K)
 
 **Test Coverage:** 22 tests
 - Short form parsing (6 tests)
@@ -221,7 +221,7 @@
 6. Build and verify
 
 **Option B: Automated Integration**
-1. Run `verify_fig014_integration.sh` (Agent 21)
+1. Run `scripts/verify_fig014_integration.sh` (Agent 21)
 2. Follow integration guides
 3. Build and test
 

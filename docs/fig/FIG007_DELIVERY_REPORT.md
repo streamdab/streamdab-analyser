@@ -300,7 +300,7 @@ Follows established FIG parser patterns:
    - Table 2: FIG type 0 extensions
 
 3. **Project Documentation:**
-   - `/home/seksan/workspace/streamdab-analyzer/CLAUDE.md` - PDCA Week 7 status
+   - `/home/seksan/workspace/streamdab-analyzer/docs/archive/CLAUDE.md` - PDCA Week 7 status
    - `/home/seksan/workspace/streamdab-analyzer/docs/ETSI_COMPLIANCE_FRAMEWORK.md`
 
 ---
