@@ -29,7 +29,10 @@
 
 #include <cstring>
 
+// ZeroMQ (cppzmq) is optional; HAVE_ZMQ is defined by CMake only when found.
+#ifdef HAVE_ZMQ
 #include <zmq.hpp>
+#endif
 
 #include "core/network_stream_receiver.hpp"
 
@@ -145,7 +148,9 @@ void TestNetworkStreamValidation::testAcceptsTcpAndZmqUrls()
         QCOMPARE(r.address, QStringLiteral("example.org"));
         QCOMPARE(r.port, quint16(9200));
     }
-    // ZeroMQ SUB (ODR-DabMux publisher).
+    // ZeroMQ SUB (ODR-DabMux publisher) when the transport is built in; when it
+    // is compiled out the validator must reject zmq+tcp:// with a clear reason.
+#ifdef HAVE_ZMQ
     {
         const eti::StreamUrlValidation r =
             eti::validate_stream_url(QStringLiteral("zmq+tcp://localhost:9201"));
@@ -161,6 +166,15 @@ void TestNetworkStreamValidation::testAcceptsTcpAndZmqUrls()
         QCOMPARE(r.transport, eti::StreamTransport::Zmq);
         QCOMPARE(r.port, quint16(9200));
     }
+#else
+    {
+        const eti::StreamUrlValidation r =
+            eti::validate_stream_url(QStringLiteral("zmq+tcp://localhost:9201"));
+        QVERIFY2(!r.valid, "zmq+tcp:// must be rejected when ZeroMQ is not built in");
+        QVERIFY2(r.error.contains(QStringLiteral("ZeroMQ support not built in")),
+                 qPrintable(QStringLiteral("unexpected rejection reason: %1").arg(r.error)));
+    }
+#endif
     // Case-insensitive scheme.
     {
         const eti::StreamUrlValidation r =
@@ -658,6 +672,7 @@ void TestNetworkStreamValidation::testTcpLoopbackReframesFixture()
 
 void TestNetworkStreamValidation::testZmqLoopbackDelivery()
 {
+#ifdef HAVE_ZMQ
     const QList<QByteArray> frames = loadFixtureFrames(2);
     if (frames.isEmpty()) {
         QSKIP("Real ETI fixture eti/bkk_20062022_141637.eti not found.");
@@ -724,6 +739,9 @@ void TestNetworkStreamValidation::testZmqLoopbackDelivery()
 
     receiver.stop_reception();
     receiver.disconnect_from_stream();
+#else
+    QSKIP("ZeroMQ transport not built in (HAVE_ZMQ undefined); loopback test skipped.");
+#endif
 }
 
 // ============================================================================

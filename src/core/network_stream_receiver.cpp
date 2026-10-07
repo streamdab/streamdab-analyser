@@ -18,7 +18,12 @@
 #include <numeric>
 #include <optional>
 
+// ZeroMQ (cppzmq) is OPTIONAL: HAVE_ZMQ is defined by CMake only when both
+// <zmq.hpp> and libzmq were found (see the CMakeLists.txt detection ladder).
+// Without it the zmq+tcp:// transport is compiled out entirely.
+#ifdef HAVE_ZMQ
 #include <zmq.hpp>
+#endif
 
 namespace eti {
 
@@ -171,7 +176,17 @@ StreamUrlValidation validate_stream_url(const QString& rawUrl) {
         } else if (scheme == QLatin1String("tcp")) {
             transport = StreamTransport::Tcp;
         } else if (scheme == QLatin1String("zmq+tcp")) {
+#ifdef HAVE_ZMQ
             transport = StreamTransport::Zmq;
+#else
+            // Reject early and clearly: silently accepting would create a
+            // receiver whose start_reception() can only fail later.
+            result.error = QStringLiteral(
+                "ZeroMQ support not built in: this build does not include the "
+                "zmq+tcp:// transport. Rebuild with the ZeroMQ/cppzmq "
+                "libraries, or use udp:// (multicast) or tcp:// (raw ETI).");
+            return result;
+#endif
         } else {
             result.error = QStringLiteral(
                 "Unsupported URL scheme '%1://'. Supported: udp:// (IPv4 "
@@ -257,6 +272,24 @@ StreamUrlValidation validate_stream_url(const QString& rawUrl) {
     result.port = port;
     return result;
 }
+
+// ---------------------------------------------------------------------------
+// ZeroMQ state (pimpl). Defined here -- BEFORE ~NetworkStreamWorker() and
+// shutdown(), which reset/destroy the unique_ptr<ZmqState> -- because MSVC is
+// stricter than GCC/Clang about std::unique_ptr<T> with an incomplete T (the
+// destructor/default_delete instantiation is diagnosed even when the type is
+// completed later in the same TU). Without HAVE_ZMQ the type stays a complete
+// (empty) stub so the unique_ptr member's destructor and reset() remain valid.
+// ---------------------------------------------------------------------------
+#ifdef HAVE_ZMQ
+struct NetworkStreamWorker::ZmqState {
+    ZmqState() : context(1), subscriber(context, zmq::socket_type::sub) {}
+    zmq::context_t context;
+    zmq::socket_t subscriber;  // declared after context: destroyed first
+};
+#else
+struct NetworkStreamWorker::ZmqState {};
+#endif
 
 // NetworkStreamWorker Implementation
 NetworkStreamWorker::NetworkStreamWorker(const NetworkStreamConfig& config, QObject* parent)
@@ -614,13 +647,9 @@ void NetworkStreamWorker::reframe_tcp_buffer() {
 
 // ---------------------------------------------------------------------------
 // ZeroMQ SUB (zmq+tcp://host:port) — ODR-DabMux ETI publisher
+// (NetworkStreamWorker::ZmqState is defined earlier, above the destructor.)
 // ---------------------------------------------------------------------------
-struct NetworkStreamWorker::ZmqState {
-    ZmqState() : context(1), subscriber(context, zmq::socket_type::sub) {}
-    zmq::context_t context;
-    zmq::socket_t subscriber;  // declared after context: destroyed first
-};
-
+#ifdef HAVE_ZMQ
 bool NetworkStreamWorker::initialize_zmq_socket() {
     try {
         m_zmq = std::make_unique<ZmqState>();
@@ -713,6 +742,19 @@ void NetworkStreamWorker::poll_zmq() {
         }
     }
 }
+#else  // !HAVE_ZMQ
+// ZeroMQ compiled out (the empty ZmqState stub is defined above). The transport
+// methods are no-op/failing stubs so the switch in start_reception() and the
+// poll timer connection still compile. UDP and TCP remain fully functional.
+bool NetworkStreamWorker::initialize_zmq_socket() {
+    m_last_error = QStringLiteral(
+        "ZeroMQ support not built in: this build does not include the "
+        "zmq+tcp:// transport.");
+    return false;
+}
+
+void NetworkStreamWorker::poll_zmq() {}
+#endif  // HAVE_ZMQ
 
 void NetworkStreamWorker::deliver_eti_frame(const QByteArray& frame,
                                             const QString& sourceAddress,

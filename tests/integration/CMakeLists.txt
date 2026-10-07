@@ -42,7 +42,7 @@ target_link_libraries(test_audio_pipeline
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_audio_pipeline COMMAND test_audio_pipeline)
 
@@ -57,7 +57,7 @@ target_link_libraries(test_mot_pipeline
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_mot_pipeline COMMAND test_mot_pipeline)
 
@@ -72,7 +72,7 @@ target_link_libraries(test_phase3a_integration
     Qt6::Test
     Qt6::Core
     Qt6::Widgets
-    pthread
+    Threads::Threads
 )
 add_test(NAME test_phase3a_integration COMMAND test_phase3a_integration)
 
