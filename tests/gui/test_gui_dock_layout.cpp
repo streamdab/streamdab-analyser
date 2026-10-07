@@ -2511,17 +2511,17 @@ void TestGuiDockLayout::testNetworkStreamInvalidUrlGuard()
     const int warningsBefore = w.streamValidationWarningCountForTest();
     const int attemptsBefore = w.streamConnectAttemptCountForTest();
 
-    // Every unsupported form must be rejected by the shared validator and
-    // must NOT reach receiver creation (the reported localhost loop).
+    // Only genuinely unsupported forms must be rejected by the shared
+    // validator and must NOT reach receiver creation. (tcp:// and zmq+tcp://
+    // are supported transports since item 4 and are covered separately.)
     const QStringList invalid = {
         QStringLiteral("localhost"),
-        QStringLiteral("zmq+tcp://localhost:9201"),
-        QStringLiteral("tcp://192.168.1.100:9200"),
         QStringLiteral("192.168.1.100:9200"),
         QStringLiteral("udp://127.0.0.1:9200"),
         QString(),
         QStringLiteral("239.192.0.1:0"),
         QStringLiteral("239.192.0.1:99999"),
+        QStringLiteral("http://239.192.0.1:9200"),
     };
 
     for (const QString& url : invalid) {
@@ -2540,17 +2540,30 @@ void TestGuiDockLayout::testNetworkStreamInvalidUrlGuard()
     QVERIFY2(w.streamConnectButtonEnabledForTest(),
              "Connect must stay enabled after a rejected URL");
 
-    // Quick examples: the two supported multicast forms are selectable; the
-    // TCP/ZMQ documentation entries are DISABLED so they cannot be chosen.
+    // item 4: all four quick examples are now ENABLED (UDP x2, TCP, ZMQ) and
+    // each must produce a URL the shared validator accepts.
     QVERIFY(w.quickExampleComboForTest());
     QComboBox* combo = w.quickExampleComboForTest();
     QVERIFY(combo->count() >= 4);
-    QVERIFY(combo->model()->index(0, 0).flags().testFlag(Qt::ItemIsEnabled));
-    QVERIFY(combo->model()->index(1, 0).flags().testFlag(Qt::ItemIsEnabled));
-    QVERIFY2(!combo->model()->index(2, 0).flags().testFlag(Qt::ItemIsEnabled),
-             "tcp:// example must be disabled (not supported)");
-    QVERIFY2(!combo->model()->index(3, 0).flags().testFlag(Qt::ItemIsEnabled),
-             "zmq+tcp:// example must be disabled (not supported)");
+    for (int i = 0; i < 4; ++i) {
+        QVERIFY2(combo->model()->index(i, 0).flags().testFlag(Qt::ItemIsEnabled),
+                 qPrintable(QStringLiteral("quick example %1 must be enabled").arg(i)));
+    }
+    // Selecting each example fills the URL field with a valid, connectable URL.
+    const QStringList expectedUrls = {
+        QStringLiteral("udp://239.192.0.1:9200"),
+        QStringLiteral("239.192.0.1:9200"),
+        QStringLiteral("tcp://192.168.1.100:9200"),
+        QStringLiteral("zmq+tcp://localhost:9201"),
+    };
+    for (int i = 0; i < 4; ++i) {
+        combo->setCurrentIndex(i);
+        QCoreApplication::processEvents();
+        const QString url = w.streamUrlEditForTest()->text();
+        QCOMPARE(url, expectedUrls.at(i));
+        QVERIFY2(eti::validate_stream_url(url).valid,
+                 qPrintable(QStringLiteral("quick example URL must validate: %1").arg(url)));
+    }
 
     w.close();
     QCoreApplication::processEvents();

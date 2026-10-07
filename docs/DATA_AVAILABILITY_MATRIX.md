@@ -98,9 +98,10 @@
 | Stream Statistics | NetworkStreamStatisticsSnapshot | ✅ Available | Frame rate, latency, buffer, loss |
 
 **Supported Protocols:**
-- ✅ UDP Multicast: `udp://239.192.0.1:9200`
-- ✅ TCP: `tcp://192.168.1.100:9200`
-- ✅ ZeroMQ: `zmq+tcp://localhost:9201` (libzmq 4.3.5)
+- ✅ UDP Multicast: `udp://239.192.0.1:9200` (or plain `239.192.0.1:9200`)
+- ✅ TCP raw ETI stream: `tcp://host:9200` (re-framed into 6144-byte ETI frames)
+- ✅ ZeroMQ SUB: `zmq+tcp://host:9201` (subscribes to an ODR-DabMux ETI publisher; libzmq 4.3.5)
+- ⏳ EDI / PFT (ETSI TS 102 693): planned for v2.0 (Phase E-2) — not implemented yet
 
 **Implementation:** QStackedWidget switches between File and Network input pages. Network page includes quick examples dropdown and real-time statistics display.
 
@@ -409,20 +410,28 @@ struct BitField {
 
 ### Supported Protocols
 
-✅ **Multicast UDP** - Implemented in `NetworkStreamReceiver`
-✅ **TCP** - Qt sockets support
-✅ **ZMQ (ZeroMQ)** - libzmq 4.3.5 integrated via CMake
+| Transport | URL grammar | Status | Implementation |
+|-----------|-------------|--------|----------------|
+| UDP multicast | `udp://A.B.C.D[:port]` or `A.B.C.D[:port]` (224.0.0.0/4) | ✅ Supported | `QUdpSocket` bind + `joinMulticastGroup` |
+| TCP raw ETI | `tcp://host[:port]` | ✅ Supported | `QTcpSocket`; byte stream re-framed into 6144-byte ETI frames with sync-word resync |
+| ZeroMQ SUB | `zmq+tcp://host[:port]` | ✅ Supported | `zmq::socket_t` SUB (subscribe-all), polled on the worker thread; expects an ODR-DabMux ETI publisher |
+| EDI / PFT | `edi://host[:port]` | ⏳ v2.0 (Phase E-2) | ETSI TS 102 693; **not implemented yet** |
+
+The port is optional for every transport and defaults to **9200** (1..65535).
+Only these schemes are accepted by `eti::validate_stream_url()`; everything else
+(`http://`, host names without a scheme, IPv6, malformed ports) is rejected with
+a descriptive error. See `docs/CONFIGURATION.md` → "Live stream input (ETI over IP)"
+for the exact grammar and the ZMQ publisher expectation.
 
 ### URL Format Design
-
-Based on eti-tools and broadcast industry standards:
 
 | Protocol | URL Format | Example |
 |----------|-----------|---------|
 | Multicast UDP | `udp://multicast_ip:port` | `udp://239.192.0.1:9200` |
+| Multicast UDP (plain) | `multicast_ip:port` | `239.192.0.1:9200` |
 | TCP | `tcp://host:port` | `tcp://192.168.1.100:9200` |
 | ZMQ TCP | `zmq+tcp://host:port` | `zmq+tcp://localhost:9201` |
-| File | `file:///path/to/file.eti` | `file:///home/user/stream.eti` |
+| EDI / PFT | planned v2.0 | — |
 
 ### Live Stream Panel Design (Tab 1)
 
@@ -469,14 +478,13 @@ Based on eti-tools and broadcast industry standards:
 - ✅ Subchannel organization
 - ✅ DAB Ensemble tree (3-level hierarchy)
 - ✅ DLS+ "Now Playing" metadata
-- ✅ Network stream reception (multicast UDP ready)
+- ✅ Network stream reception (UDP multicast + TCP raw ETI + ZeroMQ SUB)
 - ✅ ETSI EN 300 799 / EN 300 401 compliance validation
 - ✅ DAB+ audio service detection (ASCTy analysis)
 - ✅ Error detection and logging
 
 ### ⚠️ Needs Enhancement (5%):
 - ⚠️ **Bit-level FIG field tracking** for Tab 3 FIG Item tree (protocol details)
-- ⚠️ **TCP/ZMQ stream protocols** (add socket support - easy)
 - ⚠️ **CU Usage chart** (create custom widget or use QtCharts)
 - ⚠️ **Hex viewer FIG highlighting** (enhance HexViewerFormatter)
 - ⚠️ **FIG 0/3 packet mode** parsing (enhance for data services)
@@ -492,7 +500,7 @@ Based on eti-tools and broadcast industry standards:
 
 ### Phase 1: Core Data Display (Tab 1 + Tab 2) - DAB/DAB+ Focus
 1. ✅ Implement comprehensive Tab 1 with all DAB/DAB+ fields
-2. ✅ Add live stream input panel with UDP/TCP support
+2. ✅ Add live stream input panel with UDP / TCP / ZeroMQ support
 3. ✅ Implement Tab 2 FIC-Analyzer with all service/subchannel tables
 4. ✅ Remove G.703 fields entirely (not applicable)
 
@@ -503,7 +511,7 @@ Based on eti-tools and broadcast industry standards:
 4. ⚠️ Create FIG Statistic charts
 
 ### Phase 3: Optional Enhancements
-1. Add ZMQ protocol support
+1. ✅ ZeroMQ (ZMQ) protocol support — implemented (`zmq+tcp://`, item 4)
 2. Implement CU Usage stacked bar chart
 3. Add Reed Solomon error detection
 4. Enhance FIG 0/3 packet mode parsing
@@ -518,7 +526,7 @@ The existing ETI parsers (`ModernETIFrameParser`, `FigParser`, `NetworkStreamRec
 - ✅ Complete ETI-NI frame parsing (6144-byte frames)
 - ✅ Comprehensive FIG 0/0, 0/1, 0/2, 1/0, 1/1, 1/4 support (all essential DAB FIGs)
 - ✅ Service and subchannel discovery (DAB and DAB+ detection)
-- ✅ Network streaming (multicast UDP ready, TCP/ZMQ easy to add)
+- ✅ Network streaming (UDP multicast, TCP raw ETI and ZeroMQ SUB implemented; EDI/PFT planned for v2.0)
 - ✅ ETSI EN 300 799 / EN 300 401 compliance validation
 - ✅ DLS+ "Now Playing" metadata extraction
 - ✅ DAB+ audio service identification (ASCTy analysis)

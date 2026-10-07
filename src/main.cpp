@@ -24,7 +24,6 @@
 #include <QTabWidget>
 #include <QTimer>
 #include <QComboBox>
-#include <QStandardItemModel>   // Quick-example combo: disable unsupported items
 #include <QSpinBox>
 #include <QPushButton>
 #include <QToolButton>          // T23: ⚙ UDP-streaming-settings button in the network row
@@ -1261,6 +1260,7 @@ public:
     bool streamDisconnectButtonEnabledForTest() const { return m_disconnectBtn && m_disconnectBtn->isEnabled(); }
     bool streamRecordButtonEnabledForTest() const { return m_recordBtn && m_recordBtn->isEnabled(); }
     QComboBox* quickExampleComboForTest() const { return m_quickExampleCombo; }
+    QLineEdit* streamUrlEditForTest() const { return m_streamUrlEdit; }
     QString streamStatusTextForTest() const
     {
         return m_streamStatus ? m_streamStatus->text() : QString();
@@ -3864,16 +3864,20 @@ private:
     {
         if (!m_streamUrlEdit || index < 0) return;
         
-        // Only the two multicast forms are supported by the receiver. Entries
-        // for tcp:// / zmq+tcp:// are shown (documented) but DISABLED in the
-        // combo, so they can never become the URL and trigger an invalid
-        // connect attempt. Handle them defensively all the same.
+        // All four entries are supported transports. Selecting one fills the
+        // URL field; connection is still an explicit user action.
         switch (index) {
             case 0:
                 m_streamUrlEdit->setText("udp://239.192.0.1:9200");
                 break;
             case 1:
                 m_streamUrlEdit->setText("239.192.0.1:9200");
+                break;
+            case 2:
+                m_streamUrlEdit->setText("tcp://192.168.1.100:9200");
+                break;
+            case 3:
+                m_streamUrlEdit->setText("zmq+tcp://localhost:9201");
                 break;
             default:
                 break;
@@ -3925,9 +3929,12 @@ private:
             if (showDialogs) {
                 QMessageBox::warning(
                     this, tr("Cannot connect"),
-                    tr("%1\n\nSupported format: udp://239.192.0.1:9200\n"
-                       "(IPv4 multicast 224.0.0.0/4, port 1-65535; "
-                       "port defaults to 9200).").arg(validation.error));
+                    tr("%1\n\nSupported formats:\n"
+                       "  udp://239.192.0.1:9200  (IPv4 multicast)\n"
+                       "  239.192.0.1:9200        (IPv4 multicast)\n"
+                       "  tcp://host:9200         (raw ETI stream)\n"
+                       "  zmq+tcp://host:9201     (ODR-DabMux ZeroMQ)\n"
+                       "Port is optional and defaults to 9200.").arg(validation.error));
             }
             // No state change, no receiver, no log loop.
             return false;
@@ -3954,6 +3961,7 @@ private:
         //    attempt; it is enabled only after a successful connection (see the
         //    connection_status_changed(true) handler below).
         eti::NetworkStreamConfig config;
+        config.transport = validation.transport;
         config.multicast_address = address;
         config.port = port;
         config.buffer_size = static_cast<size_t>(m_networkBufferFrames);
@@ -3966,7 +3974,8 @@ private:
         // button state set just above (Connect was re-enabled mid-attempt).
         if (m_networkReceiver) {
             m_networkReceiver->disconnect(this);
-            m_networkReceiver->stop_reception();
+            // disconnect_from_stream() performs a complete, loss-silent teardown
+            // (W2 F1); a separate stop_reception() would emit an extra event.
             m_networkReceiver->disconnect_from_stream();
             m_networkReceiver.reset();
         }
@@ -4101,7 +4110,7 @@ private:
     {
         // Disconnect from network stream
         if (m_networkReceiver) {
-            m_networkReceiver->stop_reception();
+            // Loss-silent complete teardown (W2 F1); no separate stop_reception.
             m_networkReceiver->disconnect_from_stream();
             m_networkReceiver.reset();
         }
@@ -7681,8 +7690,9 @@ private:
         m_streamUrlEdit->setPlaceholderText("udp://239.192.0.1:9200");
         m_streamUrlEdit->setFont(QFont("Consolas", 9));
         m_streamUrlEdit->setToolTip(
-            "Supported: udp://A.B.C.D:port or A.B.C.D:port\n"
-            "IPv4 multicast only (224.0.0.0/4), port 1-65535 (default 9200).");
+            "Supported: udp://A.B.C.D:port or A.B.C.D:port (IPv4 multicast), "
+            "tcp://host:port (raw ETI stream), zmq+tcp://host:port "
+            "(ODR-DabMux ZeroMQ). Port defaults to 9200.");
         urlLayout->addWidget(urlLabel);
         urlLayout->addWidget(m_streamUrlEdit, 1);
         networkLayout->addLayout(urlLayout);
@@ -7694,21 +7704,12 @@ private:
         m_quickExampleCombo = new QComboBox();
         m_quickExampleCombo->addItem("udp://239.192.0.1:9200 (multicast)");
         m_quickExampleCombo->addItem("239.192.0.1:9200 (multicast, plain)");
-        // Documented-but-unsupported transports: kept visible for clarity, but
-        // DISABLED below so they can never become the URL / connect attempt.
-        m_quickExampleCombo->addItem("tcp://192.168.1.100:9200 (not supported)");
-        m_quickExampleCombo->addItem("zmq+tcp://localhost:9201 (not supported)");
+        m_quickExampleCombo->addItem("tcp://192.168.1.100:9200 (raw ETI TCP)");
+        m_quickExampleCombo->addItem("zmq+tcp://localhost:9201 (ODR-DabMux ZMQ)");
         m_quickExampleCombo->setCurrentIndex(-1);  // No selection by default
         m_quickExampleCombo->setToolTip(
-            "The receiver is UDP multicast only; TCP and ZMQ entries are shown "
-            "for reference but are not selectable.");
-        if (auto* model = qobject_cast<QStandardItemModel*>(m_quickExampleCombo->model())) {
-            for (int i = 2; i < m_quickExampleCombo->count(); ++i) {
-                if (QStandardItem* item = model->item(i)) {
-                    item->setEnabled(false);
-                }
-            }
-        }
+            "Supported transports: UDP multicast (udp:// or plain address), "
+            "raw ETI over TCP (tcp://) and ODR-DabMux ZeroMQ (zmq+tcp://).");
         examplesLayout->addWidget(examplesLabel);
         examplesLayout->addWidget(m_quickExampleCombo, 1);
         networkLayout->addLayout(examplesLayout);

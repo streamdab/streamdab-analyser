@@ -1030,8 +1030,12 @@ target_link_libraries(test_network_stream_validation
     Qt6::Test
     Qt6::Core
     Qt6::Network
+    ${ZMQ_LIBRARIES}
     pthread
 )
+# item 4: the TCP/ZMQ loopback tests link libzmq directly (the GUI target
+# already does; the CLI target deliberately does not).
+target_link_directories(test_network_stream_validation PRIVATE ${ZMQ_LIBRARY_DIRS})
 add_test(NAME test_network_stream_validation COMMAND test_network_stream_validation)
 set_tests_properties(test_network_stream_validation PROPERTIES TIMEOUT 30)
 

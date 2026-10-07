@@ -12,8 +12,13 @@
 #include <QNetworkProxy>
 #include <QCoreApplication>
 #include <QDebug>
+#include <QSemaphore>
 #include <algorithm>
+#include <cstring>
 #include <numeric>
+#include <optional>
+
+#include <zmq.hpp>
 
 namespace eti {
 
@@ -53,7 +58,78 @@ bool parse_strict_ipv4(const QString& text, quint32& rawOut) {
     return true;
 }
 
+// TCP / ZMQ host: a DNS name or IPv4 literal. Deliberately ASCII-only and
+// conservative (letters/digits plus `.`, `-`, `_`) so shell/URL metacharacters
+// and whitespace can never reach QTcpSocket / libzmq.
+bool is_valid_host_name(const QString& host) {
+    if (host.isEmpty() || host.size() > 253) {
+        return false;
+    }
+    if (host.startsWith(QLatin1Char('.')) || host.endsWith(QLatin1Char('.'))) {
+        return false;
+    }
+    for (const QChar c : host) {
+        const ushort u = c.unicode();
+        const bool asciiAlnum =
+            (u >= '0' && u <= '9') || (u >= 'a' && u <= 'z') || (u >= 'A' && u <= 'Z');
+        if (!asciiAlnum && u != '.' && u != '-' && u != '_') {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Strict digits-only port in 1..65535. On failure `error` receives the reason.
+bool parse_port(const QString& portText, quint16& portOut, QString& error) {
+    if (portText.size() > 5) {
+        error = QStringLiteral("Invalid port '%1'. Use a number between 1 and "
+                               "65535 (default 9200).").arg(portText);
+        return false;
+    }
+    for (const QChar c : portText) {
+        if (!c.isDigit()) {
+            error = QStringLiteral("Invalid port '%1'. Use digits only, between "
+                                   "1 and 65535 (default 9200).").arg(portText);
+            return false;
+        }
+    }
+    if (portText.size() > 1 && portText.at(0) == QLatin1Char('0')) {
+        error = QStringLiteral("Invalid port '%1'. Leading zeros are not allowed "
+                               "(use e.g. '5', not '0005').").arg(portText);
+        return false;
+    }
+    bool ok = false;
+    const uint value = portText.toUInt(&ok);
+    if (!ok || value == 0 || value > 65535) {
+        error = QStringLiteral("Invalid port '%1'. Use a number between 1 and "
+                               "65535 (default 9200).").arg(portText);
+        return false;
+    }
+    portOut = static_cast<quint16>(value);
+    return true;
+}
+
+// True when the 4 bytes at `offset` are one of the accepted ETI sync words.
+bool is_eti_sync_at(const QByteArray& data, int offset) {
+    if (offset < 0 || offset + 4 > data.size()) {
+        return false;
+    }
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(data.constData()) + offset;
+    return std::memcmp(p, ETI_SYNC_PATTERN.data(), 4) == 0
+        || std::memcmp(p, ETI_SYNC_LI_A.data(), 4) == 0
+        || std::memcmp(p, ETI_SYNC_LI_B.data(), 4) == 0;
+}
+
 }  // namespace
+
+const char* stream_transport_name(StreamTransport transport) {
+    switch (transport) {
+        case StreamTransport::UdpMulticast: return "UDP multicast";
+        case StreamTransport::Tcp:          return "TCP";
+        case StreamTransport::Zmq:          return "ZeroMQ";
+    }
+    return "unknown";
+}
 
 bool canonical_multicast_address(const QString& input, QString& canonicalOut) {
     quint32 raw = 0;
@@ -78,26 +154,43 @@ StreamUrlValidation validate_stream_url(const QString& rawUrl) {
     const QString url = rawUrl.trimmed();
     if (url.isEmpty()) {
         result.error = QStringLiteral(
-            "Please enter a stream URL (e.g. udp://239.192.0.1:9200).");
+            "Please enter a stream URL (e.g. udp://239.192.0.1:9200, "
+            "tcp://host:9200 or zmq+tcp://host:9201).");
         return result;
     }
 
-    // Optional scheme prefix: only udp:// reaches the multicast receiver.
+    // Optional scheme prefix selects the transport. A bare address (no scheme)
+    // is only valid as UDP multicast, as before.
     QString hostPort = url;
+    StreamTransport transport = StreamTransport::UdpMulticast;
     const int schemeSep = url.indexOf(QStringLiteral("://"));
     if (schemeSep >= 0) {
         const QString scheme = url.left(schemeSep).toLower();
-        if (scheme != QLatin1String("udp")) {
+        if (scheme == QLatin1String("udp")) {
+            transport = StreamTransport::UdpMulticast;
+        } else if (scheme == QLatin1String("tcp")) {
+            transport = StreamTransport::Tcp;
+        } else if (scheme == QLatin1String("zmq+tcp")) {
+            transport = StreamTransport::Zmq;
+        } else {
             result.error = QStringLiteral(
-                "Unsupported URL scheme '%1://'. Only UDP multicast is supported "
-                "(e.g. udp://239.192.0.1:9200).").arg(scheme);
+                "Unsupported URL scheme '%1://'. Supported: udp:// (IPv4 "
+                "multicast), tcp:// (raw ETI stream), zmq+tcp:// (ODR-DabMux "
+                "ZeroMQ).").arg(scheme);
             return result;
         }
         hostPort = url.mid(schemeSep + 3);
     } else if (url.contains(QLatin1Char('/'))) {
         result.error = QStringLiteral(
-            "Malformed URL '%1'. Supported format: udp://239.192.0.1:9200 "
-            "or 239.192.0.1:9200.").arg(url);
+            "Malformed URL '%1'. Supported formats: udp://239.192.0.1:9200, "
+            "tcp://host:9200 or zmq+tcp://host:9201.").arg(url);
+        return result;
+    }
+
+    // A path component is never part of an ETI endpoint.
+    if (hostPort.contains(QLatin1Char('/'))) {
+        result.error = QStringLiteral(
+            "Malformed URL '%1'. A host:port is expected, not a path.").arg(url);
         return result;
     }
 
@@ -110,7 +203,7 @@ StreamUrlValidation validate_stream_url(const QString& rawUrl) {
         if (hostPort.indexOf(QLatin1Char(':')) != colon) {
             result.error = QStringLiteral(
                 "IPv6 addresses are not supported by this receiver. Use an IPv4 "
-                "multicast address (e.g. udp://239.192.0.1:9200).");
+                "address (e.g. udp://239.192.0.1:9200).");
             return result;
         }
         host = hostPort.left(colon).trimmed();
@@ -124,57 +217,43 @@ StreamUrlValidation validate_stream_url(const QString& rawUrl) {
     }
 
     if (host.isEmpty()) {
-        result.error = QStringLiteral(
-            "Missing multicast address. Use an IPv4 multicast address in "
-            "224.0.0.0/4 (e.g. udp://239.192.0.1:9200).");
+        result.error = (transport == StreamTransport::UdpMulticast)
+            ? QStringLiteral("Missing multicast address. Use an IPv4 multicast "
+                             "address in 224.0.0.0/4 (e.g. udp://239.192.0.1:9200).")
+            : QStringLiteral("Missing host. Use tcp://host:9200 or "
+                             "zmq+tcp://host:9201.");
         return result;
     }
 
-    QString canonical;
-    if (!canonical_multicast_address(host, canonical)) {
-        result.error = QStringLiteral(
-            "'%1' is not a supported destination. This receiver is multicast-only: "
-            "use a 4-octet IPv4 multicast address in 224.0.0.0/4 "
-            "(e.g. udp://239.192.0.1:9200).").arg(host);
-        return result;
+    QString canonicalHost;
+    if (transport == StreamTransport::UdpMulticast) {
+        if (!canonical_multicast_address(host, canonicalHost)) {
+            result.error = QStringLiteral(
+                "'%1' is not a supported UDP destination. Use a 4-octet IPv4 "
+                "multicast address in 224.0.0.0/4 (e.g. udp://239.192.0.1:9200); "
+                "for a unicast host use tcp://host:9200.").arg(host);
+            return result;
+        }
+    } else {
+        if (!is_valid_host_name(host)) {
+            result.error = QStringLiteral(
+                "'%1' is not a valid host. Use a host name or IPv4 address "
+                "(e.g. tcp://localhost:9200).").arg(host);
+            return result;
+        }
+        canonicalHost = host;
     }
 
     quint16 port = 9200;  // default ETI port
     if (!portText.isEmpty()) {
-        // Strict digits-only port: rejects "+5", "0005", " 5" and "5.0".
-        if (portText.size() > 5) {
-            result.error = QStringLiteral(
-                "Invalid port '%1'. Use a number between 1 and 65535 "
-                "(default 9200).").arg(portText);
+        if (!parse_port(portText, port, result.error)) {
             return result;
         }
-        for (const QChar c : portText) {
-            if (!c.isDigit()) {
-                result.error = QStringLiteral(
-                    "Invalid port '%1'. Use digits only, between 1 and 65535 "
-                    "(default 9200).").arg(portText);
-                return result;
-            }
-        }
-        if (portText.size() > 1 && portText.at(0) == QLatin1Char('0')) {
-            result.error = QStringLiteral(
-                "Invalid port '%1'. Leading zeros are not allowed "
-                "(use e.g. '5', not '0005').").arg(portText);
-            return result;
-        }
-        bool ok = false;
-        const uint value = portText.toUInt(&ok);
-        if (!ok || value == 0 || value > 65535) {
-            result.error = QStringLiteral(
-                "Invalid port '%1'. Use a number between 1 and 65535 "
-                "(default 9200).").arg(portText);
-            return result;
-        }
-        port = static_cast<quint16>(value);
     }
 
     result.valid = true;
-    result.address = canonical;  // canonical 4-octet dotted-decimal
+    result.transport = transport;
+    result.address = canonicalHost;
     result.port = port;
     return result;
 }
@@ -184,17 +263,25 @@ NetworkStreamWorker::NetworkStreamWorker(const NetworkStreamConfig& config, QObj
     : QObject(parent)
     , m_config(config)
     , m_socket(std::make_unique<QUdpSocket>(this))
+    , m_zmq_poll_timer(std::make_unique<QTimer>(this))
     , m_statistics_timer(std::make_unique<QTimer>(this))
     , m_last_frame_time(std::chrono::steady_clock::now())
 {
     m_statistics.reset();
     m_frame_rate_history.reserve(FRAME_RATE_HISTORY_SIZE);
     
-    // Connect socket signals
+    // Connect socket signals (UDP; TCP signals are connected in
+    // initialize_tcp_socket() because that socket is created there).
     connect(m_socket.get(), &QUdpSocket::readyRead,
             this, &NetworkStreamWorker::handle_datagram_ready);
     connect(m_socket.get(), &QUdpSocket::errorOccurred,
             this, &NetworkStreamWorker::handle_socket_error);
+
+    // ZeroMQ is polled from the worker's own event loop: a short, non-blocking
+    // zmq_poll keeps teardown prompt (T22/T34 lesson: shutdown must never hang).
+    connect(m_zmq_poll_timer.get(), &QTimer::timeout,
+            this, &NetworkStreamWorker::poll_zmq);
+    m_zmq_poll_timer->setInterval(ZMQ_POLL_INTERVAL_MS);
     
     // Setup statistics timer
     connect(m_statistics_timer.get(), &QTimer::timeout,
@@ -203,7 +290,7 @@ NetworkStreamWorker::NetworkStreamWorker(const NetworkStreamConfig& config, QObj
 }
 
 NetworkStreamWorker::~NetworkStreamWorker() {
-    stop_reception();
+    shutdown();
 }
 
 void NetworkStreamWorker::start_reception() {
@@ -218,7 +305,17 @@ void NetworkStreamWorker::start_reception() {
     // bool and set m_last_error; this catch is belt-and-suspenders.
     bool ok = false;
     try {
-        ok = initialize_socket() && join_multicast_group();
+        switch (m_config.transport) {
+            case StreamTransport::UdpMulticast:
+                ok = initialize_socket() && join_multicast_group();
+                break;
+            case StreamTransport::Tcp:
+                ok = initialize_tcp_socket();
+                break;
+            case StreamTransport::Zmq:
+                ok = initialize_zmq_socket();
+                break;
+        }
     } catch (const std::exception& e) {
         m_last_error = QString("Failed to start reception: %1").arg(e.what());
     } catch (...) {
@@ -237,35 +334,91 @@ void NetworkStreamWorker::start_reception() {
     }
     
     m_receiving = true;
-    m_connected = true;
+    m_connected = false;
     m_statistics.reset();
     m_frame_rate_history.clear();
     m_latency.reset();
     m_last_frame_time = std::chrono::steady_clock::now();
     m_statistics_timer->start();
     
-    emit connection_status_changed(true);
-    qDebug() << "NetworkStreamWorker: Started reception on" 
+    // UDP is connectionless (bind + join IS the connection) and a ZMQ SUB
+    // connect() is accepted synchronously. Only TCP must wait for its
+    // connected() signal before the session is confirmed.
+    if (m_config.transport != StreamTransport::Tcp) {
+        m_connected = true;
+        emit connection_status_changed(true);
+    }
+    
+    qDebug() << "NetworkStreamWorker: Started reception ("
+             << stream_transport_name(m_config.transport) << ") on"
              << m_config.multicast_address << ":" << m_config.port;
 }
 
 void NetworkStreamWorker::stop_reception() {
+    stop_reception_internal(/*emitStatus=*/true);
+}
+
+void NetworkStreamWorker::stop_reception_internal(bool emitStatus) {
     if (!m_receiving.load()) {
         return; // Not receiving
     }
     
     m_receiving = false;
     m_statistics_timer->stop();
+    if (m_zmq_poll_timer) {
+        m_zmq_poll_timer->stop();
+    }
     
-    if (m_socket && m_socket->state() != QAbstractSocket::UnconnectedState) {
-        leave_multicast_group();
-        m_socket->close();
+    switch (m_config.transport) {
+        case StreamTransport::UdpMulticast:
+            if (m_socket && m_socket->state() != QAbstractSocket::UnconnectedState) {
+                leave_multicast_group();
+                m_socket->close();
+            }
+            break;
+        case StreamTransport::Tcp:
+            // Never delete the socket from inside one of its own signal
+            // handlers (disconnected()/errorOccurred() reach this slot): abort
+            // and leave the unique_ptr for shutdown()/initialize_tcp_socket().
+            if (m_tcp_socket) {
+                m_tcp_socket->disconnect(this);
+                m_tcp_socket->abort();
+            }
+            m_tcp_buffer.clear();
+            break;
+        case StreamTransport::Zmq:
+            // Keep the socket for shutdown()/destructor; it is destroyed on
+            // the worker thread where it was created.
+            break;
     }
     
     m_connected = false;
-    emit connection_status_changed(false);
+    if (emitStatus) {
+        emit connection_status_changed(false);
+    }
     
     qDebug() << "NetworkStreamWorker: Stopped reception";
+}
+
+void NetworkStreamWorker::shutdown() {
+    // Loss-silent teardown: the receiver initiated this, so no
+    // connection_status_changed(false) may be emitted (review F1).
+    stop_reception_internal(/*emitStatus=*/false);
+    if (m_zmq_poll_timer) {
+        m_zmq_poll_timer->stop();
+    }
+    // Destroy the ZMQ socket + context on the worker thread. ZMQ sockets are
+    // NOT thread-safe; linger==0 (set at init) guarantees this never blocks.
+    m_zmq.reset();
+    if (m_tcp_socket) {
+        m_tcp_socket->disconnect(this);
+        m_tcp_socket->abort();
+        m_tcp_socket.reset();
+    }
+    m_tcp_buffer.clear();
+    if (m_socket && m_socket->state() != QAbstractSocket::UnconnectedState) {
+        m_socket->close();
+    }
 }
 
 bool NetworkStreamWorker::initialize_socket() {
@@ -349,6 +502,238 @@ void NetworkStreamWorker::leave_multicast_group() {
         m_socket->leaveMulticastGroup(group_address);
         qDebug() << "NetworkStreamWorker: Left multicast group" << m_config.multicast_address;
     }
+}
+
+// ---------------------------------------------------------------------------
+// TCP raw ETI stream (tcp://host:port)
+// ---------------------------------------------------------------------------
+bool NetworkStreamWorker::initialize_tcp_socket() {
+    // A previous aborted socket is deleted here (never from inside its own
+    // signal handler). Safe: start_reception() runs as a queued slot.
+    if (m_tcp_socket) {
+        m_tcp_socket->disconnect(this);
+        m_tcp_socket->abort();
+        m_tcp_socket.reset();
+    }
+    m_tcp_buffer.clear();
+
+    m_tcp_socket = std::make_unique<QTcpSocket>(this);
+    m_tcp_socket->setProxy(QNetworkProxy::NoProxy);
+    connect(m_tcp_socket.get(), &QTcpSocket::readyRead,
+            this, &NetworkStreamWorker::handle_tcp_ready_read);
+    connect(m_tcp_socket.get(), &QTcpSocket::connected,
+            this, &NetworkStreamWorker::handle_tcp_connected);
+    connect(m_tcp_socket.get(), &QTcpSocket::disconnected,
+            this, &NetworkStreamWorker::handle_tcp_disconnected);
+    connect(m_tcp_socket.get(), &QTcpSocket::errorOccurred,
+            this, &NetworkStreamWorker::handle_tcp_error);
+
+    qDebug() << "NetworkStreamWorker: TCP connecting to"
+             << m_config.multicast_address << ":" << m_config.port;
+    m_tcp_socket->connectToHost(m_config.multicast_address, m_config.port);
+    return true;  // asynchronous: the outcome arrives via signals
+}
+
+void NetworkStreamWorker::handle_tcp_connected() {
+    if (!m_receiving.load()) {
+        return;
+    }
+    m_connected = true;
+    emit connection_status_changed(true);
+    qDebug() << "NetworkStreamWorker: TCP connected to"
+             << m_config.multicast_address << ":" << m_config.port;
+}
+
+void NetworkStreamWorker::handle_tcp_disconnected() {
+    if (m_receiving.load()) {
+        qDebug() << "NetworkStreamWorker: TCP peer closed the stream";
+        stop_reception();  // emits connection_status_changed(false)
+    }
+}
+
+void NetworkStreamWorker::handle_tcp_error(QAbstractSocket::SocketError error) {
+    // Connect failures and mid-stream errors are fatal to this session; the
+    // receiver (and only the receiver) owns the reconnect policy.
+    report_socket_error(error,
+                        m_tcp_socket ? m_tcp_socket->errorString() : QString(), true);
+}
+
+void NetworkStreamWorker::handle_tcp_ready_read() {
+    if (!m_tcp_socket || !m_receiving.load()) {
+        return;
+    }
+    const QByteArray chunk = m_tcp_socket->readAll();
+    if (chunk.isEmpty()) {
+        return;
+    }
+    m_statistics.bytes_received += static_cast<size_t>(chunk.size());
+    m_tcp_buffer.append(chunk);
+    reframe_tcp_buffer();
+}
+
+void NetworkStreamWorker::reframe_tcp_buffer() {
+    // Find the first valid 4-byte ETI sync word at or after `from`. Returns -1
+    // when the accumulator holds no complete sync word.
+    const auto findSync = [this](int from) {
+        const int limit = m_tcp_buffer.size() - 3;  // need 4 bytes to compare
+        for (int i = std::max(0, from); i < limit; ++i) {
+            if (is_eti_sync_at(m_tcp_buffer, i)) {
+                return i;
+            }
+        }
+        return -1;
+    };
+
+    while (m_tcp_buffer.size() >= static_cast<int>(ETI_FRAME_SIZE)) {
+        const int sync = findSync(0);
+        if (sync < 0) {
+            // No sync word anywhere: drop the un-frameable prefix but keep the
+            // trailing 3 bytes, since a sync word may straddle the next read.
+            if (m_tcp_buffer.size() > 3) {
+                m_tcp_buffer.remove(0, m_tcp_buffer.size() - 3);
+            }
+            return;
+        }
+        if (sync > 0) {
+            // Desynchronised: drop bytes until the first valid sync word.
+            m_tcp_buffer.remove(0, sync);
+        }
+        if (m_tcp_buffer.size() < static_cast<int>(ETI_FRAME_SIZE)) {
+            return;  // wait for the rest of the frame
+        }
+        // The frame starts with a sync word we just matched, so it is valid by
+        // construction (validate_eti_packet only re-checks size + the same sync
+        // words). No second validation / fallback branch is reachable.
+        const QByteArray frame = m_tcp_buffer.left(static_cast<int>(ETI_FRAME_SIZE));
+        const QString peer = m_tcp_socket ? m_tcp_socket->peerAddress().toString() : QString();
+        const quint16 peerPort = m_tcp_socket ? m_tcp_socket->peerPort() : 0;
+        deliver_eti_frame(frame, peer, peerPort);
+        m_tcp_buffer.remove(0, static_cast<int>(ETI_FRAME_SIZE));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ZeroMQ SUB (zmq+tcp://host:port) — ODR-DabMux ETI publisher
+// ---------------------------------------------------------------------------
+struct NetworkStreamWorker::ZmqState {
+    ZmqState() : context(1), subscriber(context, zmq::socket_type::sub) {}
+    zmq::context_t context;
+    zmq::socket_t subscriber;  // declared after context: destroyed first
+};
+
+bool NetworkStreamWorker::initialize_zmq_socket() {
+    try {
+        m_zmq = std::make_unique<ZmqState>();
+    } catch (const std::exception& e) {
+        m_last_error = QString("Failed to create ZeroMQ context: %1").arg(e.what());
+        return false;
+    } catch (...) {
+        m_last_error = QStringLiteral("Failed to create ZeroMQ context");
+        return false;
+    }
+
+    try {
+        // Never block on close (teardown must be prompt) and receive every
+        // message the publisher sends (ODR-DabMux ETI output is unfiltered).
+        m_zmq->subscriber.set(zmq::sockopt::linger, 0);
+        m_zmq->subscriber.set(zmq::sockopt::subscribe, "");
+        m_zmq->subscriber.set(zmq::sockopt::rcvhwm, 1000);
+        const std::string endpoint =
+            QStringLiteral("tcp://%1:%2")
+                .arg(m_config.multicast_address)
+                .arg(m_config.port)
+                .toStdString();
+        m_zmq->subscriber.connect(endpoint);
+    } catch (const zmq::error_t& e) {
+        m_last_error = QString("ZeroMQ connect failed: %1").arg(e.what());
+        m_zmq.reset();
+        return false;
+    } catch (const std::exception& e) {
+        m_last_error = QString("ZeroMQ setup failed: %1").arg(e.what());
+        m_zmq.reset();
+        return false;
+    }
+
+    if (m_zmq_poll_timer) {
+        m_zmq_poll_timer->start();
+    }
+    qDebug() << "NetworkStreamWorker: ZMQ SUB connected to"
+             << m_config.multicast_address << ":" << m_config.port;
+    return true;
+}
+
+void NetworkStreamWorker::poll_zmq() {
+    if (!m_zmq || !m_receiving.load()) {
+        return;
+    }
+
+    try {
+        zmq::pollitem_t items[] = {
+            {m_zmq->subscriber.handle(), 0, ZMQ_POLLIN, 0}
+        };
+        // Short (1 ms) timeout: the worker event loop must stay responsive so a
+        // queued shutdown is honoured promptly (teardown never hangs).
+        zmq::poll(items, 1, std::chrono::milliseconds(1));
+        if (!(items[0].revents & ZMQ_POLLIN)) {
+            return;
+        }
+    } catch (const zmq::error_t& e) {
+        emit error_occurred(QString("ZeroMQ poll error: %1").arg(e.what()));
+        return;
+    }
+
+    // Drain pending messages, bounded per tick so a flood cannot starve the
+    // event loop (and therefore shutdown).
+    constexpr int MAX_MESSAGES_PER_POLL = 2000;
+    for (int i = 0; i < MAX_MESSAGES_PER_POLL && m_receiving.load(); ++i) {
+        zmq::message_t message;
+        std::optional<size_t> received;
+        try {
+            received = m_zmq->subscriber.recv(message, zmq::recv_flags::dontwait);
+        } catch (const zmq::error_t& e) {
+            emit error_occurred(QString("ZeroMQ receive error: %1").arg(e.what()));
+            break;
+        }
+        if (!received.has_value()) {
+            break;  // no more messages pending
+        }
+
+        const QByteArray payload(static_cast<const char*>(message.data()),
+                                 static_cast<int>(message.size()));
+        m_statistics.bytes_received += static_cast<size_t>(payload.size());
+        if (payload.size() >= static_cast<int>(ETI_FRAME_SIZE)) {
+            const QByteArray frame = payload.left(static_cast<int>(ETI_FRAME_SIZE));
+            if (validate_eti_packet(frame)) {
+                deliver_eti_frame(frame, m_config.multicast_address, m_config.port);
+            } else {
+                m_statistics.frames_dropped++;
+            }
+        } else {
+            m_statistics.frames_dropped++;
+        }
+    }
+}
+
+void NetworkStreamWorker::deliver_eti_frame(const QByteArray& frame,
+                                            const QString& sourceAddress,
+                                            quint16 sourcePort) {
+    if (!validate_eti_packet(frame)) {
+        return;
+    }
+    NetworkPacket packet;
+    packet.data.reserve(static_cast<size_t>(frame.size()));
+    packet.data.insert(packet.data.end(), frame.begin(), frame.end());
+    packet.timestamp = std::chrono::steady_clock::now();
+    packet.sequence_number = m_sequence_number.fetch_add(1);
+    packet.source_address = sourceAddress;
+    packet.source_port = sourcePort;
+    packet.is_valid = true;
+
+    m_statistics.frames_received++;
+    update_frame_rate();
+
+    emit packet_received(packet);
+    emit frame_received(frame);
 }
 
 void NetworkStreamWorker::handle_datagram_ready() {
@@ -464,7 +849,9 @@ void NetworkStreamWorker::process_pending_datagrams() {
     check_quality_thresholds();
 }
 
-void NetworkStreamWorker::handle_socket_error(QAbstractSocket::SocketError error) {
+void NetworkStreamWorker::report_socket_error(QAbstractSocket::SocketError error,
+                                              const QString& errorString,
+                                              bool fatal) {
     m_statistics.network_errors++;
     
     QString error_string;
@@ -481,8 +868,11 @@ void NetworkStreamWorker::handle_socket_error(QAbstractSocket::SocketError error
         case QAbstractSocket::SocketTimeoutError:
             error_string = "Socket timeout";
             break;
+        case QAbstractSocket::RemoteHostClosedError:
+            error_string = "Remote host closed the connection";
+            break;
         default:
-            error_string = m_socket->errorString();
+            error_string = errorString;
             break;
     }
     
@@ -493,10 +883,14 @@ void NetworkStreamWorker::handle_socket_error(QAbstractSocket::SocketError error
     // receiver — which solely owns the reconnect policy — can decide whether
     // to retry. Fatal errors flow ONLY through here; quality/latency and
     // invalid-frame errors are non-fatal and must never trigger a reconnect.
-    if (m_receiving.load()) {
+    if (fatal && m_receiving.load()) {
         qDebug() << "NetworkStreamWorker: Fatal socket error, stopping reception";
         stop_reception();  // emits connection_status_changed(false) once
     }
+}
+
+void NetworkStreamWorker::handle_socket_error(QAbstractSocket::SocketError error) {
+    report_socket_error(error, m_socket ? m_socket->errorString() : QString(), true);
 }
 
 bool NetworkStreamWorker::validate_eti_packet(const QByteArray& data) const {
@@ -640,12 +1034,27 @@ bool NetworkStreamReceiver::connect_to_stream(const QString& multicast_address, 
 }
 
 bool NetworkStreamReceiver::connect_with_config(const NetworkStreamConfig& config) {
-    // Pre-validate the target BEFORE creating a worker: this receiver is
-    // multicast-only, so a host name / unicast / TCP target must fail fast with
-    // exactly one error and no worker thread (and therefore no retry loop).
-    if (!is_valid_multicast_address(config.multicast_address)) {
-        const QString error = QString("Invalid multicast address: %1")
-                                  .arg(config.multicast_address);
+    // Pre-validate the target BEFORE creating a worker. UDP requires a valid
+    // multicast address; TCP/ZMQ require a non-empty host. A rejected target
+    // must fail fast with exactly one error and no worker thread (and therefore
+    // no retry loop).
+    if (config.transport == StreamTransport::UdpMulticast) {
+        if (!is_valid_multicast_address(config.multicast_address)) {
+            const QString error = QString("Invalid multicast address: %1")
+                                      .arg(config.multicast_address);
+            {
+                QMutexLocker locker(&m_mutex);
+                m_error_messages.append(error);
+                while (m_error_messages.size() > MAX_ERROR_MESSAGES) {
+                    m_error_messages.removeFirst();
+                }
+            }
+            emit error_occurred(error);
+            return false;
+        }
+    } else if (config.multicast_address.trimmed().isEmpty()) {
+        const QString error = QString("Invalid %1 host: address cannot be empty")
+                                  .arg(stream_transport_name(config.transport));
         {
             QMutexLocker locker(&m_mutex);
             m_error_messages.append(error);
@@ -661,10 +1070,11 @@ bool NetworkStreamReceiver::connect_with_config(const NetworkStreamConfig& confi
         validate_config(config);
         m_config = config;
         
-        // Cleanup existing connection
-        if (m_connected.load()) {
-            disconnect_from_stream();
-        }
+        // Tear down any previous session SILENTLY (no status emit, no reconnect
+        // — review F1). initialize_worker_thread() also cleans up first, but
+        // the explicit call severs the old worker's signal connections before a
+        // new one is created.
+        cleanup_worker_thread();
         
         // Initialize worker thread
         initialize_worker_thread();
@@ -678,12 +1088,13 @@ bool NetworkStreamReceiver::connect_with_config(const NetworkStreamConfig& confi
 }
 
 void NetworkStreamReceiver::disconnect_from_stream() {
-    if (m_receiving.load()) {
-        stop_reception();
-    }
-    
+    // Intentional teardown. cleanup_worker_thread() is loss-silent, so the stop
+    // it performs can never be mistaken for a stream loss and retrigger the
+    // reconnect policy (review F1). Exactly one user-facing disconnected event
+    // is emitted below.
     cleanup_worker_thread();
     
+    m_receiving = false;
     m_connected = false;
     m_reconnection_attempts = 0;
     m_reconnection_timer->stop();
@@ -711,21 +1122,17 @@ void NetworkStreamReceiver::set_config(const NetworkStreamConfig& config) {
 
     // LIVE config change. The worker snapshots its config at construction, so
     // a running worker must be rebuilt for the new config to take effect:
-    // stop reception, tear the worker+thread down, recreate it with the new
-    // config, restart reception.
+    // tear the worker+thread down SILENTLY, recreate it with the new config,
+    // restart reception.
     //
     // Documented semantics:
     //  - The socket is transparently re-created with the new config
     //    (buffer sizes are applied in NetworkStreamWorker::initialize_socket()).
-    //  - The receiver keeps its connected state: no connection_status_changed
-    //    is emitted by the receiver during the rebuild. The worker does emit
-    //    start/stop transitions to the receiver, which relays them to the GUI
-    //    as a brief "Connected" re-confirmation — no user disconnect required.
+    //  - Intentional rebuild: NO connection_status_changed is emitted and the
+    //    reconnect policy is NOT triggered (review F1). The receiver keeps its
+    //    connected state; no user disconnect is required.
     //  - If reception was paused, it stays stopped until resumed.
     const bool was_receiving = is_receiving();
-    if (was_receiving) {
-        stop_reception();
-    }
 
     cleanup_worker_thread();
     m_config = config;
@@ -885,7 +1292,49 @@ void NetworkStreamReceiver::initialize_worker_thread() {
 }
 
 void NetworkStreamReceiver::cleanup_worker_thread() {
-    if (m_worker_thread && m_worker_thread->isRunning()) {
+    // Intentional teardown is LOSS-SILENT (review F1). Sever the worker's
+    // signal connections first so a stop reported while shutting down can never
+    // reach handle_connection_status() and retrigger the reconnect policy. The
+    // shutdown() call below is a queued functor metacall, not a signal
+    // connection, so it still reaches the worker.
+    if (m_worker) {
+        QObject::disconnect(m_worker.get(), nullptr, this, nullptr);
+    }
+
+    if (m_worker && m_worker_thread && m_worker_thread->isRunning()) {
+        // Run shutdown() on the worker's OWN thread: ZMQ sockets are not
+        // thread-safe and must be destroyed on the thread that created them.
+        // Bounded wait (review F3): the completion semaphore is held by a
+        // shared_ptr captured in the queued lambda, so it stays valid even if
+        // the timeout path abandons the call — an over-running worker can never
+        // hang the caller.
+        auto done = std::make_shared<QSemaphore>();
+        QMetaObject::invokeMethod(
+            m_worker.get(),
+            [worker = m_worker.get(), done]() {
+                worker->shutdown();
+                done->release();
+            },
+            Qt::QueuedConnection);
+        if (!done->tryAcquire(1, std::chrono::milliseconds(SHUTDOWN_TIMEOUT_MS))) {
+            qWarning() << "NetworkStreamReceiver: worker shutdown timed out after"
+                       << SHUTDOWN_TIMEOUT_MS << "ms; terminating worker thread";
+            m_worker_thread->terminate();
+            m_worker_thread->wait(1000);
+        }
+    } else if (m_worker) {
+        // Review F4: there is no worker event loop to run shutdown() on. This
+        // only happens when the thread never started, in which case the worker
+        // never executed a transport init and holds no ZMQ context/socket, so
+        // destroying it here cannot violate libzmq's create/destroy-on-the-same
+        // -thread rule. Documented explicitly rather than silently relying on
+        // the empty-ZMQ-state invariant.
+        qWarning() << "NetworkStreamReceiver: worker thread not running; "
+                      "shutting the worker down on the caller thread";
+        m_worker->shutdown();
+    }
+
+    if (m_worker_thread) {
         m_worker_thread->quit();
         if (!m_worker_thread->wait(5000)) {
             m_worker_thread->terminate();
@@ -986,7 +1435,15 @@ void NetworkStreamReceiver::handle_connection_status(bool connected) {
         // reset on mere worker creation, which caused an unbounded retry loop.
         m_reconnection_attempts = 0;
     } else if (m_config.auto_reconnect && m_receiving.load()) {
-        attempt_reconnection();
+        // Review F2: loss-driven retries must honour reconnect_delay. The first
+        // loss (no attempt spent yet) retries immediately for a fast recovery;
+        // every later attempt is scheduled through the single-shot timer so
+        // async/TCP failures cannot hammer the network back-to-back.
+        if (m_reconnection_attempts.load() == 0) {
+            attempt_reconnection();
+        } else {
+            m_reconnection_timer->start(static_cast<int>(m_config.reconnect_delay.count()));
+        }
     }
     
     emit connection_status_changed(connected);

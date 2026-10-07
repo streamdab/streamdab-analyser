@@ -70,6 +70,43 @@ What each tab controls, and when a change takes effect:
 - Every remaining control therefore has an observable effect; nothing is
   written-then-ignored.
 
+## Live stream input (ETI over IP)
+
+The Network Stream input accepts exactly these URL forms (validated by
+`eti::validate_stream_url()`, shared by the UI pre-check and the receiver):
+
+| Transport | Grammar | Notes |
+|---|---|---|
+| UDP multicast | `udp://A.B.C.D[:port]` or `A.B.C.D[:port]` | `A.B.C.D` must be in `224.0.0.0/4`; `iface` auto-selected |
+| TCP raw ETI | `tcp://host[:port]` | `host` is a DNS name or IPv4 literal; the byte stream is re-framed into 6144-byte ETI frames (sync-word resync on loss) |
+| ZeroMQ SUB | `zmq+tcp://host[:port]` | Subscribes (all frames) to an **ODR-DabMux ETI publisher** |
+
+- The port is optional for every transport and defaults to **9200**; when given
+  it must be 1..65535 (digits only).
+- Rejected with a descriptive error: empty input, `http://`/any other scheme,
+  a host name **without** a transport scheme (ambiguous), unicast UDP, IPv6,
+  paths and malformed addresses/ports.
+- **ZMQ publisher expectation:** ODR-DabMux configured with a ZeroMQ ETI output,
+  e.g. `outputs.zmq { endpoint "tcp://*:9201"; }`. The analyzer connects a
+  `ZMQ_SUB` socket, subscribes to everything and expects each message to be a
+  raw 6144-byte ETI frame. EDI/PFT (ETSI TS 102 693) is **not** supported yet —
+  it is the v2.0 Phase E-2 work.
+- **ZMQ slow-joiner:** ZeroMQ PUB/SUB has no subscription handshake. The
+  analyzer's SUB socket therefore **loses the first frames** the publisher sends
+  until the subscription has propagated (and again after any reconnect). This is
+  inherent `ZMQ_SUB` behaviour, not a bug; the stream stabilises after a few
+  frames.
+- Both new transports keep the T22 connection lifecycle: a failed attempt
+  produces exactly one error (no retry loop), automatic reconnection is armed
+  only after a confirmed connection, and **intentional** teardown is
+  loss-silent (it can never retrigger the reconnect policy). Loss-driven
+  retries honour `reconnect_delay` (only the first retry is immediate).
+- Teardown is **bounded**: TCP sockets are aborted, the ZMQ socket has
+  `linger=0` and is destroyed on the worker thread, and the receiver waits at
+  most a few seconds for the worker to shut down before terminating the thread.
+  The worker's event loop never blocks indefinitely (the ZMQ poll uses a 1 ms
+  timeout), so this wait is not expected to be reached.
+
 ## Removed options (with reason)
 
 These controls existed before the audit but had **no backend**: nothing in the
@@ -84,7 +121,7 @@ read or written:
 | Display colours + font | `display/background*`, `grid*`, `text*`, `font` | nobody consumed them; theming disabled |
 | Real-time processing | `analysis/realTime` | no such processing toggle exists (decode is load-time + live-stream) |
 | Hardware acceleration | `analysis/hardwareAccel` | no such code path |
-| Proxy server | `network/useProxy`, `proxyHost`, `proxyPort` | the network path is multicast UDP only — no proxy support |
+| Proxy server | `network/useProxy`, `proxyHost`, `proxyPort` | the network path opens raw UDP/TCP/ZMQ sockets and does not use Qt's proxy-aware high-level networking — no proxy support |
 | Memory limit | `performance/memoryLimit` | no allocation-cap enforcement |
 | Process priority | `performance/priority` | no platform priority-setting code |
 | Debug mode (checkbox) | `advanced/debugMode` | redundant: the log-level combo covers verbosity (Debug level == debug mode) |
