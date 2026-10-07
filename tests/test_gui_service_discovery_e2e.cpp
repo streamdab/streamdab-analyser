@@ -1,10 +1,10 @@
 /**
  * E2E GUI Test: Service Discovery and Display
- * Tests the complete data flow from ETI file → FIG analyzer → GUI display
+ * Tests the complete data flow from ETI file → FIG analyser → GUI display
  * 
  * This test verifies:
  * 1. ETI file loading triggers FIC processing
- * 2. FIG analyzer receives FIC data
+ * 2. FIG analyser receives FIC data
  * 3. Services are discovered and signals emitted
  * 4. GUI displays services in all 3 tabs
  */
@@ -60,11 +60,11 @@ private slots:
         qDebug() << "✅ FIC extraction test placeholder - needs implementation";
     }
 
-    void test_03_FIGAnalyzerConnection()
+    void test_03_FIGAnalyserConnection()
     {
-        qDebug() << "\n[TEST 3] FIG Analyzer Signal Connection";
+        qDebug() << "\n[TEST 3] FIG Analyser Signal Connection";
         
-        // Test that FIG analyzer signals are properly connected
+        // Test that FIG analyser signals are properly connected
         // Expected signals:
         // - servicesUpdated()
         // - ensembleInfoUpdated()
@@ -80,7 +80,7 @@ private slots:
         // Test complete flow:
         // 1. Load ETI file
         // 2. Extract FIC data
-        // 3. Pass to FIG analyzer
+        // 3. Pass to FIG analyser
         // 4. Verify services discovered
         // 5. Verify signals emitted
         

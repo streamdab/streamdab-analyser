@@ -7,7 +7,7 @@
  *
  * @author Backend Developer
  * @date 2025-10-19
- * @copyright Copyright (c) 2025 StreamDAB Analyzer Team
+ * @copyright Copyright (c) 2025 StreamDAB Analyser Team
  */
 
 #include <QtTest/QtTest>

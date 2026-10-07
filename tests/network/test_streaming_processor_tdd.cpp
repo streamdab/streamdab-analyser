@@ -11,7 +11,7 @@
  * 
  * @author Network/Stream Agent - TDD Lead
  * @date 2025-09-22
- * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2025 ETI Stream Analyser Team
  */
 
 #include <gtest/gtest.h>

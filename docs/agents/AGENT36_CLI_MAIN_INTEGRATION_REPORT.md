@@ -95,7 +95,7 @@ for (int i = 1; i < argc; i++) {
 
 if (cli_mode) {
     QCoreApplication app(argc, argv);
-    app.setApplicationName("StreamDAB Analyzer");
+    app.setApplicationName("StreamDAB Analyser");
     app.setApplicationVersion("1.1");
     return cli::cli_main(argc, argv);
 }
@@ -118,7 +118,7 @@ Fixed to use correct Logger API:
 Undefined references:
 - EtiProcessor::EtiProcessor()
 - eti::modern::ModernETIFrameParser::ModernETIFrameParser()
-- eti::modern::EnhancedFIGAnalyzer::EnhancedFIGAnalyzer()
+- eti::modern::EnhancedFIGAnalyser::EnhancedFIGAnalyser()
 - eti::compliance::ComprehensiveETSIValidator::ComprehensiveETSIValidator()
 - etiMain()
 ```
@@ -126,7 +126,7 @@ Undefined references:
 **Attempted fixes:**
 1. Added src/core/eti_processor.cpp to SOURCES
 2. Added src/core/modern_eti_frame_parser.cpp
-3. Added src/core/enhanced_fig_analyzer.cpp
+3. Added src/core/enhanced_fig_analyser.cpp
 4. Added src/core/comprehensive_etsi_validator.cpp
 5. Added src/core/ensemble_manager.cpp
 6. Added src/core/dab_service_discovery_engine.cpp
@@ -183,7 +183,7 @@ Tests use dummy ETI data (6144 bytes of zeros with FF sync word). Some tests wil
 3. **Test compilation**
    ```bash
    cd build
-   cmake --build . --target DABAnalyzer_Enhanced_FilteringBuild
+   cmake --build . --target DABAnalyser_Enhanced_FilteringBuild
    cmake --build . --target test_cli_main_integration
    ```
 
@@ -230,7 +230,7 @@ Tests use dummy ETI data (6144 bytes of zeros with FF sync word). Some tests wil
 - Argument parsing: <1ms
 - CLI mode overhead: <5% vs HeadlessETIProcessor alone
 - Memory usage: +10-20MB for QCoreApplication
-- Startup time: <100ms (QCoreApplication initialization)
+- Startup time: <100ms (QCoreApplication initialisation)
 
 ## Integration with Other Agents
 

@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-Successfully implemented FIG 0/10 Date and Time parser for the StreamDAB Analyzer project, fully compliant with ETSI EN 300 401 Section 8.1.7. The implementation provides accurate Modified Julian Date (MJD) conversion and comprehensive timestamp extraction from DAB broadcast streams.
+Successfully implemented FIG 0/10 Date and Time parser for the StreamDAB Analyser project, fully compliant with ETSI EN 300 401 Section 8.1.7. The implementation provides accurate Modified Julian Date (MJD) conversion and comprehensive timestamp extraction from DAB broadcast streams.
 
 ## Deliverables
 
@@ -79,13 +79,13 @@ Implements ETSI EN 300 401 Annex G formula:
 
 ### Modified Files
 
-1. **/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.hpp**
+1. **/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.hpp**
    - Added DateAndTime struct (lines 171-198)
    - Added parseFig010_DateAndTime() method declaration
    - Added signal dateTimeDiscovered()
    - Updated FigParsingResult with date_time_info vector
 
-2. **/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.cpp**
+2. **/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.cpp**
    - Added parseFig010_DateAndTime() implementation (~90 lines)
    - Added DateAndTime::mjdToDateTime() (~15 lines)
    - Added DateAndTime::dateTimeToMjd() (~15 lines)
@@ -93,10 +93,10 @@ Implements ETSI EN 300 401 Annex G formula:
    - Added validateDateTimeCompliance() (~10 lines)
    - Updated parseFigType0() with case 10
 
-3. **/home/seksan/workspace/streamdab-analyzer/tests/test_fig010_date_time.cpp**
+3. **/home/seksan/workspace/streamdab-analyser/tests/test_fig010_date_time.cpp**
    - Complete test suite (536 lines, 32 tests)
 
-4. **/home/seksan/workspace/streamdab-analyzer/tests/CMakeLists.txt**
+4. **/home/seksan/workspace/streamdab-analyser/tests/CMakeLists.txt**
    - Added test_fig010_date_time target
 
 ## Success Criteria Achievement
@@ -153,7 +153,7 @@ ctest -R TestFig010DateTime -V
 
 ### Expected Output
 ```
-Test project /home/seksan/workspace/streamdab-analyzer/build
+Test project /home/seksan/workspace/streamdab-analyser/build
     Start 1: TestFig010DateTime
 1/1 Test #1: TestFig010DateTime ...........   Passed    0.05 sec
 
@@ -202,10 +202,10 @@ Together, these form the Emergency Warning System foundation with accurate times
 ## Files Reference
 
 **Absolute Paths:**
-- Header: `/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.hpp`
-- Implementation: `/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.cpp`
-- Tests: `/home/seksan/workspace/streamdab-analyzer/tests/test_fig010_date_time.cpp`
-- Report: `/home/seksan/workspace/streamdab-analyzer/FIG010_IMPLEMENTATION_SUMMARY.md`
+- Header: `/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.hpp`
+- Implementation: `/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.cpp`
+- Tests: `/home/seksan/workspace/streamdab-analyser/tests/test_fig010_date_time.cpp`
+- Report: `/home/seksan/workspace/streamdab-analyser/FIG010_IMPLEMENTATION_SUMMARY.md`
 
 ## Conclusion
 

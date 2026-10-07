@@ -1,5 +1,5 @@
 ---
-# Minimal clang-tidy configuration for StreamDAB Stream Analyzer
+# Minimal clang-tidy configuration for StreamDAB Stream Analyser
 HeaderFilterRegex: '.*'
 Checks: '-*,bugprone-*,performance-*,-bugprone-easily-swappable-parameters'
 WarningsAsErrors: ''

@@ -1,5 +1,5 @@
 # Windows-specific build configuration
-# For ETI Stream Analyzer on Windows platforms
+# For ETI Stream Analyser on Windows platforms
 
 message(STATUS "Configuring for Windows platform")
 
@@ -80,11 +80,11 @@ endfunction()
 
 # Windows packaging configuration
 set(CPACK_GENERATOR "NSIS;ZIP")
-set(CPACK_NSIS_DISPLAY_NAME "ETI Stream Analyzer")
-set(CPACK_NSIS_PACKAGE_NAME "ETI Stream Analyzer")
-set(CPACK_NSIS_CONTACT "support@eti-analyzer.com")
-set(CPACK_NSIS_HELP_LINK "https://github.com/eti-analyzer/desktop")
-set(CPACK_NSIS_URL_INFO_ABOUT "https://github.com/eti-analyzer/desktop")
+set(CPACK_NSIS_DISPLAY_NAME "ETI Stream Analyser")
+set(CPACK_NSIS_PACKAGE_NAME "ETI Stream Analyser")
+set(CPACK_NSIS_CONTACT "support@eti-analyser.com")
+set(CPACK_NSIS_HELP_LINK "https://github.com/eti-analyser/desktop")
+set(CPACK_NSIS_URL_INFO_ABOUT "https://github.com/eti-analyser/desktop")
 set(CPACK_NSIS_MODIFY_PATH ON)
 
 # Windows-specific install configuration

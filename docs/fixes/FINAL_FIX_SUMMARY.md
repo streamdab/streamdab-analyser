@@ -118,7 +118,7 @@ void onFrameProcessed(ProcessedFrame frame)
 
 ### Automated E2E Test:
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 ctest -R GUI_ETI_Loading_Crash -V
 ```
 
@@ -126,12 +126,12 @@ ctest -R GUI_ETI_Loading_Crash -V
 
 ### Manual GUI Test:
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
-./StreamDABAnalyzer
+cd /home/seksan/workspace/streamdab-analyser/build
+./StreamDABAnalyser
 # Then: File > Open > Select bkk_20062022_141637.eti
 ```
 
-**Expected Behavior:**
+**Expected Behaviour:**
 - ✅ File loads successfully
 - ✅ Progress bar updates smoothly
 - ✅ Frame list shows ~50 frames (every 100th)
@@ -140,7 +140,7 @@ cd /home/seksan/workspace/streamdab-analyzer/build
 
 ### CLI Mode (Still Works):
 ```bash
-./StreamDABAnalyzer --cli -i /path/to/file.eti
+./StreamDABAnalyser --cli -i /path/to/file.eti
 ```
 
 **Expected:** ✅ 4998/5001 frames processed successfully
@@ -172,7 +172,7 @@ cd /home/seksan/workspace/streamdab-analyzer/build
 2. Progress bar updates smoothly every 100 frames
 3. Frame list updates with key milestones (1, 100, 200, ...)
 4. **Processing completes successfully** ✅
-5. User can analyze results
+5. User can analyse results
 
 ---
 
@@ -228,13 +228,13 @@ cd /home/seksan/workspace/streamdab-analyzer/build
 
 1. **Test GUI Mode:**
    ```bash
-   cd /home/seksan/workspace/streamdab-analyzer/build
-   ./StreamDABAnalyzer
+   cd /home/seksan/workspace/streamdab-analyser/build
+   ./StreamDABAnalyser
    ```
 
 2. **Load the problematic file:**
    - Click "Browse"
-   - Select: `/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti`
+   - Select: `/home/seksan/workspace/streamdab-analyser/eti/bkk_20062022_141637.eti`
    - Click "Load File"
 
 3. **Observe:**
@@ -278,14 +278,14 @@ cd /home/seksan/workspace/streamdab-analyzer/build
 
 **Build:**
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake --build . -j$(nproc)
 ```
 
 **Test:**
 ```bash
-./StreamDABAnalyzer --cli -i /path/to/file.eti  # CLI mode
-./StreamDABAnalyzer                              # GUI mode
+./StreamDABAnalyser --cli -i /path/to/file.eti  # CLI mode
+./StreamDABAnalyser                              # GUI mode
 ```
 
 ---

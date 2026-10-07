@@ -23,7 +23,7 @@ Successfully diagnosed and fixed all 6 failing tests in the YAML Output Generato
 ## Root Cause Analysis
 
 ### Issue Identified
-The `formatHex()` functions in `/home/seksan/workspace/streamdab-analyzer/src/cli/yaml_output_generator.cpp` were using `.toUpper()` on the entire formatted string, which converted both the hex prefix "0x" and the hex digits to uppercase, resulting in output like `0X1234` instead of `0x1234`.
+The `formatHex()` functions in `/home/seksan/workspace/streamdab-analyser/src/cli/yaml_output_generator.cpp` were using `.toUpper()` on the entire formatted string, which converted both the hex prefix "0x" and the hex digits to uppercase, resulting in output like `0X1234` instead of `0x1234`.
 
 **Original Code (Lines 351-357):**
 ```cpp
@@ -79,7 +79,7 @@ QString YAMLOutputGenerator::formatHex(quint32 value) const {
 
 ## Solution Implemented
 
-### File Modified: `/home/seksan/workspace/streamdab-analyzer/src/cli/yaml_output_generator.cpp`
+### File Modified: `/home/seksan/workspace/streamdab-analyser/src/cli/yaml_output_generator.cpp`
 
 **Changed Lines: 351-361**
 
@@ -114,7 +114,7 @@ QString YAMLOutputGenerator::formatHex(quint32 value) const {
 
 ## Test File Update
 
-### File Modified: `/home/seksan/workspace/streamdab-analyzer/tests/test_yaml_output_generator.cpp`
+### File Modified: `/home/seksan/workspace/streamdab-analyser/tests/test_yaml_output_generator.cpp`
 
 **Changes:**
 - Removed debug output code (lines 185-200 in original)
@@ -128,7 +128,7 @@ QString YAMLOutputGenerator::formatHex(quint32 value) const {
 
 ### Test Execution Output
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build/tests
+cd /home/seksan/workspace/streamdab-analyser/build/tests
 ./test_yaml_output_generator
 ```
 
@@ -225,7 +225,7 @@ Totals: 22 passed, 0 failed, 0 skipped, 0 blacklisted, 3ms
 - Zero breaking changes
 
 **Test Quality:**
-- All assertions validate specific behavior
+- All assertions validate specific behaviour
 - No hardcoded values in assertions
 - Clear test names following pattern: test##_DescriptiveName
 - Comprehensive coverage across 4 categories
@@ -270,12 +270,12 @@ This report documents:
 
 ## Files Modified
 
-### 1. `/home/seksan/workspace/streamdab-analyzer/src/cli/yaml_output_generator.cpp`
+### 1. `/home/seksan/workspace/streamdab-analyser/src/cli/yaml_output_generator.cpp`
 **Lines Changed:** 351-361 (11 lines)
 **Change Type:** Bug fix - hex formatting correction
 **Impact:** All hex output now uses correct format (0xABCD vs 0XABCD)
 
-### 2. `/home/seksan/workspace/streamdab-analyzer/tests/test_yaml_output_generator.cpp`
+### 2. `/home/seksan/workspace/streamdab-analyser/tests/test_yaml_output_generator.cpp`
 **Lines Changed:** 13 (1 line - attribution comment)
 **Change Type:** Documentation update
 **Impact:** None (no functional changes)
@@ -302,7 +302,7 @@ This report documents:
 
 ### Best Practices Applied
 1. **Separate Concerns:** Format prefix ("0x") separately from hex digits
-2. **Explicit Padding:** Use `.rightJustified()` instead of relying on arg() padding behavior
+2. **Explicit Padding:** Use `.rightJustified()` instead of relying on arg() padding behaviour
 3. **Standard Conventions:** Follow C/C++ hex notation (0xABCD) rather than alternatives (0XABCD, #ABCD)
 4. **Clear Comments:** Document format choice for future maintainers
 

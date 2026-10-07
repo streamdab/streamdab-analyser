@@ -715,7 +715,7 @@ void StreamResilience::performEndpointHealthChecks() {
 
 void StreamResilience::startHTTPHealthCheck(const EndpointConfig& endpoint) {
     QNetworkRequest request(QUrl(endpoint.health_check_url));
-    request.setRawHeader("User-Agent", "StreamDAB-Analyzer/1.0");
+    request.setRawHeader("User-Agent", "StreamDAB-Analyser/1.0");
     request.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
     
     QNetworkReply* reply = network_manager_->get(request);

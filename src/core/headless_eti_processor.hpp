@@ -10,7 +10,7 @@
 // Include full definitions needed
 #include "eti_types.hpp"
 #include "fig_parser.hpp"
-#include "analyzer_settings.hpp"
+#include "analyser_settings.hpp"
 #include "../cli/yaml_output_generator.hpp"  // Need full definition for Qt MOC
 
 // Forward declarations for Qt classes only
@@ -18,7 +18,7 @@ class EtiProcessor;
 namespace eti {
 namespace modern {
     class ModernETIFrameParser;
-    class EnhancedFIGAnalyzer;
+    class EnhancedFIGAnalyser;
 }
 namespace compliance {
     class ComprehensiveETSIValidator;
@@ -114,20 +114,20 @@ public:
     ~HeadlessETIProcessor();
 
     /**
-     * @brief Set the user-selected analyzer decode options.
+     * @brief Set the user-selected analyser decode options.
      *
      * Applied on the next process_file() call (threaded through the modern
      * frame parser, the service merge, verbose timestamps and the strict
-     * frame-CRC counter). Defaults to AnalyzerSettings::defaults().
+     * frame-CRC counter). Defaults to AnalyserSettings::defaults().
      *
-     * @param settings Analyzer decode options to use
+     * @param settings Analyser decode options to use
      */
-    void setAnalyzerSettings(const eti::AnalyzerSettings& settings) { m_settings = settings; }
+    void setAnalyserSettings(const eti::AnalyserSettings& settings) { m_settings = settings; }
 
     /**
-     * @brief Current analyzer decode options.
+     * @brief Current analyser decode options.
      */
-    const eti::AnalyzerSettings& analyzerSettings() const noexcept { return m_settings; }
+    const eti::AnalyserSettings& analyserSettings() const noexcept { return m_settings; }
 
     /**
      * @brief Process ETI file and generate analysis
@@ -244,7 +244,7 @@ private:  // NOLINTNEXTLINE(readability-redundant-access-specifiers) - Required 
     // Core processing components
     std::unique_ptr<EtiProcessor> m_etiProcessor;
     std::unique_ptr<eti::modern::ModernETIFrameParser> m_frameParser;
-    std::unique_ptr<eti::modern::EnhancedFIGAnalyzer> m_figAnalyzer;
+    std::unique_ptr<eti::modern::EnhancedFIGAnalyser> m_figAnalyser;
     // DISABLED FOR CLI BUILD: ComprehensiveETSIValidator all methods commented out
     // std::unique_ptr<eti::compliance::ComprehensiveETSIValidator> m_etsiValidator;
 
@@ -259,8 +259,8 @@ private:  // NOLINTNEXTLINE(readability-redundant-access-specifiers) - Required 
     bool m_fib_hex_mode = false;       // P2/P3: per-FIB hex dumps
     int m_max_frames = 0;           // P1: process at most N frames (0 = all)
 
-    // User-selected analyzer decode options (option-variant matrix rows 1-14).
-    eti::AnalyzerSettings m_settings;
+    // User-selected analyser decode options (option-variant matrix rows 1-14).
+    eti::AnalyserSettings m_settings;
 
     // Private methods
     bool initialize_components();

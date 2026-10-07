@@ -1,4 +1,4 @@
-# StreamDAB Analyzer - Test Status Report
+# StreamDAB Analyser - Test Status Report
 
 **Date:** November 6, 2025
 **Version:** v1.2+ (CLI Mode Complete)
@@ -19,7 +19,7 @@
 | test_eti_ni_parser | 27/28 | **28/28** | Test frame had MID=0 (reserved) → `frame_li[6]=0x08`; plus 18 brace fixes `{x))`→`{x})` |
 | test_fig_week2_comprehensive | 68/70 | **68/70** | `test_regression_week1_fig000_ensemble_info` FIXED (payload-slice + validator ordering); 2 remaining failures are perf-threshold disputes (see below) |
 | test_yaml_output_generator | 19/22 | **22/22** | `184c893` renamed schema keys (`service_label:`→`label:` etc.) + EEP `+1`/`"-"` bugs → code restored to etisnoop contract |
-| test_cli_main_integration | NOT BUILT | **12/12** | Missing TUs in target (`eti_processor`, `enhanced_fig_analyzer`, `performance_profiler`, `eti_types` .cpps added) + test08 expectation corrected to exit 2 |
+| test_cli_main_integration | NOT BUILT | **12/12** | Missing TUs in target (`eti_processor`, `enhanced_fig_analyser`, `performance_profiler`, `eti_types` .cpps added) + test08 expectation corrected to exit 2 |
 | test_cli_mode_functional | NOT BUILT | **27/27** | Same missing-TU class (`performance_profiler`); test-side SIGSEGV (uninit temp-dir ptr) + wrong binary name + bad synthetic sync — all fixed test-side |
 | test_pft_reassembler | NOT BUILT | **43/43** | environmental: `libgtest-dev` installed → builds and passes |
 
@@ -207,7 +207,7 @@ Coverage analysis cannot be performed until all tests build successfully.
 
 ### **Currently Runnable Tests:**
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build/tests
+cd /home/seksan/workspace/streamdab-analyser/build/tests
 
 # CLI Argument Parser (27/27 passing - 100%)
 ./test_cli_argument_parser
@@ -289,7 +289,7 @@ cd /home/seksan/workspace/streamdab-analyzer/build/tests
 
 Actions this cycle:
 - Perf-budget retarget for HW-marginal benchmarks (week1 fig1/0 50→100 µs, week2 fig0/19 5→20 µs, fig015 15→60 µs) with in-code rationale — parser correctness verified vs etisnoop byte-for-byte (`a5a1a56`).
-- New suites: test_gui_dock_layout (14, real fixture), test_advanced_fig_analyzer (12), test_cli_fig_trace (7), test_cli_fig_extended (12), test_analyzer_settings (15) — coverage +10pp.
+- New suites: test_gui_dock_layout (14, real fixture), test_advanced_fig_analyser (12), test_cli_fig_trace (7), test_cli_fig_extended (12), test_analyser_settings (15) — coverage +10pp.
 - Coverage method: gcov/lcov on a separate `build-cov` dir (`--coverage -O0 -g`), source-only (tests/_deps excluded). Note: `test_fig024_oe_services` fails ONLY under `-O0` coverage build (timing budget); passes in the normal Release build (49/49).
 - Residual: coverage still below the 85 % target — the largest untested surface is interactive GUI paths (dock layout, live panel updates) exercised only by offscreen assertions; documented, not blocking v1.3/v1.4 release.
 

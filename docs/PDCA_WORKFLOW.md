@@ -1,5 +1,5 @@
 # PDCA Development Workflow
-## Plan-Do-Check-Act Methodology for StreamDAB Analyzer
+## Plan-Do-Check-Act Methodology for StreamDAB Analyser
 
 **Document Version:** 1.0  
 **Date:** October 22, 2025  
@@ -9,7 +9,7 @@
 
 ## 📋 **WORKFLOW OVERVIEW**
 
-The StreamDAB Analyzer project follows the **PDCA (Plan-Do-Check-Act)** continuous improvement cycle:
+The StreamDAB Analyser project follows the **PDCA (Plan-Do-Check-Act)** continuous improvement cycle:
 
 ```
 ┌──────────┐
@@ -45,7 +45,7 @@ The StreamDAB Analyzer project follows the **PDCA (Plan-Do-Check-Act)** continuo
 **Responsibilities:**
 - Define project phases (e.g., Phase 3A, Phase 3B)
 - Break down phases into subphases (logical feature groups)
-- Organize subphases into waves (implementation units)
+- Organise subphases into waves (implementation units)
 - Set clear success criteria for each wave
 - Track overall project progress
 - Adjust plans based on feedback from Check phase
@@ -227,7 +227,7 @@ After completing a wave, cpp-qt-developer creates integration tests that verify 
 // tests/integration/test_audio_pipeline.cpp
 #include <QtTest/QtTest>
 #include "../src/core/enhanced_eti_processor_qt.hpp"
-#include "../src/core/advanced_fig_analyzer.hpp"
+#include "../src/core/advanced_fig_analyser.hpp"
 #include "../src/core/dabplus_stream_validator.hpp"
 
 class TestAudioPipeline : public QObject {
@@ -240,7 +240,7 @@ private slots:
 
 private:
     ETIFrameParser* m_eti_parser;
-    AdvancedFIGAnalyzer* m_fig_analyzer;
+    AdvancedFIGAnalyser* m_fig_analyser;
     DABPlusStreamValidator* m_audio_validator;
 };
 
@@ -255,7 +255,7 @@ void TestAudioPipeline::testETIToAudioQualityMetrics() {
     QVERIFY(m_eti_parser->parseFrame(frame_data, frame));
     
     // Process FIG data to discover services
-    m_fig_analyzer->processFIC(frame.fic_data);
+    m_fig_analyser->processFIC(frame.fic_data);
     
     // Extract MSC data and validate audio
     QByteArray msc_data = m_eti_parser->extractMSC(frame, 0);
@@ -549,7 +549,7 @@ src/core/dabplus_stream_validator.cpp  # 643 lines
 
 # Build and basic testing
 cd build && make
-./StreamDABAnalyzer  # Manual verification
+./StreamDABAnalyser  # Manual verification
 
 # Report completion
 "Wave 1.1 complete - DAB+ Stream Validator implemented
@@ -799,7 +799,7 @@ NEW: "ThreadSanitizer clean (0 data races) if multi-threaded"
 
 **4. Backlog Management:**
 ```markdown
-## Optimization Backlog (Future Waves):
+## Optimisation Backlog (Future Waves):
 
 Items identified during Wave 1.1 for future optimization:
 1. Reed-Solomon validation result caching (Wave 4.2)
@@ -933,7 +933,7 @@ Actions:
 
 When ACT phase identifies need for specialized help:
 ```markdown
-## Example: Performance Optimization Needed
+## Example: Performance Optimisation Needed
 
 ACT phase identifies: "FireCode CRC is bottleneck at >5000 FPS"
 
@@ -1047,7 +1047,7 @@ cd build && rm -rf * && cmake .. && make -j4
 ctest --output-on-failure
 
 # Build main application
-./StreamDABAnalyzer
+./StreamDABAnalyser
 ```
 
 ### **Code Review Tools**

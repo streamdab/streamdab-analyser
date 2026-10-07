@@ -12,7 +12,7 @@
 
 ### Step 1: Review Deliverables (30 seconds)
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer
+cd /home/seksan/workspace/streamdab-analyser
 cat FIG017_DELIVERY_REPORT.md  # Read summary
 ```
 
@@ -39,7 +39,7 @@ ctest -R test_fig017 --output-on-failure
 
 **Expected:**
 ```
-Test project /home/seksan/workspace/streamdab-analyzer/build
+Test project /home/seksan/workspace/streamdab-analyser/build
     Start XX: test_fig017_programme_type
 XX/XX Test #XX: test_fig017_programme_type .....  Passed    X.XX sec
 

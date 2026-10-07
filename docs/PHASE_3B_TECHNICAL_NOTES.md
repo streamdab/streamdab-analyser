@@ -36,7 +36,7 @@
                          │
                          ▼ Qt Signal/Slot (Thread-safe)
 ┌─────────────────────────────────────────────────────────────┐
-│          DABAnalyzerWindow::updateNowPlaying()              │
+│          DABAnalyserWindow::updateNowPlaying()              │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │  1. Update m_trackLabel with track title            │  │
 │  │  2. Update m_artistLabel with artist name           │  │
@@ -57,7 +57,7 @@
 
 ```cpp
 ┌────────────────────────────────────────────────┐
-│        DABAnalyzerWindow (main.cpp)            │
+│        DABAnalyserWindow (main.cpp)            │
 ├────────────────────────────────────────────────┤
 │ - m_trackLabel: QLabel*                        │
 │ - m_artistLabel: QLabel*                       │
@@ -187,12 +187,12 @@ void DLSPlusDecoder::processDLSPlus(const std::vector<uint8_t>& padData) {
 
 ### "Now Playing" Panel Creation
 
-**Location:** `src/main.cpp` - `DABAnalyzerWindow::createNowPlayingPanel()`
+**Location:** `src/main.cpp` - `DABAnalyserWindow::createNowPlayingPanel()`
 
 **Implementation:**
 
 ```cpp
-QGroupBox* DABAnalyzerWindow::createNowPlayingPanel() {
+QGroupBox* DABAnalyserWindow::createNowPlayingPanel() {
     QGroupBox* groupBox = new QGroupBox("Now Playing (DLS+)");
     QVBoxLayout* layout = new QVBoxLayout(groupBox);
     
@@ -216,25 +216,25 @@ QGroupBox* DABAnalyzerWindow::createNowPlayingPanel() {
 
 **Track Label:**
 - Font: Bold, 14px
-- Color: #1976d2 (Material Design Blue 700)
+- Colour: #1976d2 (Material Design Blue 700)
 - Word wrap: Enabled for long titles
 - Alignment: Left
 
 **Artist Label:**
 - Font: Regular, 12px
-- Color: #555 (Dark gray)
+- Colour: #555 (Dark gray)
 - Word wrap: Enabled
 - Alignment: Left
 
 **Album Label:**
 - Font: Italic, 11px
-- Color: #777 (Medium gray)
+- Colour: #777 (Medium gray)
 - Word wrap: Enabled
 - Alignment: Left
 
 **Timestamp Label:**
 - Font: Italic, 10px
-- Color: #999 (Light gray)
+- Colour: #999 (Light gray)
 - Format: `yyyy-MM-dd HH:mm:ss`
 - Alignment: Right
 
@@ -247,14 +247,14 @@ QGroupBox* DABAnalyzerWindow::createNowPlayingPanel() {
 
 ### Update Slot Implementation
 
-**Location:** `src/main.cpp` - `DABAnalyzerWindow::updateNowPlaying()`
+**Location:** `src/main.cpp` - `DABAnalyserWindow::updateNowPlaying()`
 
 **Thread Safety:** Qt signal/slot mechanism ensures thread-safe GUI updates
 
 **Logic Flow:**
 
 ```cpp
-void DABAnalyzerWindow::updateNowPlaying(
+void DABAnalyserWindow::updateNowPlaying(
     const QString& track, 
     const QString& artist, 
     const QString& album)
@@ -290,7 +290,7 @@ void DABAnalyzerWindow::updateNowPlaying(
 When DLS+ decoder becomes available, connection will be established in constructor:
 
 ```cpp
-DABAnalyzerWindow::DABAnalyzerWindow() {
+DABAnalyserWindow::DABAnalyserWindow() {
     // ... existing initialization ...
     
     // Phase 3B: Connect DLS+ decoder to GUI
@@ -298,7 +298,7 @@ DABAnalyzerWindow::DABAnalyzerWindow() {
         connect(m_dlsPlusDecoder.get(), 
                 &DLSPlusDecoder::nowPlayingUpdated,
                 this, 
-                &DABAnalyzerWindow::updateNowPlaying,
+                &DABAnalyserWindow::updateNowPlaying,
                 Qt::QueuedConnection);  // Thread-safe queued connection
     }
 }
@@ -426,7 +426,7 @@ public:
 - **Memory Safety:** No raw pointers, RAII principles
 - **Error Handling:** Comprehensive null checks and validation
 
-### Code Organization
+### Code Organisation
 
 **File:** `src/main.cpp` (monolithic Qt6 application)
 
@@ -495,23 +495,23 @@ public:
 #### `createNowPlayingPanel()`
 
 ```cpp
-QGroupBox* DABAnalyzerWindow::createNowPlayingPanel()
+QGroupBox* DABAnalyserWindow::createNowPlayingPanel()
 ```
 
 **Purpose:** Creates the "Now Playing (DLS+)" GUI panel
 
 **Returns:** `QGroupBox*` - Configured panel ready for insertion into layout
 
-**Called By:** `createServiceDetailsPanel()` during GUI initialization
+**Called By:** `createServiceDetailsPanel()` during GUI initialisation
 
-**Side Effects:** Initializes member variables m_trackLabel, m_artistLabel, m_albumLabel, m_lastUpdatedLabel
+**Side Effects:** Initialises member variables m_trackLabel, m_artistLabel, m_albumLabel, m_lastUpdatedLabel
 
 ---
 
 #### `updateNowPlaying()`
 
 ```cpp
-void DABAnalyzerWindow::updateNowPlaying(
+void DABAnalyserWindow::updateNowPlaying(
     const QString& track, 
     const QString& artist, 
     const QString& album)
@@ -545,11 +545,11 @@ QLabel* m_albumLabel;         // Album info display (italic gray)
 QLabel* m_lastUpdatedLabel;   // Timestamp display (small, right-aligned)
 ```
 
-**Initialization:** Set to `nullptr` by default, initialized in `createNowPlayingPanel()`
+**Initialisation:** Set to `nullptr` by default, initialised in `createNowPlayingPanel()`
 
 **Lifetime:** Owned by QGroupBox parent widget, auto-destroyed on window close
 
-**Access:** Private to DABAnalyzerWindow class
+**Access:** Private to DABAnalyserWindow class
 
 ---
 
@@ -593,8 +593,8 @@ When DLS+ decoder becomes available:
 
 - [ ] Include DLS+ decoder header: `#include "core/dls_plus_decoder.hpp"`
 - [ ] Add member variable: `std::unique_ptr<DLSPlusDecoder> m_dlsPlusDecoder;`
-- [ ] Initialize in constructor: `m_dlsPlusDecoder = std::make_unique<DLSPlusDecoder>();`
-- [ ] Connect signal: `connect(m_dlsPlusDecoder.get(), &DLSPlusDecoder::nowPlayingUpdated, this, &DABAnalyzerWindow::updateNowPlaying);`
+- [ ] Initialise in constructor: `m_dlsPlusDecoder = std::make_unique<DLSPlusDecoder>();`
+- [ ] Connect signal: `connect(m_dlsPlusDecoder.get(), &DLSPlusDecoder::nowPlayingUpdated, this, &DABAnalyserWindow::updateNowPlaying);`
 - [ ] Pass PAD data: Call `m_dlsPlusDecoder->processPADData()` when PAD received
 
 ### Phase 3A Integration
@@ -624,7 +624,7 @@ DLS+ requires PAD extraction from DAB+ audio frames (Phase 3A):
 - Professional three-field layout (Track, Artist, Album)
 - Timestamp display with automatic updates
 - `updateNowPlaying()` slot for signal/slot integration
-- Comprehensive styling with Material Design color scheme
+- Comprehensive styling with Material Design colour scheme
 - System Messages integration for metadata logging
 - Thai UTF-8 support via Qt6 QString
 - Technical documentation

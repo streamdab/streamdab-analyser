@@ -26,7 +26,7 @@ include_directories(
 
 set(PHASE3A_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/enhanced_eti_processor_qt.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/advanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/advanced_fig_analyser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/dabplus_stream_validator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/mot_protocol.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/epg_decoder.cpp

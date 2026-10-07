@@ -1,4 +1,4 @@
-# ETI Protocol Specifications for StreamDAB Analyzer
+# ETI Protocol Specifications for StreamDAB Analyser
 
 **Document Version:** 1.0  
 **Date:** September 17, 2025  
@@ -11,7 +11,7 @@
 2. [ETI Frame Structure Specification](#eti-frame-structure-specification)
 3. [Field-by-Field Analysis](#field-by-field-analysis)
 4. [FIC Data Structure](#fic-data-structure)
-5. [MSC Data Organization](#msc-data-organization)
+5. [MSC Data Organisation](#msc-data-organisation)
 6. [Error Detection and Correction](#error-detection-and-correction)
 7. [Timing and Synchronization](#timing-and-synchronization)
 8. [Implementation Data Structures](#implementation-data-structures)
@@ -38,7 +38,7 @@ The Ensemble Transport Interface (ETI) is the standardized distribution interfac
 - Suitable for storage and network distribution
 
 #### ETI(LI) - Linear Format  
-- Optimized for direct modulator input
+- Optimised for direct modulator input
 - Time-aligned with transmission requirements
 - Includes precise timing information (TIST)
 - Ready for OFDM modulation
@@ -141,12 +141,12 @@ struct EtiLidataField {
 
 **Number of Sub-channels (NST):**
 - Range: 0-63 sub-channels per frame
-- Defines MSC organization structure
+- Defines MSC organisation structure
 - Must match FIG 0/1 sub-channel configuration
 
 ### FIC Field (32 bytes, offset 12-43)
 
-Fast Information Channel contains ensemble configuration data organized as FIG blocks.
+Fast Information Channel contains ensemble configuration data organised as FIG blocks.
 
 ```cpp
 struct EtiFicField {
@@ -180,8 +180,8 @@ struct FigBlock {
 
 **FIG Type Coverage Requirements:**
 - FIG 0/0: Ensemble information (mandatory)
-- FIG 0/1: Sub-channel organization (mandatory)
-- FIG 0/2: Service organization (mandatory)
+- FIG 0/1: Sub-channel organisation (mandatory)
+- FIG 0/2: Service organisation (mandatory)
 - FIG 1/0: Ensemble label (mandatory)
 - FIG 1/1: Service labels (recommended)
 
@@ -214,7 +214,7 @@ struct EtiMscField {
 };
 ```
 
-**Capacity Unit (CU) Organization:**
+**Capacity Unit (CU) Organisation:**
 - 1 CU = 8 bytes (64 bits)
 - Maximum 864 CUs per MSC (6912 bytes)
 - Actual MSC size: 6096 bytes = 762 CUs
@@ -242,7 +242,7 @@ struct EtiCrcField {
 
 ## FIC Data Structure
 
-### FIG Block Organization
+### FIG Block Organisation
 
 FIG (Fast Information Group) blocks within the FIC provide essential configuration information.
 
@@ -262,7 +262,7 @@ struct Fig0_0_EnsembleInfo {
 };
 ```
 
-#### FIG 0/1 - Sub-channel Organization
+#### FIG 0/1 - Sub-channel Organisation
 ```cpp
 struct Fig0_1_SubchannelOrg {
     struct SubChannelDescriptor {
@@ -283,7 +283,7 @@ struct Fig0_1_SubchannelOrg {
 };
 ```
 
-#### FIG 0/2 - Service Organization
+#### FIG 0/2 - Service Organisation
 ```cpp
 struct Fig0_2_ServiceOrg {
     struct ServiceDescriptor {
@@ -336,11 +336,11 @@ struct Fig1_1_ServiceLabel {
 };
 ```
 
-## MSC Data Organization
+## MSC Data Organisation
 
 ### Capacity Unit Structure
 
-The MSC is organized in Capacity Units (CUs) of 64 bits each.
+The MSC is organised in Capacity Units (CUs) of 64 bits each.
 
 ```cpp
 struct CapacityUnit {
@@ -649,7 +649,7 @@ private:
 };
 ```
 
-This comprehensive ETI protocol specification provides the foundation for implementing full ETSI EN 300 799 compliance in the StreamDAB Analyzer. The detailed data structures and validation methods ensure professional-grade ETI processing capability suitable for broadcast industry applications.
+This comprehensive ETI protocol specification provides the foundation for implementing full ETSI EN 300 799 compliance in the StreamDAB Analyser. The detailed data structures and validation methods ensure professional-grade ETI processing capability suitable for broadcast industry applications.
 
 **Key Implementation Priorities:**
 1. Frame synchronization and validation

@@ -141,7 +141,7 @@ Total: 8 bytes minimum
 
 ```bash
 # Build the test
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 make test_fig012_mpeg2_ts
 
 # Run the test

@@ -16,7 +16,7 @@
 namespace eti {
 namespace modern {
     class ModernETIFrameParser;
-    class EnhancedFIGAnalyzer;
+    class EnhancedFIGAnalyser;
     class ComprehensiveETSIValidator;
     struct EnhancedServiceInfo;
     struct EnhancedEnsembleInfo;
@@ -180,7 +180,7 @@ public:
      * @return true if successful
      */
     bool initializeWithModernEngine(eti::modern::ModernETIFrameParser *frameParser, 
-                                   eti::modern::EnhancedFIGAnalyzer *figAnalyzer);
+                                   eti::modern::EnhancedFIGAnalyser *figAnalyser);
 
     // QAbstractItemModel interface
     QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override;
@@ -443,7 +443,7 @@ private:
     // Core components
     // Modern ETI Core Engine components
     eti::modern::ModernETIFrameParser *m_frameParser;
-    eti::modern::EnhancedFIGAnalyzer *m_figAnalyzer;
+    eti::modern::EnhancedFIGAnalyser *m_figAnalyser;
 
     // Tree structure
     std::shared_ptr<TreeItem> m_rootItem;

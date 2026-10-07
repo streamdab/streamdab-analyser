@@ -35,7 +35,7 @@
 #include <QElapsedTimer>
 
 #include "gui/main_window.h"
-#include "gui/analyzer_widget.h"
+#include "gui/analyser_widget.h"
 #include "gui/service_browser.h"
 #include "gui/constellation_widget.h"
 #include "gui/settings_dialog.h"
@@ -603,9 +603,9 @@ bool TestMandatoryWorkflowCoverage::validateStreamExplorationPhase()
 bool TestMandatoryWorkflowCoverage::validateDetailedAnalysisPhase()
 {
     // Validate frame navigation with 24ms precision
-    AnalyzerWidget* analyzerWidget = mainWindow->findChild<AnalyzerWidget*>();
-    if (analyzerWidget) {
-        Logger::instance().log(Logger::Debug, "WORKFLOW_1", "Analyzer widget found - detailed analysis validated");
+    AnalyserWidget* analyserWidget = mainWindow->findChild<AnalyserWidget*>();
+    if (analyserWidget) {
+        Logger::instance().log(Logger::Debug, "WORKFLOW_1", "Analyser widget found - detailed analysis validated");
     }
     
     // Validate FIG analysis and error indicators
@@ -674,8 +674,8 @@ bool TestMandatoryWorkflowCoverage::validatePropertiesPanelOperations()
 
 bool TestMandatoryWorkflowCoverage::validateMainPanelViewStates()
 {
-    AnalyzerWidget* analyzerWidget = mainWindow->findChild<AnalyzerWidget*>();
-    if (analyzerWidget) {
+    AnalyserWidget* analyserWidget = mainWindow->findChild<AnalyserWidget*>();
+    if (analyserWidget) {
         Logger::instance().log(Logger::Debug, "PANEL_INTERACTIONS", "Main panel view states validated");
         return true;
     }

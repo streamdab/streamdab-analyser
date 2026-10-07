@@ -3,12 +3,12 @@
 **Document Version:** 1.0  
 **Date:** September 22, 2025  
 **Author:** Standards Compliance Agent  
-**Project:** StreamDAB Stream Analyzer  
+**Project:** StreamDAB Stream Analyser  
 **TDD Phase:** RED → GREEN → REFACTOR Framework Definition  
 
 ## Executive Summary
 
-This document defines comprehensive Test-Driven Development (TDD) specifications for ETSI standards compliance in the StreamDAB Stream Analyzer. Following PM Agent's analysis revealing "ETSI compliance is framework only (80% missing implementation)", this specification establishes the test-first approach to achieve **100% ETSI broadcast standards compliance**.
+This document defines comprehensive Test-Driven Development (TDD) specifications for ETSI standards compliance in the StreamDAB Stream Analyser. Following PM Agent's analysis revealing "ETSI compliance is framework only (80% missing implementation)", this specification establishes the test-first approach to achieve **100% ETSI broadcast standards compliance**.
 
 **MISSION CRITICAL**: Create detailed TDD test specifications for ETSI broadcast standards compliance, ensuring professional broadcast industry certification readiness through comprehensive test-driven development.
 
@@ -461,12 +461,12 @@ set(ETSI_COMPLIANCE_TEST_SOURCES
 )
 
 # Create ETSI compliance test executable
-add_executable(eti_analyzer_etsi_compliance_tests
+add_executable(eti_analyser_etsi_compliance_tests
     ${ETSI_COMPLIANCE_TEST_SOURCES}
     ${TEST_FIXTURE_SOURCES}
 )
 
-target_link_libraries(eti_analyzer_etsi_compliance_tests
+target_link_libraries(eti_analyser_etsi_compliance_tests
     ${GTEST_LIBS}
     Qt6::Core
     Qt6::Test
@@ -476,27 +476,27 @@ target_link_libraries(eti_analyzer_etsi_compliance_tests
 
 # Register ETSI compliance tests
 add_test(NAME etsi_compliance_tests
-         COMMAND eti_analyzer_etsi_compliance_tests)
+         COMMAND eti_analyser_etsi_compliance_tests)
 
 # TDD workflow targets for ETSI compliance
 add_custom_target(etsi_tdd_red_phase
     COMMAND echo "🔴 ETSI TDD RED Phase: Running failing ETSI compliance tests"
-    COMMAND eti_analyzer_etsi_compliance_tests --gtest_filter="*ShouldFailUntilImplemented*" || true
-    DEPENDS eti_analyzer_etsi_compliance_tests
+    COMMAND eti_analyser_etsi_compliance_tests --gtest_filter="*ShouldFailUntilImplemented*" || true
+    DEPENDS eti_analyser_etsi_compliance_tests
     COMMENT "ETSI TDD RED: Expecting test failures (validates test completeness)"
 )
 
 add_custom_target(etsi_tdd_green_phase
     COMMAND echo "🟢 ETSI TDD GREEN Phase: Running ETSI compliance tests expecting pass"
-    COMMAND eti_analyzer_etsi_compliance_tests
-    DEPENDS eti_analyzer_etsi_compliance_tests
+    COMMAND eti_analyser_etsi_compliance_tests
+    DEPENDS eti_analyser_etsi_compliance_tests
     COMMENT "ETSI TDD GREEN: All ETSI compliance tests must pass"
 )
 
 add_custom_target(etsi_compliance_certification
     COMMAND echo "📜 ETSI Professional Certification Package Generation"
-    COMMAND eti_analyzer_etsi_compliance_tests --gtest_filter="*Certification*"
-    DEPENDS eti_analyzer_etsi_compliance_tests
+    COMMAND eti_analyser_etsi_compliance_tests --gtest_filter="*Certification*"
+    DEPENDS eti_analyser_etsi_compliance_tests
     COMMENT "Generate professional broadcast industry certification package"
 )
 ```

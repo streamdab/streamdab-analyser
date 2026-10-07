@@ -1,8 +1,8 @@
 # Documentation Index
 
-**Project:** StreamDAB Analyzer — Professional DAB/ETI Stream Analyzer (Qt6/C++20)
+**Project:** StreamDAB Analyser — Professional DAB/ETI Stream Analyser (Qt6/C++20)
 **Main plan:** [`PHASE_E_PLAN.md`](PHASE_E_PLAN.md) — the single operational plan. If any doc contradicts it, it wins.
-**Reorganized:** 2026-09-27 (2nd reorganization + audit; 62 obsolete docs moved to `archive/`).
+**Reorganised:** 2026-09-27 (2nd reorganisation + audit; 62 obsolete docs moved to `archive/`).
 **Root cleanup:** 2026-10 (`CLAUDE.md` → `archive/CLAUDE.md`, junk removed, root scripts moved to `scripts/`).
 **Root docs:** [`README.md`](../README.md) (overview) · [`INSTALL.md`](../INSTALL.md) (build/install) ·
 [`AGENTS.md`](../AGENTS.md) (live agent instructions — **private-only**, excluded from the public tree; see
@@ -75,7 +75,7 @@ Agents 1, 15, 16, 20, 21 (×3), 36 (×2), 37–43, 48. Key: `AGENT48_COMPLETION_
 ETI/FIG decode fix + F1–F9 findings + etisnoop parity tables),
 `FIG010_MJD_FIX_REPORT.md`, `FINAL_FIX_SUMMARY.md`, `FINAL_SEGFAULT_FIX.md`,
 `OPTION_VARIANT_MATRIX.md` (2026-10-02: 14 decode decision points — standard options vs etisnoop
-default vs ours; roadmap for the analyzer-settings feature),
+default vs ours; roadmap for the analyser-settings feature),
 `SEGFAULT_FIX_COMPLETE.md`, `SEGFAULT_FIX_SUMMARY.md`, `SERVICE_LABELS_FIX_SUMMARY.md`.
 
 ## `eti-ni/` — ETI-NI parser (Nov 2025)
@@ -93,11 +93,11 @@ default vs ours; roadmap for the analyzer-settings feature),
 
 - `QT_ADS_DOCKING.md` — architecture + usage for the layout-preserving Qt Advanced Docking System 4.5.0
   migration: 4 per-scope `CDockManager`s, all-26-dock registry, QSettings persistence keys, out-of-scope
-  decisions. Runnable is `./build/StreamDABAnalyzer`.
+  decisions. Runnable is `./build/StreamDABAnalyser`.
 - `SRC_GUI_AUDIT.md`, `PANEL_AUDIT.md` — source-tree and panel audits
 - `MOT_SLIDESHOW_EVALUATION.md`, `NETWORK_STREAM_EVALUATION.md` — feature evaluations
 - `DOCK_INTERACTION_QA.md` — dock interaction QA results
-- `UI_REDESIGN_PLAN.md` (+ `StreamDAB-Analyzer UI Redesign.html`, `streamdabanalyzer_ui_redesign.xlsx`) — redesign plan and assets
+- `UI_REDESIGN_PLAN.md` (+ `StreamDAB-Analyser UI Redesign.html`, `streamdabanalyser_ui_redesign.xlsx`) — redesign plan and assets
 
 ## Active specs (docs root)
 

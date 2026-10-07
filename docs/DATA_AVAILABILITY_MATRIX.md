@@ -11,7 +11,7 @@
 
 ### Coverage Analysis (DAB/DAB+ Focus):
 - **Tab 1 (DAB Ensemble & ETI Analysis):** 95% data available (G.703 fields removed)
-- **Tab 2 (FIC-Analyzer):** 95% data available
+- **Tab 2 (FIC-Analyser):** 95% data available
 - **Tab 3 (FIC-Extractor):** 80% data available (needs bit-level parsing UI)
 - **Live Stream Input:** 100% supported (UDP, TCP, ZMQ with libzmq 4.3.5)
 
@@ -76,7 +76,7 @@
 | Log File path | Logging system | ✅ Available | ProfessionalLoggingSystem |
 | Time | Log timestamp | ✅ Available | Log entry time |
 | CIF | Frame CIF number | ✅ Available | From ETI header |
-| Source | Log source | ✅ Available | "Analyzer", "Application" |
+| Source | Log source | ✅ Available | "Analyser", "Application" |
 | Class | Log category | ✅ Available | "HCI", "SBCH", "MCI" |
 | Message | Log message | ✅ Available | Full log message |
 | Filter button | UI control | ✅ Available | Add filter dialog |
@@ -86,7 +86,7 @@
 
 ---
 
-### CENTER PANEL
+### CENTRE PANEL
 
 #### 5. Live Stream Input (QGroupBox with QStackedWidget)
 | Component | Data Source | Status | Implementation |
@@ -105,7 +105,7 @@
 
 **Implementation:** QStackedWidget switches between File and Network input pages. Network page includes quick examples dropdown and real-time statistics display.
 
-**Location:** Placed at top of CENTER panel (above Ensemble Explorer) per user request for better logical flow - source selection should be near the data it generates.
+**Location:** Placed at top of CENTRE panel (above Ensemble Explorer) per user request for better logical flow - source selection should be near the data it generates.
 
 **See Also:** Section "Live Stream Input - Network Support" at end of document for detailed protocol specifications.
 
@@ -139,9 +139,9 @@
 | Hex Viewer | Frame raw data | ✅ Available | HexViewerFormatter (working) |
 | ETSI Compliance | Validation | ✅ Available | ETSIComplianceEngine |
 
-**Implementation:** Already implemented, enhance with multi-color highlighting.
+**Implementation:** Already implemented, enhance with multi-colour highlighting.
 
-#### 9. Subchannel Organization (QTableWidget)
+#### 9. Subchannel Organisation (QTableWidget)
 | Column | Data Source | Status | Parser |
 |--------|-------------|--------|--------|
 | Checkbox | UI control | ✅ Available | Add checkboxes |
@@ -205,7 +205,7 @@
 |------|--------|--------|----------------|
 | CU per subchannel | FIG 0/1 | ✅ Available | SubChannelInfo sizes |
 | Total CUs | Sum | ✅ Available | Max 864 CUs for Mode 1 |
-| Color coding | UI | ✅ Available | Custom QWidget or QChartView |
+| Colour coding | UI | ✅ Available | Custom QWidget or QChartView |
 
 **Implementation:** Create custom widget or use QtCharts.
 
@@ -227,7 +227,7 @@
 
 ---
 
-## Tab 2: FIC-Analyzer - Data Availability
+## Tab 2: FIC-Analyser - Data Availability
 
 ### LEFT PANEL
 
@@ -257,11 +257,11 @@
 | FIDC | FIG 0/3 | ⚠️ Partial |
 | Packet mode | FIG 0/3 | ⚠️ Partial |
 
-**Status:** Core service organization fully available, packet mode needs FIG 0/3 parser enhancement.
+**Status:** Core service organisation fully available, packet mode needs FIG 0/3 parser enhancement.
 
 ---
 
-### CENTER PANEL
+### CENTRE PANEL
 
 #### Ensemble Table (10 columns)
 | Column | Data Source | Status | Parser |
@@ -272,7 +272,7 @@
 | PADDR | Packet address | ✅ Available | FIG 0/2 packet_address |
 | SC1d | Service component | ✅ Available | Component ID |
 | CA | Conditional access | ✅ Available | FIG 0/2 ca_flag |
-| CAOrg | CA organization | ⚠️ Optional | Add if needed |
+| CAOrg | CA organisation | ⚠️ Optional | Add if needed |
 | Bitrate | Bitrate | ✅ Available | Calculate from FIG 0/1 |
 | ASCTy+ | Audio service type | ✅ Available | FIG 0/2 audio_service_type |
 | Info | Additional | ✅ Available | Extra metadata |
@@ -475,7 +475,7 @@ for the exact grammar and the ZMQ publisher expectation.
 - ✅ ETI-NI frame structure parsing (complete)
 - ✅ FIG 0/0, 0/1, 0/2, 1/0, 1/1, 1/4 parsing (all essential FIGs)
 - ✅ Service discovery (DAB and DAB+)
-- ✅ Subchannel organization
+- ✅ Subchannel organisation
 - ✅ DAB Ensemble tree (3-level hierarchy)
 - ✅ DLS+ "Now Playing" metadata
 - ✅ Network stream reception (UDP multicast + TCP raw ETI + ZeroMQ SUB)
@@ -501,7 +501,7 @@ for the exact grammar and the ZMQ publisher expectation.
 ### Phase 1: Core Data Display (Tab 1 + Tab 2) - DAB/DAB+ Focus
 1. ✅ Implement comprehensive Tab 1 with all DAB/DAB+ fields
 2. ✅ Add live stream input panel with UDP / TCP / ZeroMQ support
-3. ✅ Implement Tab 2 FIC-Analyzer with all service/subchannel tables
+3. ✅ Implement Tab 2 FIC-Analyser with all service/subchannel tables
 4. ✅ Remove G.703 fields entirely (not applicable)
 
 ### Phase 2: Advanced Protocol Analysis (Tab 3)
@@ -520,7 +520,7 @@ for the exact grammar and the ZMQ publisher expectation.
 
 ## Conclusion
 
-**We have 95% of the data needed to implement the comprehensive professional DAB/DAB+ analyzer UI!**
+**We have 95% of the data needed to implement the comprehensive professional DAB/DAB+ analyser UI!**
 
 The existing ETI parsers (`ModernETIFrameParser`, `FigParser`, `NetworkStreamReceiver`) provide:
 - ✅ Complete ETI-NI frame parsing (6144-byte frames)
@@ -541,4 +541,4 @@ The existing ETI parsers (`ModernETIFrameParser`, `FigParser`, `NetworkStreamRec
 1. ✅ Implement UI with all available DAB/DAB+ data first (95% ready)
 2. ⚠️ Add bit-level tracking wrapper for Tab 3 protocol details (5% remaining)
 3. ✅ Focus purely on DAB/DAB+ broadcast analysis
-4. 🎯 Show rich, detailed professional analyzer interface matching commercial tools!
+4. 🎯 Show rich, detailed professional analyser interface matching commercial tools!

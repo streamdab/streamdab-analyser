@@ -426,7 +426,7 @@ void UIBackendIntegrationTest::testBroadcastIndustryCompliance()
     qDebug() << "=== Testing Broadcast Industry Compliance ===";
     
     // Test professional UI layout
-    QVERIFY(m_mainWindow->getAnalyzerWidget() != nullptr);
+    QVERIFY(m_mainWindow->getAnalyserWidget() != nullptr);
     QVERIFY(m_mainWindow->getConstellationWidget() != nullptr);
     QVERIFY(m_mainWindow->getServiceBrowser() != nullptr);
     

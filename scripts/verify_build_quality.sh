@@ -5,7 +5,7 @@
 
 set -e
 
-echo "🏗️  ETI Stream Analyzer - Build Quality Verification"
+echo "🏗️  ETI Stream Analyser - Build Quality Verification"
 echo "📋 Policy: ZERO ERROR, ZERO WARNING BUILDS"
 echo "=================================================="
 

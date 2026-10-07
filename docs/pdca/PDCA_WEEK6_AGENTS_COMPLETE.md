@@ -79,7 +79,7 @@
 
 ---
 
-### **Agent 21: FIG 0/14 FEC Sub-channel Organization** ✅
+### **Agent 21: FIG 0/14 FEC Sub-channel Organisation** ✅
 
 **Mission:** Implement FIG 0/14 per ETSI EN 300 401 Section 8.1.5
 
@@ -294,7 +294,7 @@
 
 2. **Build Project** (2-3 min)
    ```bash
-   cd /home/seksan/workspace/streamdab-analyzer/build
+   cd /home/seksan/workspace/streamdab-analyser/build
    cmake --build .
    ```
 

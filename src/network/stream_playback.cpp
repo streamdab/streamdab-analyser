@@ -7,7 +7,7 @@
  * 
  * @author Universal Placeholder Elimination Specialist (Agent 15)
  * @date 2025-09-26
- * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2025 ETI Stream Analyser Team
  */
 
 #include "stream_playback.h"

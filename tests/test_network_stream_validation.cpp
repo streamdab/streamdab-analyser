@@ -554,7 +554,7 @@ QList<QByteArray> TestNetworkStreamValidation::loadFixtureFrames(int count) cons
         QStringLiteral("../../eti/bkk_20062022_141637.eti"),
         QStringLiteral("../eti/bkk_20062022_141637.eti"),
         QStringLiteral("eti/bkk_20062022_141637.eti"),
-        QStringLiteral("/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti"),
+        QStringLiteral(QT_TESTCASE_SOURCEDIR) + QStringLiteral("/../eti/bkk_20062022_141637.eti"),
     };
     QString path;
     for (const QString& c : candidates) {

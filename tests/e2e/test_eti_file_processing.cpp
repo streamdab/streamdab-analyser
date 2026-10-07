@@ -41,7 +41,7 @@
 #include <memory>
 
 #include "gui/main_window.h"
-#include "gui/analyzer_widget.h"
+#include "gui/analyser_widget.h"
 #include "gui/service_browser.h"
 #include "gui/service_explorer_panel.h"
 #include "gui/eti_analysis_widget.h"
@@ -49,14 +49,14 @@
 #include "gui/eti_frame_list_model.h"
 #include "gui/constellation_widget.h"
 #include "core/modern_eti_frame_parser.hpp"
-#include "core/enhanced_fig_analyzer.hpp"
+#include "core/enhanced_fig_analyser.hpp"
 #include "core/comprehensive_etsi_validator.hpp"
 #include "core/performance_profiler.h"
 #include "core/eti_processor.hpp"
 // Internal ETI processing engine integrated into eti_processor.h and eti_processing_engine.h
 #include "core/eti_processing_engine.hpp"
 #include "core/modern_eti_frame_parser.hpp"
-#include "core/enhanced_fig_analyzer.hpp"
+#include "core/enhanced_fig_analyser.hpp"
 #include "utils/logger.h"
 
 class TestETIFileProcessing : public QObject
@@ -116,7 +116,7 @@ private slots:
     
     // Phase 2 Integration Tests: Component Unit Testing
     void testModernFrameParserComponents();
-    void testEnhancedFIGAnalyzerComponents();
+    void testEnhancedFIGAnalyserComponents();
     void testETIProcessingCacheComponents();
     void testPerformanceProfilerComponents();
 
@@ -668,7 +668,7 @@ void TestETIFileProcessing::testIntegratedEngineMode()
     
     // Enable all modern components
     testEngine->enableModernFrameParser(true);
-    testEngine->enableEnhancedFIGAnalyzer(true);
+    testEngine->enableEnhancedFIGAnalyser(true);
     testEngine->enableIntegratedAudioExtractor(true);
     testEngine->enableModernErrorDetector(true);
     
@@ -679,7 +679,7 @@ void TestETIFileProcessing::testIntegratedEngineMode()
     auto config = testEngine->getConfiguration();
     QVERIFY(config.processing_mode == eti::processing::EngineConfiguration::ProcessingMode::HIGH_PERFORMANCE);
     QVERIFY(config.components.use_modern_frame_parser);
-    QVERIFY(config.components.use_enhanced_fig_analyzer);
+    QVERIFY(config.components.use_enhanced_fig_analyser);
     
     Logger::instance().log(Logger::Info, "E2EFileTest", "Integrated Engine Mode validated");
 }
@@ -717,7 +717,7 @@ void TestETIFileProcessing::testGradualMigrationMode()
     
     // Start with legacy components
     testEngine->enableModernFrameParser(false);
-    testEngine->enableEnhancedFIGAnalyzer(false);
+    testEngine->enableEnhancedFIGAnalyser(false);
     
     // Process some frames
     QVERIFY(loadETIFileAndWait(testETIFilePath));
@@ -726,13 +726,13 @@ void TestETIFileProcessing::testGradualMigrationMode()
     testEngine->enableModernFrameParser(true);
     QTest::qWait(100); // Allow migration to take effect
     
-    testEngine->enableEnhancedFIGAnalyzer(true);
+    testEngine->enableEnhancedFIGAnalyser(true);
     QTest::qWait(100);
     
     // Verify migration progress
     const auto& progress = testEngine->getMigrationProgress();
     QVERIFY(progress.components.frame_parser_migrated.load());
-    QVERIFY(progress.components.fig_analyzer_migrated.load());
+    QVERIFY(progress.components.fig_analyser_migrated.load());
     
     Logger::instance().log(Logger::Info, "E2EFileTest", "Gradual Migration Mode validated");
 }
@@ -905,9 +905,9 @@ void TestETIFileProcessing::testFeatureFlagSwitching()
         {"ModernFrameParser", 
          [this](bool enable) { testEngine->enableModernFrameParser(enable); },
          [this]() { return testEngine->getConfiguration().components.use_modern_frame_parser; }},
-        {"EnhancedFIGAnalyzer", 
-         [this](bool enable) { testEngine->enableEnhancedFIGAnalyzer(enable); },
-         [this]() { return testEngine->getConfiguration().components.use_enhanced_fig_analyzer; }},
+        {"EnhancedFIGAnalyser", 
+         [this](bool enable) { testEngine->enableEnhancedFIGAnalyser(enable); },
+         [this]() { return testEngine->getConfiguration().components.use_enhanced_fig_analyser; }},
         {"IntegratedAudioExtractor", 
          [this](bool enable) { testEngine->enableIntegratedAudioExtractor(enable); },
          [this]() { return testEngine->getConfiguration().components.use_integrated_audio_extractor; }},
@@ -1002,18 +1002,18 @@ void TestETIFileProcessing::testModernFrameParserComponents()
     Logger::instance().log(Logger::Info, "E2EFileTest", "Modern Frame Parser components validated");
 }
 
-void TestETIFileProcessing::testEnhancedFIGAnalyzerComponents()
+void TestETIFileProcessing::testEnhancedFIGAnalyserComponents()
 {
-    Logger::instance().log(Logger::Info, "E2EFileTest", "Testing Enhanced FIG Analyzer Components");
+    Logger::instance().log(Logger::Info, "E2EFileTest", "Testing Enhanced FIG Analyser Components");
     
-    // Initialize engine with enhanced FIG analyzer enabled
+    // Initialize engine with enhanced FIG analyser enabled
     QVERIFY(initializeTestEngine(eti::processing::EngineConfiguration::ProcessingMode::HIGH_PERFORMANCE));
-    testEngine->enableEnhancedFIGAnalyzer(true);
+    testEngine->enableEnhancedFIGAnalyser(true);
     
     // Test FIG analysis functionality
     QVERIFY(loadETIFileAndWait(testETIFilePath));
     
-    Logger::instance().log(Logger::Info, "E2EFileTest", "Enhanced FIG Analyzer components validated");
+    Logger::instance().log(Logger::Info, "E2EFileTest", "Enhanced FIG Analyser components validated");
 }
 
 void TestETIFileProcessing::testETIProcessingCacheComponents()

@@ -13,7 +13,7 @@
  * @author Agent 21 - Standards Compliance Perfection Specialist
  * @date 2025-09-26
  * @version 1.0.0
- * @copyright Professional Broadcast Solutions - StreamDAB Analyzer
+ * @copyright Professional Broadcast Solutions - StreamDAB Analyser
  */
 
 #include "standards_compliance_perfection.hpp"
@@ -97,7 +97,7 @@ QString StandardComplianceEvidence::generate_certification_document() const {
     doc << "Commercial Deployment: " << (commercial_deployment_approved ? "YES" : "NO") << "\\n";
     
     doc << "\\n===============================================\\n";
-    doc << "StreamDAB Analyzer Professional - Standards Compliance Framework\\n";
+    doc << "StreamDAB Analyser Professional - Standards Compliance Framework\\n";
     doc << "Certificate ID: " << QUuid::createUuid().toString().toStdString() << "\\n";
     doc << "===============================================\\n";
     
@@ -1285,7 +1285,7 @@ QString StandardsCompliancePerfectionFramework::PerfectComplianceResult::generat
     cert << "===============================================\\n";
     cert << "    MASTER STANDARDS COMPLIANCE CERTIFICATE\\n";
     cert << "    10.0/10.0 PERFECT COMPLIANCE ACHIEVED\\n";
-    cert << "    StreamDAB Analyzer Professional\\n";
+    cert << "    StreamDAB Analyser Professional\\n";
     cert << "===============================================\\n\\n";
     
     cert << "OVERALL COMPLIANCE SCORE: " << calculate_overall_score() << "/10.0\\n";
@@ -1508,7 +1508,7 @@ QString generate_professional_header(const QString& standard_name) {
         "===============================================\\n"
         "    %1 COMPLIANCE VALIDATION\\n"
         "    Professional Standards Framework\\n"
-        "    StreamDAB Analyzer Professional\\n"
+        "    StreamDAB Analyser Professional\\n"
         "==============================================="
     ).arg(standard_name);
 }

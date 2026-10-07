@@ -11,7 +11,7 @@
  * 
  * @author Network/Stream Agent - TDD Lead
  * @date 2025-09-22
- * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2025 ETI Stream Analyser Team
  */
 
 #include <gtest/gtest.h>
@@ -44,7 +44,7 @@ using namespace testing;
 class MockBroadcastEquipment {
 public:
     enum class EquipmentType {
-        ELECARD_STREAM_ANALYZER,
+        ELECARD_STREAM_ANALYSER,
         DEKTEC_MODULATOR,
         ROHDE_SCHWARZ_MONITOR,
         LINEAR_SYSTEMS_TRANSMITTER,
@@ -144,7 +144,7 @@ public:
 private:
     void initializeEquipmentProfile() {
         switch (m_type) {
-            case EquipmentType::ELECARD_STREAM_ANALYZER:
+            case EquipmentType::ELECARD_STREAM_ANALYSER:
                 m_vendor = "Elecard";
                 m_model = "StreamEye Studio";
                 m_firmwareVersion = "4.2.1";
@@ -278,7 +278,7 @@ private:
     
     QString getEquipmentTypeName() const {
         switch (m_type) {
-            case EquipmentType::ELECARD_STREAM_ANALYZER: return "stream_analyzer";
+            case EquipmentType::ELECARD_STREAM_ANALYSER: return "stream_analyser";
             case EquipmentType::DEKTEC_MODULATOR: return "modulator";
             case EquipmentType::ROHDE_SCHWARZ_MONITOR: return "rf_monitor";
             case EquipmentType::LINEAR_SYSTEMS_TRANSMITTER: return "transmitter";
@@ -362,7 +362,7 @@ protected:
     void setupTestEquipment() {
         // Create various broadcast equipment types
         mockEquipment.push_back(std::make_unique<MockBroadcastEquipment>(
-            MockBroadcastEquipment::EquipmentType::ELECARD_STREAM_ANALYZER,
+            MockBroadcastEquipment::EquipmentType::ELECARD_STREAM_ANALYSER,
             "192.168.1.100", 8080
         ));
         
@@ -487,7 +487,7 @@ TEST_F(BroadcastEquipmentIntegrationTest, EquipmentDiscovery_ShouldFindBroadcast
         discoveredTypes.append(equipmentInfo.equipment_type);
     }
     
-    EXPECT_TRUE(discoveredTypes.contains("stream_analyzer"));
+    EXPECT_TRUE(discoveredTypes.contains("stream_analyser"));
     EXPECT_TRUE(discoveredTypes.contains("modulator"));
     EXPECT_TRUE(discoveredTypes.contains("rf_monitor"));
     EXPECT_TRUE(discoveredTypes.contains("transmitter"));
@@ -606,7 +606,7 @@ TEST_F(BroadcastEquipmentIntegrationTest, HealthMonitoring_ShouldTrackEquipmentS
 /**
  * @brief Test Elecard StreamEye integration
  */
-TEST_F(BroadcastEquipmentIntegrationTest, ElecardIntegration_ShouldIntegrateWithStreamAnalyzer) {
+TEST_F(BroadcastEquipmentIntegrationTest, ElecardIntegration_ShouldIntegrateWithStreamAnalyser) {
     // ARRANGE
     auto elecardEquipment = std::find_if(mockEquipment.begin(), mockEquipment.end(),
         [](const std::unique_ptr<MockBroadcastEquipment>& eq) {
@@ -624,7 +624,7 @@ TEST_F(BroadcastEquipmentIntegrationTest, ElecardIntegration_ShouldIntegrateWith
     // ACT - Test Elecard-specific integration
     QString elecardIP = "192.168.1.100";
     bool connectionResult = broadcastInterface->connectToEquipment(
-        elecardIP, BroadcastInterface::EquipmentType::ELECARD_ANALYZER
+        elecardIP, BroadcastInterface::EquipmentType::ELECARD_ANALYSER
     );
     
     ASSERT_TRUE(connectionResult);

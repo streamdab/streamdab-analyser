@@ -235,7 +235,7 @@ Categories:
 **Phase 3: Optional FIG Expansion** 🔄 **READY TO BEGIN**
 - FIG 0/8: Service Component Global Definition
 - FIG 0/9: Country/LTO/International Table
-- FIG 0/14: FEC Sub-channel Organization
+- FIG 0/14: FEC Sub-channel Organisation
 - **Recommendation:** Implement 1-2 FIG types to maintain PDCA velocity
 
 ---

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 StreamDAB Analyzer Project
+// Copyright (c) 2025 StreamDAB Analyser Project
 //
 // EDI Protocol Type Definitions (ETSI TS 102 693)
 //

@@ -114,7 +114,7 @@ New Flow (WORKING):
 │   ├─ Frame 27+:  ✅ Emitted (all frames with FIC)               │
 │   │                                                             │
 │   └─> main.cpp onFrameProcessed(frame)                         │
-│       └─> m_figAnalyzer->analyzeFICData(frame.fic_data)        │
+│       └─> m_figAnalyser->analyzeFICData(frame.fic_data)        │
 │           └─> processFIG1_1() extracts service labels          │
 │               └─> Services show their REAL NAMES! ✅           │
 └─────────────────────────────────────────────────────────────────┘
@@ -124,11 +124,11 @@ New Flow (WORKING):
 
 ## 📊 IMPACT METRICS
 
-| Metric | Old Behavior | New Behavior |
+| Metric | Old Behaviour | New Behaviour |
 |--------|--------------|--------------|
 | **Frames Emitted** | 52 frames (1, 100, 200, ..., 5001) | ~5001 frames (all with FIC) |
 | **Frame 26 Status** | ❌ SKIPPED | ✅ PROCESSED |
-| **FIG 1/1 Labels** | ❌ Never reached FIG analyzer | ✅ Processed correctly |
+| **FIG 1/1 Labels** | ❌ Never reached FIG analyser | ✅ Processed correctly |
 | **Service Names** | "unnamed service" | ✅ Real service labels displayed |
 | **Console Output** | "FIG 1/1 processing yes" (misleading) | Full label extraction |
 
@@ -172,16 +172,16 @@ FIG parsing:
 
 ### Build:
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
-make DABAnalyzer_Enhanced_FilteringBuild
+cd /home/seksan/workspace/streamdab-analyser/build
+make DABAnalyser_Enhanced_FilteringBuild
 ```
 
 **Status:** ✅ Build successful (executable: 1.9 MB)
 
 ### Run Application:
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer
-./build/StreamDABAnalyzer
+cd /home/seksan/workspace/streamdab-analyser
+./build/StreamDABAnalyser
 ```
 
 ### Test with Bangkok ETI file:
@@ -195,7 +195,7 @@ cd /home/seksan/workspace/streamdab-analyzer
 Look for these log messages:
 ```
 EnhancedETIProcessorQt: Emitting frameProcessed signal for frame 26 FIC size: 96
-[DEBUG] FIC data passed to analyzer, count: 26 frame: 26 size: 96
+[DEBUG] FIC data passed to analyser, count: 26 frame: 26 size: 96
 FIG 1/1: Service 0x3f32 label = [Thai text] | Short = [...]
 ```
 
@@ -209,16 +209,16 @@ FIG 1/1: Service 0x3f32 label = [Thai text] | Short = [...]
 ### Key Functions:
 1. **`processEtiFrame()`** - Parses ETI frame, extracts FIC
 2. **NEW LOGIC** - Emits `frameProcessed` for ALL frames with valid FIC
-3. **`onFrameProcessed()`** (main.cpp) - Receives frame, passes FIC to analyzer
-4. **`analyzeFICData()`** (advanced_fig_analyzer.cpp) - Processes FIG 1/1 labels
+3. **`onFrameProcessed()`** (main.cpp) - Receives frame, passes FIC to analyser
+4. **`analyzeFICData()`** (advanced_fig_analyser.cpp) - Processes FIG 1/1 labels
 
 ### Signal/Slot Chain (NOW COMPLETE):
 ```
 EnhancedETIProcessorQt::processEtiFrame()
   └─> emit frameProcessed(frame)  [ALL FRAMES WITH FIC]
       └─> main.cpp::onFrameProcessed(frame)
-          └─> m_figAnalyzer->analyzeFICData(frame.fic_data)
-              └─> AdvancedFIGAnalyzer::processFIG1_1()
+          └─> m_figAnalyser->analyzeFICData(frame.fic_data)
+              └─> AdvancedFIGAnalyser::processFIG1_1()
                   └─> m_serviceLabels[service_id] = label
                       └─> emit serviceLabelUpdated()
                           └─> GUI updates service names ✅
@@ -277,14 +277,14 @@ Tab 1 - DAB Ensemble Explorer:
 1. ✅ Build completes successfully
 2. ✅ Application launches without errors
 3. 🧪 **Load Bangkok ETI file and verify service names appear**
-4. 🧪 Check Tab 2 FIG Analyzer shows FIG 1/1 data
+4. 🧪 Check Tab 2 FIG Analyser shows FIG 1/1 data
 5. 🧪 Verify hex viewer works when selecting frames
 6. 🧪 Verify frame list shows all frames (not just every 100th)
 
 **Next User Action:**
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer
-./build/StreamDABAnalyzer
+cd /home/seksan/workspace/streamdab-analyser
+./build/StreamDABAnalyser
 # Load: eti/bkk_20062022_141637.eti
 # Check: Tab 1 - Services should now show their REAL NAMES! 🎉
 ```

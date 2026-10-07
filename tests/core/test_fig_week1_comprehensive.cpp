@@ -18,7 +18,7 @@
  *
  * @author QA Testing Specialist (Agent 3)
  * @date 2025-10-28
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #include <QtTest/QtTest>

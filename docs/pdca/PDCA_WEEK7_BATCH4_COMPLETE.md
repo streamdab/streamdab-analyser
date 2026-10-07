@@ -330,7 +330,7 @@ Target 100%:    █████████████████████�
 **Goal:** Deploy with 20/22 fully functional FIG types
 **Rationale:** All critical types working, FIG 0/7 is non-critical
 **Effort:** 0 hours (ready now)
-**Impact:** Production-ready DAB/DAB+ analyzer
+**Impact:** Production-ready DAB/DAB+ analyser
 
 ### **Option 2: Final Debug Session for FIG 0/7**
 **Goal:** Achieve 95% compliance (21/22 types)

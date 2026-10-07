@@ -16,7 +16,7 @@
 #include <QSettings>
 #include <QString>
 #include <QStringList>
-#include "../core/analyzer_settings.hpp"
+#include "../core/analyser_settings.hpp"
 
 /**
  * @class SettingsDialog
@@ -30,7 +30,7 @@
  *   - Processing : dashboard sampler update rate (Hz) + network receiver buffer
  *   - Audio      : output device / mute / volume (shared with the T34 Audio tab)
  *   - Advanced   : log level (Logger)
- *   - Analyzer   : analyzer/decode options (already wired, unchanged)
+ *   - Analyser   : analyser/decode options (already wired, unchanged)
  *
  * Controls with no backend were deleted: theme, auto-save + interval,
  * display colours/font, real-time processing, hardware acceleration,
@@ -47,7 +47,7 @@ public:
         Processing,   // the "Processing" tab (sampler rate + network buffer)
         Audio,
         Advanced,
-        Analyzer
+        Analyser
     };
 
     explicit SettingsDialog(QWidget *parent = nullptr);
@@ -117,8 +117,8 @@ public:
 signals:
     /** @brief Emitted after settings are saved (OK or Apply). */
     void settingsChanged();
-    /** @brief Emitted when the Analyzer / Decode options change. */
-    void analyzerSettingsChanged();
+    /** @brief Emitted when the Analyser / Decode options change. */
+    void analyserSettingsChanged();
     /** @brief Emitted when a specific category changes (reserved). */
     void categoryChanged(SettingsCategory category);
 
@@ -136,7 +136,7 @@ private:
     void createAnalysisTab();
     void createAudioTab();
     void createAdvancedTab();
-    void createAnalyzerTab();
+    void createAnalyserTab();
 
     // UI components
     QTabWidget *m_tabWidget = nullptr;
@@ -163,8 +163,8 @@ private:
     QWidget *m_advancedTab = nullptr;
     QComboBox *m_logLevelCombo = nullptr;
 
-    // Analyzer / Decode options tab (option-variant matrix rows 1-14)
-    QWidget *m_analyzerTab = nullptr;
+    // Analyser / Decode options tab (option-variant matrix rows 1-14)
+    QWidget *m_analyserTab = nullptr;
     // Row A (charset)
     QSpinBox *m_forceCharsetSpin = nullptr;
     QComboBox *m_charsetFallbackCombo = nullptr;

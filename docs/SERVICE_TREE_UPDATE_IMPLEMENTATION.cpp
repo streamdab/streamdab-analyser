@@ -3,18 +3,18 @@
  * @brief Qt6 Service Tree Population with Real DAB Services
  *
  * Implementation code for updating the hierarchical service tree widget
- * with real discovered DAB services from AdvancedFIGAnalyzer.
+ * with real discovered DAB services from AdvancedFIGAnalyser.
  *
- * Integration point: /home/seksan/workspace/streamdab-analyzer/src/main.cpp
+ * Integration point: /home/seksan/workspace/streamdab-analyser/src/main.cpp
  *
  * Components to modify:
  * 1. Add updateHierarchicalServiceTree() method (replaces hardcoded simulation)
- * 2. Connect to servicesUpdated() signal from AdvancedFIGAnalyzer
+ * 2. Connect to servicesUpdated() signal from AdvancedFIGAnalyser
  * 3. Add service item icons and formatting
  * 4. Update onServiceDiscovered() to use hierarchical tree
  *
- * @see AdvancedFIGAnalyzer::getDABServices()
- * @see AdvancedFIGAnalyzer::getCurrentEnsemble()
+ * @see AdvancedFIGAnalyser::getDABServices()
+ * @see AdvancedFIGAnalyser::getCurrentEnsemble()
  */
 
 #include <QTreeWidget>
@@ -25,17 +25,17 @@
 #include <QtCore/QDebug>
 
 // ============================================================================
-// STEP 1: Add new method declarations to DABAnalyzerWindow class
+// STEP 1: Add new method declarations to DABAnalyserWindow class
 // ============================================================================
 
-// INSERT THESE DECLARATIONS in the private slots section of DABAnalyzerWindow class
+// INSERT THESE DECLARATIONS in the private slots section of DABAnalyserWindow class
 // (around line 1411, after onServiceDiscovered)
 
 private slots:
     /**
      * @brief Update hierarchical service tree with real discovered DAB services
      *
-     * Called when FIG analyzer completes service discovery via servicesUpdated() signal.
+     * Called when FIG analyser completes service discovery via servicesUpdated() signal.
      * Populates both m_hierarchicalServiceTree and m_ensembleTree with real data.
      *
      * Tree structure:
@@ -51,7 +51,7 @@ private slots:
     /**
      * @brief Handle real-time service updates from FIG processing
      *
-     * Connected to AdvancedFIGAnalyzer::servicesUpdated() signal.
+     * Connected to AdvancedFIGAnalyser::servicesUpdated() signal.
      * Triggers immediate tree refresh with new service data.
      */
     void onServicesUpdated();
@@ -74,25 +74,25 @@ private slots:
 // INSERT THIS CODE in setupSignalConnections() method (around line 2268-2270)
 // Add after the existing serviceDiscovered connection:
 
-void DABAnalyzerWindow::setupSignalConnections()
+void DABAnalyserWindow::setupSignalConnections()
 {
     // ... existing connections ...
 
-    // FIG Analyzer signals for service discovery
-    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceDiscovered,
-            this, &DABAnalyzerWindow::onServiceDiscovered);
+    // FIG Analyser signals for service discovery
+    connect(m_figAnalyser.get(), &AdvancedFIGAnalyser::serviceDiscovered,
+            this, &DABAnalyserWindow::onServiceDiscovered);
 
     // NEW: Connect to servicesUpdated signal for batch updates
-    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::servicesUpdated,
-            this, &DABAnalyzerWindow::onServicesUpdated);
+    connect(m_figAnalyser.get(), &AdvancedFIGAnalyser::servicesUpdated,
+            this, &DABAnalyserWindow::onServicesUpdated);
 
     // NEW: Connect to ensembleInfoUpdated signal for ensemble metadata
-    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::ensembleInfoUpdated,
-            this, &DABAnalyzerWindow::updateHierarchicalServiceTree);
+    connect(m_figAnalyser.get(), &AdvancedFIGAnalyser::ensembleInfoUpdated,
+            this, &DABAnalyserWindow::updateHierarchicalServiceTree);
 
     // NEW: Connect service tree selection handler
     connect(m_hierarchicalServiceTree, &QTreeWidget::currentItemChanged,
-            this, &DABAnalyzerWindow::onServiceTreeSelectionChanged);
+            this, &DABAnalyserWindow::onServiceTreeSelectionChanged);
 
     // ... existing connections ...
 }
@@ -107,10 +107,10 @@ void DABAnalyzerWindow::setupSignalConnections()
  * Replaces simulation data with real DAB services from FIG processing.
  * Creates professional tree structure with ensemble -> services -> components hierarchy.
  */
-void DABAnalyzerWindow::updateHierarchicalServiceTree()
+void DABAnalyserWindow::updateHierarchicalServiceTree()
 {
-    if (!m_hierarchicalServiceTree || !m_figAnalyzer) {
-        qWarning() << "updateHierarchicalServiceTree: Null widget or analyzer";
+    if (!m_hierarchicalServiceTree || !m_figAnalyser) {
+        qWarning() << "updateHierarchicalServiceTree: Null widget or analyser";
         return;
     }
 
@@ -126,9 +126,9 @@ void DABAnalyzerWindow::updateHierarchicalServiceTree()
     // Clear existing tree (replace simulation data)
     m_hierarchicalServiceTree->clear();
 
-    // Get real ensemble information from FIG analyzer
-    EnsembleInfo ensemble = m_figAnalyzer->getCurrentEnsemble();
-    std::vector<DABService> services = m_figAnalyzer->getDABServices();
+    // Get real ensemble information from FIG analyser
+    EnsembleInfo ensemble = m_figAnalyser->getCurrentEnsemble();
+    std::vector<DABService> services = m_figAnalyser->getDABServices();
 
     qInfo() << "updateHierarchicalServiceTree: Ensemble ID" << Qt::hex << ensemble.ensembleId
             << "Services:" << services.size();
@@ -244,7 +244,7 @@ void DABAnalyzerWindow::updateHierarchicalServiceTree()
             }
 
             // Get subchannel details from FIG 0/1
-            SubChannelInfo subchInfo = m_figAnalyzer->getSubChannelInfo(component.sub_channel_id);
+            SubChannelInfo subchInfo = m_figAnalyser->getSubChannelInfo(component.sub_channel_id);
 
             QString componentType;
             if (component.transport_mode == 0) {
@@ -375,12 +375,12 @@ void DABAnalyzerWindow::updateHierarchicalServiceTree()
 /**
  * @brief Handle real-time service updates from FIG processing
  *
- * Slot connected to AdvancedFIGAnalyzer::servicesUpdated() signal.
+ * Slot connected to AdvancedFIGAnalyser::servicesUpdated() signal.
  * Triggered when FIG 0/2 discovers new services or updates existing ones.
  */
-void DABAnalyzerWindow::onServicesUpdated()
+void DABAnalyserWindow::onServicesUpdated()
 {
-    qDebug() << "onServicesUpdated: FIG analyzer signals service discovery update";
+    qDebug() << "onServicesUpdated: FIG analyser signals service discovery update";
 
     // Trigger full tree refresh with new service data
     updateHierarchicalServiceTree();
@@ -399,7 +399,7 @@ void DABAnalyzerWindow::onServicesUpdated()
  * Displays detailed information about selected service/component
  * in the extracted information panel or details viewer.
  */
-void DABAnalyzerWindow::onServiceTreeSelectionChanged(
+void DABAnalyserWindow::onServiceTreeSelectionChanged(
     QTreeWidgetItem* current, QTreeWidgetItem* previous)
 {
     Q_UNUSED(previous);
@@ -452,7 +452,7 @@ void DABAnalyzerWindow::onServiceTreeSelectionChanged(
  *
  * NOTE: Modern workflow uses onServicesUpdated() for batch updates.
  */
-void DABAnalyzerWindow::onServiceDiscovered(const ServiceInfo& service)
+void DABAnalyserWindow::onServiceDiscovered(const ServiceInfo& service)
 {
     // Legacy: Add service to m_ensembleTree (for backward compatibility)
     if (m_ensembleTree) {
@@ -493,18 +493,18 @@ void DABAnalyzerWindow::onServiceDiscovered(const ServiceInfo& service)
  * Helper method to populate m_ensembleTree (legacy widget) with real services.
  * Maintains backward compatibility while transitioning to hierarchical tree.
  */
-void DABAnalyzerWindow::updateEnsembleTreeWithRealData()
+void DABAnalyserWindow::updateEnsembleTreeWithRealData()
 {
-    if (!m_ensembleTree || !m_figAnalyzer) {
+    if (!m_ensembleTree || !m_figAnalyser) {
         return;
     }
 
     // Clear existing items
     m_ensembleTree->clear();
 
-    // Get real data from FIG analyzer
-    EnsembleInfo ensemble = m_figAnalyzer->getCurrentEnsemble();
-    std::vector<DABService> services = m_figAnalyzer->getDABServices();
+    // Get real data from FIG analyser
+    EnsembleInfo ensemble = m_figAnalyser->getCurrentEnsemble();
+    std::vector<DABService> services = m_figAnalyser->getDABServices();
 
     // Create ensemble root
     QTreeWidgetItem* ensembleItem = new QTreeWidgetItem();
@@ -562,15 +562,15 @@ private:
 /*
  * INTEGRATION CHECKLIST:
  *
- * □ 1. Add method declarations to DABAnalyzerWindow class (private slots section)
+ * □ 1. Add method declarations to DABAnalyserWindow class (private slots section)
  *      - updateHierarchicalServiceTree()
  *      - onServicesUpdated()
  *      - onServiceTreeSelectionChanged()
  *      - updateEnsembleTreeWithRealData() (private helper)
  *
  * □ 2. Add signal connections in setupSignalConnections() method:
- *      - connect(m_figAnalyzer, &AdvancedFIGAnalyzer::servicesUpdated, ...)
- *      - connect(m_figAnalyzer, &AdvancedFIGAnalyzer::ensembleInfoUpdated, ...)
+ *      - connect(m_figAnalyser, &AdvancedFIGAnalyser::servicesUpdated, ...)
+ *      - connect(m_figAnalyser, &AdvancedFIGAnalyser::ensembleInfoUpdated, ...)
  *      - connect(m_hierarchicalServiceTree, &QTreeWidget::currentItemChanged, ...)
  *
  * □ 3. Copy method implementations to main.cpp:
@@ -596,9 +596,9 @@ private:
  *      - FIG 1/1 → serviceLabelUpdated → (optional) incremental update
  *
  * FILE LOCATIONS:
- * - Implementation target: /home/seksan/workspace/streamdab-analyzer/src/main.cpp
- * - AdvancedFIGAnalyzer header: /home/seksan/workspace/streamdab-analyzer/src/core/advanced_fig_analyzer.h
- * - AdvancedFIGAnalyzer source: /home/seksan/workspace/streamdab-analyzer/src/core/advanced_fig_analyzer.cpp
+ * - Implementation target: /home/seksan/workspace/streamdab-analyser/src/main.cpp
+ * - AdvancedFIGAnalyser header: /home/seksan/workspace/streamdab-analyser/src/core/advanced_fig_analyser.h
+ * - AdvancedFIGAnalyser source: /home/seksan/workspace/streamdab-analyser/src/core/advanced_fig_analyser.cpp
  */
 
 // ============================================================================

@@ -15,17 +15,17 @@
 | Widget | Recommended location | Data source | Effort | Overlap note |
 |---|---|---|---|---|
 | `constellation_widget` | **replace the bottom-strip "Constellation" tab** (currently a dashed placeholder label) | `m_etiProcessor` perf signals — ETI is post-demod, so only the synthetic/`generatePerformanceBasedConstellation()` path is honest | S | supersedes the placeholder |
-| `performance_dashboard` | **replace the thin "Performance" strip tab** (3 labels + progress bar today) | `m_etiProcessor` / `m_figAnalyzer` FPS, memory, ETSI counters | M (adapt legacy types) | clear upgrade of the existing thin tab |
+| `performance_dashboard` | **replace the thin "Performance" strip tab** (3 labels + progress bar today) | `m_etiProcessor` / `m_figAnalyser` FPS, memory, ETSI counters | M (adapt legacy types) | clear upgrade of the existing thin tab |
 | `about_dialog` | **Help → About** (replace `QMessageBox::about`) | static version/system info | S | direct replacement |
 | `real_time_chart_widget` | new bottom-strip tab (next to Performance) | `m_networkReceiver->get_statistics()`, processor FPS/memory | S/M | no current equivalent |
-| `settings_dialog` | new **File → Settings…** | `analyzer_settings.hpp` (already compiled) | M | complements the existing analyzer settings |
-| `service_explorer_panel` (or `service_browser`, pick one) | Tab-1 **DAB Ensemble Explorer** dock / Tab-2 **Service Tree** | `m_figAnalyzer->getDABServices()` | M | duplicates the existing Ensemble Explorer + Tab-2 Service Tree — pick one, do not adopt both |
-| `fig_analysis_widget` | Tab-2 **FIG Content** or a Tab-3 tab | `m_figAnalyzer` | M/L (expects legacy analyzer type) | duplicates Tab-2/3 FIG views |
+| `settings_dialog` | new **File → Settings…** | `analyser_settings.hpp` (already compiled) | M | complements the existing analyser settings |
+| `service_explorer_panel` (or `service_browser`, pick one) | Tab-1 **DAB Ensemble Explorer** dock / Tab-2 **Service Tree** | `m_figAnalyser->getDABServices()` | M | duplicates the existing Ensemble Explorer + Tab-2 Service Tree — pick one, do not adopt both |
+| `fig_analysis_widget` | Tab-2 **FIG Content** or a Tab-3 tab | `m_figAnalyser` | M/L (expects legacy analyser type) | duplicates Tab-2/3 FIG views |
 | `etsi_compliance_monitor` | inner tab of "Hex Viewer / ETSI Compliance" or the Error-Detection strip tab | `ETSIComplianceEngine` + `AdvancedErrorDetector` | M | duplicates existing compliance viewer |
-| `professional_export_manager` | new **File → Export…** | `m_figAnalyzer` services/FIGs, frame store | M | net-new capability |
+| `professional_export_manager` | new **File → Export…** | `m_figAnalyser` services/FIGs, frame store | M | net-new capability |
 | `audio_monitoring_widget` + `audio_decoder_integration` | Tab-1 Transport group (or strip) | blocked on T34 audio-output route | L | needs libfaad output first |
 | infrastructure (`status_manager`, `progress_manager`, `error_indicator_system`, `signal_router`, `configuration_manager`, `real_time_controller`) | behind existing Status/Timing docks | processor signals | L | replaces ad-hoc label updates; low user payoff, high churn |
-| `eti_frame_list_model`, `eti_service_tree_model` | future Tab-3 model/view refactor | `m_figAnalyzer` / parser | L | currently widget-based; models bind to legacy types |
+| `eti_frame_list_model`, `eti_service_tree_model` | future Tab-3 model/view refactor | `m_figAnalyser` / parser | L | currently widget-based; models bind to legacy types |
 
 ## Dead / obsolete → delete (with reason)
 
@@ -37,8 +37,8 @@
 | `optimized_gui_renderer.h`, `ui/main_window.ui` | never implemented / never referenced |
 | `integration_validator.*`, `professional_workflow_manager.*` | QA/orchestrator against a non-existent `MainWindow` API |
 | `streaming_dashboard.*`, `connection_config_dialog.*`, `ui_integration_bridge.*` | built for the uncompiled "StreamingEngine" stack; the app already has its own network toolbar + UDP dialog |
-| `analyzer_widget.*`, `eti_analysis_widget.*` | superseded by the inline Tab-1 layout; still contains TODO stubs |
-| `main_window.h` | duplicate/stale `DABAnalyzerWindow` declaration (real class is in `src/main.cpp`) |
+| `analyser_widget.*`, `eti_analysis_widget.*` | superseded by the inline Tab-1 layout; still contains TODO stubs |
+| `main_window.h` | duplicate/stale `DABAnalyserWindow` declaration (real class is in `src/main.cpp`) |
 | `tests/e2e/CMakeLists.txt:20-33` | orphan list that falsely implies `src/gui` is in the build — clean in the same pass |
 
 ## Recommended disposition

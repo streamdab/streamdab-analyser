@@ -4,7 +4,7 @@
 
 ## Overview
 
-This document provides the complete implementation of FIG 0/17 Programme Type parser for StreamDAB Analyzer per ETSI EN 300 401 Section 8.1.5 and ETSI TS 101 756 Table 10.
+This document provides the complete implementation of FIG 0/17 Programme Type parser for StreamDAB Analyser per ETSI EN 300 401 Section 8.1.5 and ETSI TS 101 756 Table 10.
 
 ## Files Modified
 
@@ -268,7 +268,7 @@ ProgrammeType FigParser::parseFig017_ProgrammeType(const std::vector<uint8_t>& f
 
 ## 3. Test File
 
-**COMPLETE**: `/home/seksan/workspace/streamdab-analyzer/tests/test_fig017_programme_type.cpp`
+**COMPLETE**: `/home/seksan/workspace/streamdab-analyser/tests/test_fig017_programme_type.cpp`
 
 Test coverage:
 - 6 static PTy tests (16/32-bit SId, PTy codes, CC flag, invalid sizes)
@@ -306,7 +306,7 @@ add_test(NAME test_fig017_programme_type COMMAND test_fig017_programme_type)
 ## 5. Build and Test
 
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 
 # Rebuild
 cmake --build . -j4
@@ -357,7 +357,7 @@ All 32 codes (0-31) implemented with lookup table in `getPtyName()` method.
 ## 7. Integration Points
 
 - **FIG 0/1**: Service component + PTy = complete categorization
-- **FIG 0/2**: Service organization + PTy = content classification
+- **FIG 0/2**: Service organisation + PTy = content classification
 - **FIG 0/5**: Dynamic PTy language should match service language
 - **FIG 1/1**: Service labels + PTy = enhanced metadata
 

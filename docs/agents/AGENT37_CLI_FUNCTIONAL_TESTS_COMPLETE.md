@@ -9,10 +9,10 @@
 
 ## Executive Summary
 
-Successfully implemented **25 comprehensive end-to-end functional tests** for CLI mode using QProcess to verify the complete workflow of the streamdab-analyzer executable in headless CLI mode.
+Successfully implemented **25 comprehensive end-to-end functional tests** for CLI mode using QProcess to verify the complete workflow of the streamdab-analyser executable in headless CLI mode.
 
 **File Created:**
-- `/home/seksan/workspace/streamdab-analyzer/tests/test_cli_mode_functional.cpp` (920 lines)
+- `/home/seksan/workspace/streamdab-analyser/tests/test_cli_mode_functional.cpp` (920 lines)
 
 **Test Coverage:**
 - ✅ 25 test methods implemented (100% of target)
@@ -53,7 +53,7 @@ Successfully implemented **25 comprehensive end-to-end functional tests** for CL
 
 ### 3. Error Handling Tests (5 tests)
 
-| Test | Purpose | Expected Behavior |
+| Test | Purpose | Expected Behaviour |
 |------|---------|------------------|
 | `test16_InputFileNotFound` | Non-existent input file | Exit code 2 or 1 (file not found) |
 | `test17_InvalidOutputPath` | Invalid output directory | Exit code != 0 |
@@ -310,7 +310,7 @@ private slots:
     // ... etc
 
 private:
-    QString m_executablePath;     // Path to streamdab-analyzer
+    QString m_executablePath;     // Path to streamdab-analyser
     QTemporaryDir* m_testDir;     // Temp directory for test files
 
     // Helper functions
@@ -375,9 +375,9 @@ add_test(NAME test_cli_mode_functional
          COMMAND test_cli_mode_functional
          WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 
-# Important: This test requires the streamdab-analyzer executable to exist
+# Important: This test requires the streamdab-analyser executable to exist
 # Ensure proper build order
-add_dependencies(test_cli_mode_functional streamdab-analyzer)
+add_dependencies(test_cli_mode_functional streamdab-analyser)
 ```
 
 ---
@@ -387,7 +387,7 @@ add_dependencies(test_cli_mode_functional streamdab-analyzer)
 ### Prerequisites
 
 1. **Executable must exist:**
-   - Path: `${BUILD_DIR}/streamdab-analyzer`
+   - Path: `${BUILD_DIR}/streamdab-analyser`
    - Built with CLI mode support (from Agent 36)
 
 2. **Test data generation:**
@@ -404,7 +404,7 @@ add_dependencies(test_cli_mode_functional streamdab-analyzer)
 
 ```bash
 # From build directory
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 
 # Build test
 cmake --build . --target test_cli_mode_functional
@@ -491,7 +491,7 @@ etsi_compliance:
 
 **Solution:** Add CMake dependency:
 ```cmake
-add_dependencies(test_cli_mode_functional streamdab-analyzer)
+add_dependencies(test_cli_mode_functional streamdab-analyser)
 ```
 
 ### 2. Test Data Simplification
@@ -591,15 +591,15 @@ add_executable(test_cli_mode_functional
     test_cli_mode_functional.cpp
 )
 target_link_libraries(test_cli_mode_functional Qt6::Test Qt6::Core)
-add_dependencies(test_cli_mode_functional streamdab-analyzer)
+add_dependencies(test_cli_mode_functional streamdab-analyser)
 add_test(NAME test_cli_mode_functional COMMAND test_cli_mode_functional)
 ```
 
 ### For CI/CD
 ```yaml
 # Ensure executable is built before tests
-- name: Build StreamDAB Analyzer
-  run: cmake --build build --target streamdab-analyzer
+- name: Build StreamDAB Analyser
+  run: cmake --build build --target streamdab-analyser
 
 - name: Run Functional Tests
   run: ctest --test-dir build -R test_cli_mode_functional --output-on-failure
@@ -620,7 +620,7 @@ Successfully implemented **25 comprehensive E2E functional tests** for CLI mode 
 - Multiple runs stability
 
 **File Location:**
-`/home/seksan/workspace/streamdab-analyzer/tests/test_cli_mode_functional.cpp`
+`/home/seksan/workspace/streamdab-analyser/tests/test_cli_mode_functional.cpp`
 
 **Status:** Ready for integration with main build system once Agent 36 completes CLI mode implementation in main.cpp.
 

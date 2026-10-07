@@ -111,7 +111,7 @@
 
 ---
 
-### **Agent 21: FIG 0/14 FEC Sub-channel Organization**
+### **Agent 21: FIG 0/14 FEC Sub-channel Organisation**
 
 **Test File:** [tests/test_fig014_fec_subchannel.cpp](tests/test_fig014_fec_subchannel.cpp)
 **ETSI Standard:** EN 300 401 Section 8.1.5
@@ -220,7 +220,7 @@
 - ✅ Half-hour timezone support
 - ✅ LTO range validation (-24 to +28)
 
-### **FIG 0/14: FEC Sub-channel Organization**
+### **FIG 0/14: FEC Sub-channel Organisation**
 - ✅ **ETSI EN 300 401 Section 8.1.5** - 100% compliant
 - ✅ Short/Long form parsing
 - ✅ SubChId 6-bit extraction
@@ -402,5 +402,5 @@
 
 **Report Generated:** November 3, 2025
 **Author:** PDCA Multi-Agent Development Framework
-**Project:** StreamDAB Analyzer v1.0+
-**License:** Open Source
+**Project:** StreamDAB Analyser v1.0+
+**Licence:** Open Source

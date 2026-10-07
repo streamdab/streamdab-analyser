@@ -4,7 +4,7 @@
  *
  * Provides unified integration layer connecting all Phase 3A components:
  * - ETI Frame Parser (core ETI processing)
- * - Advanced FIG Analyzer (service discovery)
+ * - Advanced FIG Analyser (service discovery)
  * - DAB+ Stream Validator (audio quality analysis)
  * - MOT Protocol (multimedia object transfer)
  * - EPG Decoder (electronic program guide)
@@ -53,7 +53,7 @@
 
 // Phase 3A Component Headers
 #include "enhanced_eti_processor_qt.h"
-#include "advanced_fig_analyzer.h"
+#include "advanced_fig_analyser.h"
 #include "dabplus_stream_validator.hpp"
 #include "mot_protocol.hpp"
 #include "epg_decoder.hpp"
@@ -75,7 +75,7 @@ namespace eti::integration {
  * ```
  * ETI File/Stream
  *       ↓
- * ETIFrameParser → FIC Data → AdvancedFIGAnalyzer → Service Discovery
+ * ETIFrameParser → FIC Data → AdvancedFIGAnalyser → Service Discovery
  *       ↓
  *       └→ MSC Data → DABPlusStreamValidator → Audio Quality
  *       └→ MSC Data → MOTProtocol → MOT Objects
@@ -162,7 +162,7 @@ public:
     // ========================================================================
 
     ETIFrameParser* etiParser() const { return m_etiParser.get(); }
-    AdvancedFIGAnalyzer* figAnalyzer() const { return m_figAnalyzer; }
+    AdvancedFIGAnalyser* figAnalyser() const { return m_figAnalyser; }
     eti::audio::DABPlusStreamValidator* audioValidator() const { return m_audioValidator; }
     eti::mot::MOTProtocol* motProtocol() const { return m_motProtocol; }
     eti::epg::EPGDecoder* epgDecoder() const { return m_epgDecoder; }
@@ -310,7 +310,7 @@ signals:
     void processingComplete(uint32_t frames_processed);
 
     // ========================================================================
-    // Service Discovery Signals (aggregated from FIG analyzer)
+    // Service Discovery Signals (aggregated from FIG analyser)
     // ========================================================================
 
     /**
@@ -399,7 +399,7 @@ private slots:
     void onFrameProcessed(const ::ProcessedFrame& frame);
 
     // ========================================================================
-    // FIG Analyzer Slots
+    // FIG Analyser Slots
     // ========================================================================
 
     /**
@@ -478,7 +478,7 @@ private:
     // ========================================================================
 
     std::unique_ptr<ETIFrameParser> m_etiParser;
-    AdvancedFIGAnalyzer* m_figAnalyzer;
+    AdvancedFIGAnalyser* m_figAnalyser;
     eti::audio::DABPlusStreamValidator* m_audioValidator;
     eti::mot::MOTProtocol* m_motProtocol;
     eti::epg::EPGDecoder* m_epgDecoder;

@@ -1,6 +1,6 @@
 # PDCA Week 1 Complete - Final Summary Report
 
-**Project:** StreamDAB Analyzer - DAB/DAB+ Broadcast Analysis Tool
+**Project:** StreamDAB Analyser - DAB/DAB+ Broadcast Analysis Tool
 **Methodology:** PDCA (Plan-Do-Check-Act) Multi-Agent Development
 **Date:** October 28, 2025
 **PM Agent:** Project Management & Coordination
@@ -441,6 +441,6 @@ Week 2 is **ready to commence** with:
 
 **Report Compiled By:** PM Agent
 **Date:** October 28, 2025
-**Project:** StreamDAB Analyzer
+**Project:** StreamDAB Analyser
 **Methodology:** PDCA Multi-Agent Development
 **Overall Status:** ✅ **100% SUCCESS**

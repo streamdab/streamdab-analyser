@@ -91,7 +91,7 @@ add_test(NAME test_fig014_fec_subchannel COMMAND test_fig014_fec_subchannel)
 ## 🔨 Build & Test
 
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake --build .
 ./test_fig014_fec_subchannel
 ```

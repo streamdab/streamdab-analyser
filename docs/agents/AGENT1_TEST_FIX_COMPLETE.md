@@ -157,7 +157,7 @@ QVERIFY(label.is_valid);  // Parser works correctly
 - ✅ `test_statistics_update` - Counter increment verification
 
 **8. Setup/Teardown (2 tests)**
-- ✅ `initTestCase` - Parser initialization
+- ✅ `initTestCase` - Parser initialisation
 - ✅ `cleanupTestCase` - Resource cleanup
 
 ---

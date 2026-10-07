@@ -20,7 +20,7 @@ include_directories(
 # Source files from main project needed for tests
 set(CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_eti_processor_qt.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_compliance_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dabplus_stream_validator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dabplus_superframe.cpp
@@ -89,21 +89,21 @@ target_link_libraries(test_fig1_processor
 )
 add_test(NAME test_fig1_processor COMMAND test_fig1_processor)
 
-# GUI decode path: AdvancedFIGAnalyzer FIC/FIB-walk + charset-aware labels
+# GUI decode path: AdvancedFIGAnalyser FIC/FIB-walk + charset-aware labels
 # (real frame-5 FIBs of eti/bkk_20062022_141637.eti, FIB CRC modes, TIS-620 /
-# EBU-Latin charset conversion, analyzer settings wiring).
-add_executable(test_advanced_fig_analyzer
-    test_advanced_fig_analyzer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyzer.cpp
+# EBU-Latin charset conversion, analyser settings wiring).
+add_executable(test_advanced_fig_analyser
+    test_advanced_fig_analyser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyser_settings.cpp
 )
-target_link_libraries(test_advanced_fig_analyzer
+target_link_libraries(test_advanced_fig_analyser
     Qt6::Test
     Qt6::Core
     Threads::Threads
 )
-add_test(NAME test_advanced_fig_analyzer COMMAND test_advanced_fig_analyzer)
+add_test(NAME test_advanced_fig_analyser COMMAND test_advanced_fig_analyser)
 
 # P1 CLI FIG detail wave (docs/fixes/CLI_FIG_COVERAGE.md): per-frame FIG
 # instance trace (--fig-trace) + `figs:`/`fic_health:` YAML sections.
@@ -163,9 +163,9 @@ add_test(NAME test_eti_format_detection COMMAND test_eti_format_detection)
 add_executable(test_eti_ni_parser
     test_eti_ni_parser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyser_settings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_fig_analyser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
@@ -656,7 +656,7 @@ if(CAN_RUN_GUI_TESTS)
     add_executable(test_settings_dialog
         gui/test_settings_dialog.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/gui/settings_dialog.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyser_settings.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
     )
     target_link_libraries(test_settings_dialog
@@ -674,7 +674,7 @@ if(CAN_RUN_GUI_TESTS)
     )
 
     # Test 5: Qt-ADS Docking Layout (v1.3 GUI migration, October 2026)
-    # Compiles the REAL application sources so the actual DABAnalyzerWindow
+    # Compiles the REAL application sources so the actual DABAnalyserWindow
     # (src/main.cpp via GUI_TEST_MODE, main() excluded) can be validated:
     #   4 CDockManagers, 26 docks, 3-column Tab 1, persistence round-trip.
     # Everything the app links, minus src/main.cpp (included by each test file).
@@ -704,9 +704,9 @@ if(CAN_RUN_GUI_TESTS)
     # `#include "main.moc"` needs the moc output that AUTOMOC generates for the
     # app target. Ensure the app target (and its autogen dir) builds first, then
     # expose its autogen include directory.
-    add_dependencies(test_gui_dock_layout DABAnalyzer_Enhanced_FilteringBuild)
+    add_dependencies(test_gui_dock_layout DABAnalyser_Enhanced_FilteringBuild)
     target_include_directories(test_gui_dock_layout PRIVATE
-        ${CMAKE_BINARY_DIR}/DABAnalyzer_Enhanced_FilteringBuild_autogen/include)
+        ${CMAKE_BINARY_DIR}/DABAnalyser_Enhanced_FilteringBuild_autogen/include)
     add_test(NAME test_gui_dock_layout
              COMMAND test_gui_dock_layout)
     set_tests_properties(test_gui_dock_layout PROPERTIES
@@ -742,9 +742,9 @@ if(CAN_RUN_GUI_TESTS)
     target_compile_definitions(test_dock_interactions PRIVATE GUI_TEST_MODE ${T34_AUDIO_DEFINES} ${ZMQ_DEFINES})
     target_include_directories(test_dock_interactions PRIVATE ${T34_AUDIO_INCLUDES})
     # Same main.moc contract as test_gui_dock_layout (see above).
-    add_dependencies(test_dock_interactions DABAnalyzer_Enhanced_FilteringBuild)
+    add_dependencies(test_dock_interactions DABAnalyser_Enhanced_FilteringBuild)
     target_include_directories(test_dock_interactions PRIVATE
-        ${CMAKE_BINARY_DIR}/DABAnalyzer_Enhanced_FilteringBuild_autogen/include)
+        ${CMAKE_BINARY_DIR}/DABAnalyser_Enhanced_FilteringBuild_autogen/include)
     add_test(NAME test_dock_interactions
              COMMAND test_dock_interactions)
     set_tests_properties(test_dock_interactions PROPERTIES
@@ -922,9 +922,9 @@ add_executable(test_cli_main_integration
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/cli/yaml_output_generator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/headless_eti_processor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_eti_processor_qt.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/advanced_fig_analyser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyser_settings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/fig_parser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/ensemble_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dab_service_discovery_engine.cpp
@@ -932,7 +932,7 @@ add_executable(test_cli_main_integration
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/charset_converter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_processor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_fig_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/enhanced_fig_analyser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
 )
@@ -974,7 +974,7 @@ add_test(NAME test_yaml_output_generator COMMAND test_yaml_output_generator)
 add_executable(test_cli_mode_functional
     test_cli_mode_functional.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyser_settings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/etsi_registered_tables.cpp
@@ -988,15 +988,15 @@ target_link_libraries(test_cli_mode_functional
 add_test(NAME test_cli_mode_functional COMMAND test_cli_mode_functional)
 
 # ============================================================================
-# Analyzer Settings Tests (option-variant matrix rows 1-14, settings feature)
+# Analyser Settings Tests (option-variant matrix rows 1-14, settings feature)
 # ============================================================================
 
-# Test: AnalyzerSettings defaults / QSettings round-trip / CLI mapping +
+# Test: AnalyserSettings defaults / QSettings round-trip / CLI mapping +
 #       behavior changes on synthetic data (charset override, NST-1, FIB CRC
 #       ignore, SId display, short labels, ECC override).
-add_executable(test_analyzer_settings
-    test_analyzer_settings.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyzer_settings.cpp
+add_executable(test_analyser_settings
+    test_analyser_settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/analyser_settings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/modern_eti_frame_parser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/performance_profiler.cpp
@@ -1009,12 +1009,12 @@ add_executable(test_analyzer_settings
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/cli/yaml_output_generator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils/logger.cpp
 )
-target_link_libraries(test_analyzer_settings
+target_link_libraries(test_analyser_settings
     Qt6::Test
     Qt6::Core
 )
-add_test(NAME test_analyzer_settings COMMAND test_analyzer_settings)
-set_tests_properties(test_analyzer_settings PROPERTIES TIMEOUT 30)
+add_test(NAME test_analyser_settings COMMAND test_analyser_settings)
+set_tests_properties(test_analyser_settings PROPERTIES TIMEOUT 30)
 
 # ============================================================================
 # T22 Network Stream Validation (URL validator + receiver hardening)

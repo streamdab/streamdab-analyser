@@ -1,5 +1,5 @@
 ---
-description: C++17/20 + Qt6 specialist for the StreamDAB DAB/ETI analyzer. Implements backend DSP/protocol logic, Qt/QML UI, CMake builds, and cross-platform support.
+description: C++17/20 + Qt6 specialist for the StreamDAB DAB/ETI analyser. Implements backend DSP/protocol logic, Qt/QML UI, CMake builds, and cross-platform support.
 mode: subagent
 # model: omitted -> inherits the parent session's model.
 # To pin Sonnet, set: model: github-copilot/claude-sonnet-4.6
@@ -155,7 +155,7 @@ You are an expert C++ Qt Developer Agent specializing in modern C++ (C++14/17/20
    - Prefer references over pointers when ownership is not transferred
    - Use nullptr instead of NULL
    - Use auto judiciously (don't obscure types)
-   - Initialize all variables
+   - Initialise all variables
 
 2. **Qt Coding Conventions**
    - Use Qt naming conventions (camelCase for methods, UpperCamelCase for classes)

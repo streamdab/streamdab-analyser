@@ -80,13 +80,13 @@ make run_etsi_compliance_tests
 ### Debug Mode Testing
 ```bash
 # Run with detailed output
-./eti_analyzer_e2e_tests --gtest_verbose
+./eti_analyser_e2e_tests --gtest_verbose
 
 # Run specific test case
-./eti_analyzer_e2e_tests --gtest_filter="UserWorkflowPatternsTest.FileAnalysisWorkflow"
+./eti_analyser_e2e_tests --gtest_filter="UserWorkflowPatternsTest.FileAnalysisWorkflow"
 
 # Run with XML output for CI/CD
-./eti_analyzer_e2e_tests --gtest_output=xml:e2e_results.xml
+./eti_analyser_e2e_tests --gtest_output=xml:e2e_results.xml
 ```
 
 ## Test Environment
@@ -152,20 +152,20 @@ export ETI_TEST_DATA_DIR="./test_data"
 # Solution: Use virtual display
 export QT_QPA_PLATFORM=offscreen
 # Or install Xvfb: sudo apt-get install xvfb
-xvfb-run -a ./eti_analyzer_e2e_tests
+xvfb-run -a ./eti_analyser_e2e_tests
 ```
 
 **2. Performance Tests Inconsistent**
 ```bash
 # Solution: Ensure stable test environment
 # Close other applications
-# Run with higher priority: nice -n -10 ./eti_analyzer_e2e_tests
+# Run with higher priority: nice -n -10 ./eti_analyser_e2e_tests
 ```
 
 **3. Memory Tests Fail**
 ```bash
 # Solution: Check for memory leaks
-# Run with valgrind: valgrind --leak-check=full ./eti_analyzer_e2e_tests
+# Run with valgrind: valgrind --leak-check=full ./eti_analyser_e2e_tests
 ```
 
 **4. ETSI Tests Cannot Find Test Data**
@@ -183,7 +183,7 @@ Enable verbose logging for debugging:
 export QT_LOGGING_RULES="*.debug=true"
 
 # Google Test verbose mode
-./eti_analyzer_e2e_tests --gtest_verbose
+./eti_analyser_e2e_tests --gtest_verbose
 
 # Custom debug output in tests
 export ETI_DEBUG=1
@@ -253,6 +253,6 @@ This E2E test suite validates the completion of Phase 5.3 objectives:
 
 ---
 
-**Contact**: ETI Stream Analyzer Development Team  
+**Contact**: ETI Stream Analyser Development Team  
 **Project Phase**: 5.3 Professional UI/UX Testing  
 **Status**: Ready for production deployment validation

@@ -2,7 +2,7 @@
 model: claude-sonnet-4-5
 ---
 
-# PM Agent - StreamDAB Analyzer Project Manager
+# PM Agent - StreamDAB Analyser Project Manager
 ## Specialized Agent for Multi-Agent Coordination and Project Management
 
 
@@ -13,7 +13,7 @@ model: claude-sonnet-4-5
 **Name:** pm-agent (Project Manager Agent)
 **Role:** Multi-agent coordinator, task planner, progress tracker
 **Specialization:** C++ Qt6 DAB/ETI broadcast systems, parallel agent orchestration
-**Project:** StreamDAB Analyzer - Professional DAB ETI Analysis Tool
+**Project:** StreamDAB Analyser - Professional DAB ETI Analysis Tool
 
 ---
 
@@ -129,7 +129,7 @@ model: claude-sonnet-4-5
 
 ### Architecture
 ```
-streamdab-analyzer/
+streamdab-analyser/
 ├── src/
 │   ├── main.cpp                 # Qt6 application (2450 lines)
 │   ├── core/                    # ETI/FIG processing
@@ -277,7 +277,7 @@ streamdab-analyzer/
 
 **Agent 5: cpp-qt-developer** (FIG Validation)
 - Task: Fix CRITICAL-006 input validation
-- File: `src/core/advanced_fig_analyzer.cpp`
+- File: `src/core/advanced_fig_analyser.cpp`
 - Estimated: 4 hours
 - Dependencies: None
 - Deliverable: Bounds checking and safe extraction
@@ -882,7 +882,7 @@ Result: Production-ready feature
 ### Example 2: Bug Fix Workflow
 
 ```
-Bug: Memory leak in FIG analyzer (Issue #42)
+Bug: Memory leak in FIG analyser (Issue #42)
 
 STEP 1: FIX (cpp-qt-developer) - 20 min
 └─> Add proper cleanup in destructor
@@ -899,7 +899,7 @@ STEP 5: CODE REVIEW - 5 min
 └─> Verdict: ✅ APPROVED
 
 STEP 7: COMMIT - 2 min
-└─> git commit -m "fix: memory leak in FIG analyzer..."
+└─> git commit -m "fix: memory leak in FIG analyser..."
 
 Total Time: ~45 min
 Result: Bug fixed with regression protection

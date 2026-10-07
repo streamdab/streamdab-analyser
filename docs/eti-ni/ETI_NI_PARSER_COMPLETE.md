@@ -9,7 +9,7 @@
 
 ## 🎯 **EXECUTIVE SUMMARY**
 
-**The StreamDAB Analyzer now fully supports ETI-NI (Network Independent) format** with complete subchannel extraction, automatic format detection, and 99.9% parse success rate.
+**The StreamDAB Analyser now fully supports ETI-NI (Network Independent) format** with complete subchannel extraction, automatic format detection, and 99.9% parse success rate.
 
 ### **Key Achievements:**
 

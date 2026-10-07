@@ -1,6 +1,6 @@
 /**
- * @file enhanced_fig_analyzer.h
- * @brief Enhanced FIG Analyzer with optimized algorithms
+ * @file enhanced_fig_analyser.h
+ * @brief Enhanced FIG Analyser with optimized algorithms
  * 
  * Advanced FIG (Fast Information Group) processing with improved performance
  * and comprehensive ETSI compliance validation. Part of Phase 2 migration
@@ -149,21 +149,21 @@ struct EnhancedEnsembleInfo {
 };
 
 /**
- * @brief Enhanced FIG Analyzer with improved algorithms
+ * @brief Enhanced FIG Analyser with improved algorithms
  * 
  * This class provides high-performance FIG processing with comprehensive
  * ETSI compliance validation and enhanced error detection capabilities.
  * Designed to replace ETISnoop FIGalyser with superior performance.
  */
-class EnhancedFIGAnalyzer : public QObject {
+class EnhancedFIGAnalyser : public QObject {
     Q_OBJECT
 
 public:
-    explicit EnhancedFIGAnalyzer(QObject* parent = nullptr);
-    ~EnhancedFIGAnalyzer();
+    explicit EnhancedFIGAnalyser(QObject* parent = nullptr);
+    ~EnhancedFIGAnalyser();
 
     /**
-     * @brief Initialize the FIG analyzer
+     * @brief Initialize the FIG analyser
      * @param enable_carousel_analysis Enable FIG carousel timing analysis
      * @param enable_thai_support Enable Thai DAB standards support
      * @return true if initialization successful

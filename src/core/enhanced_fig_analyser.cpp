@@ -1,15 +1,15 @@
 /**
- * @file enhanced_fig_analyzer.cpp
- * @brief Enhanced FIG Analyzer Implementation
+ * @file enhanced_fig_analyser.cpp
+ * @brief Enhanced FIG Analyser Implementation
  * 
- * TDD-driven implementation of the Enhanced FIG Analyzer with
+ * TDD-driven implementation of the Enhanced FIG Analyser with
  * comprehensive ETSI compliance validation and Thai DAB support.
  * 
  * @author Standards Compliance Agent (TDD Implementation)
  * @date 2025
  */
 
-#include "enhanced_fig_analyzer.hpp"
+#include "enhanced_fig_analyser.hpp"
 #include "utils/logger.h"
 #include <algorithm>
 #include <cstring>
@@ -18,10 +18,10 @@
 namespace eti::modern {
 
 // ============================================================================
-// EnhancedFIGAnalyzer Implementation
+// EnhancedFIGAnalyser Implementation
 // ============================================================================
 
-EnhancedFIGAnalyzer::EnhancedFIGAnalyzer(QObject* parent)
+EnhancedFIGAnalyser::EnhancedFIGAnalyser(QObject* parent)
     : QObject(parent)
     , analysis_start_time_(std::chrono::steady_clock::now())
     , last_stats_update_(std::chrono::steady_clock::now())
@@ -30,17 +30,17 @@ EnhancedFIGAnalyzer::EnhancedFIGAnalyzer(QObject* parent)
     carousel_analysis_.analysis_start = analysis_start_time_;
     carousel_analysis_.carousel_efficiency = 100.0;
     
-    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
-                          "Enhanced FIG Analyzer created with TDD implementation");
+    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
+                          "Enhanced FIG Analyser created with TDD implementation");
 }
 
-EnhancedFIGAnalyzer::~EnhancedFIGAnalyzer()
+EnhancedFIGAnalyser::~EnhancedFIGAnalyser()
 {
-    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
-                          "Enhanced FIG Analyzer destroyed");
+    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
+                          "Enhanced FIG Analyser destroyed");
 }
 
-bool EnhancedFIGAnalyzer::initialize(bool enable_carousel_analysis, bool enable_thai_support)
+bool EnhancedFIGAnalyser::initialize(bool enable_carousel_analysis, bool enable_thai_support)
 {
     m_carousel_analysis_enabled = enable_carousel_analysis;
     m_thai_support_enabled = enable_thai_support;
@@ -49,8 +49,8 @@ bool EnhancedFIGAnalyzer::initialize(bool enable_carousel_analysis, bool enable_
     // Reset analysis state
     reset();
     
-    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
-                          QString("Enhanced FIG Analyzer initialized: Carousel=%1, Thai=%2, ErrorRecovery=%3")
+    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
+                          QString("Enhanced FIG Analyser initialized: Carousel=%1, Thai=%2, ErrorRecovery=%3")
                           .arg(m_carousel_analysis_enabled ? "Yes" : "No")
                           .arg(m_thai_support_enabled ? "Yes" : "No")
                           .arg(m_error_recovery_enabled ? "Yes" : "No"));
@@ -58,7 +58,7 @@ bool EnhancedFIGAnalyzer::initialize(bool enable_carousel_analysis, bool enable_
     return true;
 }
 
-std::vector<eti::FigBlock> EnhancedFIGAnalyzer::process_fic_data(const eti::EtiFicField& fic_data)
+std::vector<eti::FigBlock> EnhancedFIGAnalyser::process_fic_data(const eti::EtiFicField& fic_data)
 {
     std::vector<eti::FigBlock> fig_blocks;
     
@@ -120,7 +120,7 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::process_fic_data(const eti::EtiF
                     stats_.invalid_figs++;
                     if (m_error_recovery_enabled) {
                         if (attemptErrorRecovery(fig_block)) {
-                            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer",
+                            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser",
                                                   "Recovered from FIG structure error");
                         } else {
                             offset++; // Skip this byte and try next
@@ -170,7 +170,7 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::process_fic_data(const eti::EtiF
         }
 
     } catch (const std::exception& e) {
-        Logger::instance().log(Logger::Error, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Error, "EnhancedFIGAnalyser", 
                               QString("FIC processing error: %1").arg(e.what()));
         stats_.parsing_errors++;
     }
@@ -191,7 +191,7 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::process_fic_data(const eti::EtiF
                                            static_cast<double>(stats_.total_figs_processed);
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("Processed %1 FIG blocks in %2μs")
                           .arg(fig_blocks.size())
                           .arg(static_cast<double>(processing_time.count()) / 1000.0, 0, 'f', 2));
@@ -199,7 +199,7 @@ std::vector<eti::FigBlock> EnhancedFIGAnalyzer::process_fic_data(const eti::EtiF
     return fig_blocks;
 }
 
-bool EnhancedFIGAnalyzer::analyze_fig_block(const eti::FigBlock& fig_block)
+bool EnhancedFIGAnalyser::analyze_fig_block(const eti::FigBlock& fig_block)
 {
     try {
         // Update carousel analysis
@@ -223,7 +223,7 @@ bool EnhancedFIGAnalyzer::analyze_fig_block(const eti::FigBlock& fig_block)
                 stats_.fig_type_2_count++;
                 break;
             default:
-                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                       QString("Unsupported FIG type: %1").arg(fig_block.fig_type));
                 break;
         }
@@ -235,20 +235,20 @@ bool EnhancedFIGAnalyzer::analyze_fig_block(const eti::FigBlock& fig_block)
         return processed;
         
     } catch (const std::exception& e) {
-        Logger::instance().log(Logger::Error, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Error, "EnhancedFIGAnalyser", 
                               QString("FIG analysis error: %1").arg(e.what()));
         stats_.parsing_errors++;
         return false;
     }
 }
 
-std::optional<EnhancedEnsembleInfo> EnhancedFIGAnalyzer::get_current_ensemble() const
+std::optional<EnhancedEnsembleInfo> EnhancedFIGAnalyser::get_current_ensemble() const
 {
     std::shared_lock<std::shared_mutex> lock(data_mutex_);
     return current_ensemble_;
 }
 
-std::vector<EnhancedServiceInfo> EnhancedFIGAnalyzer::get_discovered_services() const
+std::vector<EnhancedServiceInfo> EnhancedFIGAnalyser::get_discovered_services() const
 {
     std::shared_lock<std::shared_mutex> lock(data_mutex_);
     
@@ -262,7 +262,7 @@ std::vector<EnhancedServiceInfo> EnhancedFIGAnalyzer::get_discovered_services() 
     return services;
 }
 
-std::optional<EnhancedServiceInfo> EnhancedFIGAnalyzer::get_service_by_id(uint16_t service_id) const
+std::optional<EnhancedServiceInfo> EnhancedFIGAnalyser::get_service_by_id(uint16_t service_id) const
 {
     std::shared_lock<std::shared_mutex> lock(data_mutex_);
     
@@ -274,13 +274,13 @@ std::optional<EnhancedServiceInfo> EnhancedFIGAnalyzer::get_service_by_id(uint16
     return std::nullopt;
 }
 
-FIGCarouselAnalysis EnhancedFIGAnalyzer::getCarouselAnalysis() const
+FIGCarouselAnalysis EnhancedFIGAnalyser::getCarouselAnalysis() const
 {
     std::shared_lock<std::shared_mutex> lock(data_mutex_);
     return carousel_analysis_;
 }
 
-FIGProcessingStats EnhancedFIGAnalyzer::getProcessingStats() const
+FIGProcessingStats EnhancedFIGAnalyser::getProcessingStats() const
 {
     // Return a copy of the stats (atomic operations ensure consistency)
     FIGProcessingStats stats = stats_;
@@ -295,7 +295,7 @@ FIGProcessingStats EnhancedFIGAnalyzer::getProcessingStats() const
     return stats;
 }
 
-void EnhancedFIGAnalyzer::reset()
+void EnhancedFIGAnalyser::reset()
 {
     std::unique_lock<std::shared_mutex> lock(data_mutex_);
     
@@ -319,16 +319,16 @@ void EnhancedFIGAnalyzer::reset()
     // Reset statistics
     stats_ = FIGProcessingStats{};
     
-    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
-                          "Enhanced FIG Analyzer state reset");
+    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
+                          "Enhanced FIG Analyser state reset");
 }
 
-double EnhancedFIGAnalyzer::getETSIComplianceScore() const
+double EnhancedFIGAnalyser::getETSIComplianceScore() const
 {
     return getProcessingStats().compliance_score;
 }
 
-std::vector<std::string> EnhancedFIGAnalyzer::getComplianceIssues() const
+std::vector<std::string> EnhancedFIGAnalyser::getComplianceIssues() const
 {
     std::shared_lock<std::shared_mutex> lock(data_mutex_);
     return compliance_issues_;
@@ -338,7 +338,7 @@ std::vector<std::string> EnhancedFIGAnalyzer::getComplianceIssues() const
 // FIG Processing Methods
 // ============================================================================
 
-bool EnhancedFIGAnalyzer::processFIG0(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0(const eti::FigBlock& fig)
 {
     uint8_t extension = fig.get_extension();
     
@@ -371,7 +371,7 @@ bool EnhancedFIGAnalyzer::processFIG0(const eti::FigBlock& fig)
         case 25: return processFIG0_25_OtherEnsembleAnnouncement(fig);
         case 26: return processFIG0_26_OtherEnsembleFreq(fig);
         default:
-            Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                                   QString("Unknown FIG 0/%1 - Not in ETSI EN 300 401").arg(extension));
             reportComplianceViolation("ETSI EN 300 401", 
                                     QString("Unknown FIG 0 extension: %1").arg(extension).toStdString(),
@@ -380,7 +380,7 @@ bool EnhancedFIGAnalyzer::processFIG0(const eti::FigBlock& fig)
     }
 }
 
-bool EnhancedFIGAnalyzer::processFIG1(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG1(const eti::FigBlock& fig)
 {
     uint8_t extension = fig.get_extension();
     
@@ -394,7 +394,7 @@ bool EnhancedFIGAnalyzer::processFIG1(const eti::FigBlock& fig)
         case 6: return processFIG1_6_XPADUserAppLabel(fig);
         case 7: return processFIG1_7_RESERVED(fig);
         default:
-            Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                                   QString("Unknown FIG 1/%1 - Not in ETSI EN 300 401").arg(extension));
             reportComplianceViolation("ETSI EN 300 401", 
                                     QString("Unknown FIG 1 extension: %1").arg(extension).toStdString(),
@@ -403,7 +403,7 @@ bool EnhancedFIGAnalyzer::processFIG1(const eti::FigBlock& fig)
     }
 }
 
-bool EnhancedFIGAnalyzer::processFIG2(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG2(const eti::FigBlock& fig)
 {
     uint8_t extension = fig.get_extension();
     
@@ -411,7 +411,7 @@ bool EnhancedFIGAnalyzer::processFIG2(const eti::FigBlock& fig)
         case 0: return processFIG2_0_MOTChannel(fig);
         case 1: return processFIG2_1_MOTService(fig);
         default:
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("Unsupported FIG 2/%1").arg(extension));
             return false;
     }
@@ -421,7 +421,7 @@ bool EnhancedFIGAnalyzer::processFIG2(const eti::FigBlock& fig)
 // FIG Type 0 Processors (Multiplex Configuration Information)
 // ============================================================================
 
-bool EnhancedFIGAnalyzer::processFIG0_0_EnsembleInfo(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_0_EnsembleInfo(const eti::FigBlock& fig)
 {
     if (fig.data.size() < 4) {
         reportComplianceViolation("ETSI EN 300 401", "FIG 0/0: Insufficient data", "Major");
@@ -456,7 +456,7 @@ bool EnhancedFIGAnalyzer::processFIG0_0_EnsembleInfo(const eti::FigBlock& fig)
     
     emit ensembleDiscovered(*current_ensemble_);
     
-    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
                           QString("FIG 0/0: Ensemble ID=0x%1, Country=0x%2")
                           .arg(ensemble.ensemble_id, 4, 16, QChar('0'))
                           .arg(ensemble.country_id, 2, 16, QChar('0')));
@@ -464,7 +464,7 @@ bool EnhancedFIGAnalyzer::processFIG0_0_EnsembleInfo(const eti::FigBlock& fig)
     return true;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_1_SubchannelOrg(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_1_SubchannelOrg(const eti::FigBlock& fig)
 {
     if (fig.data.size() < 3) {
         reportComplianceViolation("ETSI EN 300 401", "FIG 0/1: Insufficient data", "Major");
@@ -519,13 +519,13 @@ bool EnhancedFIGAnalyzer::processFIG0_1_SubchannelOrg(const eti::FigBlock& fig)
         }
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/1: Parsed %1 subchannels").arg(subchannels_parsed));
     
     return subchannels_parsed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_2_ServiceOrg(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_2_ServiceOrg(const eti::FigBlock& fig)
 {
     if (fig.data.size() < 4) {
         reportComplianceViolation("ETSI EN 300 401", "FIG 0/2: Insufficient data", "Major");
@@ -560,13 +560,13 @@ bool EnhancedFIGAnalyzer::processFIG0_2_ServiceOrg(const eti::FigBlock& fig)
         offset += 4;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/2: Parsed %1 services").arg(services_parsed));
     
     return services_parsed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_3_ServiceComponent(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_3_ServiceComponent(const eti::FigBlock& fig)
 {
     if (fig.data.size() < 5) {
         reportComplianceViolation("ETSI EN 300 401", "FIG 0/3: Insufficient data", "Major");
@@ -600,7 +600,7 @@ bool EnhancedFIGAnalyzer::processFIG0_3_ServiceComponent(const eti::FigBlock& fi
         offset += 4;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/3: Parsed %1 components").arg(components_parsed));
     
     return components_parsed > 0;
@@ -610,7 +610,7 @@ bool EnhancedFIGAnalyzer::processFIG0_3_ServiceComponent(const eti::FigBlock& fi
 // Comprehensive FIG 0 Processors (All Extensions 0-26)
 // ============================================================================
 
-bool EnhancedFIGAnalyzer::processFIG0_5_ServiceComponentLang(const eti::FigBlock& fig) 
+bool EnhancedFIGAnalyser::processFIG0_5_ServiceComponentLang(const eti::FigBlock& fig) 
 {
     // FIG 0/5: Service component language (ETSI EN 300 401 Section 8.1.7)
     if (fig.data.size() < 2) {
@@ -618,7 +618,7 @@ bool EnhancedFIGAnalyzer::processFIG0_5_ServiceComponentLang(const eti::FigBlock
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/5: Processing service component language info (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -637,7 +637,7 @@ bool EnhancedFIGAnalyzer::processFIG0_5_ServiceComponentLang(const eti::FigBlock
             // Update existing component with language information
             languages_processed++;
             
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/5: Updated SCID %1 with language code 0x%2")
                                   .arg(scid_ps).arg(language, 2, 16, QChar('0')));
         } else {
@@ -647,7 +647,7 @@ bool EnhancedFIGAnalyzer::processFIG0_5_ServiceComponentLang(const eti::FigBlock
             m_serviceComponents[scid_ps] = comp;
             languages_processed++;
             
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/5: Created SCID %1 with language code 0x%2")
                                   .arg(scid_ps).arg(language, 2, 16, QChar('0')));
         }
@@ -658,7 +658,7 @@ bool EnhancedFIGAnalyzer::processFIG0_5_ServiceComponentLang(const eti::FigBlock
     return languages_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_4_ServiceComponentLink(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_4_ServiceComponentLink(const eti::FigBlock& fig)
 {
     // FIG 0/4: Service component in packet mode with or without CA (ETSI EN 300 401 Section 8.1.6)
     if (fig.data.size() < 5) {
@@ -666,7 +666,7 @@ bool EnhancedFIGAnalyzer::processFIG0_4_ServiceComponentLink(const eti::FigBlock
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/4: Processing service component linking (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -700,7 +700,7 @@ bool EnhancedFIGAnalyzer::processFIG0_4_ServiceComponentLink(const eti::FigBlock
             
             links_processed++;
             
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/4: Linked service 0x%1 to component %2 (SCID=0x%3)")
                                   .arg(service_id, 4, 16, QChar('0'))
                                   .arg(component.sub_channel_id)
@@ -713,7 +713,7 @@ bool EnhancedFIGAnalyzer::processFIG0_4_ServiceComponentLink(const eti::FigBlock
     return links_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_6_ServiceLinking(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_6_ServiceLinking(const eti::FigBlock& fig)
 {
     // FIG 0/6: Service linking information (ETSI EN 300 401 Section 8.1.8)
     if (fig.data.size() < 6) {
@@ -721,7 +721,7 @@ bool EnhancedFIGAnalyzer::processFIG0_6_ServiceLinking(const eti::FigBlock& fig)
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/6: Processing service linking (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -740,7 +740,7 @@ bool EnhancedFIGAnalyzer::processFIG0_6_ServiceLinking(const eti::FigBlock& fig)
             uint16_t id_li = (fig.data[offset + 1] << 8) | fig.data[offset + 2];
             offset += 3;
             
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/6: Service linking IdLI=0x%1, LSN=%2")
                                   .arg(id_li, 4, 16, QChar('0')).arg(lsn));
         } else {
@@ -752,7 +752,7 @@ bool EnhancedFIGAnalyzer::processFIG0_6_ServiceLinking(const eti::FigBlock& fig)
             uint8_t linkage_actuator = fig.data[offset];
             offset++;
             
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/6: Linkage actuator: 0x%1")
                                   .arg(linkage_actuator, 2, 16, QChar('0')));
         }
@@ -761,7 +761,7 @@ bool EnhancedFIGAnalyzer::processFIG0_6_ServiceLinking(const eti::FigBlock& fig)
             uint8_t shd = fig.data[offset];
             offset++;
             
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/6: Soft/Hard flag: 0x%1")
                                   .arg(shd, 2, 16, QChar('0')));
         }
@@ -770,7 +770,7 @@ bool EnhancedFIGAnalyzer::processFIG0_6_ServiceLinking(const eti::FigBlock& fig)
             uint8_t icp = fig.data[offset];
             offset++;
             
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/6: International code point: 0x%1")
                                   .arg(icp, 2, 16, QChar('0')));
         }
@@ -781,7 +781,7 @@ bool EnhancedFIGAnalyzer::processFIG0_6_ServiceLinking(const eti::FigBlock& fig)
     return links_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_7_ConfigurationInfo(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_7_ConfigurationInfo(const eti::FigBlock& fig)
 {
     // FIG 0/7: Configuration information (ETSI EN 300 401 Section 8.1.11)
     if (fig.data.size() < 2) {
@@ -789,7 +789,7 @@ bool EnhancedFIGAnalyzer::processFIG0_7_ConfigurationInfo(const eti::FigBlock& f
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/7: Processing configuration information (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -803,12 +803,12 @@ bool EnhancedFIGAnalyzer::processFIG0_7_ConfigurationInfo(const eti::FigBlock& f
         if (fig.data.size() >= 3) {
             uint8_t other_ensemble_count = fig.data[1];
             
-            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/7: Reconfiguration counter=%1, index=%2, other ensembles=%3")
                                   .arg(reconfig_counter).arg(reconfig_index).arg(other_ensemble_count));
         }
     } else {
-        Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
                               QString("FIG 0/7: Reconfiguration counter=%1, index=%2")
                               .arg(reconfig_counter).arg(reconfig_index));
     }
@@ -816,14 +816,14 @@ bool EnhancedFIGAnalyzer::processFIG0_7_ConfigurationInfo(const eti::FigBlock& f
     // Store configuration information in ensemble
     if (current_ensemble_) {
         // These would be stored in extended ensemble structure
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/7: Updated ensemble configuration info"));
     }
     
     return true;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_11_RegionDefinition(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_11_RegionDefinition(const eti::FigBlock& fig)
 {
     // FIG 0/11: Region definition (ETSI EN 300 401 Section 8.1.17)
     if (fig.data.size() < 3) {
@@ -831,7 +831,7 @@ bool EnhancedFIGAnalyzer::processFIG0_11_RegionDefinition(const eti::FigBlock& f
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/11: Processing region definition (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -845,7 +845,7 @@ bool EnhancedFIGAnalyzer::processFIG0_11_RegionDefinition(const eti::FigBlock& f
         uint8_t lat_long_extent = (fig.data[offset + 1] >> 4) & 0x03;
         uint8_t tii_flag = (fig.data[offset + 1] >> 3) & 0x01;
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/11: Region ID %1, coordinates present: lat=%2, lon=%3")
                               .arg(region_id).arg(latitude_flag).arg(longitude_flag));
         
@@ -855,14 +855,14 @@ bool EnhancedFIGAnalyzer::processFIG0_11_RegionDefinition(const eti::FigBlock& f
         if (latitude_flag && offset + 2 <= fig.data.size()) {
             uint16_t latitude = (fig.data[offset] << 8) | fig.data[offset + 1];
             offset += 2;
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/11: Latitude: %1").arg(latitude));
         }
         
         if (longitude_flag && offset + 2 <= fig.data.size()) {
             uint16_t longitude = (fig.data[offset] << 8) | fig.data[offset + 1];
             offset += 2;
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/11: Longitude: %1").arg(longitude));
         }
         
@@ -872,17 +872,17 @@ bool EnhancedFIGAnalyzer::processFIG0_11_RegionDefinition(const eti::FigBlock& f
     return regions_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_12_RESERVED(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_12_RESERVED(const eti::FigBlock& fig)
 {
     // FIG 0/12: Reserved for future use
     reportComplianceViolation("ETSI EN 300 401", "FIG 0/12: Reserved extension used", "Minor");
-    Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                           QString("FIG 0/12: Reserved extension used (%1 bytes)")
                           .arg(fig.data.size()));
     return false;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_14_FECSubChannelOrg(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_14_FECSubChannelOrg(const eti::FigBlock& fig)
 {
     // FIG 0/14: FEC sub-channel organization (ETSI EN 300 401 Section 8.1.20)
     if (fig.data.size() < 2) {
@@ -890,7 +890,7 @@ bool EnhancedFIGAnalyzer::processFIG0_14_FECSubChannelOrg(const eti::FigBlock& f
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/14: Processing FEC sub-channel organization (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -901,7 +901,7 @@ bool EnhancedFIGAnalyzer::processFIG0_14_FECSubChannelOrg(const eti::FigBlock& f
         uint8_t sub_channel_id = (fig.data[offset] >> 2) & 0x3F;
         uint8_t fec_scheme = fig.data[offset] & 0x03;
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/14: Sub-channel %1, FEC scheme %2")
                               .arg(sub_channel_id).arg(fec_scheme));
         
@@ -918,17 +918,17 @@ bool EnhancedFIGAnalyzer::processFIG0_14_FECSubChannelOrg(const eti::FigBlock& f
     return subchannels_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_15_RESERVED(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_15_RESERVED(const eti::FigBlock& fig)
 {
     // FIG 0/15: Reserved for future use
     reportComplianceViolation("ETSI EN 300 401", "FIG 0/15: Reserved extension used", "Minor");
-    Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                           QString("FIG 0/15: Reserved extension used (%1 bytes)")
                           .arg(fig.data.size()));
     return false;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_16_ProgrammeNumber(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_16_ProgrammeNumber(const eti::FigBlock& fig)
 {
     // FIG 0/16: Programme Number (ETSI EN 300 401 Section 8.1.21)
     if (fig.data.size() < 4) {
@@ -936,7 +936,7 @@ bool EnhancedFIGAnalyzer::processFIG0_16_ProgrammeNumber(const eti::FigBlock& fi
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/16: Processing programme number (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -947,7 +947,7 @@ bool EnhancedFIGAnalyzer::processFIG0_16_ProgrammeNumber(const eti::FigBlock& fi
         uint16_t service_id = (fig.data[offset] << 8) | fig.data[offset + 1];
         uint16_t programme_number = (fig.data[offset + 2] << 8) | fig.data[offset + 3];
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/16: Service 0x%1, Programme Number %2")
                               .arg(service_id, 4, 16, QChar('0')).arg(programme_number));
         
@@ -964,7 +964,7 @@ bool EnhancedFIGAnalyzer::processFIG0_16_ProgrammeNumber(const eti::FigBlock& fi
     return programmes_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_18_Announcement(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_18_Announcement(const eti::FigBlock& fig)
 {
     // FIG 0/18: Announcement support (ETSI EN 300 401 Section 8.1.23)
     if (fig.data.size() < 4) {
@@ -972,7 +972,7 @@ bool EnhancedFIGAnalyzer::processFIG0_18_Announcement(const eti::FigBlock& fig)
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/18: Processing announcement support (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -983,23 +983,23 @@ bool EnhancedFIGAnalyzer::processFIG0_18_Announcement(const eti::FigBlock& fig)
         uint16_t service_id = (fig.data[offset] << 8) | fig.data[offset + 1];
         uint16_t announcement_support = (fig.data[offset + 2] << 8) | fig.data[offset + 3];
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/18: Service 0x%1, Announcement support flags: 0x%2")
                               .arg(service_id, 4, 16, QChar('0'))
                               .arg(announcement_support, 4, 16, QChar('0')));
         
         // Decode announcement types
-        if (announcement_support & 0x8000) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "  - Alarm");
-        if (announcement_support & 0x4000) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "  - Road traffic flash");
-        if (announcement_support & 0x2000) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "  - Transport flash");
-        if (announcement_support & 0x1000) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "  - Warning/Service");
-        if (announcement_support & 0x0800) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "  - News flash");
-        if (announcement_support & 0x0400) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "  - Area weather flash");
-        if (announcement_support & 0x0200) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "  - Event announcement");
-        if (announcement_support & 0x0100) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "  - Special event");
-        if (announcement_support & 0x0080) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "  - Programme information");
-        if (announcement_support & 0x0040) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "  - Sport report");
-        if (announcement_support & 0x0020) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "  - Financial report");
+        if (announcement_support & 0x8000) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "  - Alarm");
+        if (announcement_support & 0x4000) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "  - Road traffic flash");
+        if (announcement_support & 0x2000) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "  - Transport flash");
+        if (announcement_support & 0x1000) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "  - Warning/Service");
+        if (announcement_support & 0x0800) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "  - News flash");
+        if (announcement_support & 0x0400) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "  - Area weather flash");
+        if (announcement_support & 0x0200) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "  - Event announcement");
+        if (announcement_support & 0x0100) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "  - Special event");
+        if (announcement_support & 0x0080) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "  - Programme information");
+        if (announcement_support & 0x0040) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "  - Sport report");
+        if (announcement_support & 0x0020) Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "  - Financial report");
         
         announcements_processed++;
         offset += 4;
@@ -1008,7 +1008,7 @@ bool EnhancedFIGAnalyzer::processFIG0_18_Announcement(const eti::FigBlock& fig)
     return announcements_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_19_AnnouncementSwitch(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_19_AnnouncementSwitch(const eti::FigBlock& fig)
 {
     // FIG 0/19: Announcement switching (ETSI EN 300 401 Section 8.1.24)
     if (fig.data.size() < 4) {
@@ -1016,7 +1016,7 @@ bool EnhancedFIGAnalyzer::processFIG0_19_AnnouncementSwitch(const eti::FigBlock&
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/19: Processing announcement switching (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1030,7 +1030,7 @@ bool EnhancedFIGAnalyzer::processFIG0_19_AnnouncementSwitch(const eti::FigBlock&
         uint8_t region_flag = (fig.data[offset + 3] >> 6) & 0x01;
         uint8_t sub_channel_id = (fig.data[offset + 3] >> 2) & 0x3F;
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/19: Cluster %1, Announcement 0x%2, SubCh %3, New=%4, Region=%5")
                               .arg(cluster_id)
                               .arg(announcement_support, 4, 16, QChar('0'))
@@ -1045,7 +1045,7 @@ bool EnhancedFIGAnalyzer::processFIG0_19_AnnouncementSwitch(const eti::FigBlock&
         if (region_flag && offset < fig.data.size()) {
             uint8_t region_id = fig.data[offset];
             offset++;
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/19: Region ID: %1").arg(region_id));
         }
     }
@@ -1053,7 +1053,7 @@ bool EnhancedFIGAnalyzer::processFIG0_19_AnnouncementSwitch(const eti::FigBlock&
     return switches_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_20_ServiceComponentInfo(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_20_ServiceComponentInfo(const eti::FigBlock& fig)
 {
     // FIG 0/20: Service component information (ETSI EN 300 401 Section 8.1.25)
     if (fig.data.size() < 3) {
@@ -1061,7 +1061,7 @@ bool EnhancedFIGAnalyzer::processFIG0_20_ServiceComponentInfo(const eti::FigBloc
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/20: Processing service component information (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1074,7 +1074,7 @@ bool EnhancedFIGAnalyzer::processFIG0_20_ServiceComponentInfo(const eti::FigBloc
         
         if (offset + 2 + length > fig.data.size()) break;
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/20: Sub-channel %1, info length %2")
                               .arg(sub_channel_id).arg(length));
         
@@ -1083,7 +1083,7 @@ bool EnhancedFIGAnalyzer::processFIG0_20_ServiceComponentInfo(const eti::FigBloc
             std::vector<uint8_t> component_info(fig.data.begin() + offset + 2, 
                                                fig.data.begin() + offset + 2 + length);
             
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/20: Component info for sub-channel %1")
                                   .arg(sub_channel_id));
         }
@@ -1095,7 +1095,7 @@ bool EnhancedFIGAnalyzer::processFIG0_20_ServiceComponentInfo(const eti::FigBloc
     return components_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_21_FrequencyInfo(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_21_FrequencyInfo(const eti::FigBlock& fig)
 {
     // FIG 0/21: Frequency Information (ETSI EN 300 401 Section 8.1.26)
     if (fig.data.size() < 5) {
@@ -1103,7 +1103,7 @@ bool EnhancedFIGAnalyzer::processFIG0_21_FrequencyInfo(const eti::FigBlock& fig)
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/21: Processing frequency information (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1120,7 +1120,7 @@ bool EnhancedFIGAnalyzer::processFIG0_21_FrequencyInfo(const eti::FigBlock& fig)
         uint8_t rm = (range_modulation >> 4) & 0x0F;
         uint8_t fi = range_modulation & 0x0F;
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/21: RM=%1, FI=%2, ID=0x%3, Freq=%4 kHz")
                               .arg(rm).arg(fi)
                               .arg(id_field, 2, 16, QChar('0'))
@@ -1133,7 +1133,7 @@ bool EnhancedFIGAnalyzer::processFIG0_21_FrequencyInfo(const eti::FigBlock& fig)
     return frequencies_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_22_TransmitterIdInfo(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_22_TransmitterIdInfo(const eti::FigBlock& fig)
 {
     // FIG 0/22: Transmitter Identification Information (ETSI EN 300 401 Section 8.1.27)
     if (fig.data.size() < 3) {
@@ -1141,7 +1141,7 @@ bool EnhancedFIGAnalyzer::processFIG0_22_TransmitterIdInfo(const eti::FigBlock& 
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/22: Processing transmitter ID information (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1152,7 +1152,7 @@ bool EnhancedFIGAnalyzer::processFIG0_22_TransmitterIdInfo(const eti::FigBlock& 
         uint8_t main_id = fig.data[offset];
         uint8_t sub_id = fig.data[offset + 1];
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/22: Main ID %1, Sub ID %2")
                               .arg(main_id).arg(sub_id));
         
@@ -1165,7 +1165,7 @@ bool EnhancedFIGAnalyzer::processFIG0_22_TransmitterIdInfo(const eti::FigBlock& 
             uint16_t longitude = (fig.data[offset + 2] << 8) | fig.data[offset + 3];
             offset += 4;
             
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/22: Transmitter location - Lat: %1, Lon: %2")
                                   .arg(latitude).arg(longitude));
         }
@@ -1174,17 +1174,17 @@ bool EnhancedFIGAnalyzer::processFIG0_22_TransmitterIdInfo(const eti::FigBlock& 
     return transmitters_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_23_RESERVED(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_23_RESERVED(const eti::FigBlock& fig)
 {
     // FIG 0/23: Reserved for future use
     reportComplianceViolation("ETSI EN 300 401", "FIG 0/23: Reserved extension used", "Minor");
-    Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                           QString("FIG 0/23: Reserved extension used (%1 bytes)")
                           .arg(fig.data.size()));
     return false;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_24_OtherEnsembleService(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_24_OtherEnsembleService(const eti::FigBlock& fig)
 {
     // FIG 0/24: Other ensemble service (ETSI EN 300 401 Section 8.1.28)
     if (fig.data.size() < 6) {
@@ -1192,7 +1192,7 @@ bool EnhancedFIGAnalyzer::processFIG0_24_OtherEnsembleService(const eti::FigBloc
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/24: Processing other ensemble service (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1204,7 +1204,7 @@ bool EnhancedFIGAnalyzer::processFIG0_24_OtherEnsembleService(const eti::FigBloc
                              (fig.data[offset + 2] << 8) | fig.data[offset + 3];
         uint16_t ensemble_id = (fig.data[offset + 4] << 8) | fig.data[offset + 5];
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/24: Service 0x%1 in ensemble 0x%2")
                               .arg(service_id, 8, 16, QChar('0'))
                               .arg(ensemble_id, 4, 16, QChar('0')));
@@ -1216,7 +1216,7 @@ bool EnhancedFIGAnalyzer::processFIG0_24_OtherEnsembleService(const eti::FigBloc
     return services_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_25_OtherEnsembleAnnouncement(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_25_OtherEnsembleAnnouncement(const eti::FigBlock& fig)
 {
     // FIG 0/25: Other ensemble announcement support (ETSI EN 300 401 Section 8.1.29)
     if (fig.data.size() < 8) {
@@ -1224,7 +1224,7 @@ bool EnhancedFIGAnalyzer::processFIG0_25_OtherEnsembleAnnouncement(const eti::Fi
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/25: Processing other ensemble announcement (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1237,7 +1237,7 @@ bool EnhancedFIGAnalyzer::processFIG0_25_OtherEnsembleAnnouncement(const eti::Fi
         uint16_t ensemble_id = (fig.data[offset + 4] << 8) | fig.data[offset + 5];
         uint16_t announcement_support = (fig.data[offset + 6] << 8) | fig.data[offset + 7];
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/25: Service 0x%1 in ensemble 0x%2, announcements 0x%3")
                               .arg(service_id, 8, 16, QChar('0'))
                               .arg(ensemble_id, 4, 16, QChar('0'))
@@ -1250,7 +1250,7 @@ bool EnhancedFIGAnalyzer::processFIG0_25_OtherEnsembleAnnouncement(const eti::Fi
     return announcements_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_26_OtherEnsembleFreq(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG0_26_OtherEnsembleFreq(const eti::FigBlock& fig)
 {
     // FIG 0/26: Other ensemble frequency information (ETSI EN 300 401 Section 8.1.30)
     if (fig.data.size() < 7) {
@@ -1258,7 +1258,7 @@ bool EnhancedFIGAnalyzer::processFIG0_26_OtherEnsembleFreq(const eti::FigBlock& 
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/26: Processing other ensemble frequency (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1275,7 +1275,7 @@ bool EnhancedFIGAnalyzer::processFIG0_26_OtherEnsembleFreq(const eti::FigBlock& 
         uint8_t rm = (range_modulation >> 4) & 0x0F;
         uint8_t fi = range_modulation & 0x0F;
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/26: Ensemble 0x%1, RM=%2, FI=%3, Freq=%4 kHz")
                               .arg(ensemble_id, 4, 16, QChar('0'))
                               .arg(rm).arg(fi).arg(frequency));
@@ -1287,16 +1287,16 @@ bool EnhancedFIGAnalyzer::processFIG0_26_OtherEnsembleFreq(const eti::FigBlock& 
     return frequencies_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_8_ServiceComponentGlobal(const eti::FigBlock& fig) 
+bool EnhancedFIGAnalyser::processFIG0_8_ServiceComponentGlobal(const eti::FigBlock& fig) 
 {
     // FIG 0/8: Service component global (ETSI EN 300 401 Section 8.1.13)
     if (fig.data.size() < 4) {
-        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                               "FIG 0/8: Insufficient data length");
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/8: Processing service component global definition (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1312,7 +1312,7 @@ bool EnhancedFIGAnalyzer::processFIG0_8_ServiceComponentGlobal(const eti::FigBlo
             uint8_t ls_flag = (fig.data[offset + 4] >> 3) & 0x01;   // Long/Short form flag
             uint8_t sct = fig.data[offset + 4] & 0x3F;              // Service Component Type
             
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/8: SID 0x%1, SCIdS %2, SCT %3, LS %4")
                                   .arg(sid, 8, 16, QChar('0')).arg(scids).arg(sct).arg(ls_flag));
             
@@ -1326,7 +1326,7 @@ bool EnhancedFIGAnalyzer::processFIG0_8_ServiceComponentGlobal(const eti::FigBlo
                 // Note: long_short_flag would be stored in extended structure
                 m_serviceComponents[scids] = comp;
                 
-                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                       QString("FIG 0/8: Updated service component for SID 0x%1, SCIdS %2")
                                       .arg(sid, 8, 16, QChar('0')).arg(scids));
             } else {
@@ -1342,7 +1342,7 @@ bool EnhancedFIGAnalyzer::processFIG0_8_ServiceComponentGlobal(const eti::FigBlo
                 comp.asc_ty = sct;
                 m_serviceComponents[scids] = comp;
                 
-                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                       QString("FIG 0/8: Created new service SID 0x%1 with component SCIdS %2")
                                       .arg(sid, 8, 16, QChar('0')).arg(scids));
             }
@@ -1361,16 +1361,16 @@ bool EnhancedFIGAnalyzer::processFIG0_8_ServiceComponentGlobal(const eti::FigBlo
     return true;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_9_CountryLTOInt(const eti::FigBlock& fig) 
+bool EnhancedFIGAnalyser::processFIG0_9_CountryLTOInt(const eti::FigBlock& fig) 
 {
     // FIG 0/9: Country, LTO and International table (ETSI EN 300 401 Section 8.1.15)
     if (fig.data.size() < 4) {
-        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                               "FIG 0/9: Insufficient data length");
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/9: Processing country/LTO/international table (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1384,7 +1384,7 @@ bool EnhancedFIGAnalyzer::processFIG0_9_CountryLTOInt(const eti::FigBlock& fig)
         uint8_t ensemble_ecc = fig.data[offset + 1];       // Ensemble ECC (Extended Country Code)
         uint8_t international_table_id = fig.data[offset + 2];  // International table ID
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/9: ECC 0x%1, LTO %2 (%3), International table ID 0x%4")
                               .arg(ensemble_ecc, 2, 16, QChar('0'))
                               .arg(ensemble_lto)
@@ -1400,7 +1400,7 @@ bool EnhancedFIGAnalyzer::processFIG0_9_CountryLTOInt(const eti::FigBlock& fig)
             // current_ensemble_->international_table_id = international_table_id;
             // current_ensemble_->lto_unique = lto_unique;
             
-            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                   QString("FIG 0/9: Updated ensemble with ECC=0x%1, LTO=%2")
                                   .arg(ensemble_ecc, 2, 16, QChar('0')).arg(ensemble_lto));
         }
@@ -1416,7 +1416,7 @@ bool EnhancedFIGAnalyzer::processFIG0_9_CountryLTOInt(const eti::FigBlock& fig)
                 uint32_t sid = (fig.data[offset] << 24) | (fig.data[offset + 1] << 16) |
                                (fig.data[offset + 2] << 8) | fig.data[offset + 3];
                 
-                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                       QString("FIG 0/9: Service SID 0x%1 in international table")
                                       .arg(sid, 8, 16, QChar('0')));
                 
@@ -1428,16 +1428,16 @@ bool EnhancedFIGAnalyzer::processFIG0_9_CountryLTOInt(const eti::FigBlock& fig)
     return true;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_10_DateTime(const eti::FigBlock& fig) 
+bool EnhancedFIGAnalyser::processFIG0_10_DateTime(const eti::FigBlock& fig) 
 {
     // FIG 0/10: Date and time (ETSI EN 300 401 Section 8.1.16)
     if (fig.data.size() < 4) {
-        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                               "FIG 0/10: Insufficient data length");
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/10: Processing date and time information (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1469,7 +1469,7 @@ bool EnhancedFIGAnalyzer::processFIG0_10_DateTime(const eti::FigBlock& fig)
     int month = static_cast<int>(m + 3 - 12 * (m / 10));
     int year = static_cast<int>(100 * b + d - 4800 + m / 10);
     
-    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
                           QString("FIG 0/10: Date/Time: %1-%2-%3 %4:%5 UTC (MJD %6) %7%8")
                           .arg(year, 4, 10, QChar('0'))
                           .arg(month, 2, 10, QChar('0'))
@@ -1490,7 +1490,7 @@ bool EnhancedFIGAnalyzer::processFIG0_10_DateTime(const eti::FigBlock& fig)
         // current_ensemble_->leap_second_indicator = lsi;
         
         // For now, just log the information
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/10: Ensemble date/time updated - MJD %1, UTC %2:%3 (valid=%4, LSI=%5)")
                               .arg(mjd).arg(hours).arg(minutes).arg(utc_flag).arg(lsi));
     }
@@ -1498,16 +1498,16 @@ bool EnhancedFIGAnalyzer::processFIG0_10_DateTime(const eti::FigBlock& fig)
     return true;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_13_UserAppInfo(const eti::FigBlock& fig) 
+bool EnhancedFIGAnalyser::processFIG0_13_UserAppInfo(const eti::FigBlock& fig) 
 {
     // FIG 0/13: User application information (ETSI EN 300 401 Section 8.1.19)
     if (fig.data.size() < 5) {
-        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                               "FIG 0/13: Insufficient data length");
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 0/13: Processing user application information (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1520,7 +1520,7 @@ bool EnhancedFIGAnalyzer::processFIG0_13_UserAppInfo(const eti::FigBlock& fig)
         uint8_t scids = (fig.data[offset + 4] >> 4) & 0x0F;  // Service Component ID
         uint8_t num_user_apps = fig.data[offset + 4] & 0x0F; // Number of user applications
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("FIG 0/13: SID 0x%1, SCIdS %2, %3 user applications")
                               .arg(sid, 8, 16, QChar('0')).arg(scids).arg(num_user_apps));
         
@@ -1538,7 +1538,7 @@ bool EnhancedFIGAnalyzer::processFIG0_13_UserAppInfo(const eti::FigBlock& fig)
                 user_app_data_length = fig.data[offset];
                 offset++;
                 
-                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                       QString("FIG 0/13: User App Type 0x%1, Data length %2")
                                       .arg(user_app_type, 4, 16, QChar('0'))
                                       .arg(user_app_data_length));
@@ -1553,7 +1553,7 @@ bool EnhancedFIGAnalyzer::processFIG0_13_UserAppInfo(const eti::FigBlock& fig)
                     
                     m_userApplications[sid].push_back(app_info.toStdString());
                     
-                    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                           QString("FIG 0/13: Added user application for SID 0x%1: %2")
                                           .arg(sid, 8, 16, QChar('0')).arg(app_info));
                 } else {
@@ -1569,7 +1569,7 @@ bool EnhancedFIGAnalyzer::processFIG0_13_UserAppInfo(const eti::FigBlock& fig)
                     
                     m_userApplications[sid].push_back(app_info.toStdString());
                     
-                    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+                    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                                           QString("FIG 0/13: Created new service SID 0x%1 with user application: %2")
                                           .arg(sid, 8, 16, QChar('0')).arg(app_info));
                 }
@@ -1585,10 +1585,10 @@ bool EnhancedFIGAnalyzer::processFIG0_13_UserAppInfo(const eti::FigBlock& fig)
     return true;
 }
 
-bool EnhancedFIGAnalyzer::processFIG0_17_ProgrammeType(const eti::FigBlock& fig) 
+bool EnhancedFIGAnalyser::processFIG0_17_ProgrammeType(const eti::FigBlock& fig) 
 {
     // Simplified implementation
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "FIG 0/17: Programme type (simplified)");
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "FIG 0/17: Programme type (simplified)");
     return true;
 }
 
@@ -1596,7 +1596,7 @@ bool EnhancedFIGAnalyzer::processFIG0_17_ProgrammeType(const eti::FigBlock& fig)
 // FIG Type 1 Processors (Labels)
 // ============================================================================
 
-bool EnhancedFIGAnalyzer::processFIG1_0_EnsembleLabel(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG1_0_EnsembleLabel(const eti::FigBlock& fig)
 {
     if (fig.data.size() < 18) {
         reportComplianceViolation("ETSI EN 300 401", "FIG 1/0: Insufficient data", "Major");
@@ -1620,14 +1620,14 @@ bool EnhancedFIGAnalyzer::processFIG1_0_EnsembleLabel(const eti::FigBlock& fig)
         lock.unlock();
         emit ensembleDiscovered(*current_ensemble_);
         
-        Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
                               QString("FIG 1/0: Ensemble label='%1'").arg(QString::fromStdString(label)));
     }
     
     return true;
 }
 
-bool EnhancedFIGAnalyzer::processFIG1_1_ServiceLabel(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG1_1_ServiceLabel(const eti::FigBlock& fig)
 {
     if (fig.data.size() < 18) {
         reportComplianceViolation("ETSI EN 300 401", "FIG 1/1: Insufficient data", "Major");
@@ -1656,7 +1656,7 @@ bool EnhancedFIGAnalyzer::processFIG1_1_ServiceLabel(const eti::FigBlock& fig)
         
         emit serviceDiscovered(service_copy);
         
-        Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
                               QString("FIG 1/1: Service label='%1' (ID=0x%2)")
                               .arg(QString::fromStdString(label))
                               .arg(service_id, 4, 16, QChar('0')));
@@ -1665,27 +1665,27 @@ bool EnhancedFIGAnalyzer::processFIG1_1_ServiceLabel(const eti::FigBlock& fig)
     return true;
 }
 
-bool EnhancedFIGAnalyzer::processFIG1_2_RESERVED(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG1_2_RESERVED(const eti::FigBlock& fig)
 {
     // FIG 1/2: Reserved for future use
     reportComplianceViolation("ETSI EN 300 401", "FIG 1/2: Reserved extension used", "Minor");
-    Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                           QString("FIG 1/2: Reserved extension used (%1 bytes)")
                           .arg(fig.data.size()));
     return false;
 }
 
-bool EnhancedFIGAnalyzer::processFIG1_3_RESERVED(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG1_3_RESERVED(const eti::FigBlock& fig)
 {
     // FIG 1/3: Reserved for future use
     reportComplianceViolation("ETSI EN 300 401", "FIG 1/3: Reserved extension used", "Minor");
-    Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                           QString("FIG 1/3: Reserved extension used (%1 bytes)")
                           .arg(fig.data.size()));
     return false;
 }
 
-bool EnhancedFIGAnalyzer::processFIG1_4_ServiceComponentLabel(const eti::FigBlock& fig) 
+bool EnhancedFIGAnalyser::processFIG1_4_ServiceComponentLabel(const eti::FigBlock& fig) 
 {
     // FIG 1/4: Service component label (ETSI EN 300 401 Section 8.1.9)
     if (fig.data.size() < 18) {
@@ -1693,7 +1693,7 @@ bool EnhancedFIGAnalyzer::processFIG1_4_ServiceComponentLabel(const eti::FigBloc
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 1/4: Processing service component label (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1715,7 +1715,7 @@ bool EnhancedFIGAnalyzer::processFIG1_4_ServiceComponentLabel(const eti::FigBloc
             
             std::string label = decodeDabText(std::span<const uint8_t>(fig.data.data() + offset + 5, 16), m_thai_support_enabled);
             
-            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
                                   QString("FIG 1/4: Service component label='%1' (SCID=0x%2)")
                                   .arg(QString::fromStdString(label))
                                   .arg(scid, 8, 16, QChar('0')));
@@ -1729,7 +1729,7 @@ bool EnhancedFIGAnalyzer::processFIG1_4_ServiceComponentLabel(const eti::FigBloc
             
             std::string label = decodeDabText(std::span<const uint8_t>(fig.data.data() + offset + 2, 16), m_thai_support_enabled);
             
-            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
                                   QString("FIG 1/4: Service component label='%1' (SCID=0x%2)")
                                   .arg(QString::fromStdString(label))
                                   .arg(scid, 3, 16, QChar('0')));
@@ -1743,7 +1743,7 @@ bool EnhancedFIGAnalyzer::processFIG1_4_ServiceComponentLabel(const eti::FigBloc
     return labels_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG1_5_DataServiceLabel(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG1_5_DataServiceLabel(const eti::FigBlock& fig)
 {
     // FIG 1/5: Data service label (ETSI EN 300 401 Section 8.1.10)
     if (fig.data.size() < 20) {
@@ -1751,7 +1751,7 @@ bool EnhancedFIGAnalyzer::processFIG1_5_DataServiceLabel(const eti::FigBlock& fi
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 1/5: Processing data service label (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1766,7 +1766,7 @@ bool EnhancedFIGAnalyzer::processFIG1_5_DataServiceLabel(const eti::FigBlock& fi
         
         std::string label = decodeDabText(std::span<const uint8_t>(fig.data.data() + offset + 4, 16), m_thai_support_enabled);
         
-        Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
                               QString("FIG 1/5: Data service label='%1' (SID=0x%2)")
                               .arg(QString::fromStdString(label))
                               .arg(service_id, 8, 16, QChar('0')));
@@ -1797,7 +1797,7 @@ bool EnhancedFIGAnalyzer::processFIG1_5_DataServiceLabel(const eti::FigBlock& fi
     return labels_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG1_6_XPADUserAppLabel(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG1_6_XPADUserAppLabel(const eti::FigBlock& fig)
 {
     // FIG 1/6: X-PAD user application label (ETSI EN 300 401 Section 8.1.12)
     if (fig.data.size() < 20) {
@@ -1805,7 +1805,7 @@ bool EnhancedFIGAnalyzer::processFIG1_6_XPADUserAppLabel(const eti::FigBlock& fi
         return false;
     }
     
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                           QString("FIG 1/6: Processing X-PAD user application label (%1 bytes)")
                           .arg(fig.data.size()));
     
@@ -1826,7 +1826,7 @@ bool EnhancedFIGAnalyzer::processFIG1_6_XPADUserAppLabel(const eti::FigBlock& fi
             
             std::string label = decodeDabText(std::span<const uint8_t>(fig.data.data() + offset + 6, 16), m_thai_support_enabled);
             
-            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
                                   QString("FIG 1/6: X-PAD app label='%1' (SCID=0x%2, Type=%3)")
                                   .arg(QString::fromStdString(label))
                                   .arg(scid, 8, 16, QChar('0'))
@@ -1841,7 +1841,7 @@ bool EnhancedFIGAnalyzer::processFIG1_6_XPADUserAppLabel(const eti::FigBlock& fi
             
             std::string label = decodeDabText(std::span<const uint8_t>(fig.data.data() + offset + 3, 16), m_thai_support_enabled);
             
-            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+            Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
                                   QString("FIG 1/6: X-PAD app label='%1' (SCID=0x%2, Type=%3)")
                                   .arg(QString::fromStdString(label))
                                   .arg(scid, 3, 16, QChar('0'))
@@ -1856,11 +1856,11 @@ bool EnhancedFIGAnalyzer::processFIG1_6_XPADUserAppLabel(const eti::FigBlock& fi
     return labels_processed > 0;
 }
 
-bool EnhancedFIGAnalyzer::processFIG1_7_RESERVED(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::processFIG1_7_RESERVED(const eti::FigBlock& fig)
 {
     // FIG 1/7: Reserved for future use
     reportComplianceViolation("ETSI EN 300 401", "FIG 1/7: Reserved extension used", "Minor");
-    Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+    Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                           QString("FIG 1/7: Reserved extension used (%1 bytes)")
                           .arg(fig.data.size()));
     return false;
@@ -1870,17 +1870,17 @@ bool EnhancedFIGAnalyzer::processFIG1_7_RESERVED(const eti::FigBlock& fig)
 // FIG Type 2 Processors (Extended Service Information)
 // ============================================================================
 
-bool EnhancedFIGAnalyzer::processFIG2_0_MOTChannel(const eti::FigBlock& fig) 
+bool EnhancedFIGAnalyser::processFIG2_0_MOTChannel(const eti::FigBlock& fig) 
 {
     // Simplified implementation
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "FIG 2/0: MOT channel (simplified)");
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "FIG 2/0: MOT channel (simplified)");
     return true;
 }
 
-bool EnhancedFIGAnalyzer::processFIG2_1_MOTService(const eti::FigBlock& fig) 
+bool EnhancedFIGAnalyser::processFIG2_1_MOTService(const eti::FigBlock& fig) 
 {
     // Simplified implementation
-    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", "FIG 2/1: MOT service (simplified)");
+    Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", "FIG 2/1: MOT service (simplified)");
     return true;
 }
 
@@ -1888,25 +1888,25 @@ bool EnhancedFIGAnalyzer::processFIG2_1_MOTService(const eti::FigBlock& fig)
 // Utility Methods
 // ============================================================================
 
-bool EnhancedFIGAnalyzer::validateFIGStructure(const eti::FigBlock& fig) const
+bool EnhancedFIGAnalyser::validateFIGStructure(const eti::FigBlock& fig) const
 {
     // Validate FIG type (0-7 valid)
     if (fig.fig_type > 7) {
-        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                               QString("Invalid FIG type: %1").arg(fig.fig_type));
         return false;
     }
     
     // Validate length (0-31 valid)
     if (fig.length > 31) {
-        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                               QString("Invalid FIG length: %1").arg(fig.length));
         return false;
     }
     
     // Ensure data size matches declared length
     if (fig.data.size() != fig.length) {
-        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                               QString("FIG data size mismatch: declared %1, actual %2")
                               .arg(fig.length).arg(fig.data.size()));
         return false;
@@ -1915,7 +1915,7 @@ bool EnhancedFIGAnalyzer::validateFIGStructure(const eti::FigBlock& fig) const
     return true;
 }
 
-bool EnhancedFIGAnalyzer::validateFIGCRC(const eti::FigBlock& fig) const
+bool EnhancedFIGAnalyser::validateFIGCRC(const eti::FigBlock& fig) const
 {
     // Basic FIG CRC validation
     // For now, assume valid if structure is correct
@@ -1923,7 +1923,7 @@ bool EnhancedFIGAnalyzer::validateFIGCRC(const eti::FigBlock& fig) const
     return validateFIGStructure(fig);
 }
 
-std::string EnhancedFIGAnalyzer::decodeDabText(std::span<const uint8_t> data, bool enable_thai) const
+std::string EnhancedFIGAnalyser::decodeDabText(std::span<const uint8_t> data, bool enable_thai) const
 {
     std::string result;
     result.reserve(data.size());
@@ -1970,23 +1970,23 @@ std::string EnhancedFIGAnalyzer::decodeDabText(std::span<const uint8_t> data, bo
     return result;
 }
 
-std::string EnhancedFIGAnalyzer::decodeThaiDabText(std::span<const uint8_t> data) const
+std::string EnhancedFIGAnalyser::decodeThaiDabText(std::span<const uint8_t> data) const
 {
     // Use the main decoder with Thai support enabled
     return decodeDabText(data, true);
 }
 
-bool EnhancedFIGAnalyzer::attemptErrorRecovery(const eti::FigBlock& fig)
+bool EnhancedFIGAnalyser::attemptErrorRecovery(const eti::FigBlock& fig)
 {
     // Simple error recovery - check if we can fix length issues
     if (fig.length == 0 && !fig.data.empty()) {
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               "Attempting error recovery: zero length FIG with data");
         return false; // Cannot recover from this
     }
     
     if (fig.fig_type > 7) {
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               "Attempting error recovery: invalid FIG type");
         return false; // Cannot recover from invalid type
     }
@@ -1994,7 +1994,7 @@ bool EnhancedFIGAnalyzer::attemptErrorRecovery(const eti::FigBlock& fig)
     return true; // Basic recovery possible
 }
 
-void EnhancedFIGAnalyzer::validateCarouselTiming()
+void EnhancedFIGAnalyser::validateCarouselTiming()
 {
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_stats_update_);
@@ -2010,13 +2010,13 @@ void EnhancedFIGAnalyzer::validateCarouselTiming()
         carousel_analysis_.last_update = now;
         last_stats_update_ = now;
         
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("Carousel efficiency: %1%")
                               .arg(carousel_analysis_.carousel_efficiency, 0, 'f', 1));
     }
 }
 
-void EnhancedFIGAnalyzer::updateCarouselAnalysis(uint8_t fig_type, uint8_t extension)
+void EnhancedFIGAnalyser::updateCarouselAnalysis(uint8_t fig_type, uint8_t extension)
 {
     // Track FIG distribution for carousel analysis
     uint16_t fig_key = (static_cast<uint16_t>(fig_type) << 8) | extension;
@@ -2041,7 +2041,7 @@ void EnhancedFIGAnalyzer::updateCarouselAnalysis(uint8_t fig_type, uint8_t exten
     carousel_analysis_.total_fig_count++;
 }
 
-void EnhancedFIGAnalyzer::updateServiceInfo(const eti::DabService& service)
+void EnhancedFIGAnalyser::updateServiceInfo(const eti::DabService& service)
 {
     auto service_it = discovered_services_.find(service.service_id);
     if (service_it != discovered_services_.end()) {
@@ -2066,13 +2066,13 @@ void EnhancedFIGAnalyzer::updateServiceInfo(const eti::DabService& service)
         
         emit serviceDiscovered(enhanced_service);
         
-        Logger::instance().log(Logger::Info, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Info, "EnhancedFIGAnalyser", 
                               QString("New service discovered: ID=0x%1")
                               .arg(service.service_id, 4, 16, QChar('0')));
     }
 }
 
-void EnhancedFIGAnalyzer::mergeServiceComponents(EnhancedServiceInfo& service, const eti::ServiceComponent& component)
+void EnhancedFIGAnalyser::mergeServiceComponents(EnhancedServiceInfo& service, const eti::ServiceComponent& component)
 {
     // Check if component already exists
     bool found = false;
@@ -2096,7 +2096,7 @@ void EnhancedFIGAnalyzer::mergeServiceComponents(EnhancedServiceInfo& service, c
         new_comp.is_protected = (component.protection_level > 0);
         new_comp.protection_level = component.protection_level;
         service.components.push_back(new_comp);
-        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Debug, "EnhancedFIGAnalyser", 
                               QString("Added component to service 0x%1: SubCh=%2, TMID=%3")
                               .arg(service.base_service.service_id, 4, 16, QChar('0'))
                               .arg(component.sub_channel_id)
@@ -2106,7 +2106,7 @@ void EnhancedFIGAnalyzer::mergeServiceComponents(EnhancedServiceInfo& service, c
     service.last_updated = std::chrono::steady_clock::now();
 }
 
-void EnhancedFIGAnalyzer::reportComplianceViolation(const std::string& standard, 
+void EnhancedFIGAnalyser::reportComplianceViolation(const std::string& standard, 
                                                     const std::string& description, 
                                                     const std::string& severity)
 {
@@ -2121,7 +2121,7 @@ void EnhancedFIGAnalyzer::reportComplianceViolation(const std::string& standard,
         compliance_issues_.push_back(issue);
         reported_issues_.insert(issue);
         
-        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyzer", 
+        Logger::instance().log(Logger::Warning, "EnhancedFIGAnalyser", 
                               QString("ETSI Compliance Violation: %1").arg(QString::fromStdString(issue)));
     }
 }

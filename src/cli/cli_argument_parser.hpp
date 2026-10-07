@@ -12,7 +12,7 @@ namespace cli {
 /**
  * @brief CLI options parsed from command-line arguments
  *
- * Stores all command-line configuration options for StreamDAB Analyzer
+ * Stores all command-line configuration options for StreamDAB Analyser
  * CLI mode operation.
  */
 struct CLIOptions {
@@ -36,8 +36,8 @@ struct CLIOptions {
     QStringList fig_filters;        // FIG type filters
 
     // ========================================================================
-    // Analyzer settings flags (option-variant matrix rows 1-14; defaults
-    // mirror the etisnoop-parity behavior — see AnalyzerSettings::defaults()).
+    // Analyser settings flags (option-variant matrix rows 1-14; defaults
+    // mirror the etisnoop-parity behavior — see AnalyserSettings::defaults()).
     // Empty strings / -1 / false mean "not specified, keep the default".
     // ========================================================================
     int force_charset{-1};                 // Row 1: -1 follow stream, 0/3/6 override
@@ -55,15 +55,15 @@ struct CLIOptions {
     QString sid_display_mode;              // Row 12: "hex32"|"ecc-sid"|"hex16"
 
     /**
-     * @brief Build the AnalyzerSettings override map from the flags that were
-     *        explicitly provided. Keys match AnalyzerSettings::applyCliOverrides().
+     * @brief Build the AnalyserSettings override map from the flags that were
+     *        explicitly provided. Keys match AnalyserSettings::applyCliOverrides().
      * @return Sparse map of setting-name -> value (absent = keep default)
      */
-    QMap<QString, QVariant> analyzerOverrides() const;
+    QMap<QString, QVariant> analyserOverrides() const;
 };
 
 /**
- * @brief Command-line argument parser for StreamDAB Analyzer
+ * @brief Command-line argument parser for StreamDAB Analyser
  *
  * Parses and validates CLI arguments with comprehensive error handling.
  * Supports both short and long argument forms, with clear error messages.
@@ -109,7 +109,7 @@ public:
     /**
      * @brief Print version information to stdout
      *
-     * Shows StreamDAB Analyzer version and build information.
+     * Shows StreamDAB Analyser version and build information.
      */
     static void printVersion();
 

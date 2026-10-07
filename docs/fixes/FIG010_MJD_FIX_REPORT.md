@@ -207,12 +207,12 @@ CPU overhead:            Minimal (2 extra bit operations)
 ## Files Modified
 
 **Absolute Paths:**
-1. `/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.cpp` (117 lines modified)
+1. `/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.cpp` (117 lines modified)
    - `parseFig010_DateAndTime()` function (lines 1353-1469)
    - Full 17-bit MJD decoding logic
    - Updated field extraction for LSI, Conf, UTC, Hour, Minute, Second
 
-2. `/home/seksan/workspace/streamdab-analyzer/tests/test_fig010_date_time.cpp` (50 lines modified)
+2. `/home/seksan/workspace/streamdab-analyser/tests/test_fig010_date_time.cpp` (50 lines modified)
    - `createFig010Data()` helper function (lines 99-148)
    - `test_invalid_mjd_overflow()` test (lines 404-417)
    - Full 17-bit MJD encoding logic
@@ -309,7 +309,7 @@ The FIG 0/10 Date/Time MJD encoding fix achieves **100% success** across all met
 - ✅ **100% ETSI compliance** (EN 300 401 Section 8.1.7)
 - ✅ **Zero breaking changes** (backward compatible)
 
-**Impact:** Critical improvement to StreamDAB Analyzer's broadcast clock accuracy and ETSI standards compliance.
+**Impact:** Critical improvement to StreamDAB Analyser's broadcast clock accuracy and ETSI standards compliance.
 
 **Project Status:** ✅ **READY FOR PRODUCTION**
 
@@ -317,4 +317,4 @@ The FIG 0/10 Date/Time MJD encoding fix achieves **100% success** across all met
 
 **Report Generated:** November 4, 2025  
 **Author:** Python Pro (Senior Python Developer Agent)  
-**Project:** StreamDAB Analyzer - FIG 0/10 MJD Fix
+**Project:** StreamDAB Analyser - FIG 0/10 MJD Fix

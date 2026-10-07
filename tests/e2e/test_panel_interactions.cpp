@@ -32,7 +32,7 @@
 
 // Core includes
 #include "gui/main_window.h"
-#include "gui/analyzer_widget.h"
+#include "gui/analyser_widget.h"
 #include "gui/service_browser.h"
 #include "gui/constellation_widget.h"
 #include "gui/eti_service_tree_model.h"
@@ -354,12 +354,12 @@ TEST_F(PanelInteractionTest, MainContentFrameListing) {
     
     // Test frame detail display integration
     if (contentSplitter) {
-        EXPECT_EQ(contentSplitter->count(), 2) << "Content splitter should have analyzer and constellation";
+        EXPECT_EQ(contentSplitter->count(), 2) << "Content splitter should have analyser and constellation";
         
-        auto* analyzerWidget = mainWindow->getAnalyzerWidget();
+        auto* analyserWidget = mainWindow->getAnalyserWidget();
         auto* constellationWidget = mainWindow->getConstellationWidget();
         
-        EXPECT_TRUE(analyzerWidget) << "Analyzer widget should be present";
+        EXPECT_TRUE(analyserWidget) << "Analyser widget should be present";
         EXPECT_TRUE(constellationWidget) << "Constellation widget should be present";
     }
 }

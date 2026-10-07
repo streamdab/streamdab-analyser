@@ -1,4 +1,4 @@
-# INSTALL — StreamDAB-Analyzer
+# INSTALL — StreamDAB-Analyser
 
 Build & install instructions for **DAB-XPlorer** (Qt 6 / C++20 / CMake GUI + CLI).
 Reference runtime: **Qt 6.11 / g++ 13 / Ubuntu** — see the version matrix at the end.
@@ -20,15 +20,17 @@ sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev 
 # Configure — MUST export offscreen BEFORE configure so GUI tests register
 export QT_QPA_PLATFORM=offscreen
 cmake -B build -S .          # or: -G Ninja
-cmake --build build --parallel "$(bash scripts/build_jobs.sh)"
+JOBS="$(bash scripts/build_jobs.sh)"          # bounded: min(nproc, RAM_GB/2, 8)
+export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"     # nested cmake/make honour this too
+cmake --build build --parallel "$JOBS"        # NEVER a bare -j (that is unbounded)
 
-# Test (all 49 targets)
+# Test (all 55 targets)
 cd build && ctest --output-on-failure
 
 # Run
-./build/StreamDABAnalyzer                          # GUI (needs display)
+./build/StreamDABAnalyser                          # GUI (needs display)
 ./build/streamdab-cli --input eti/x.eti --output out.yaml   # CLI (headless ok)
-./build/StreamDABAnalyzer --cli --input eti/x.eti  # CLI mode via the GUI binary
+./build/StreamDABAnalyser --cli --input eti/x.eti  # CLI mode via the GUI binary
 ```
 
 ### Build parallelism (avoid over-forking)
@@ -36,22 +38,25 @@ cd build && ctest --output-on-failure
 `-j$(nproc)` is **not** safe on many-core machines: each `g++` with the project's
 `-O3 -march=native` flags can hold 1–2 GB, and recursive sub-makes (e.g. the
 Qt-ADS FetchContent subproject) can add more, so a 16-core box can thrash.
+A **bare `-j` / `--parallel` (no value) is worse still: make treats it as
+unbounded and forks one compiler per target until the machine stalls.**
 
-Use the bounded helper (CPU **and** RAM aware, default cap 12 jobs):
+Use the bounded helper (CPU **and** RAM aware, default cap 8 jobs):
 
 ```bash
-JOBS="$(bash scripts/build_jobs.sh)"       # e.g. min(nproc, RAM_GB/2, 12)
+JOBS="$(bash scripts/build_jobs.sh)"       # e.g. min(nproc, RAM_GB/2, 8)
 export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"  # nested cmake/make honour this
 cmake --build build --parallel "$JOBS"
 # or with presets:
-cmake --preset default && cmake --build --preset default   # 12 jobs
+cmake --preset default && cmake --build --preset default   # 8 jobs
+cmake --build --preset low-memory                          # 4 jobs (small RAM)
 # overrides: JOBS=8 bash scripts/build.sh --jobs 8 | STREAMDAB_MAX_JOBS=6 ...
 ```
 
 `scripts/build.sh`, `build-linux-macos.sh`, `build_with_audio_validation.sh`,
 `tdd_quality_gate.sh` and `verify_build_quality.sh` all use the helper now.
 
-Binary names: **`StreamDABAnalyzer`** (GUI) and **`streamdab-cli`** (headless).
+Binary names: **`StreamDABAnalyser`** (GUI) and **`streamdab-cli`** (headless).
 Build requirements: **zero errors / zero warnings**.
 
 ## 2. Docker build (canonical container — `docker/Dockerfile`)
@@ -75,7 +80,7 @@ docker run --rm -v $PWD/eti:/data streamdab:latest \
 
 # Full test suite inside the container (needs fixtures mounted at /src/eti):
 docker run --rm -v $PWD:/src -w /src -e QT_QPA_PLATFORM=offscreen streamdab:build \
-    sh -c "cmake -B /tmp/bld -S /src && cmake --build /tmp/bld -j\$(nproc) \
+    sh -c "cmake -B /tmp/bld -S /src && cmake --build /tmp/bld --parallel 4 \
            && (cd /tmp/bld && ctest --output-on-failure)"
 ```
 
@@ -118,7 +123,7 @@ cmake --build build --config Release --parallel 8
 $env:QT_QPA_PLATFORM = "offscreen"
 ctest --test-dir build -C Release --output-on-failure
 
-# Run: .\build\Release\StreamDABAnalyzer.exe
+# Run: .\build\Release\StreamDABAnalyser.exe
 #      .\build\Release\streamdab-cli.exe --input <x.eti> --output out.yaml
 # or use the wrapper: .\scripts\build-windows.ps1
 ```
@@ -158,7 +163,7 @@ cmake --build build --parallel "$(bash scripts/build_jobs.sh)" && (cd build && c
 ## 6. Known gaps for production packaging (roadmap)
 
 1. No `install()` rules in `CMakeLists.txt` → CPack/AppImage/`--target install`
-   currently do nothing. Add `install(TARGETS StreamDABAnalyzer streamdab-cli ...)`
+   currently do nothing. Add `install(TARGETS StreamDABAnalyser streamdab-cli ...)`
    + `install(DIRECTORY ...)` for docs, then CPack becomes usable.
 2. GitHub Actions workflows must be rebased on the current build (Qt 6.8+,
    `QT_QPA_PLATFORM=offscreen`, fixture provision step for E2E).

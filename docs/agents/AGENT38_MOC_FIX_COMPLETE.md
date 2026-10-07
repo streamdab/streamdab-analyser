@@ -34,7 +34,7 @@ error: 'EtiFrame' in namespace 'eti' does not name a type
 
 ## Changes Made
 
-### 1. /home/seksan/workspace/streamdab-analyzer/src/core/eti_processor.hpp
+### 1. /home/seksan/workspace/streamdab-analyser/src/core/eti_processor.hpp
 
 **Lines Modified:** 95-300, 407-437, 456-462
 
@@ -65,7 +65,7 @@ error: 'EtiFrame' in namespace 'eti' does not name a type
 
 **TODO Comments Added:** Clear documentation explaining MOC issue and suggesting refactoring to Qt-compatible types (QVariantMap, QByteArray serialization).
 
-### 2. /home/seksan/workspace/streamdab-analyzer/src/core/eti_processor.cpp
+### 2. /home/seksan/workspace/streamdab-analyser/src/core/eti_processor.cpp
 
 **Lines Modified:** 96-98, 240, 722-738, 790-791, 847-862, 917-943, 984-1010, 1040-1071, 1153-1183, 1207-1275
 
@@ -78,7 +78,7 @@ error: 'EtiFrame' in namespace 'eti' does not name a type
   - `emit serviceDiscovered()` calls
 
 **Affected Methods:**
-- `initialize()` - Service discovery state initialization
+- `initialize()` - Service discovery state initialisation
 - `process_msc_data()` - MSC data extraction loops
 - `parse_fig00_ensemble_info()` - Ensemble info parsing
 - `parse_fig01_subchannel_organization()` - Subchannel parsing
@@ -90,7 +90,7 @@ error: 'EtiFrame' in namespace 'eti' does not name a type
 - `on_modern_ensemble_discovered()` - Ensemble discovery handler
 - `on_modern_service_discovered()` - Service discovery handler
 
-### 3. /home/seksan/workspace/streamdab-analyzer/src/core/comprehensive_etsi_validator.hpp
+### 3. /home/seksan/workspace/streamdab-analyser/src/core/comprehensive_etsi_validator.hpp
 
 **Complete File Rewrite:** Commented out all methods with eti:: types
 
@@ -133,7 +133,7 @@ Error: 'SubChannelInfo' is not a member of 'eti'
    - Line 255: `discoverCompleteEnsemble(const std::vector<eti::EtiFrame>&)`
    - Line 262: `processFrameForDiscovery(const eti::EtiFrame&)`
 
-2. **enhanced_fig_analyzer.hpp**
+2. **enhanced_fig_analyser.hpp**
    - Line 90: `eti::DabService base_service`
    - Line 127: `eti::Ensemble base_ensemble`
    - Lines 343-346: Multiple methods with eti:: types
@@ -221,7 +221,7 @@ done
 
 ## Files Backed Up
 
-- `/home/seksan/workspace/streamdab-analyzer/src/core/eti_processor.cpp.backup`
+- `/home/seksan/workspace/streamdab-analyser/src/core/eti_processor.cpp.backup`
 
 ## Testing Status
 

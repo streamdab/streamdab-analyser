@@ -5,7 +5,7 @@
  * Comprehensive hardware integration framework providing seamless connectivity
  * to professional broadcast equipment from leading manufacturers:
  * 
- * **Signal Analyzers & Test Equipment:**
+ * **Signal Analysers & Test Equipment:**
  * - Rohde & Schwarz (FSW, FSQ, FSIQ, ESU series)
  * - Keysight Technologies (N9320B, E4440A, X-Series)
  * - Tektronix (RSA500 series, MDO4000 series)
@@ -22,7 +22,7 @@
  * **Laboratory & Research Equipment:**
  * - National Instruments (PXI, CompactRIO, LabVIEW integration)
  * - Agilent/Keysight (E5071C, N9010A series)
- * - Anritsu (MS2720T, MS2830A spectrum analyzers)
+ * - Anritsu (MS2720T, MS2830A spectrum analysers)
  * - Rigol (DSA815, RSA3000 series)
  * 
  * **Software-Defined Radio (SDR) Platforms:**
@@ -35,7 +35,7 @@
  * @author Advanced Features Agent - Perfect 10.0/10.0 Specialist
  * @date 2025-09-27
  * @version 2.0.0
- * @copyright Professional Broadcast Solutions - StreamDAB Analyzer
+ * @copyright Professional Broadcast Solutions - StreamDAB Analyser
  */
 
 #pragma once
@@ -79,10 +79,10 @@ namespace hardware::integration {
  * @brief Hardware Equipment Types
  */
 enum class EquipmentType {
-    SIGNAL_ANALYZER,        // Spectrum/signal analyzers
-    VECTOR_ANALYZER,        // Vector signal analyzers
-    MODULATION_ANALYZER,    // Digital modulation analyzers
-    AUDIO_ANALYZER,         // Audio quality analyzers
+    SIGNAL_ANALYSER,        // Spectrum/signal analysers
+    VECTOR_ANALYSER,        // Vector signal analysers
+    MODULATION_ANALYSER,    // Digital modulation analysers
+    AUDIO_ANALYSER,         // Audio quality analysers
     TRANSMITTER,            // Broadcast transmitters
     RECEIVER,               // Professional receivers
     MONITOR,                // Broadcast monitors
@@ -91,7 +91,7 @@ enum class EquipmentType {
     TEST_GENERATOR,         // Signal/pattern generators
     OSCILLOSCOPE,           // Digital oscilloscopes
     POWER_METER,            // RF power meters
-    ANTENNA_ANALYZER,       // Antenna/impedance analyzers
+    ANTENNA_ANALYSER,       // Antenna/impedance analysers
     DECODER_DEVICE,         // Hardware decoders
     ENCODER_DEVICE,         // Hardware encoders
     MULTIPLEXER,            // Transport stream multiplexers
@@ -301,11 +301,11 @@ public:
 };
 
 /**
- * @brief Spectrum Analyzer Interface
+ * @brief Spectrum Analyser Interface
  */
-class ISpectrumAnalyzer : public IHardwareDevice {
+class ISpectrumAnalyser : public IHardwareDevice {
 public:
-    ~ISpectrumAnalyzer() override = default;
+    ~ISpectrumAnalyser() override = default;
     
     // Measurement configuration
     virtual bool set_center_frequency(double frequency_hz) = 0;
@@ -369,11 +369,11 @@ public:
 };
 
 /**
- * @brief Vector Signal Analyzer Interface
+ * @brief Vector Signal Analyser Interface
  */
-class IVectorSignalAnalyzer : public ISpectrumAnalyzer {
+class IVectorSignalAnalyser : public ISpectrumAnalyser {
 public:
-    ~IVectorSignalAnalyzer() override = default;
+    ~IVectorSignalAnalyser() override = default;
     
     // Vector measurements
     virtual MeasurementResult measure_evm() = 0;           // Error Vector Magnitude
@@ -460,9 +460,9 @@ public:
 };
 
 /**
- * @brief Rohde & Schwarz FSW Signal Analyzer
+ * @brief Rohde & Schwarz FSW Signal Analyser
  */
-class RohdeSchwarzFSW : public IVectorSignalAnalyzer {
+class RohdeSchwarzFSW : public IVectorSignalAnalyser {
 public:
     explicit RohdeSchwarzFSW(const QString& ip_address, uint16_t port = 5025);
     ~RohdeSchwarzFSW() override;
@@ -497,7 +497,7 @@ public:
     void set_status_callback(std::function<void(const QString&)> callback) override;
     void set_data_callback(std::function<void(const QByteArray&)> callback) override;
     
-    // ISpectrumAnalyzer implementation
+    // ISpectrumAnalyser implementation
     bool set_center_frequency(double frequency_hz) override;
     bool set_span(double span_hz) override;
     bool set_start_stop_frequencies(double start_hz, double stop_hz) override;
@@ -522,7 +522,7 @@ public:
     double read_marker_frequency(int marker_number) override;
     bool peak_search() override;
     
-    // IVectorSignalAnalyzer implementation
+    // IVectorSignalAnalyser implementation
     MeasurementResult measure_evm() override;
     MeasurementResult measure_constellation() override;
     MeasurementResult measure_phase_noise() override;
@@ -555,7 +555,7 @@ private:
 };
 
 /**
- * @brief DekTec DTA-2145 DAB/DAB+ Analyzer
+ * @brief DekTec DTA-2145 DAB/DAB+ Analyser
  */
 class DekTecDTA2145 : public IBroadcastMonitor {
 public:

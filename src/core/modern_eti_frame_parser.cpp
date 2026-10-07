@@ -875,7 +875,7 @@ eti::EtiFrame ModernETIFrameParser::parseFrameStructure(std::span<const uint8_t,
     // fic_mode setting (strict/raw/auto, default auto) drives the shared
     // decode; fib_ignore_crc decodes FIBs whose CRC fails instead of dropping
     // them. The DABX_FIC_MODE env hook remains active for the auto mode (tests).
-    const FicDecodeMode mode = AnalyzerSettings::toFicDecodeMode(settings_.fic_mode);
+    const FicDecodeMode mode = AnalyserSettings::toFicDecodeMode(settings_.fic_mode);
     auto decode_result = fic.decodeFigBlocks(mode, settings_.fib_ignore_crc);
     if (decode_result.raw_fallback_used && !raw_fic_fallback_warned_.load()) {
         raw_fic_fallback_warned_.store(true);
@@ -1291,7 +1291,7 @@ void ModernETIFrameParser::processFIG11_ServiceLabel(const eti::FigBlock& fig, F
     //
     // P/D alignment (backlog item 7, GUI/CLI parity): the P/D flag is the
     // MOST SIGNIFICANT BIT of the Service Identifier (EN 300 401 8.1.14.1 /
-    // etisnoop fig1.cpp / ODR-DabMux; AdvancedFIGAnalyzer::processFIG1_1):
+    // etisnoop fig1.cpp / ODR-DabMux; AdvancedFIGAnalyser::processFIG1_1):
     //   P/D=0 -> 16-bit programme SId at data[1..2] (bit 15 = 0)
     //   P/D=1 -> 32-bit data SId [ECC|CId/SRef-hi|SRef] at data[1..4]
     // The previous CLI read always consumed 16 bits at the fixed offset,

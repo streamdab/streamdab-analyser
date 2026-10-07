@@ -129,7 +129,7 @@
 
 8. **Integration (2 tests):** 2/2 passing
    - ✅ Signal emission
-   - ✅ Parser initialization
+   - ✅ Parser initialisation
 
 **Features Validated:**
 - ✅ Emergency Warning System (EWS) types 0-6

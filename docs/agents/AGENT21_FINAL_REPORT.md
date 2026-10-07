@@ -1,7 +1,7 @@
-# Agent 21 Final Report: FIG 0/14 FEC Sub-channel Organization Parser
+# Agent 21 Final Report: FIG 0/14 FEC Sub-channel Organisation Parser
 
 **Agent:** Agent 21 - Python Pro
-**Mission:** Implement FIG 0/14 FEC Sub-channel Organization parser
+**Mission:** Implement FIG 0/14 FEC Sub-channel Organisation parser
 **PDCA Week:** Week 5
 **Date:** November 3, 2025
 **Status:** ✅ **MISSION COMPLETE - 100% SUCCESS**
@@ -24,7 +24,7 @@
 ## Deliverables Summary
 
 ### 1. Test File ✅
-**File:** `/home/seksan/workspace/streamdab-analyzer/tests/test_fig014_fec_subchannel.cpp`
+**File:** `/home/seksan/workspace/streamdab-analyser/tests/test_fig014_fec_subchannel.cpp`
 - **Lines:** 563 lines
 - **Tests:** 22 comprehensive tests
 - **Categories:** Short form (6), Long form (6), FEC schemes (4), Validation (4), Edge cases (2), Performance (1)
@@ -223,7 +223,7 @@
 
 ```bash
 # Navigate to build directory
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 
 # Rebuild project
 cmake --build .
@@ -364,7 +364,7 @@ Totals: 25 passed, 0 failed, 0 skipped, 0 blacklisted, 1234ms
 
 2. **Short-term:**
    - Connect GUI to display FEC scheme information
-   - Add FIG 0/14 to ETI analyzer display panels
+   - Add FIG 0/14 to ETI analyser display panels
    - Update project documentation with FIG 0/14 support
 
 3. **Long-term:**
@@ -394,7 +394,7 @@ Totals: 25 passed, 0 failed, 0 skipped, 0 blacklisted, 1234ms
 
 ## Conclusion
 
-Agent 21 successfully completed the FIG 0/14 FEC Sub-channel Organization parser implementation with:
+Agent 21 successfully completed the FIG 0/14 FEC Sub-channel Organisation parser implementation with:
 
 ✅ **22/22 comprehensive tests** covering all aspects
 ✅ **Complete ETSI EN 300 401 Section 8.1.5 compliance**

@@ -24,7 +24,7 @@
 
 // Core implementation headers (will be created during GREEN phase)
 // #include "../../src/core/etsi/fig_decoder.h"
-// #include "../../src/core/etsi/fig_analyzer.h"
+// #include "../../src/core/etsi/fig_analyser.h"
 // #include "../../src/core/etsi/ensemble_manager.h"
 // #include "../../src/core/etsi/service_manager.h"
 
@@ -50,7 +50,7 @@ protected:
         // Initialize test environment for FIG analysis testing
         // This will fail until FigDecoder is implemented
         // fig_decoder_ = std::make_unique<FigDecoder>();
-        // fig_analyzer_ = std::make_unique<FigAnalyzer>();
+        // fig_analyser_ = std::make_unique<FigAnalyser>();
         // ensemble_manager_ = std::make_unique<EnsembleManager>();
         
         // Initialize test data
@@ -83,7 +83,7 @@ protected:
     
     // Core FIG processors (will be implemented in GREEN phase)
     // std::unique_ptr<FigDecoder> fig_decoder_;
-    // std::unique_ptr<FigAnalyzer> fig_analyzer_;
+    // std::unique_ptr<FigAnalyser> fig_analyser_;
     // std::unique_ptr<EnsembleManager> ensemble_manager_;
 };
 
@@ -409,15 +409,15 @@ protected:
 
 // RED PHASE TEST: Complete Ensemble Analysis
 TEST_F(FigAnalysisIntegrationTests, ValidateCompleteEnsembleAnalysis_ShouldFailUntilImplemented) {
-    // RED: This test MUST fail until complete FIG analyzer is implemented
+    // RED: This test MUST fail until complete FIG analyser is implemented
     //
     // Complete ensemble analysis requires parsing all relevant FIGs
     // Must reconstruct full ensemble and service information
     
-    // auto complete_analyzer = std::make_unique<CompleteFigAnalyzer>();
-    // auto ensemble_info = complete_analyzer->analyze_ensemble(sample_frame_);
+    // auto complete_analyser = std::make_unique<CompleteFigAnalyser>();
+    // auto ensemble_info = complete_analyser->analyze_ensemble(sample_frame_);
     // 
-    // EXPECT_TRUE(complete_analyzer->validate_ensemble_completeness(ensemble_info));
+    // EXPECT_TRUE(complete_analyser->validate_ensemble_completeness(ensemble_info));
     // EXPECT_GT(ensemble_info.services.size(), 0);
     // EXPECT_TRUE(ensemble_info.has_ensemble_label);
     // EXPECT_TRUE(ensemble_info.has_service_organization);
@@ -428,7 +428,7 @@ TEST_F(FigAnalysisIntegrationTests, ValidateCompleteEnsembleAnalysis_ShouldFailU
     // }
     
     // Temporary assertion to ensure RED phase
-    FAIL() << "Complete FIG analyzer not implemented - RED phase active";
+    FAIL() << "Complete FIG analyser not implemented - RED phase active";
 }
 
 // RED PHASE TEST: FIG Cross-Reference Validation

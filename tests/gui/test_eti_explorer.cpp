@@ -17,7 +17,7 @@
 #include <QSignalSpy>
 #include <memory>
 
-// Since main.cpp contains the DABAnalyzerWindow class inline,
+// Since main.cpp contains the DABAnalyserWindow class inline,
 // we'll need to test via the compiled application or extract the class
 // For now, we'll create a minimal test harness
 

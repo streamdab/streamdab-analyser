@@ -1,4 +1,4 @@
-# Custom Agents for StreamDAB Analyzer
+# Custom Agents for StreamDAB Analyser
 
 ## Available Agents
 

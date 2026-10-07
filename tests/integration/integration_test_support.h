@@ -142,10 +142,10 @@ namespace GuiTestSupport {
     ConstellationTestData generate_constellation_test_data();
     
     /**
-     * @brief Generate test data for audio analyzer widget
+     * @brief Generate test data for audio analyser widget
      * @return Audio analysis test data
      */
-    struct AudioAnalyzerTestData {
+    struct AudioAnalyserTestData {
         struct AudioSpectrum {
             std::vector<double> frequencies; // Hz
             std::vector<double> magnitudes;  // dB
@@ -179,7 +179,7 @@ namespace GuiTestSupport {
         std::vector<EtsiEtiFrame> audio_test_frames;
     };
     
-    AudioAnalyzerTestData generate_audio_analyzer_test_data();
+    AudioAnalyserTestData generate_audio_analyser_test_data();
     
     /**
      * @brief Generate test scenarios for user interactions

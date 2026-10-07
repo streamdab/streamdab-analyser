@@ -1,8 +1,8 @@
--- ETI Stream Analyzer Professional DMG Setup Script
+-- ETI Stream Analyser Professional DMG Setup Script
 -- Professional macOS disk image layout and styling
 
 tell application "Finder"
-    tell disk "ETI Stream Analyzer"
+    tell disk "ETI Stream Analyser"
         open
 
         -- Professional window settings
@@ -21,7 +21,7 @@ tell application "Finder"
 
         -- Professional icon positioning for broadcast industry appeal
         -- Application icon positioned for easy access
-        set position of item "ETI Stream Analyzer.app" of container window to {150, 175}
+        set position of item "ETI Stream Analyser.app" of container window to {150, 175}
 
         -- Applications folder link for professional installation
         set position of item "Applications" of container window to {350, 175}

@@ -10,7 +10,7 @@
  * 2. GREEN Phase: Implement minimal signal/slot connections to pass tests
  * 3. REFACTOR Phase: Optimize performance while maintaining test coverage
  * 
- * Real ETI File: /home/seksan/workspace/streamdab-analyzer/bkk_20062022_141637.eti
+ * Real ETI File: /home/seksan/workspace/streamdab-analyser/bkk_20062022_141637.eti
  * Expected Data: 5001 frames, Bangkok DAB broadcast data
  */
 
@@ -556,7 +556,7 @@ QString TestEtiUIIntegration::getBangkokETIFilePath()
     
     // Try different potential locations
     QStringList candidates = {
-        "/home/seksan/workspace/streamdab-analyzer/bkk_20062022_141637.eti",
+        "/home/seksan/workspace/streamdab-analyser/bkk_20062022_141637.eti",
         QString("%1/../bkk_20062022_141637.eti").arg(projectRoot),
         QString("%1/../../bkk_20062022_141637.eti").arg(projectRoot),
         QString("%1/test_data/bkk_20062022_141637.eti").arg(projectRoot)
@@ -570,7 +570,7 @@ QString TestEtiUIIntegration::getBangkokETIFilePath()
     }
     
     // Return default path even if not found (will be caught in test validation)
-    return "/home/seksan/workspace/streamdab-analyzer/bkk_20062022_141637.eti";
+    return "/home/seksan/workspace/streamdab-analyser/bkk_20062022_141637.eti";
 }
 
 bool TestEtiUIIntegration::isBangkokETIFileAvailable()

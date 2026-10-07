@@ -13,7 +13,7 @@
 
 // GUI Components
 #include "gui/main_window.h"
-#include "gui/analyzer_widget.h"
+#include "gui/analyser_widget.h"
 
 // Integration with other agents' frameworks
 #include "fixtures/eti_streams/sample_eti_frame.h"
@@ -84,19 +84,19 @@ void TestEtiDataIntegration::testEtiStreamProcessorIntegration()
     
     // Set mock ETI processor from Network/Stream Agent
     m_mockEtiProcessor = std::make_unique<MockEtiProcessor>();
-    m_mainWindow->getAnalyzerWidget()->setEtiProcessor(m_mockEtiProcessor.get());
+    m_mainWindow->getAnalyserWidget()->setEtiProcessor(m_mockEtiProcessor.get());
     
     // Test with Network/Stream Agent's compliant frames
-    QSignalSpy statisticsSpy(m_mainWindow->getAnalyzerWidget(), 
-                           &AnalyzerWidget::statisticsUpdated);
+    QSignalSpy statisticsSpy(m_mainWindow->getAnalyserWidget(), 
+                           &AnalyserWidget::statisticsUpdated);
     
     // Process compliant frame
     m_mockEtiProcessor->setTestFrame(SAMPLE_COMPLIANT_FRAME);
-    m_mainWindow->getAnalyzerWidget()->startAnalysis();
+    m_mainWindow->getAnalyserWidget()->startAnalysis();
     
     // Verify frame processing
     QVERIFY(statisticsSpy.wait(1000));
-    QVERIFY(m_mainWindow->getAnalyzerWidget()->getProcessedFrames() > 0);
+    QVERIFY(m_mainWindow->getAnalyserWidget()->getProcessedFrames() > 0);
     
     // Test with multi-service frame
     m_mockEtiProcessor->setTestFrame(MULTI_SERVICE_FRAME);
@@ -105,7 +105,7 @@ void TestEtiDataIntegration::testEtiStreamProcessorIntegration()
     // Verify service detection in GUI
     QVERIFY(m_mainWindow->getServiceBrowser()->getServiceCount() > 1);
     
-    m_mainWindow->getAnalyzerWidget()->stopAnalysis();
+    m_mainWindow->getAnalyserWidget()->stopAnalysis();
     
     qDebug() << "✅ ETI Stream Processor integration tests passed";
 }
@@ -122,16 +122,16 @@ void TestEtiDataIntegration::testEtsiCompliantFrameVisualization()
     m_mainWindow = std::make_unique<MainWindow>();
     m_mainWindow->initialize();
     
-    AnalyzerWidget* analyzer = m_mainWindow->getAnalyzerWidget();
-    analyzer->setEtiProcessor(m_mockEtiProcessor.get());
+    AnalyserWidget* analyser = m_mainWindow->getAnalyserWidget();
+    analyser->setEtiProcessor(m_mockEtiProcessor.get());
     
     // Test ETSI frame visualization
     for (const auto& frame : etsiFrames) {
         m_mockEtiProcessor->setTestFrame(frame);
-        analyzer->updateDisplay();
+        analyser->updateDisplay();
         
         // Verify no ETSI compliance errors
-        QVERIFY(analyzer->getErrorCount() == 0);
+        QVERIFY(analyser->getErrorCount() == 0);
     }
     
     qDebug() << "✅ ETSI compliant frame visualization tests passed";
@@ -164,13 +164,13 @@ void TestEtiDataIntegration::testCompleteAnalysisWorkflow()
     QSignalSpy fileOpenedSpy(m_mainWindow.get(), &MainWindow::etiFileOpened);
     m_mainWindow->openEtiFile();  // Would open test file
     
-    // 2. Start analysis (Analyzer Widget)
+    // 2. Start analysis (Analyser Widget)
     m_mainWindow->startRealTimeAnalysis();
     QVERIFY(m_mainWindow->isRealTimeMode());
     
     // 3. Verify ETSI compliance (Standards Compliance Agent)
-    AnalyzerWidget* analyzer = m_mainWindow->getAnalyzerWidget();
-    QVERIFY(analyzer->isAnalysisRunning());
+    AnalyserWidget* analyser = m_mainWindow->getAnalyserWidget();
+    QVERIFY(analyser->isAnalysisRunning());
     
     // 4. Check performance (60 FPS requirement)
     QElapsedTimer timer;

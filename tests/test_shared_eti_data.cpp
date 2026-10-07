@@ -1,4 +1,4 @@
-// /home/seksan/workspace/streamdab-analyzer/tests/test_shared_eti_data.cpp
+// tests/test_shared_eti_data.cpp
 #include <gtest/gtest.h>
 #include <QCoreApplication>
 #include <QSignalSpy>

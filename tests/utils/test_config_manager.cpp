@@ -21,8 +21,8 @@ protected:
         originalAppName = QCoreApplication::applicationName();
         originalOrgName = QCoreApplication::organizationName();
         
-        QCoreApplication::setApplicationName("ETIStreamAnalyzer_Test");
-        QCoreApplication::setOrganizationName("ETIStreamAnalyzer_Test");
+        QCoreApplication::setApplicationName("ETIStreamAnalyser_Test");
+        QCoreApplication::setOrganizationName("ETIStreamAnalyser_Test");
         
         configManager = new ConfigManager();
     }
@@ -520,7 +520,7 @@ TEST_F(ConfigManagerTest, SettingsPathIsValidAfterInitialization)
     QString settingsPath = configManager->getSettingsPath();
     
     EXPECT_FALSE(settingsPath.isEmpty());
-    EXPECT_TRUE(settingsPath.contains("ETIStreamAnalyzer_Test"));
+    EXPECT_TRUE(settingsPath.contains("ETIStreamAnalyser_Test"));
 }
 
 TEST_F(ConfigManagerTest, SettingsPathIsEmptyBeforeInitialization)

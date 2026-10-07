@@ -11,7 +11,7 @@ using namespace testing;
 /**
  * @brief Test Alert System TDD Implementation
  * 
- * Professional Alert System for ETI Stream Analyzer following TDD methodology.
+ * Professional Alert System for ETI Stream Analyser following TDD methodology.
  * Tests written BEFORE implementation (RED phase).
  * 
  * Features to test:

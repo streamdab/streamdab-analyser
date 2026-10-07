@@ -11,7 +11,7 @@ target_link_libraries(test_eti_processor_comprehensive
     PRIVATE
     Qt6::Core
     Qt6::Test
-    ETIStreamAnalyzer_lib
+    ETIStreamAnalyser_lib
 )
 
 # Include directories
@@ -69,7 +69,7 @@ target_link_libraries(test_fig_week1_comprehensive
     PRIVATE
     Qt6::Core
     Qt6::Test
-    ETIStreamAnalyzer_lib
+    ETIStreamAnalyser_lib
 )
 
 # Include directories

@@ -6,13 +6,13 @@
  * removed (no silent no-ops). Persistence uses the explicit application
  * QSettings scope (src/utils/app_settings.hpp):
  *
- *   general/confirmExit        -> DABAnalyzerWindow::closeEvent confirmation
+ *   general/confirmExit        -> DABAnalyserWindow::closeEvent confirmation
  *   general/configPath         -> read-only display path (not persisted)
  *   analysis/updateRate        -> dashboard sampler rate in Hz (1..10) — "Processing" tab
  *   analysis/bufferSize        -> network receiver frame-buffer size — "Processing" tab
  *   audio/device,muted,volume  -> T34 AudioPlaybackController + Audio tab
  *   advanced/logLevel          -> Logger::setLogLevel (shared with the Logging tab)
- *   analyzer/ (group)          -> AnalyzerSettings (already wired)
+ *   analyser/ (group)          -> AnalyserSettings (already wired)
  *
  * @author C++ Qt Developer Agent (settings audit, v1.3)
  */
@@ -28,7 +28,7 @@
 #include <QFormLayout>
 
 namespace {
-// Long tabs (notably Analyzer with groups A..I) must scroll instead of being
+// Long tabs (notably Analyser with groups A..I) must scroll instead of being
 // squeezed until only the group titles remain visible.
 QWidget* wrapTabInScrollArea(QWidget* content)
 {
@@ -51,7 +51,7 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     , m_settingsLoaded(false)
     , m_settings(nullptr)
 {
-    // Explicit application scope (org StreamDAB-Analyzer / app DABAnalyzer).
+    // Explicit application scope (org StreamDAB-Analyser / app DABAnalyser).
     m_settings = streamdab::app_settings::create(this);
 
     // Create UI, then populate the widgets from the persisted store.
@@ -77,7 +77,7 @@ void SettingsDialog::createUI()
     createAnalysisTab();
     createAudioTab();
     createAdvancedTab();
-    createAnalyzerTab();
+    createAnalyserTab();
 
     m_buttonBox = new QDialogButtonBox(
         QDialogButtonBox::Ok | QDialogButtonBox::Cancel |
@@ -96,7 +96,7 @@ void SettingsDialog::createUI()
             this, &SettingsDialog::handleDefaults);
 
     setObjectName("SettingsDialog");
-    setWindowTitle(tr("StreamDAB Stream Analyzer - Settings"));
+    setWindowTitle(tr("StreamDAB Stream Analyser - Settings"));
     setWindowIcon(QIcon(":/icons/settings.png"));
     setModal(true);
     setMinimumSize(640, 480);
@@ -261,16 +261,16 @@ void SettingsDialog::createAdvancedTab()
     m_tabWidget->addTab(wrapTabInScrollArea(m_advancedTab), tr("Advanced"));
 }
 
-void SettingsDialog::createAnalyzerTab()
+void SettingsDialog::createAnalyserTab()
 {
-    // "Analyzer / Decode options" — implements the SETTING rows of
+    // "Analyser / Decode options" — implements the SETTING rows of
     // docs/fixes/OPTION_VARIANT_MATRIX.md (rows 1-6, 8, 10-12, 14).
     // Each default equals the etisnoop-parity behavior, so a default-config
     // run is byte-identical to the baseline. Changes are persisted under
-    // group "analyzer/" and honored on the next file load (CLI immediately;
+    // group "analyser/" and honored on the next file load (CLI immediately;
     // GUI decode re-reads on load).
-    m_analyzerTab = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(m_analyzerTab);
+    m_analyserTab = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(m_analyserTab);
 
     auto addGroup = [layout](const QString& title, QWidget* parent) -> QGroupBox* {
         QGroupBox *group = new QGroupBox(title, parent);
@@ -280,7 +280,7 @@ void SettingsDialog::createAnalyzerTab()
     };
 
     // --- Row A: Label charset ---
-    QGroupBox *charsetGroup = addGroup(tr("A. Label charset (matrix row 1)"), m_analyzerTab);
+    QGroupBox *charsetGroup = addGroup(tr("A. Label charset (matrix row 1)"), m_analyserTab);
     QFormLayout *charsetLayout = qobject_cast<QFormLayout*>(charsetGroup->layout());
 
     m_forceCharsetSpin = new QSpinBox();
@@ -305,7 +305,7 @@ void SettingsDialog::createAnalyzerTab()
     charsetLayout->addRow(tr("Unknown-charset fallback:"), m_charsetFallbackCombo);
 
     // --- Row B: ETI format ---
-    QGroupBox *etiGroup = addGroup(tr("B. ETI format (matrix row 2)"), m_analyzerTab);
+    QGroupBox *etiGroup = addGroup(tr("B. ETI format (matrix row 2)"), m_analyserTab);
     QFormLayout *etiLayout = qobject_cast<QFormLayout*>(etiGroup->layout());
 
     m_etiModeCombo = new QComboBox();
@@ -317,7 +317,7 @@ void SettingsDialog::createAnalyzerTab()
     etiLayout->addRow(tr("ETI mode:"), m_etiModeCombo);
 
     // --- Row C: NST legacy correction ---
-    QGroupBox *nstGroup = addGroup(tr("C. NST interpretation (matrix row 3)"), m_analyzerTab);
+    QGroupBox *nstGroup = addGroup(tr("C. NST interpretation (matrix row 3)"), m_analyserTab);
     QFormLayout *nstLayout = qobject_cast<QFormLayout*>(nstGroup->layout());
 
     m_nstOffset1Check = new QCheckBox(tr("Legacy count-1 correction: NST = (p[5]&0x7F) + 1"));
@@ -327,7 +327,7 @@ void SettingsDialog::createAnalyzerTab()
     nstLayout->addRow(m_nstOffset1Check);
 
     // --- Row D/E: FIC framework + FIB CRC ---
-    QGroupBox *ficGroup = addGroup(tr("D. FIC framework / FIB CRC (matrix rows 4-5)"), m_analyzerTab);
+    QGroupBox *ficGroup = addGroup(tr("D. FIC framework / FIB CRC (matrix rows 4-5)"), m_analyserTab);
     QFormLayout *ficLayout = qobject_cast<QFormLayout*>(ficGroup->layout());
 
     m_ficModeCombo = new QComboBox();
@@ -347,7 +347,7 @@ void SettingsDialog::createAnalyzerTab()
     ficLayout->addRow(m_fibIgnoreCrcCheck);
 
     // --- Row E: ECC / country override + deep parse ---
-    QGroupBox *eccGroup = addGroup(tr("E. ECC / country (matrix rows 6, 14)"), m_analyzerTab);
+    QGroupBox *eccGroup = addGroup(tr("E. ECC / country (matrix rows 6, 14)"), m_analyserTab);
     QFormLayout *eccLayout = qobject_cast<QFormLayout*>(eccGroup->layout());
 
     m_eccOverrideSpin = new QSpinBox();
@@ -367,7 +367,7 @@ void SettingsDialog::createAnalyzerTab()
     eccLayout->addRow(m_serviceEccDeepParseCheck);
 
     // --- Row F: label source + short label ---
-    QGroupBox *labelGroup = addGroup(tr("F. Label display (matrix row 8)"), m_analyzerTab);
+    QGroupBox *labelGroup = addGroup(tr("F. Label display (matrix row 8)"), m_analyserTab);
     QFormLayout *labelLayout = qobject_cast<QFormLayout*>(labelGroup->layout());
 
     m_labelSourceCombo = new QComboBox();
@@ -386,7 +386,7 @@ void SettingsDialog::createAnalyzerTab()
     labelLayout->addRow(m_showShortLabelsCheck);
 
     // --- Row G: timestamp source ---
-    QGroupBox *tsGroup = addGroup(tr("G. Timestamp source (matrix row 10)"), m_analyzerTab);
+    QGroupBox *tsGroup = addGroup(tr("G. Timestamp source (matrix row 10)"), m_analyserTab);
     QFormLayout *tsLayout = qobject_cast<QFormLayout*>(tsGroup->layout());
 
     m_timestampSourceCombo = new QComboBox();
@@ -397,7 +397,7 @@ void SettingsDialog::createAnalyzerTab()
     tsLayout->addRow(tr("Timestamp source:"), m_timestampSourceCombo);
 
     // --- Row H: strict frame CRC ---
-    QGroupBox *crcGroup = addGroup(tr("H. EOH/EOF frame CRC (matrix row 11)"), m_analyzerTab);
+    QGroupBox *crcGroup = addGroup(tr("H. EOH/EOF frame CRC (matrix row 11)"), m_analyserTab);
     QFormLayout *crcLayout = qobject_cast<QFormLayout*>(crcGroup->layout());
 
     m_strictFrameCrcCheck = new QCheckBox(tr("Validate + count the EOH gap frame CRC (CCITT-FALSE)"));
@@ -407,7 +407,7 @@ void SettingsDialog::createAnalyzerTab()
     crcLayout->addRow(m_strictFrameCrcCheck);
 
     // --- Row I: SId display ---
-    QGroupBox *sidGroup = addGroup(tr("I. SId display (matrix row 12)"), m_analyzerTab);
+    QGroupBox *sidGroup = addGroup(tr("I. SId display (matrix row 12)"), m_analyserTab);
     QFormLayout *sidLayout = qobject_cast<QFormLayout*>(sidGroup->layout());
 
     m_sidDisplayCombo = new QComboBox();
@@ -419,7 +419,7 @@ void SettingsDialog::createAnalyzerTab()
     sidLayout->addRow(tr("SId display:"), m_sidDisplayCombo);
 
     layout->addStretch();
-    m_tabWidget->addTab(wrapTabInScrollArea(m_analyzerTab), tr("Analyzer"));
+    m_tabWidget->addTab(wrapTabInScrollArea(m_analyserTab), tr("Analyser"));
 }
 
 bool SettingsDialog::initialize()
@@ -479,33 +479,33 @@ void SettingsDialog::loadSettings()
         m_logLevelCombo->setCurrentIndex(
             qBound(0, m_settings->value("advanced/logLevel", 2).toInt(), 4));
 
-        // Load analyzer / decode settings (option-variant matrix rows 1-14)
+        // Load analyser / decode settings (option-variant matrix rows 1-14)
         {
-            eti::AnalyzerSettings analyzer = eti::AnalyzerSettings::defaults();
-            analyzer.loadFromQSettings(*m_settings);
-            m_forceCharsetSpin->setValue(analyzer.force_charset);
+            eti::AnalyserSettings analyser = eti::AnalyserSettings::defaults();
+            analyser.loadFromQSettings(*m_settings);
+            m_forceCharsetSpin->setValue(analyser.force_charset);
             m_charsetFallbackCombo->setCurrentIndex(
                 m_charsetFallbackCombo->findData(
-                    eti::AnalyzerSettings::charsetFallbackToString(analyzer.charset_fallback_policy)));
+                    eti::AnalyserSettings::charsetFallbackToString(analyser.charset_fallback_policy)));
             m_etiModeCombo->setCurrentIndex(
-                m_etiModeCombo->findData(eti::AnalyzerSettings::etiModeToString(analyzer.eti_mode)));
-            m_nstOffset1Check->setChecked(analyzer.nst_offset_1);
+                m_etiModeCombo->findData(eti::AnalyserSettings::etiModeToString(analyser.eti_mode)));
+            m_nstOffset1Check->setChecked(analyser.nst_offset_1);
             m_ficModeCombo->setCurrentIndex(
-                m_ficModeCombo->findData(eti::AnalyzerSettings::ficModeToString(analyzer.fic_mode)));
-            m_fibIgnoreCrcCheck->setChecked(analyzer.fib_ignore_crc);
-            m_eccOverrideSpin->setValue(analyzer.ecc_override);
-            m_serviceEccDeepParseCheck->setChecked(analyzer.service_ecc_deep_parse);
+                m_ficModeCombo->findData(eti::AnalyserSettings::ficModeToString(analyser.fic_mode)));
+            m_fibIgnoreCrcCheck->setChecked(analyser.fib_ignore_crc);
+            m_eccOverrideSpin->setValue(analyser.ecc_override);
+            m_serviceEccDeepParseCheck->setChecked(analyser.service_ecc_deep_parse);
             m_labelSourceCombo->setCurrentIndex(
                 m_labelSourceCombo->findData(
-                    eti::AnalyzerSettings::labelSourceToString(analyzer.label_source_priority)));
-            m_showShortLabelsCheck->setChecked(analyzer.show_short_labels);
+                    eti::AnalyserSettings::labelSourceToString(analyser.label_source_priority)));
+            m_showShortLabelsCheck->setChecked(analyser.show_short_labels);
             m_timestampSourceCombo->setCurrentIndex(
                 m_timestampSourceCombo->findData(
-                    eti::AnalyzerSettings::timestampSourceToString(analyzer.timestamp_source)));
-            m_strictFrameCrcCheck->setChecked(analyzer.strict_frame_crc);
+                    eti::AnalyserSettings::timestampSourceToString(analyser.timestamp_source)));
+            m_strictFrameCrcCheck->setChecked(analyser.strict_frame_crc);
             m_sidDisplayCombo->setCurrentIndex(
                 m_sidDisplayCombo->findData(
-                    eti::AnalyzerSettings::sidDisplayModeToString(analyzer.sid_display_mode)));
+                    eti::AnalyserSettings::sidDisplayModeToString(analyser.sid_display_mode)));
         }
 
         Logger::instance().log(Logger::Debug, "SettingsDialog", "Settings loaded successfully");
@@ -544,59 +544,59 @@ void SettingsDialog::saveSettings()
         // Advanced
         m_settings->setValue("advanced/logLevel", m_logLevelCombo->currentIndex());
 
-        // Analyzer / decode settings (option-variant matrix rows 1-14)
+        // Analyser / decode settings (option-variant matrix rows 1-14)
         {
-            eti::AnalyzerSettings analyzer = eti::AnalyzerSettings::defaults();
-            analyzer.force_charset = m_forceCharsetSpin->value();
+            eti::AnalyserSettings analyser = eti::AnalyserSettings::defaults();
+            analyser.force_charset = m_forceCharsetSpin->value();
             {
                 eti::CharsetFallbackPolicy p;
-                if (eti::AnalyzerSettings::charsetFallbackFromString(
+                if (eti::AnalyserSettings::charsetFallbackFromString(
                         m_charsetFallbackCombo->currentData().toString(), p)) {
-                    analyzer.charset_fallback_policy = p;
+                    analyser.charset_fallback_policy = p;
                 }
             }
             {
                 eti::EtiModeSetting m;
-                if (eti::AnalyzerSettings::etiModeFromString(
+                if (eti::AnalyserSettings::etiModeFromString(
                         m_etiModeCombo->currentData().toString(), m)) {
-                    analyzer.eti_mode = m;
+                    analyser.eti_mode = m;
                 }
             }
-            analyzer.nst_offset_1 = m_nstOffset1Check->isChecked();
+            analyser.nst_offset_1 = m_nstOffset1Check->isChecked();
             {
                 eti::FicModeSetting m;
-                if (eti::AnalyzerSettings::ficModeFromString(
+                if (eti::AnalyserSettings::ficModeFromString(
                         m_ficModeCombo->currentData().toString(), m)) {
-                    analyzer.fic_mode = m;
+                    analyser.fic_mode = m;
                 }
             }
-            analyzer.fib_ignore_crc = m_fibIgnoreCrcCheck->isChecked();
-            analyzer.ecc_override = m_eccOverrideSpin->value();
-            analyzer.service_ecc_deep_parse = m_serviceEccDeepParseCheck->isChecked();
+            analyser.fib_ignore_crc = m_fibIgnoreCrcCheck->isChecked();
+            analyser.ecc_override = m_eccOverrideSpin->value();
+            analyser.service_ecc_deep_parse = m_serviceEccDeepParseCheck->isChecked();
             {
                 eti::LabelSourcePriority p;
-                if (eti::AnalyzerSettings::labelSourceFromString(
+                if (eti::AnalyserSettings::labelSourceFromString(
                         m_labelSourceCombo->currentData().toString(), p)) {
-                    analyzer.label_source_priority = p;
+                    analyser.label_source_priority = p;
                 }
             }
-            analyzer.show_short_labels = m_showShortLabelsCheck->isChecked();
+            analyser.show_short_labels = m_showShortLabelsCheck->isChecked();
             {
                 eti::TimestampSource t;
-                if (eti::AnalyzerSettings::timestampSourceFromString(
+                if (eti::AnalyserSettings::timestampSourceFromString(
                         m_timestampSourceCombo->currentData().toString(), t)) {
-                    analyzer.timestamp_source = t;
+                    analyser.timestamp_source = t;
                 }
             }
-            analyzer.strict_frame_crc = m_strictFrameCrcCheck->isChecked();
+            analyser.strict_frame_crc = m_strictFrameCrcCheck->isChecked();
             {
                 eti::SidDisplayMode m;
-                if (eti::AnalyzerSettings::sidDisplayModeFromString(
+                if (eti::AnalyserSettings::sidDisplayModeFromString(
                         m_sidDisplayCombo->currentData().toString(), m)) {
-                    analyzer.sid_display_mode = m;
+                    analyser.sid_display_mode = m;
                 }
             }
-            analyzer.saveToQSettings(*m_settings);
+            analyser.saveToQSettings(*m_settings);
         }
 
         m_settings->sync();
@@ -624,32 +624,32 @@ void SettingsDialog::resetToDefaults()
 
     m_logLevelCombo->setCurrentIndex(2); // Info
 
-    // Reset analyzer / decode options to the etisnoop-parity defaults.
+    // Reset analyser / decode options to the etisnoop-parity defaults.
     {
-        const eti::AnalyzerSettings analyzer = eti::AnalyzerSettings::defaults();
-        m_forceCharsetSpin->setValue(analyzer.force_charset);
+        const eti::AnalyserSettings analyser = eti::AnalyserSettings::defaults();
+        m_forceCharsetSpin->setValue(analyser.force_charset);
         m_charsetFallbackCombo->setCurrentIndex(
             m_charsetFallbackCombo->findData(
-                eti::AnalyzerSettings::charsetFallbackToString(analyzer.charset_fallback_policy)));
+                eti::AnalyserSettings::charsetFallbackToString(analyser.charset_fallback_policy)));
         m_etiModeCombo->setCurrentIndex(
-            m_etiModeCombo->findData(eti::AnalyzerSettings::etiModeToString(analyzer.eti_mode)));
-        m_nstOffset1Check->setChecked(analyzer.nst_offset_1);
+            m_etiModeCombo->findData(eti::AnalyserSettings::etiModeToString(analyser.eti_mode)));
+        m_nstOffset1Check->setChecked(analyser.nst_offset_1);
         m_ficModeCombo->setCurrentIndex(
-            m_ficModeCombo->findData(eti::AnalyzerSettings::ficModeToString(analyzer.fic_mode)));
-        m_fibIgnoreCrcCheck->setChecked(analyzer.fib_ignore_crc);
-        m_eccOverrideSpin->setValue(analyzer.ecc_override);
-        m_serviceEccDeepParseCheck->setChecked(analyzer.service_ecc_deep_parse);
+            m_ficModeCombo->findData(eti::AnalyserSettings::ficModeToString(analyser.fic_mode)));
+        m_fibIgnoreCrcCheck->setChecked(analyser.fib_ignore_crc);
+        m_eccOverrideSpin->setValue(analyser.ecc_override);
+        m_serviceEccDeepParseCheck->setChecked(analyser.service_ecc_deep_parse);
         m_labelSourceCombo->setCurrentIndex(
             m_labelSourceCombo->findData(
-                eti::AnalyzerSettings::labelSourceToString(analyzer.label_source_priority)));
-        m_showShortLabelsCheck->setChecked(analyzer.show_short_labels);
+                eti::AnalyserSettings::labelSourceToString(analyser.label_source_priority)));
+        m_showShortLabelsCheck->setChecked(analyser.show_short_labels);
         m_timestampSourceCombo->setCurrentIndex(
             m_timestampSourceCombo->findData(
-                eti::AnalyzerSettings::timestampSourceToString(analyzer.timestamp_source)));
-        m_strictFrameCrcCheck->setChecked(analyzer.strict_frame_crc);
+                eti::AnalyserSettings::timestampSourceToString(analyser.timestamp_source)));
+        m_strictFrameCrcCheck->setChecked(analyser.strict_frame_crc);
         m_sidDisplayCombo->setCurrentIndex(
             m_sidDisplayCombo->findData(
-                eti::AnalyzerSettings::sidDisplayModeToString(analyzer.sid_display_mode)));
+                eti::AnalyserSettings::sidDisplayModeToString(analyser.sid_display_mode)));
     }
 }
 
@@ -756,7 +756,7 @@ void SettingsDialog::accept()
 {
     saveSettings();
     emit settingsChanged();
-    emit analyzerSettingsChanged();
+    emit analyserSettingsChanged();
     QDialog::accept();
 }
 
@@ -769,7 +769,7 @@ void SettingsDialog::handleApply()
 {
     saveSettings();
     emit settingsChanged();
-    emit analyzerSettingsChanged();
+    emit analyserSettingsChanged();
 }
 
 void SettingsDialog::handleDefaults()

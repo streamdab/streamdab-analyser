@@ -539,7 +539,8 @@ void TestETIFrameParser::testMemoryUsage()
 
 void TestETIFrameParser::testRealETIFile_Bangkok()
 {
-    QString testFile = "/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti";
+    QString testFile = QStringLiteral(QT_TESTCASE_SOURCEDIR)
+                       + QStringLiteral("/../eti/bkk_20062022_141637.eti");
     QFile file(testFile);
 
     if (!file.exists()) {

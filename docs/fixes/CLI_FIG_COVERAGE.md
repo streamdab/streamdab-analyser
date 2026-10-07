@@ -5,17 +5,17 @@
 FIC-XTractor (bit-level FIC parse; chronological or by-type views; FIG element tree; readable values:
 text / date (FIG 0/10) / frequency (FIG 0/21) / geographic coordinates (FIG 0/22); FIB-hex with marked
 FIG; flags for erroneous FIGs, FIB CRC errors, multiplex reconfigurations).
-**Scope question (user):** should the CLI show more FIC-Analyzer/FIC-Extractor-style detail? What is still not decoded?
+**Scope question (user):** should the CLI show more FIC-Analyser/FIC-Extractor-style detail? What is still not decoded?
 **Standard:** ETSI EN 300 401 (full FIG inventory below).
 
 ## 1. FIG type/ext coverage inventory (decode capability)
 
 Legend: ✅ decoded · 🔶 partial · ❌ not decoded · — n/a
 
-| FIG | Content (EN 300 401) | fig_parser.cpp (CLI/core) | modern parser (CLI headless summary) | AdvancedFIGAnalyzer (GUI) | etisnoop |
+| FIG | Content (EN 300 401) | fig_parser.cpp (CLI/core) | modern parser (CLI headless summary) | AdvancedFIGAnalyser (GUI) | etisnoop |
 |---|---|---|---|---|---|
 | 0/0 | Ensemble information | ✅ | ✅ (EId/CId/CIF/alarm) | ✅ (fixed) | ✅ |
-| 0/1 | Sub-channel organization | ✅ | ✅ (EEP/UEP) | ✅ (fixed) | ✅ |
+| 0/1 | Sub-channel organisation | ✅ | ✅ (EEP/UEP) | ✅ (fixed) | ✅ |
 | 0/2 | Service components | ✅ | ✅ (PD/SId/comp) | ✅ (fixed) | ✅ |
 | 0/3 | Packet-mode (5-B entries) | ✅ | ✅ | 🔶 | ✅ |
 | 0/4 | CA (conditional access) | ✅ | ❌ | 🔶 | ✅ |
@@ -30,7 +30,7 @@ Legend: ✅ decoded · 🔶 partial · ❌ not decoded · — n/a
 | 0/13 | User application | ✅ | ❌ | 🔶 | ✅ |
 | 0/14 | Announcement support (CA) | ✅ | ❌ | 🔶 | ✅ |
 | 0/15 | Announcement switching | ✅ | ❌ | ❌ | — |
-| 0/16 | Service organization (label) | ✅ | ❌ (services from 1/1) | 🔶 (Programme Number only) | ✅ |
+| 0/16 | Service organisation (label) | ✅ | ❌ (services from 1/1) | 🔶 (Programme Number only) | ✅ |
 | 0/17 | Service component global defn | ✅ | ❌ | 🔶 | ✅ |
 | 0/18 | Service component local defn | ✅ | ❌ | 🔶 | ✅ |
 | 0/19 | Frequency information (CA) | ✅ | ❌ | ❌ | ✅ |
@@ -50,7 +50,7 @@ Legend: ✅ decoded · 🔶 partial · ❌ not decoded · — n/a
 | 2/x | OTH / FIG type 2 (FIC data) | ❌ | ❌ | 🔶 | ✅ (fig2) |
 
 Sources: `grep FIG src/core/fig_parser.cpp` (0/0-0/21, 0/24, 1/0, 1/1, 1/4, 1/5), modern_eti_frame_parser (0/0,0/1,0/2,0/3,0/9,1/0,1/1),
-advanced_fig_analyzer (0/0,0/1,0/2,0/6,0/7,0/8,0/9,0/10,0/13,1/0,1/1,1/4,1/5,2/0-2/5), etisnoop src/ (0/0-0/3,0/5-0/11,0/13,0/14,0/16-0/19,0/21,0/22,0/24-0/28,0/31,1/x,2).
+advanced_fig_analyser (0/0,0/1,0/2,0/6,0/7,0/8,0/9,0/10,0/13,1/0,1/1,1/4,1/5,2/0-2/5), etisnoop src/ (0/0-0/3,0/5-0/11,0/13,0/14,0/16-0/19,0/21,0/22,0/24-0/28,0/31,1/x,2).
 
 ## 2. What the CLI currently exposes (summary path)
 
@@ -58,7 +58,7 @@ advanced_fig_analyzer (0/0,0/1,0/2,0/6,0/7,0/8,0/9,0/10,0/13,1/0,1/1,1/4,1/5,2/0
 subchannels (id/SAD/size/EEP-UEP/bitrate), per-frame short info, frame CRC counters, tist_ms (verbose), FIG counts (headless stats).
 Parity: 14/14 labels, ensemble 0x2000 "Bangkok DAB+", 16/16 EEP 3-A vs etisnoop — verified.
 
-## 3. Gaps & recommendations (FIC-Analyzer/FIC-Extractor-style detail)
+## 3. Gaps & recommendations (FIC-Analyser/FIC-Extractor-style detail)
 
 Priority ordered. **P1 = high value / cheap, P2 = medium, P3 = future.**
 
@@ -66,7 +66,7 @@ Priority ordered. **P1 = high value / cheap, P2 = medium, P3 = future.**
   the backbone of FIC-XTractor's chronological view and of Tab-3 in the GUI. Data already exists in the parsing walk
   (fig blocks per FIB); surface it in `--verbose-frames` and a `--fig-trace` flag.
 - **P1 — FIG inventory in YAML summary**: `figs:` section listing observed (type, ext, count, first/last frame, crc_failures)
-  — enables the FIC-Analyzer "FIG Content" view from the CLI; cheap aggregation of existing data.
+  — enables the FIC-Analyser "FIG Content" view from the CLI; cheap aggregation of existing data.
 - **P1 — FIB/FIC error flags**: per-FIG CRC-fail and FIB CRC-fail counts + MCI reconfiguration detection
   (ensemble id / service / subchannel changes across frames) in summary — mirrors the manual's error icons.
 - **P2 — Readable value decoding for key FIGs in the trace**: FIG 0/10 (MJD → UTC date/time — fig_parser already decodes; add to trace),
@@ -88,7 +88,7 @@ separate wave (see `PANEL_AUDIT.md`).
 ## 5. Decision framing
 
 The Bangkok fixture only carries FIG 0/0, 0/1, 0/2, 0/9, 1/0, 1/1 — so any P2/P3 decoder must be validated synthetically
-or postponed. P1 items are fully verifiable on the real capture and provide the FIC-Analyzer/FIC-Extractor value the
+or postponed. P1 items are fully verifiable on the real capture and provide the FIC-Analyser/FIC-Extractor value the
 manual describes. Recommendation: implement P1 now (CLI), P2 when the GUI tab2/tab3 wave lands (shared trace), P3 on demand.
 
 **UPDATE 2026-10-02 (P1 implemented, commit `94126b4`):** `--fig-trace` (per-frame FIG instances with readable

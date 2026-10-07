@@ -585,7 +585,7 @@ private slots:
      * @brief Test Bangkok file can be opened and parsed
      */
     void test20_BangkokFileParses() {
-        QFile file("/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti");
+        QFile file(QStringLiteral(QT_TESTCASE_SOURCEDIR) + QStringLiteral("/../eti/bkk_20062022_141637.eti"));
         if (!file.exists()) {
             QSKIP("Bangkok ETI file not found");
         }
@@ -615,7 +615,7 @@ private slots:
      * @brief Test Bangkok first frame has 10+ streams
      */
     void test21_BangkokFirstFrame10Streams() {
-        QFile file("/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti");
+        QFile file(QStringLiteral(QT_TESTCASE_SOURCEDIR) + QStringLiteral("/../eti/bkk_20062022_141637.eti"));
         if (!file.exists()) {
             QSKIP("Bangkok ETI file not found");
         }
@@ -644,7 +644,7 @@ private slots:
      * @brief Test Bangkok file with variable NST across frames
      */
     void test22_BangkokVariableNST() {
-        QFile file("/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti");
+        QFile file(QStringLiteral(QT_TESTCASE_SOURCEDIR) + QStringLiteral("/../eti/bkk_20062022_141637.eti"));
         if (!file.exists()) {
             QSKIP("Bangkok ETI file not found");
         }
@@ -681,7 +681,7 @@ private slots:
      * @brief Test Bangkok file FIG extraction
      */
     void test23_BangkokFIGsExtracted() {
-        QFile file("/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti");
+        QFile file(QStringLiteral(QT_TESTCASE_SOURCEDIR) + QStringLiteral("/../eti/bkk_20062022_141637.eti"));
         if (!file.exists()) {
             QSKIP("Bangkok ETI file not found");
         }
@@ -777,7 +777,7 @@ private slots:
      * @brief Test performance benchmarking (bonus test)
      */
     void test26_PerformanceBenchmark() {
-        QFile file("/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti");
+        QFile file(QStringLiteral(QT_TESTCASE_SOURCEDIR) + QStringLiteral("/../eti/bkk_20062022_141637.eti"));
         if (!file.exists()) {
             QSKIP("Bangkok ETI file not found");
         }

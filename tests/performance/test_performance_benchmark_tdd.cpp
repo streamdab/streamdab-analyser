@@ -558,7 +558,7 @@ void TestPerformanceBenchmarkTDD::test_gui_update_performance_benchmark_AAA() {
     
     auto audio_monitor = main_window->getAudioMonitorWidget();
     auto service_browser = main_window->getServiceBrowser();
-    auto analyzer_widget = main_window->getAnalyzerWidget();
+    auto analyser_widget = main_window->getAnalyserWidget();
     
     const int update_iterations = 1000;
     const int services_per_update = 10;
@@ -587,12 +587,12 @@ void TestPerformanceBenchmarkTDD::test_gui_update_performance_benchmark_AAA() {
             new_service.bitrate_kbps = 128 + (iteration % 256);
             service_browser->addService(new_service);
             
-            // 3. Analyzer widget updates
+            // 3. Analyser widget updates
             FrameAnalysisResult frame_result;
             frame_result.frame_number = iteration;
             frame_result.timestamp_ms = iteration * 24; // 24ms per frame
             frame_result.service_count = services_per_update;
-            analyzer_widget->addFrameResult(frame_result);
+            analyser_widget->addFrameResult(frame_result);
             
             // Force GUI processing
             QApplication::processEvents();

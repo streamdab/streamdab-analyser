@@ -1,6 +1,6 @@
 /**
  * @file about_dialog.cpp
- * @brief Professional about dialog implementation for ETI Stream Analyzer
+ * @brief Professional about dialog implementation for ETI Stream Analyser
  * 
  * This file implements the AboutDialog class providing comprehensive
  * application information, credits, license, and system details for
@@ -73,7 +73,7 @@ void AboutDialog::createUI()
     m_copyrightLabel = new QLabel(APP_COPYRIGHT);
     
     m_descriptionLabel = new QLabel(
-        tr("Professional ETI Stream Analyzer for broadcast DAB/DAB+ monitoring and analysis. "
+        tr("Professional ETI Stream Analyser for broadcast DAB/DAB+ monitoring and analysis. "
            "Built on ETISnoop technology with advanced Qt GUI framework for comprehensive "
            "stream analysis and real-time monitoring capabilities.")
     );
@@ -250,7 +250,7 @@ QPixmap AboutDialog::getApplicationLogo() const
 QString AboutDialog::getCreditsText() const
 {
     return tr(
-        "ETI Stream Analyzer Development Team\n"
+        "ETI Stream Analyser Development Team\n"
         "====================================\n\n"
         
         "Core Development:\n"
@@ -296,12 +296,12 @@ QString AboutDialog::getCreditsText() const
 QString AboutDialog::getLicenseText() const
 {
     return tr(
-        "ETI Stream Analyzer License Agreement\n"
+        "ETI Stream Analyser License Agreement\n"
         "=====================================\n\n"
         
         "This software is released under the GNU General Public License v3.0\n\n"
         
-        "Copyright (C) 2024 ETI Stream Analyzer Team\n\n"
+        "Copyright (C) 2024 ETI Stream Analyser Team\n\n"
         
         "This program is free software: you can redistribute it and/or modify\n"
         "it under the terms of the GNU General Public License as published by\n"

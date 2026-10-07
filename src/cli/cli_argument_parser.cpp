@@ -1,4 +1,5 @@
 #include "cli_argument_parser.hpp"
+#include "core/product_version.hpp"
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QDir>
@@ -11,13 +12,14 @@ namespace cli {
 namespace {
 /**
  * @brief Version string reported by --help/--version
- * @return QCoreApplication::applicationVersion(), or the project version
- *         "1.3.0" when no application instance has set one yet
+ * @return QCoreApplication::applicationVersion(), or the build's DABX_VERSION
+ *         (see src/core/product_version.hpp) when no application instance has
+ *         set one yet
  */
 QString applicationBannerVersion()
 {
     const QString version = QCoreApplication::applicationVersion();
-    return version.isEmpty() ? QStringLiteral("1.3.0") : version;
+    return version.isEmpty() ? QStringLiteral(DABX_VERSION) : version;
 }
 } // namespace
 
@@ -138,7 +140,7 @@ CLIOptions CLIArgumentParser::parse(int argc, char** argv) {
             continue;
         }
 
-        // === Analyzer settings flags (option-variant matrix rows 1-14) ===
+        // === Analyser settings flags (option-variant matrix rows 1-14) ===
         // Row 1: Force label charset (0 = EBU Latin, 3 = UTF-8, 6 = TIS-620)
         if (arg == "--force-charset") {
             if (i + 1 >= argc) {
@@ -310,7 +312,7 @@ CLIOptions CLIArgumentParser::parse(int argc, char** argv) {
     return options;
 }
 
-QMap<QString, QVariant> CLIOptions::analyzerOverrides() const
+QMap<QString, QVariant> CLIOptions::analyserOverrides() const
 {
     QMap<QString, QVariant> m;
     if (force_charset >= 0) {
@@ -357,13 +359,13 @@ QMap<QString, QVariant> CLIOptions::analyzerOverrides() const
 
 void CLIArgumentParser::printUsage() {
     QTextStream out(stdout);
-    out << "StreamDAB Analyzer v" << applicationBannerVersion() << " - CLI Mode\n";
-    out << "ETSI EN 300 401 compliant DAB/DAB+ stream analyzer\n\n";
+    out << "StreamDAB Analyser v" << applicationBannerVersion() << " - CLI Mode\n";
+    out << "ETSI EN 300 401 compliant DAB/DAB+ stream analyser\n\n";
 
     out << "USAGE:\n";
-    out << "  streamdab-analyzer --input <file> [OPTIONS]\n";
-    out << "  streamdab-analyzer --help\n";
-    out << "  streamdab-analyzer --version\n\n";
+    out << "  streamdab-analyser --input <file> [OPTIONS]\n";
+    out << "  streamdab-analyser --help\n";
+    out << "  streamdab-analyser --version\n\n";
 
     out << "REQUIRED ARGUMENTS:\n";
     out << "  --input <file>          ETI file to analyze (.eti format)\n\n";
@@ -386,7 +388,7 @@ void CLIArgumentParser::printUsage() {
     out << "  --max-frames <n>        Process first N frames only (default: all)\n";
     out << "  --cli                   Explicitly enable CLI mode (auto-detected)\n\n";
 
-    out << "ANALYZER OPTIONS (decode decision points, see docs/fixes/OPTION_VARIANT_MATRIX.md):\n";
+    out << "ANALYSER OPTIONS (decode decision points, see docs/fixes/OPTION_VARIANT_MATRIX.md):\n";
     out << "  --force-charset N       Force label charset: 0 (EBU Latin), 3 (UTF-8),\n";
     out << "                          6 (TIS-620); default: follow the stream flag\n";
     out << "  --charset-fallback M    Unknown-charset policy: raw (default), utf8, skip\n";
@@ -409,16 +411,16 @@ void CLIArgumentParser::printUsage() {
 
     out << "EXAMPLES:\n";
     out << "  # Analyze ETI file to stdout (YAML format)\n";
-    out << "  streamdab-analyzer --input sample.eti\n\n";
+    out << "  streamdab-analyser --input sample.eti\n\n";
 
     out << "  # Save analysis to file with quiet mode\n";
-    out << "  streamdab-analyzer --input sample.eti -o report.yaml --quiet\n\n";
+    out << "  streamdab-analyser --input sample.eti -o report.yaml --quiet\n\n";
 
     out << "  # Analyze first 1000 frames with verbose logging\n";
-    out << "  streamdab-analyzer --input stream.eti --max-frames 1000 --verbose\n\n";
+    out << "  streamdab-analyser --input stream.eti --max-frames 1000 --verbose\n\n";
 
     out << "  # Frame-by-frame detailed output (WARNING: produces LARGE files)\n";
-    out << "  streamdab-analyzer --input sample.eti --verbose-frames -o detailed.yaml\n\n";
+    out << "  streamdab-analyser --input sample.eti --verbose-frames -o detailed.yaml\n\n";
 
     out << "EXIT CODES:\n";
     out << "  0   Success\n";
@@ -437,13 +439,13 @@ void CLIArgumentParser::printUsage() {
     out << "  - Thai UTF-8 support throughout\n";
     out << "  - Frame-by-frame FIG decoding (--verbose-frames)\n\n";
 
-    out << "For more information, visit: https://github.com/seksan/streamdab-analyzer\n";
+    out << "For more information, visit: https://git.morange.co.th/morange/streamdab-analyser.git\n";
     out.flush();
 }
 
 void CLIArgumentParser::printVersion() {
     QTextStream out(stdout);
-    out << "StreamDAB Analyzer v" << applicationBannerVersion() << " - CLI Mode\n";
+    out << "StreamDAB Analyser v" << applicationBannerVersion() << " - CLI Mode\n";
     out << "Build date: " << __DATE__ << " " << __TIME__ << "\n";
     out << "Qt version: " << QT_VERSION_STR << "\n";
     out << "ETSI Standards:\n";

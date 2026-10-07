@@ -13,7 +13,7 @@
  * 
  * @author Standards Compliance Agent
  * @date September 22, 2025
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #include "comprehensive_etsi_validator.hpp"
@@ -292,7 +292,7 @@ QString ComprehensiveETSIValidator::generateComplianceReport() const {
     
     report << "===============================================\n";
     report << "    ETSI STANDARDS COMPLIANCE REPORT\n";
-    report << "    StreamDAB Analyzer Professional\n";
+    report << "    StreamDAB Analyser Professional\n";
     report << "===============================================\n\n";
     
     // Executive Summary

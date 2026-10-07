@@ -54,7 +54,7 @@ if (!fic.ficf) {
 ## Test Command
 
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 ./streamdab-cli --input ../eti/bkk_20062022_141637.eti --output bangkok_test.yaml
 grep -c "scid:" bangkok_test.yaml  # Currently: 0, Should be: 10
 ```

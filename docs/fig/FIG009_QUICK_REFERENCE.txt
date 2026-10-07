@@ -2,7 +2,7 @@
 FIG 0/9 QUICK REFERENCE - Agent 20 Deliverables
 ===============================================================================
 
-PROJECT: StreamDAB Analyzer - FIG 0/9 Country/LTO/International Table
+PROJECT: StreamDAB Analyser - FIG 0/9 Country/LTO/International Table
 AGENT: Agent 20 - Python Pro (PDCA Week 5)
 DATE: November 3, 2025
 STATUS: ✅ COMPLETE - All files ready for integration
@@ -12,28 +12,28 @@ DELIVERABLE FILES (7 total)
 ===============================================================================
 
 1. TEST FILE (484 lines)
-   /home/seksan/workspace/streamdab-analyzer/tests/test_fig009_country_lto_table.cpp
+   /home/seksan/workspace/streamdab-analyser/tests/test_fig009_country_lto_table.cpp
    
 2. IMPLEMENTATION GUIDE (353 lines)
-   /home/seksan/workspace/streamdab-analyzer/FIG009_IMPLEMENTATION_GUIDE.md
+   /home/seksan/workspace/streamdab-analyser/FIG009_IMPLEMENTATION_GUIDE.md
    
 3. HEADER PATCH (105 lines)
-   /home/seksan/workspace/streamdab-analyzer/FIG009_HEADER_PATCH.txt
+   /home/seksan/workspace/streamdab-analyser/FIG009_HEADER_PATCH.txt
    
 4. CPP PATCH (110 lines)
-   /home/seksan/workspace/streamdab-analyzer/FIG009_CPP_PATCH.txt
+   /home/seksan/workspace/streamdab-analyser/FIG009_CPP_PATCH.txt
    
 5. CMAKE PATCH (26 lines)
-   /home/seksan/workspace/streamdab-analyzer/FIG009_CMAKELISTS_PATCH.txt
+   /home/seksan/workspace/streamdab-analyser/FIG009_CMAKELISTS_PATCH.txt
    
 6. COMPLETE REPORT (454 lines)
-   /home/seksan/workspace/streamdab-analyzer/AGENT20_FIG009_COMPLETE_REPORT.md
+   /home/seksan/workspace/streamdab-analyser/AGENT20_FIG009_COMPLETE_REPORT.md
    
 7. DELIVERABLES SUMMARY (current file listing)
-   /home/seksan/workspace/streamdab-analyzer/AGENT20_DELIVERABLES_SUMMARY.md
+   /home/seksan/workspace/streamdab-analyser/AGENT20_DELIVERABLES_SUMMARY.md
 
 8. THIS QUICK REFERENCE
-   /home/seksan/workspace/streamdab-analyzer/FIG009_QUICK_REFERENCE.txt
+   /home/seksan/workspace/streamdab-analyser/FIG009_QUICK_REFERENCE.txt
 
 ===============================================================================
 FILES TO MODIFY (3 files - follow patch instructions)
@@ -57,7 +57,7 @@ INTEGRATION STEPS (18 minutes total)
 ===============================================================================
 
 Step 1: Review Documentation (5 min)
-  cd /home/seksan/workspace/streamdab-analyzer
+  cd /home/seksan/workspace/streamdab-analyser
   cat FIG009_IMPLEMENTATION_GUIDE.md
   cat AGENT20_FIG009_COMPLETE_REPORT.md
 
@@ -182,7 +182,7 @@ TEST COMMANDS
 ===============================================================================
 
 # Build
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake --build .
 
 # Run all tests
@@ -216,17 +216,17 @@ FILE VERIFICATION
 ===============================================================================
 
 # Check all files exist
-ls -lh /home/seksan/workspace/streamdab-analyzer/FIG009_*
-ls -lh /home/seksan/workspace/streamdab-analyzer/AGENT20_*
-ls -lh /home/seksan/workspace/streamdab-analyzer/tests/test_fig009_*
+ls -lh /home/seksan/workspace/streamdab-analyser/FIG009_*
+ls -lh /home/seksan/workspace/streamdab-analyser/AGENT20_*
+ls -lh /home/seksan/workspace/streamdab-analyser/tests/test_fig009_*
 
 # Count lines
-wc -l /home/seksan/workspace/streamdab-analyzer/tests/test_fig009_*.cpp
+wc -l /home/seksan/workspace/streamdab-analyser/tests/test_fig009_*.cpp
 # Expected: 484 lines
 
 # Count test methods
 grep -c "^void TestFig009CountryLTO::test_" \
-  /home/seksan/workspace/streamdab-analyzer/tests/test_fig009_*.cpp
+  /home/seksan/workspace/streamdab-analyser/tests/test_fig009_*.cpp
 # Expected: 25 tests
 
 ===============================================================================
@@ -268,4 +268,4 @@ Agent 20 - Python Pro
 PDCA Week 5 - FIG 0/9 Country/LTO/International Table
 November 3, 2025
 
-All files in: /home/seksan/workspace/streamdab-analyzer/
+All files in: /home/seksan/workspace/streamdab-analyser/

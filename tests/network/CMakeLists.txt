@@ -7,7 +7,7 @@
 #
 # Author: Network/Stream Agent - TDD Lead
 # Date: 2025-09-22
-# Copyright (c) 2025 ETI Stream Analyzer Team
+# Copyright (c) 2025 ETI Stream Analyser Team
 # ==============================================================================
 
 cmake_minimum_required(VERSION 3.20)
@@ -120,9 +120,9 @@ add_executable(test_eti_over_ip_receiver_tdd
 target_link_libraries(test_eti_over_ip_receiver_tdd
     PRIVATE
         # Main project libraries
-        ETIStreamAnalyzer_core
-        ETIStreamAnalyzer_network
-        ETIStreamAnalyzer_utils
+        ETIStreamAnalyser_core
+        ETIStreamAnalyser_network
+        ETIStreamAnalyser_utils
 
         # Qt6 components
         Qt6::Core
@@ -164,9 +164,9 @@ add_executable(test_streaming_processor_tdd
 
 target_link_libraries(test_streaming_processor_tdd
     PRIVATE
-        ETIStreamAnalyzer_core
-        ETIStreamAnalyzer_network
-        ETIStreamAnalyzer_utils
+        ETIStreamAnalyser_core
+        ETIStreamAnalyser_network
+        ETIStreamAnalyser_utils
         Qt6::Core
         Qt6::Network
         Qt6::Test
@@ -192,9 +192,9 @@ add_executable(test_broadcast_equipment_integration_tdd
 
 target_link_libraries(test_broadcast_equipment_integration_tdd
     PRIVATE
-        ETIStreamAnalyzer_core
-        ETIStreamAnalyzer_network
-        ETIStreamAnalyzer_utils
+        ETIStreamAnalyser_core
+        ETIStreamAnalyser_network
+        ETIStreamAnalyser_utils
         Qt6::Core
         Qt6::Network
         Qt6::Test
@@ -222,9 +222,9 @@ add_executable(test_performance_validation_framework_tdd
 
 target_link_libraries(test_performance_validation_framework_tdd
     PRIVATE
-        ETIStreamAnalyzer_core
-        ETIStreamAnalyzer_network
-        ETIStreamAnalyzer_utils
+        ETIStreamAnalyser_core
+        ETIStreamAnalyser_network
+        ETIStreamAnalyser_utils
         Qt6::Core
         Qt6::Network
         Qt6::Test
@@ -250,9 +250,9 @@ add_executable(test_professional_workflow_integration_tdd
 
 target_link_libraries(test_professional_workflow_integration_tdd
     PRIVATE
-        ETIStreamAnalyzer_core
-        ETIStreamAnalyzer_network
-        ETIStreamAnalyzer_utils
+        ETIStreamAnalyser_core
+        ETIStreamAnalyser_network
+        ETIStreamAnalyser_utils
         Qt6::Core
         Qt6::Network
         Qt6::Test
@@ -568,7 +568,7 @@ if(INSTALL_TESTS)
     # Install test data and fixtures
     install(DIRECTORY
         ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/
-        DESTINATION share/ETIStreamAnalyzer/test_data/network
+        DESTINATION share/ETIStreamAnalyser/test_data/network
         COMPONENT Tests
         PATTERN "*.cpp" EXCLUDE
     )

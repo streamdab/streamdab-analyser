@@ -12,7 +12,7 @@
  * 
  * @author Network/Stream Agent
  * @date 2025-09-22
- * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2025 ETI Stream Analyser Team
  */
 
 #include "eti_over_ip_receiver.h"

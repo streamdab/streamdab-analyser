@@ -11,7 +11,7 @@
  * @class FileUtils
  * @brief Utility functions for file and directory operations
  * 
- * Provides common file operations for ETI Stream Analyzer including
+ * Provides common file operations for ETI Stream Analyser including
  * ETI file validation, format detection, and file system utilities.
  */
 class FileUtils

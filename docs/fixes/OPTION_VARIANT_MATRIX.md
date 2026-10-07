@@ -31,9 +31,9 @@ user option · **FIX** = implement correctly first (was deviating / absent).
 
 ## Implementation roadmap (settings feature)
 
-1. **Storage:** `AnalyzerSettings` (QSettings-backed, org `StreamDAB-Analyzer`, app `DABAnalyzer`,
-   group `analyzer/...`) shared by GUI + CLI; CLI flags override for headless runs.
-2. **GUI:** extend `src/gui/settings_dialog.cpp` with an "Analyzer / Decode options" section grouped
+1. **Storage:** `AnalyserSettings` (QSettings-backed, org `StreamDAB-Analyser`, app `DABAnalyser`,
+   group `analyser/...`) shared by GUI + CLI; CLI flags override for headless runs.
+2. **GUI:** extend `src/gui/settings_dialog.cpp` with an "Analyser / Decode options" section grouped
    by case (charset, ETI mode, FIC/FIB CRC strictness, country override, label display, timestamp,
    SId display) + optional quick toggles in the Decoder panel.
 3. **CLI:** add flags with documented defaults matching this matrix's `KEEP` column:
@@ -42,12 +42,12 @@ user option · **FIX** = implement correctly first (was deviating / absent).
    `--ecc-override 0xNN:cid`, `--label-source 0/16|1/1`, `--show-short-labels`,
    `--timestamp-source mtime|tist`, `--sid-display hex32|ecc-sid|hex16`,
    `--service-ecc-deep-parse`.
-4. **Defaults:** every default equals the etisnoop-parity behavior (the `KEEP` column) — so a
+4. **Defaults:** every default equals the etisnoop-parity behaviour (the `KEEP` column) — so a
    default-config run stays byte-identical to today's output.
 
 ## Status
 
 - [x] Review + fix wave F1–F9 (see `ETI_FIC_DECODE_STANDARDS_REVIEW.md`)
 - [x] Matrix `FIX` leftovers: auto raw-FIC fallback (row 4) + tail TIST for NI (row 10)
-- [x] **Settings feature (rows 1,2,3,4,5,6,8,9,10,11,12,14)**: `AnalyzerSettings` (QSettings group `analyzer/`) + CLI flags (13) + GUI "Analyzer" tab in `settings_dialog.cpp` — etisnoop-parity defaults keep default-config output byte-identical; `--show-short-labels` matches etisnoop short-label set exactly on the fixture; new `test_analyzer_settings` (15 tests). Committed with the T8 commit.
+- [x] **Settings feature (rows 1,2,3,4,5,6,8,9,10,11,12,14)**: `AnalyserSettings` (QSettings group `analyser/`) + CLI flags (13) + GUI "Analyser" tab in `settings_dialog.cpp` — etisnoop-parity defaults keep default-config output byte-identical; `--show-short-labels` matches etisnoop short-label set exactly on the fixture; new `test_analyser_settings` (15 tests). Committed with the T8 commit.
 - [ ] Remaining matrix notes: row 9 full EEP/UEP size tables for reporting (future; decode itself matches etisnoop)

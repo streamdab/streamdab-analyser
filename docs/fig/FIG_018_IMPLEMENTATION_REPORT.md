@@ -25,7 +25,7 @@
 
 ### 1. Data Structure (fig_parser.hpp)
 
-**Location:** `/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.hpp`
+**Location:** `/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.hpp`
 
 **Added Structure:**
 ```cpp
@@ -50,7 +50,7 @@ struct AnnouncementSupport {
 
 ### 2. Parser Implementation (fig_parser.cpp)
 
-**Location:** `/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.cpp`
+**Location:** `/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.cpp`
 
 **Method:** `AnnouncementSupport parseFig018_AnnouncementSupport(const std::vector<uint8_t>& data)`
 
@@ -117,7 +117,7 @@ case 18: { // FIG 0/18 - Announcement support
 
 ### Test File
 
-**Location:** `/home/seksan/workspace/streamdab-analyzer/tests/test_fig018_announcement.cpp`
+**Location:** `/home/seksan/workspace/streamdab-analyser/tests/test_fig018_announcement.cpp`
 
 **Total Tests:** 23 (exceeded target of 20+)
 

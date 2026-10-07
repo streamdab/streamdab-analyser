@@ -30,7 +30,7 @@
  * @author Advanced Features Agent - Perfect 10.0/10.0 Specialist
  * @date 2025-09-27
  * @version 2.0.0
- * @copyright Professional Broadcast Solutions - StreamDAB Analyzer
+ * @copyright Professional Broadcast Solutions - StreamDAB Analyser
  */
 
 #pragma once
@@ -451,7 +451,7 @@ public:
         std::chrono::seconds request_timeout{30};
         size_t max_retries = 3;
         bool enable_ssl = true;
-        QString user_agent = "StreamDAB-Analyzer/2.0";
+        QString user_agent = "StreamDAB-Analyser/2.0";
     };
     
     explicit AWSCloudProvider(const AWSConfig& config, QObject* parent = nullptr);

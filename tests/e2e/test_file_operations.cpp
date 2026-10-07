@@ -15,7 +15,7 @@
 
 #include "gui/main_window.h"
 #include "gui/service_browser.h"
-#include "gui/analyzer_widget.h"
+#include "gui/analyser_widget.h"
 #include "utils/logger.h"
 #include "test_performance_optimization.h"
 
@@ -401,7 +401,7 @@ bool TestFileOperations::verifyFileLoadedSuccessfully()
     
     // Check if UI components show file content
     ServiceBrowser* serviceBrowser = mainWindow->findChild<ServiceBrowser*>();
-    AnalyzerWidget* analyzerWidget = mainWindow->findChild<AnalyzerWidget*>();
+    AnalyserWidget* analyserWidget = mainWindow->findChild<AnalyserWidget*>();
     
     if (serviceBrowser) {
         // Should show services from the loaded file
@@ -414,9 +414,9 @@ bool TestFileOperations::verifyFileLoadedSuccessfully()
         }
     }
     
-    if (analyzerWidget) {
+    if (analyserWidget) {
         // Should show analysis results
-        Logger::instance().log(Logger::Debug, "FileOpsE2E", "Analyzer widget updated after file load");
+        Logger::instance().log(Logger::Debug, "FileOpsE2E", "Analyser widget updated after file load");
         loadSuccess = true;
     }
     

@@ -26,7 +26,7 @@
 
 #include "../../src/gui/main_window.h"
 #include "../../src/gui/service_browser.h"
-#include "../../src/gui/analyzer_widget.h"
+#include "../../src/gui/analyser_widget.h"
 #include "../../src/gui/audio_monitoring_widget.h"
 #include "../../src/gui/etsi_compliance_monitor.h"
 #include "../../src/core/eti_processor.h"
@@ -261,7 +261,7 @@ void TestComprehensiveWorkflowTDD::test_complete_file_analysis_workflow_AAA() {
         // Verify UI state after completion
         QVERIFY2(main_window->hasOpenFile(), "Main window should show open file");
         QVERIFY2(main_window->getServiceBrowser()->getServiceCount() > 0, "Service browser should show services");
-        QVERIFY2(main_window->getAnalyzerWidget()->hasAnalysisData(), "Analyzer should show analysis data");
+        QVERIFY2(main_window->getAnalyserWidget()->hasAnalysisData(), "Analyser should show analysis data");
     }
 }
 
@@ -368,7 +368,7 @@ void TestComprehensiveWorkflowTDD::test_corrupted_file_handling_workflow_AAA() {
             // If some frames were recovered, verify partial results
             if (recoverable_frames > 0) {
                 QVERIFY2(main_window->hasPartialAnalysisData(), "Should have partial analysis data");
-                QVERIFY2(main_window->getAnalyzerWidget()->showsPartialData(), "Analyzer should indicate partial data");
+                QVERIFY2(main_window->getAnalyserWidget()->showsPartialData(), "Analyser should indicate partial data");
             }
         }
         

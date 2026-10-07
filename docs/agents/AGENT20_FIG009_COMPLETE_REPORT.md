@@ -159,7 +159,7 @@ Byte 3: International table ID (8 bits)
 
 ```bash
 # Navigate to project root
-cd /home/seksan/workspace/streamdab-analyzer
+cd /home/seksan/workspace/streamdab-analyser
 
 # Apply patches to fig_parser.hpp
 # Follow instructions in FIG009_HEADER_PATCH.txt
@@ -248,7 +248,7 @@ Totals: 27 passed, 0 failed, 0 skipped, 0 blacklisted, 52ms
 - [x] **Struct Definition**
   - [x] 5 data fields with proper types
   - [x] 4 utility methods implemented
-  - [x] Default initialization with `{}`
+  - [x] Default initialisation with `{}`
 
 - [x] **Parser Implementation**
   - [x] Minimum data validation (4 bytes)
@@ -336,7 +336,7 @@ Totals: 27 passed, 0 failed, 0 skipped, 0 blacklisted, 52ms
 
 ## File Locations
 
-All files created in project root: `/home/seksan/workspace/streamdab-analyzer/`
+All files created in project root: `/home/seksan/workspace/streamdab-analyser/`
 
 1. **Test File:**
    - `tests/test_fig009_country_lto_table.cpp` (651 lines)
@@ -432,7 +432,7 @@ Agent 20 has successfully delivered FIG 0/9 Country/LTO/International Table pars
 
 ```bash
 # Navigate to project
-cd /home/seksan/workspace/streamdab-analyzer
+cd /home/seksan/workspace/streamdab-analyser
 
 # Apply patches (follow patch files for exact locations)
 # 1. Edit src/core/fig_parser.hpp (follow FIG009_HEADER_PATCH.txt)

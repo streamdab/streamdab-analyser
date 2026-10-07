@@ -29,7 +29,7 @@ public:
         , m_frameCount(0)
     {
         // Create basic window structure
-        setWindowTitle("StreamDAB Analyzer");
+        setWindowTitle("StreamDAB Analyser");
 
         m_menuBar = new QMenuBar(this);
         setMenuBar(m_menuBar);

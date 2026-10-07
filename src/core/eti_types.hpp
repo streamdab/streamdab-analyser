@@ -3,12 +3,12 @@
  * @brief ETSI-Compliant ETI data type definitions and constants
  *
  * This file contains the fundamental data types, structures, and constants
- * used throughout the ETI Stream Analyzer for DAB/DAB+ processing.
+ * used throughout the ETI Stream Analyser for DAB/DAB+ processing.
  * Fully compliant with ETSI EN 300 799 and ETSI EN 300 401 specifications.
  *
  * @author Standards Compliance Agent
  * @date 2025
- * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2025 ETI Stream Analyser Team
  */
 
 #ifndef ETI_TYPES_HPP

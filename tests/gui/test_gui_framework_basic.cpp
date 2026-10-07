@@ -3,12 +3,12 @@
  * @brief Basic GUI framework validation tests
  * 
  * This test validates that the GUI testing infrastructure is working
- * without requiring the full DABAnalyzerWindow class compilation.
+ * without requiring the full DABAnalyserWindow class compilation.
  * 
  * Tests basic Qt functionality, signal/slot mechanisms, and widget creation
  * to ensure the GUI test framework is operational.
  * 
- * @author StreamDAB Analyzer Project  
+ * @author StreamDAB Analyser Project  
  * @date 2025-10-23
  */
 
@@ -217,7 +217,7 @@ private slots:
     {
         qDebug() << "=== GUI Framework Basic Tests Completed ===";
         qDebug() << "All Qt GUI infrastructure tests passed";
-        qDebug() << "Ready for full DABAnalyzerWindow testing";
+        qDebug() << "Ready for full DABAnalyserWindow testing";
     }
 };
 

@@ -15,8 +15,8 @@
 **Key Discovery:** ETI-NI uses **NST-1 encoding** where the NST field stores `actual_streams - 1`. This explains why the Bangkok file with 10 subchannels has NST field value of 9.
 
 **Deliverables:**
-1. Complete specification: `/home/seksan/workspace/streamdab-analyzer/docs/ETI_NI_SPECIFICATION.md` (24 KB)
-2. Visual diagram: `/home/seksan/workspace/streamdab-analyzer/docs/ETI_NI_FRAME_DIAGRAM.txt` (8 KB)
+1. Complete specification: `/home/seksan/workspace/streamdab-analyser/docs/ETI_NI_SPECIFICATION.md` (24 KB)
+2. Visual diagram: `/home/seksan/workspace/streamdab-analyser/docs/ETI_NI_FRAME_DIAGRAM.txt` (8 KB)
 3. This completion report
 
 ---
@@ -143,7 +143,7 @@ Ran etisnoop on Bangkok file:
 
 ### Frame-by-Frame Analysis
 
-Analyzed 100 frames:
+Analysed 100 frames:
 - NST field value distribution:
   - NST=9: 37 frames (actual streams = 10)
   - NST=25: 63 frames (actual streams = 26, different multiplex?)
@@ -168,7 +168,7 @@ ETI-NI uses alternating SYNC values:
 - Even frames: `0xFF 0xF8`
 - Odd frames: `0xFF 0x07`
 
-This is **normal behavior**, not an error. Parser must accept both.
+This is **normal behaviour**, not an error. Parser must accept both.
 
 ### 2. FICF Conditional FIC
 
@@ -245,7 +245,7 @@ Summary report with:
 | ETI-NI format documented | Complete | ✅ 100% | EXCEEDED |
 | NST extraction explained | Yes | ✅ NST-1 discovered | EXCEEDED |
 | FIC location found | Yes | ✅ Dynamic offset (8 + N×4) | MET |
-| Bangkok file analyzed | 10 subchannels | ✅ 10 found | MET |
+| Bangkok file analysed | 10 subchannels | ✅ 10 found | MET |
 | Validated against etisnoop | Match | ✅ 100% match | EXCEEDED |
 | Byte-level mapping | Complete | ✅ All fields mapped | MET |
 | Implementation guide | Pseudo-code | ✅ Complete parser code | EXCEEDED |
@@ -312,7 +312,7 @@ Recommended order for Agent 44:
 - etisnoop (ODR-DabMux): Reference implementation
 
 **Test Files:**
-- Bangkok ETI: `/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti`
+- Bangkok ETI: `/home/seksan/workspace/streamdab-analyser/eti/bkk_20062022_141637.eti`
   - 30 MB, 4,882 frames
   - 10 subchannels, all 64 kbps EEP 3-A
   - Perfect reference for testing
@@ -331,12 +331,12 @@ Recommended order for Agent 44:
 **Next steps:**
 - Agent 44: Implement ETI-NI parser using this specification
 - Expected timeline: 5-8 hours
-- Expected outcome: StreamDAB Analyzer can parse Bangkok file
+- Expected outcome: StreamDAB Analyser can parse Bangkok file
 
 **Documentation locations:**
-- `/home/seksan/workspace/streamdab-analyzer/docs/ETI_NI_SPECIFICATION.md`
-- `/home/seksan/workspace/streamdab-analyzer/docs/ETI_NI_FRAME_DIAGRAM.txt`
-- `/home/seksan/workspace/streamdab-analyzer/docs/AGENT42_COMPLETION_REPORT.md`
+- `/home/seksan/workspace/streamdab-analyser/docs/ETI_NI_SPECIFICATION.md`
+- `/home/seksan/workspace/streamdab-analyser/docs/ETI_NI_FRAME_DIAGRAM.txt`
+- `/home/seksan/workspace/streamdab-analyser/docs/AGENT42_COMPLETION_REPORT.md`
 
 ---
 

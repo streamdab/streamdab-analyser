@@ -9,7 +9,7 @@
 #include <algorithm>
 #include "eti_types.hpp"
 #include "modern_eti_frame_parser.hpp"
-#include "enhanced_fig_analyzer.hpp"
+#include "enhanced_fig_analyser.hpp"
 #include "performance_profiler.hpp"
 
 /**
@@ -62,10 +62,10 @@ public:
     eti::modern::ModernETIFrameParser* get_eti_parser() const { return frame_parser_.get(); }
 
     /**
-     * @brief Get Enhanced FIG Analyzer instance for direct access
-     * @return Enhanced FIG analyzer instance
+     * @brief Get Enhanced FIG Analyser instance for direct access
+     * @return Enhanced FIG analyser instance
      */
-    eti::modern::EnhancedFIGAnalyzer* get_fig_analyzer() const { return fig_analyzer_.get(); }
+    eti::modern::EnhancedFIGAnalyser* get_fig_analyser() const { return fig_analyser_.get(); }
 
     /**
      * @brief Check if processor is initialized
@@ -441,7 +441,7 @@ private slots:
 private:
     // Modern ETI Core Engine components
     std::unique_ptr<eti::modern::ModernETIFrameParser> frame_parser_;
-    std::unique_ptr<eti::modern::EnhancedFIGAnalyzer> fig_analyzer_;
+    std::unique_ptr<eti::modern::EnhancedFIGAnalyser> fig_analyser_;
     std::unique_ptr<eti::modern::performance_profiler> profiler_;
 
     // Processing configuration

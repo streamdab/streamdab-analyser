@@ -132,7 +132,7 @@ bool Logger::initializeFileLogging()
         // Get safe log directory
         QString appName = QCoreApplication::applicationName();
         if (appName.isEmpty()) {
-            appName = "ETIStreamAnalyzer";
+            appName = "ETIStreamAnalyser";
         }
         
         // Try to get writable location, with fallback
@@ -176,7 +176,7 @@ bool Logger::initializeFileLogging()
         
         // Create log file with timestamp
         QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss");
-        m_currentLogFile = m_logDirectory + QString("/eti_analyzer_safe_%1.log").arg(timestamp);
+        m_currentLogFile = m_logDirectory + QString("/eti_analyser_safe_%1.log").arg(timestamp);
         
         // Attempt to open log file
         m_logFile = std::make_unique<QFile>(m_currentLogFile);
@@ -357,7 +357,7 @@ QStringList Logger::getLogFileList() const
     QString logDir = getLogDirectory();
     QDir dir(logDir);
     QStringList filters;
-    filters << "eti_analyzer_*.log";
+    filters << "eti_analyser_*.log";
     
     QFileInfoList files = dir.entryInfoList(filters, QDir::Files, QDir::Time);
     QStringList filePaths;

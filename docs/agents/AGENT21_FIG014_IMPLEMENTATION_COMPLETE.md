@@ -1,4 +1,4 @@
-# Agent 21: FIG 0/14 FEC Sub-channel Organization - COMPLETE IMPLEMENTATION
+# Agent 21: FIG 0/14 FEC Sub-channel Organisation - COMPLETE IMPLEMENTATION
 
 **Agent:** Agent 21 - Python Pro
 **PDCA Week:** Week 5
@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-Agent 21 successfully delivered FIG 0/14 FEC Sub-channel Organization parser with:
+Agent 21 successfully delivered FIG 0/14 FEC Sub-channel Organisation parser with:
 - ✅ **22/22 comprehensive tests** (100% coverage)
 - ✅ **Complete implementation** with short/long form support
 - ✅ **ETSI EN 300 401 §8.1.5 compliance** (100%)
@@ -22,7 +22,7 @@ Agent 21 successfully delivered FIG 0/14 FEC Sub-channel Organization parser wit
 ## Deliverables
 
 ### 1. Test File ✅
-**File:** `/home/seksan/workspace/streamdab-analyzer/tests/test_fig014_fec_subchannel.cpp`
+**File:** `/home/seksan/workspace/streamdab-analyser/tests/test_fig014_fec_subchannel.cpp`
 **Lines:** 563 lines
 **Test Count:** 22 tests
 
@@ -36,7 +36,7 @@ Agent 21 successfully delivered FIG 0/14 FEC Sub-channel Organization parser wit
 
 ### 2. Implementation Code ✅
 
-Ready to add to `/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.cpp`:
+Ready to add to `/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.cpp`:
 
 ```cpp
 /**
@@ -356,7 +356,7 @@ IF Long Form (Form bit = 0):
 ### Build Commands
 
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake --build .
 ./test_fig014_fec_subchannel
 ```
@@ -404,7 +404,7 @@ Totals: 25 passed, 0 failed, 0 skipped, 0 blacklisted
 
 ## Conclusion
 
-Agent 21 successfully delivered FIG 0/14 FEC Sub-channel Organization parser with:
+Agent 21 successfully delivered FIG 0/14 FEC Sub-channel Organisation parser with:
 
 ✅ **22/22 comprehensive tests** (100% pass rate)
 ✅ **Complete ETSI EN 300 401 §8.1.5 compliance**

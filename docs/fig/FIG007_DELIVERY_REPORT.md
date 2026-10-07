@@ -18,26 +18,26 @@ Successfully designed and implemented FIG 0/7 Service Component Stream Mode pars
 
 ### ✅ Files Created
 
-1. **`/home/seksan/workspace/streamdab-analyzer/tests/test_fig007_stream_mode.cpp`**
+1. **`/home/seksan/workspace/streamdab-analyser/tests/test_fig007_stream_mode.cpp`**
    - Comprehensive test suite with 13 test cases
    - Covers basic parsing, edge cases, validation, and performance
    - Qt Test framework compatible
    - Ready for compilation and execution
 
-2. **`/home/seksan/workspace/streamdab-analyzer/FIG007_IMPLEMENTATION_GUIDE.md`**
+2. **`/home/seksan/workspace/streamdab-analyser/FIG007_IMPLEMENTATION_GUIDE.md`**
    - Complete implementation guide
    - Detailed byte structure documentation
    - Step-by-step manual patch instructions
    - Build and test instructions
    - Success criteria checklist
 
-3. **`/home/seksan/workspace/streamdab-analyzer/FIG007_PATCHES.txt`**
+3. **`/home/seksan/workspace/streamdab-analyser/FIG007_PATCHES.txt`**
    - Quick reference patch file
    - 6 patches ready for copy-paste application
    - Line number references for each patch
    - Verification commands included
 
-4. **`/home/seksan/workspace/streamdab-analyzer/FIG007_DELIVERY_REPORT.md`**
+4. **`/home/seksan/workspace/streamdab-analyser/FIG007_DELIVERY_REPORT.md`**
    - This file: comprehensive delivery documentation
 
 ### ⏳ Manual Integration Required
@@ -109,7 +109,7 @@ Byte 3: [SubChId 6-bit][RFA 2-bit]
 
 ## Test Suite Coverage
 
-**File:** `/home/seksan/workspace/streamdab-analyzer/tests/test_fig007_stream_mode.cpp`
+**File:** `/home/seksan/workspace/streamdab-analyser/tests/test_fig007_stream_mode.cpp`
 
 ### Test Categories (13 tests total)
 
@@ -161,7 +161,7 @@ Open `FIG007_PATCHES.txt` and apply the 6 patches to:
 ### Step 2: Build
 
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake ..
 make test_fig007_stream_mode
 ```
@@ -223,7 +223,7 @@ Expected: X.XX < 15.0 µs
 
 ## Technical Highlights
 
-### Optimized Bit Manipulation
+### Optimised Bit Manipulation
 
 The implementation uses efficient bit operations for 12-bit field extraction:
 
@@ -275,7 +275,7 @@ Follows established FIG parser patterns:
 
 1. **Extended Validation:**
    - Cross-reference SCId with FIG 0/8 Service Component Global Definition
-   - Validate SubChId against FIG 0/1 Sub-channel Organization
+   - Validate SubChId against FIG 0/1 Sub-channel Organisation
    - Detect conflicts with FIG 0/3 Packet Mode components
 
 2. **Statistics Tracking:**
@@ -300,8 +300,8 @@ Follows established FIG parser patterns:
    - Table 2: FIG type 0 extensions
 
 3. **Project Documentation:**
-   - `/home/seksan/workspace/streamdab-analyzer/docs/archive/CLAUDE.md` - PDCA Week 7 status
-   - `/home/seksan/workspace/streamdab-analyzer/docs/ETSI_COMPLIANCE_FRAMEWORK.md`
+   - `/home/seksan/workspace/streamdab-analyser/docs/archive/CLAUDE.md` - PDCA Week 7 status
+   - `/home/seksan/workspace/streamdab-analyser/docs/ETSI_COMPLIANCE_FRAMEWORK.md`
 
 ---
 
@@ -317,7 +317,7 @@ Follows established FIG parser patterns:
 ## Appendix: File Locations
 
 ```
-/home/seksan/workspace/streamdab-analyzer/
+/home/seksan/workspace/streamdab-analyser/
 ├── tests/
 │   └── test_fig007_stream_mode.cpp          ✅ Created (13 tests)
 ├── src/

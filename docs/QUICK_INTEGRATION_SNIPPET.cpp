@@ -1,7 +1,7 @@
 /**
  * QUICK INTEGRATION SNIPPET - Copy-Paste Ready Code
  *
- * File: /home/seksan/workspace/streamdab-analyzer/src/main.cpp
+ * File: /home/seksan/workspace/streamdab-analyser/src/main.cpp
  *
  * Use this file for quick copy-paste integration.
  * See SERVICE_TREE_INTEGRATION_GUIDE.md for detailed instructions.
@@ -28,18 +28,18 @@ private:
 // ============================================================================
 
     // EXISTING CONNECTION
-    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::serviceDiscovered,
-            this, &DABAnalyzerWindow::onServiceDiscovered);
+    connect(m_figAnalyser.get(), &AdvancedFIGAnalyser::serviceDiscovered,
+            this, &DABAnalyserWindow::onServiceDiscovered);
 
     // NEW CONNECTIONS - Add these 3 connections
-    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::servicesUpdated,
-            this, &DABAnalyzerWindow::onServicesUpdated);
+    connect(m_figAnalyser.get(), &AdvancedFIGAnalyser::servicesUpdated,
+            this, &DABAnalyserWindow::onServicesUpdated);
 
-    connect(m_figAnalyzer.get(), &AdvancedFIGAnalyzer::ensembleInfoUpdated,
-            this, &DABAnalyzerWindow::updateHierarchicalServiceTree);
+    connect(m_figAnalyser.get(), &AdvancedFIGAnalyser::ensembleInfoUpdated,
+            this, &DABAnalyserWindow::updateHierarchicalServiceTree);
 
     connect(m_hierarchicalServiceTree, &QTreeWidget::currentItemChanged,
-            this, &DABAnalyzerWindow::onServiceTreeSelectionChanged);
+            this, &DABAnalyserWindow::onServiceTreeSelectionChanged);
 
 // ============================================================================
 // PART 3: METHOD IMPLEMENTATIONS
@@ -49,10 +49,10 @@ private:
 // ----------------------------------------------------------------------------
 // Main tree update method (270 lines) - Full Implementation
 // ----------------------------------------------------------------------------
-void DABAnalyzerWindow::updateHierarchicalServiceTree()
+void DABAnalyserWindow::updateHierarchicalServiceTree()
 {
-    if (!m_hierarchicalServiceTree || !m_figAnalyzer) {
-        qWarning() << "updateHierarchicalServiceTree: Null widget or analyzer";
+    if (!m_hierarchicalServiceTree || !m_figAnalyser) {
+        qWarning() << "updateHierarchicalServiceTree: Null widget or analyser";
         return;
     }
 
@@ -67,9 +67,9 @@ void DABAnalyzerWindow::updateHierarchicalServiceTree()
 
     m_hierarchicalServiceTree->clear();
 
-    // Get real data from FIG analyzer
-    EnsembleInfo ensemble = m_figAnalyzer->getCurrentEnsemble();
-    std::vector<DABService> services = m_figAnalyzer->getDABServices();
+    // Get real data from FIG analyser
+    EnsembleInfo ensemble = m_figAnalyser->getCurrentEnsemble();
+    std::vector<DABService> services = m_figAnalyser->getDABServices();
 
     qInfo() << "updateHierarchicalServiceTree: Ensemble ID" << Qt::hex << ensemble.ensembleId
             << "Services:" << services.size();
@@ -169,7 +169,7 @@ void DABAnalyzerWindow::updateHierarchicalServiceTree()
                 componentLabel += " (Primary)";
             }
 
-            SubChannelInfo subchInfo = m_figAnalyzer->getSubChannelInfo(component.sub_channel_id);
+            SubChannelInfo subchInfo = m_figAnalyser->getSubChannelInfo(component.sub_channel_id);
 
             QString componentType;
             if (component.transport_mode == 0) {
@@ -286,9 +286,9 @@ void DABAnalyzerWindow::updateHierarchicalServiceTree()
 // ----------------------------------------------------------------------------
 // Signal handler for batch service updates
 // ----------------------------------------------------------------------------
-void DABAnalyzerWindow::onServicesUpdated()
+void DABAnalyserWindow::onServicesUpdated()
 {
-    qDebug() << "onServicesUpdated: FIG analyzer signals service discovery update";
+    qDebug() << "onServicesUpdated: FIG analyser signals service discovery update";
     updateHierarchicalServiceTree();
     updateEnsembleTreeWithRealData();
 }
@@ -296,7 +296,7 @@ void DABAnalyzerWindow::onServicesUpdated()
 // ----------------------------------------------------------------------------
 // Selection change handler
 // ----------------------------------------------------------------------------
-void DABAnalyzerWindow::onServiceTreeSelectionChanged(
+void DABAnalyserWindow::onServiceTreeSelectionChanged(
     QTreeWidgetItem* current, QTreeWidgetItem* previous)
 {
     Q_UNUSED(previous);
@@ -336,16 +336,16 @@ void DABAnalyzerWindow::onServiceTreeSelectionChanged(
 // ----------------------------------------------------------------------------
 // Legacy ensemble tree update helper
 // ----------------------------------------------------------------------------
-void DABAnalyzerWindow::updateEnsembleTreeWithRealData()
+void DABAnalyserWindow::updateEnsembleTreeWithRealData()
 {
-    if (!m_ensembleTree || !m_figAnalyzer) {
+    if (!m_ensembleTree || !m_figAnalyser) {
         return;
     }
 
     m_ensembleTree->clear();
 
-    EnsembleInfo ensemble = m_figAnalyzer->getCurrentEnsemble();
-    std::vector<DABService> services = m_figAnalyzer->getDABServices();
+    EnsembleInfo ensemble = m_figAnalyser->getCurrentEnsemble();
+    std::vector<DABService> services = m_figAnalyser->getDABServices();
 
     QTreeWidgetItem* ensembleItem = new QTreeWidgetItem();
 
@@ -386,7 +386,7 @@ void DABAnalyzerWindow::updateEnsembleTreeWithRealData()
 // Replace existing method at line ~1411
 // ============================================================================
 
-void DABAnalyzerWindow::onServiceDiscovered(const ServiceInfo& service)
+void DABAnalyserWindow::onServiceDiscovered(const ServiceInfo& service)
 {
     if (m_ensembleTree) {
         QTreeWidgetItem* serviceItem = new QTreeWidgetItem();

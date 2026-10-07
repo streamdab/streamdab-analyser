@@ -29,13 +29,13 @@
  *
  * @author Standards Compliance Agent
  * @date September 22, 2025
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #pragma once
 
 #include "eti_types.hpp"
-#include "analyzer_settings.hpp"
+#include "analyser_settings.hpp"
 #include <QObject>
 #include <QString>
 #include <QByteArray>
@@ -1190,18 +1190,18 @@ public:
     bool initialize(bool enable_thai_support = true, bool strict_compliance = false);
 
     /**
-     * @brief Set the user-selected analyzer decode options (rows 4/5).
+     * @brief Set the user-selected analyser decode options (rows 4/5).
      *
      * Drives the FIC/FIB decode mode used by extractFigBlocks(). Defaults to
-     * AnalyzerSettings::defaults() so behavior is unchanged for default configs.
-     * @param settings Analyzer decode options to use
+     * AnalyserSettings::defaults() so behavior is unchanged for default configs.
+     * @param settings Analyser decode options to use
      */
-    void setAnalyzerSettings(const AnalyzerSettings& settings) { settings_ = settings; }
+    void setAnalyserSettings(const AnalyserSettings& settings) { settings_ = settings; }
 
     /**
-     * @brief Current analyzer decode options.
+     * @brief Current analyser decode options.
      */
-    const AnalyzerSettings& analyzerSettings() const noexcept { return settings_; }
+    const AnalyserSettings& analyserSettings() const noexcept { return settings_; }
 
     /**
      * @brief Parse FIC data and extract all FIG blocks
@@ -1702,9 +1702,9 @@ private:
     // logged, so it appears once per parser lifetime instead of per frame.
     bool raw_fic_fallback_warned_{false};
 
-    // User-selected analyzer decode options (option-variant matrix rows 4/5);
+    // User-selected analyser decode options (option-variant matrix rows 4/5);
     // defaults == current behavior.
-    AnalyzerSettings settings_;
+    AnalyserSettings settings_;
 
     // Parsing optimization data
     std::unordered_map<uint8_t, uint64_t> fig_type_frequency_;

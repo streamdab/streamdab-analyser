@@ -1,5 +1,5 @@
 #!/bin/bash
-# ETI Stream Analyzer - Professional Cross-Platform Package Builder
+# ETI Stream Analyser - Professional Cross-Platform Package Builder
 # Automated build script for all distribution packages
 
 set -e
@@ -313,7 +313,7 @@ main() {
     # Setup cleanup handler
     trap cleanup_on_exit EXIT
 
-    log_section "ETI Stream Analyzer Professional Build System"
+    log_section "ETI Stream Analyser Professional Build System"
     log_message "Starting professional cross-platform package build"
     log_message "Target platform: $(detect_platform)"
 

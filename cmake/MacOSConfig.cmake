@@ -1,5 +1,5 @@
 # macOS-specific build configuration
-# For ETI Stream Analyzer on macOS platforms
+# For ETI Stream Analyser on macOS platforms
 
 message(STATUS "Configuring for macOS platform")
 
@@ -84,17 +84,17 @@ endfunction()
 set_target_properties(${PROJECT_NAME} PROPERTIES
     MACOSX_BUNDLE TRUE
     MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/packaging/macos/Info.plist.in
-    MACOSX_BUNDLE_BUNDLE_NAME "ETI Stream Analyzer"
-    MACOSX_BUNDLE_DISPLAY_NAME "ETI Stream Analyzer"
-    MACOSX_BUNDLE_IDENTIFIER "com.eti-analyzer.desktop"
+    MACOSX_BUNDLE_BUNDLE_NAME "ETI Stream Analyser"
+    MACOSX_BUNDLE_DISPLAY_NAME "ETI Stream Analyser"
+    MACOSX_BUNDLE_IDENTIFIER "com.eti-analyser.desktop"
     MACOSX_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
-    MACOSX_BUNDLE_COPYRIGHT "Copyright © 2024 ETI Stream Analyzer Team"
+    MACOSX_BUNDLE_COPYRIGHT "Copyright © 2024 ETI Stream Analyser Team"
 )
 
 # macOS packaging configuration
 set(CPACK_GENERATOR "DragNDrop;TGZ")
-set(CPACK_DMG_VOLUME_NAME "ETI Stream Analyzer")
+set(CPACK_DMG_VOLUME_NAME "ETI Stream Analyser")
 set(CPACK_DMG_FORMAT "UDZO")
 set(CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_SOURCE_DIR}/resources/macos_dmg_background.png")
 

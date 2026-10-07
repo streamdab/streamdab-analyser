@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}🚨 TDD QUALITY GATE ENFORCEMENT ACTIVE${NC}" | tee "$TDD_LOG_FILE"
 echo "=======================================" | tee -a "$TDD_LOG_FILE"
-echo "Project: StreamDAB Stream Analyzer" | tee -a "$TDD_LOG_FILE"
+echo "Project: StreamDAB Stream Analyser" | tee -a "$TDD_LOG_FILE"
 echo "Build Directory: $BUILD_DIR" | tee -a "$TDD_LOG_FILE"
 echo "Minimum Coverage: ${COVERAGE_MIN_PERCENT}%" | tee -a "$TDD_LOG_FILE"
 echo "Started: $(date)" | tee -a "$TDD_LOG_FILE"
@@ -41,12 +41,12 @@ echo "" | tee -a "$TDD_LOG_FILE"
 
 # TDD GATE 2: Unit Test Execution Mandatory
 echo -e "${YELLOW}🧪 TDD GATE 2: Unit Test Execution${NC}" | tee -a "$TDD_LOG_FILE"
-if [ ! -f "${BUILD_DIR}/tests/eti_analyzer_unit_tests" ]; then
+if [ ! -f "${BUILD_DIR}/tests/eti_analyser_unit_tests" ]; then
     echo -e "${RED}❌ TDD GATE 2 FAILED: Unit test executable missing${NC}" | tee -a "$TDD_LOG_FILE"
     exit 1
 fi
 
-if ! "${BUILD_DIR}/tests/eti_analyzer_unit_tests" 2>&1 | tee -a "$TDD_LOG_FILE"; then
+if ! "${BUILD_DIR}/tests/eti_analyser_unit_tests" 2>&1 | tee -a "$TDD_LOG_FILE"; then
     echo -e "${RED}❌ TDD GATE 2 FAILED: Unit tests failing${NC}" | tee -a "$TDD_LOG_FILE"
     exit 1
 fi
@@ -55,8 +55,8 @@ echo "" | tee -a "$TDD_LOG_FILE"
 
 # TDD GATE 3: GUI Test Validation (if available)
 echo -e "${YELLOW}🖥️ TDD GATE 3: GUI Test Validation${NC}" | tee -a "$TDD_LOG_FILE"
-if [ -f "${BUILD_DIR}/tests/eti_analyzer_gui_tests" ]; then
-    if ! "${BUILD_DIR}/tests/eti_analyzer_gui_tests" 2>&1 | tee -a "$TDD_LOG_FILE"; then
+if [ -f "${BUILD_DIR}/tests/eti_analyser_gui_tests" ]; then
+    if ! "${BUILD_DIR}/tests/eti_analyser_gui_tests" 2>&1 | tee -a "$TDD_LOG_FILE"; then
         echo -e "${RED}❌ TDD GATE 3 FAILED: GUI tests failing${NC}" | tee -a "$TDD_LOG_FILE"
         exit 1
     fi
@@ -75,7 +75,7 @@ if command -v lcov >/dev/null 2>&1 && command -v genhtml >/dev/null 2>&1; then
     lcov --directory . --zerocounters 2>&1 | tee -a "$TDD_LOG_FILE" || true
 
     # Run tests with coverage
-    "${BUILD_DIR}/tests/eti_analyzer_unit_tests" >/dev/null 2>&1 || true
+    "${BUILD_DIR}/tests/eti_analyser_unit_tests" >/dev/null 2>&1 || true
 
     # Capture coverage data
     if lcov --directory . --capture --output-file coverage.info 2>&1 | tee -a "$TDD_LOG_FILE"; then

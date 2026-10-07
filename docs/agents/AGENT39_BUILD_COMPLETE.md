@@ -23,7 +23,7 @@ After Agent 38 commented out problematic `eti::` namespace types in headers to r
 
 ### Primary Issue: MOC Compilation Failures
 
-**Location:** `DABAnalyzer_Enhanced_FilteringBuild` (Main GUI Application)
+**Location:** `DABAnalyser_Enhanced_FilteringBuild` (Main GUI Application)
 
 **Root Cause:** Agent 38 commented out `eti::` namespace type definitions (EtiFrame, Ensemble, DabService, SubChannelInfo, etc.) in headers. MOC-generated files for the GUI application still reference these types.
 
@@ -37,7 +37,7 @@ error: 'DabService' in namespace 'eti' does not name a type
 
 **Affected Files:**
 - `src/core/dab_service_discovery_engine.hpp:142` - SubChannelInfo references
-- `src/core/enhanced_fig_analyzer.hpp:90,127,360,363,364` - Multiple type references
+- `src/core/enhanced_fig_analyser.hpp:90,127,360,363,364` - Multiple type references
 - `src/core/modern_eti_frame_parser.hpp` - EtiFrame, ValidationResult references
 - `src/core/eti_memory_pool.hpp:411-413` - Type alias references
 - `src/core/eti_processor.hpp:330-368` - Multiple function parameter types
@@ -78,16 +78,16 @@ undefined reference to `typeinfo for testing::Test'
 
 ### Fix #1: Comment Out Main GUI Application
 
-**File:** `/home/seksan/workspace/streamdab-analyzer/CMakeLists.txt` (lines 70-85)
+**File:** `/home/seksan/workspace/streamdab-analyser/CMakeLists.txt` (lines 70-85)
 
 **Change:**
 ```cmake
 # COMMENTED OUT BY AGENT 39: Main GUI application has MOC errors with eti:: types
 # Create executable
-# add_executable(DABAnalyzer_Enhanced_FilteringBuild ${SOURCES} ${EDI_SOURCES} ${CLI_SOURCES})
+# add_executable(DABAnalyser_Enhanced_FilteringBuild ${SOURCES} ${EDI_SOURCES} ${CLI_SOURCES})
 
 # Link Qt6 and ZeroMQ libraries
-# target_link_libraries(DABAnalyzer_Enhanced_FilteringBuild
+# target_link_libraries(DABAnalyser_Enhanced_FilteringBuild
 #     Qt6::Core
 #     Qt6::Widgets
 #     Qt6::Network
@@ -97,7 +97,7 @@ undefined reference to `typeinfo for testing::Test'
 # )
 
 # Add ZeroMQ library directories
-# target_link_directories(DABAnalyzer_Enhanced_FilteringBuild PRIVATE ${ZMQ_LIBRARY_DIRS})
+# target_link_directories(DABAnalyser_Enhanced_FilteringBuild PRIVATE ${ZMQ_LIBRARY_DIRS})
 ```
 
 **Rationale:** The main application's headers use `eti::` types that Agent 38 commented out. Rather than fix hundreds of type references, disable the application to allow test builds to proceed.
@@ -108,7 +108,7 @@ undefined reference to `typeinfo for testing::Test'
 
 ### Fix #2: Comment Out CLI Application
 
-**File:** `/home/seksan/workspace/streamdab-analyzer/CMakeLists.txt` (lines 87-106)
+**File:** `/home/seksan/workspace/streamdab-analyser/CMakeLists.txt` (lines 87-106)
 
 **Change:**
 ```cmake
@@ -243,7 +243,7 @@ These tests exist in CMakeLists.txt but were not attempted to build (likely due 
 
 ### Build Command
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake ..
 cmake --build . -j4 2>&1 | tee /tmp/build_output2.txt
 ```
@@ -283,9 +283,9 @@ warning: overflow in conversion from 'int' to 'char' changes value from '256' to
 
 **Sample:**
 ```
-/home/seksan/workspace/streamdab-analyzer/build/tests/test_cli_argument_parser
-/home/seksan/workspace/streamdab-analyzer/build/tests/test_dls_plus_decoder
-/home/seksan/workspace/streamdab-analyzer/build/tests/test_e2e_epg_journaline
+/home/seksan/workspace/streamdab-analyser/build/tests/test_cli_argument_parser
+/home/seksan/workspace/streamdab-analyser/build/tests/test_dls_plus_decoder
+/home/seksan/workspace/streamdab-analyser/build/tests/test_e2e_epg_journaline
 ...
 ```
 
@@ -307,7 +307,7 @@ warning: overflow in conversion from 'int' to 'char' changes value from '256' to
 ## RECOMMENDATIONS FOR FUTURE FIXES
 
 ### Priority 1: Restore Main Applications
-**Goal:** Re-enable `DABAnalyzer_Enhanced_FilteringBuild` and `streamdab-cli`
+**Goal:** Re-enable `DABAnalyser_Enhanced_FilteringBuild` and `streamdab-cli`
 
 **Approach:**
 1. Create stub/placeholder types for commented-out `eti::` namespace types

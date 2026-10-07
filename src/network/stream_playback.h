@@ -12,7 +12,7 @@
  * 
  * @author Network/Stream Agent
  * @date 2025-09-21
- * @copyright Copyright (c) 2025 ETI Stream Analyzer Team
+ * @copyright Copyright (c) 2025 ETI Stream Analyser Team
  */
 
 #ifndef STREAM_PLAYBACK_H
@@ -493,7 +493,7 @@ private:
     void cleanupTimers();
     
     // File operations
-    bool analyzeRecordingFile(const QString& filename);
+    bool analyseRecordingFile(const QString& filename);
     bool loadFrameIndex();
     void buildFrameIndex();
     PlaybackFrame readNextFrame();

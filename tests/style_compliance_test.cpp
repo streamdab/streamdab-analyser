@@ -27,7 +27,7 @@ class StyleComplianceTest : public ::testing::Test {
 protected:
     void SetUp() override {
         projectRoot = QDir::currentPath();
-        if (!projectRoot.endsWith("streamdab-analyzer")) {
+        if (!projectRoot.endsWith("streamdab-analyser")) {
             // Navigate to project root if we're in build directory
             while (!QDir(projectRoot).exists("src") && 
                    !QDir(projectRoot).exists("CMakeLists.txt")) {

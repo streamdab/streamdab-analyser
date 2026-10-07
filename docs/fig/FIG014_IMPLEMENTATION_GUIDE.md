@@ -1,4 +1,4 @@
-# FIG 0/14 FEC Sub-channel Organization - Implementation Guide
+# FIG 0/14 FEC Sub-channel Organisation - Implementation Guide
 
 **Agent 21: Python Pro - PDCA Week 5**
 **Date:** November 3, 2025
@@ -6,7 +6,7 @@
 
 ## Implementation Status
 
-✅ **Test File Created:** `/home/seksan/workspace/streamdab-analyzer/tests/test_fig014_fec_subchannel.cpp` (22 tests)
+✅ **Test File Created:** `/home/seksan/workspace/streamdab-analyser/tests/test_fig014_fec_subchannel.cpp` (22 tests)
 ⏳ **Header File Update:** Needs manual addition to `src/core/fig_parser.hpp`
 ⏳ **Implementation File:** Needs addition to `src/core/fig_parser.cpp`
 ⏳ **CMakeLists.txt Update:** Needs test registration
@@ -310,7 +310,7 @@ IF Long Form (Form=0):
 
 ```bash
 # Rebuild project
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake --build .
 
 # Run tests
@@ -374,4 +374,4 @@ Totals: 25 passed, 0 failed, 0 skipped, 0 blacklisted, 1234ms
 2. Rebuild project
 3. Run tests
 4. Verify 22/22 tests pass (100% success rate)
-5. Commit with message: "feat: Add FIG 0/14 FEC Sub-channel Organization parser (Agent 21)"
+5. Commit with message: "feat: Add FIG 0/14 FEC Sub-channel Organisation parser (Agent 21)"

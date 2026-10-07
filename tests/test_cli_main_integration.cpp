@@ -55,7 +55,7 @@ private slots:
     void test01_CLIModeDetection() {
         // Test that CLI mode is properly detected with --cli flag
         char* argv[] = {
-            const_cast<char*>("streamdab-analyzer"),
+            const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--cli"),
             const_cast<char*>("--help")
         };
@@ -71,7 +71,7 @@ private slots:
         QString outputFile = m_tempDir.filePath("output.yaml");
 
         char* argv[] = {
-            const_cast<char*>("streamdab-analyzer"),
+            const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--input"),
             const_cast<char*>(m_testETIFile.toUtf8().data()),
             const_cast<char*>("--output"),
@@ -94,7 +94,7 @@ private slots:
         QString outputFile = m_tempDir.filePath("output2.yaml");
 
         char* argv[] = {
-            const_cast<char*>("streamdab-analyzer"),
+            const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--input"),
             const_cast<char*>(m_testETIFile.toUtf8().data()),
             const_cast<char*>("--output"),
@@ -118,7 +118,7 @@ private slots:
     void test04_ExitCodeSuccess() {
         // Test successful help display returns 0
         char* argv[] = {
-            const_cast<char*>("streamdab-analyzer"),
+            const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--help")
         };
         int argc = 2;
@@ -132,7 +132,7 @@ private slots:
         QString outputFile = m_tempDir.filePath("quiet_output.yaml");
 
         char* argv[] = {
-            const_cast<char*>("streamdab-analyzer"),
+            const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--input"),
             const_cast<char*>(m_testETIFile.toUtf8().data()),
             const_cast<char*>("--output"),
@@ -155,7 +155,7 @@ private slots:
         QString nonExistentFile = m_tempDir.filePath("does_not_exist.eti");
 
         char* argv[] = {
-            const_cast<char*>("streamdab-analyzer"),
+            const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--input"),
             const_cast<char*>(nonExistentFile.toUtf8().data())
         };
@@ -172,7 +172,7 @@ private slots:
     void test07_InvalidArgsExit1() {
         // Test invalid argument returns exit code 1
         char* argv[] = {
-            const_cast<char*>("streamdab-analyzer"),
+            const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--invalid-flag")
         };
         int argc = 2;
@@ -194,7 +194,7 @@ private slots:
         QString outputFile = m_tempDir.filePath("no_such_dir_xyz/output.yaml");
 
         char* argv[] = {
-            const_cast<char*>("streamdab-analyzer"),
+            const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--input"),
             const_cast<char*>(m_testETIFile.toUtf8().data()),
             const_cast<char*>("--output"),
@@ -212,7 +212,7 @@ private slots:
     void test09_HelpDisplayExit0() {
         // Test --help returns 0
         char* argv[] = {
-            const_cast<char*>("streamdab-analyzer"),
+            const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--help")
         };
         int argc = 2;
@@ -224,7 +224,7 @@ private slots:
     void test10_VersionDisplayExit0() {
         // Test --version returns 0
         char* argv[] = {
-            const_cast<char*>("streamdab-analyzer"),
+            const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--version")
         };
         int argc = 2;

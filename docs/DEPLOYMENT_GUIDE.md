@@ -1,8 +1,8 @@
-# StreamDAB Analyzer - Professional Deployment Guide
+# StreamDAB Analyser - Professional Deployment Guide
 
 ## 🚀 Commercial Deployment Package v1.1.0
 
-**Professional ETI Stream Analyzer for Broadcast Industry**  
+**Professional ETI Stream Analyser for Broadcast Industry**  
 **ETSI EN 300 799 Compliant | Qt6 + C++20 Implementation**
 
 ---
@@ -12,13 +12,13 @@
 ### Linux Distribution Packages
 
 #### Debian/Ubuntu (.deb)
-- **Package:** `StreamDAB-Analyzer-1.1.0-Linux.deb` (19.4 KB)
+- **Package:** `StreamDAB-Analyser-1.1.0-Linux.deb` (19.4 KB)
 - **Architecture:** amd64
 - **Dependencies:** Qt6 runtime libraries (>= 6.0.0)
-- **Installation:** `sudo dpkg -i StreamDAB-Analyzer-1.1.0-Linux.deb`
+- **Installation:** `sudo dpkg -i StreamDAB-Analyser-1.1.0-Linux.deb`
 
 #### Generic Linux (.tar.gz)
-- **Package:** `StreamDAB-Analyzer-1.1.0-Linux.tar.gz` (18.1 KB)
+- **Package:** `StreamDAB-Analyser-1.1.0-Linux.tar.gz` (18.1 KB)
 - **Portable deployment for any Linux distribution**
 - **Manual installation:** Extract and copy to `/usr/local/bin/`
 
@@ -57,7 +57,7 @@
 
 1. **Download Package**
    ```bash
-   wget https://releases.streamdab.com/v1.1.0/StreamDAB-Analyzer-1.1.0-Linux.deb
+   wget https://releases.streamdab.com/v1.1.0/StreamDAB-Analyser-1.1.0-Linux.deb
    ```
 
 2. **Install Dependencies**
@@ -68,28 +68,28 @@
 
 3. **Install Package**
    ```bash
-   sudo dpkg -i StreamDAB-Analyzer-1.1.0-Linux.deb
+   sudo dpkg -i StreamDAB-Analyser-1.1.0-Linux.deb
    sudo apt-get install -f  # Fix any missing dependencies
    ```
 
 4. **Launch Application**
    ```bash
    StreamDAB_Enhanced
-   # Or from Applications menu: StreamDAB Analyzer
+   # Or from Applications menu: StreamDAB Analyser
    ```
 
 ### Generic Linux Installation
 
 1. **Extract Package**
    ```bash
-   tar -xzf StreamDAB-Analyzer-1.1.0-Linux.tar.gz
-   cd StreamDAB-Analyzer-1.1.0-Linux
+   tar -xzf StreamDAB-Analyser-1.1.0-Linux.tar.gz
+   cd StreamDAB-Analyser-1.1.0-Linux
    ```
 
 2. **Install Manually**
    ```bash
    sudo cp usr/bin/StreamDAB_Enhanced /usr/local/bin/
-   sudo cp usr/share/applications/streamdab-analyzer.desktop /usr/share/applications/
+   sudo cp usr/share/applications/streamdab-analyser.desktop /usr/share/applications/
    sudo chmod +x /usr/local/bin/StreamDAB_Enhanced
    ```
 
@@ -110,7 +110,7 @@ For enterprise environments with multiple workstations:
    ```bash
    # On deployment server
    sudo mkdir -p /var/www/html/streamdab-packages
-   sudo cp StreamDAB-Analyzer-1.1.0-Linux.deb /var/www/html/streamdab-packages/
+   sudo cp StreamDAB-Analyser-1.1.0-Linux.deb /var/www/html/streamdab-packages/
    ```
 
 2. **Client Installation Script**
@@ -119,7 +119,7 @@ For enterprise environments with multiple workstations:
    # enterprise-install.sh
    
    PACKAGE_SERVER="http://your-server.com/streamdab-packages"
-   PACKAGE_NAME="StreamDAB-Analyzer-1.1.0-Linux.deb"
+   PACKAGE_NAME="StreamDAB-Analyser-1.1.0-Linux.deb"
    
    wget "$PACKAGE_SERVER/$PACKAGE_NAME"
    sudo dpkg -i "$PACKAGE_NAME"
@@ -131,7 +131,7 @@ For enterprise environments with multiple workstations:
 **Ansible Playbook Example:**
 ```yaml
 ---
-- name: Deploy StreamDAB Analyzer
+- name: Deploy StreamDAB Analyser
   hosts: broadcast_workstations
   become: yes
   tasks:
@@ -146,12 +146,12 @@ For enterprise environments with multiple workstations:
         
     - name: Download StreamDAB package
       get_url:
-        url: "{{ package_server }}/StreamDAB-Analyzer-1.1.0-Linux.deb"
-        dest: "/tmp/StreamDAB-Analyzer-1.1.0-Linux.deb"
+        url: "{{ package_server }}/StreamDAB-Analyser-1.1.0-Linux.deb"
+        dest: "/tmp/StreamDAB-Analyser-1.1.0-Linux.deb"
         
-    - name: Install StreamDAB Analyzer
+    - name: Install StreamDAB Analyser
       apt:
-        deb: "/tmp/StreamDAB-Analyzer-1.1.0-Linux.deb"
+        deb: "/tmp/StreamDAB-Analyser-1.1.0-Linux.deb"
 ```
 
 ---
@@ -168,7 +168,7 @@ For enterprise environments with multiple workstations:
 ### Professional Features
 - **ETSI Compliance:** Full regulatory compliance validation
 - **Performance Monitoring:** >900 FPS processing capability
-- **Memory Optimization:** <100MB operational footprint
+- **Memory Optimisation:** <100MB operational footprint
 - **Multi-format Support:** ETI-NI, ETI-LI, EDI format compatibility
 - **Thai DAB Standards:** Integrated Thai broadcasting standards support
 
@@ -204,15 +204,15 @@ enable_constellation=true
 
 ### System Integration
 
-**Desktop Entry:** `/usr/share/applications/streamdab-analyzer.desktop`
+**Desktop Entry:** `/usr/share/applications/streamdab-analyser.desktop`
 ```desktop
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=StreamDAB Analyzer
-Comment=Professional ETI Stream Analyzer
+Name=StreamDAB Analyser
+Comment=Professional ETI Stream Analyser
 Exec=/usr/local/bin/StreamDAB_Enhanced
-Icon=streamdab-analyzer
+Icon=streamdab-analyser
 Terminal=false
 Categories=AudioVideo;Audio;Engineering;
 ```
@@ -239,7 +239,7 @@ Categories=AudioVideo;Audio;Engineering;
    gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor
    ```
 
-### Performance Optimization
+### Performance Optimisation
 
 **For High-Performance Systems:**
 ```bash
@@ -262,7 +262,7 @@ sudo sysctl -w net.core.rmem_default=26214400
 #!/bin/bash
 # validate-deployment.sh
 
-echo "StreamDAB Analyzer Deployment Validation"
+echo "StreamDAB Analyser Deployment Validation"
 echo "========================================"
 
 # Check installation
@@ -283,7 +283,7 @@ else
 fi
 
 # Check desktop integration
-if [ -f "/usr/share/applications/streamdab-analyzer.desktop" ]; then
+if [ -f "/usr/share/applications/streamdab-analyser.desktop" ]; then
     echo "✓ Desktop integration installed"
 else
     echo "⚠ Desktop integration not found"
@@ -309,15 +309,15 @@ echo "Deployment validation completed successfully!"
 
 ---
 
-## 📄 License & Legal
+## 📄 Licence & Legal
 
-**Commercial License Required for:**
+**Commercial Licence Required for:**
 - Commercial broadcast monitoring
 - Professional broadcast environments
 - Enterprise deployments
 - Redistribution and resale
 
-**Evaluation License Available for:**
+**Evaluation Licence Available for:**
 - Technical evaluation (30 days)
 - Academic research
 - Non-commercial testing
@@ -326,5 +326,5 @@ Contact sales@streamdab.com for commercial licensing information.
 
 ---
 
-*StreamDAB Analyzer v1.1.0 - Professional ETI Stream Analysis Solution*  
+*StreamDAB Analyser v1.1.0 - Professional ETI Stream Analysis Solution*  
 *Copyright © 2025 StreamDAB Technologies. All rights reserved.*

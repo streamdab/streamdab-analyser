@@ -11,9 +11,9 @@ MockEtiDataSource::MockEtiDataSource(QObject* parent) : QObject(parent) {
     // Initialize mock data source
 }
 
-// MockAnalyzerEngine implementation  
-MockAnalyzerEngine::MockAnalyzerEngine(QObject* parent) : QObject(parent) {
-    // Initialize mock analyzer engine
+// MockAnalyserEngine implementation  
+MockAnalyserEngine::MockAnalyserEngine(QObject* parent) : QObject(parent) {
+    // Initialize mock analyser engine
 }
 
 // MockGuiComponentFactory implementation
@@ -21,8 +21,8 @@ MockEtiDataSource* MockGuiComponentFactory::createMockDataSource(QObject* parent
     return new MockEtiDataSource(parent);
 }
 
-MockAnalyzerEngine* MockGuiComponentFactory::createMockEngine(QObject* parent) {
-    return new MockAnalyzerEngine(parent);
+MockAnalyserEngine* MockGuiComponentFactory::createMockEngine(QObject* parent) {
+    return new MockAnalyserEngine(parent);
 }
 
 MockServiceInfo MockGuiComponentFactory::createMockService(uint32_t id, const QString& name) {

@@ -9,7 +9,7 @@
 
 ## 📋 Overview
 
-Phase 3B implements DLS+ (Dynamic Label Plus) support in the StreamDAB Analyzer, providing structured "now playing" metadata for DAB/DAB+ radio broadcasts. DLS+ extends basic Dynamic Label (DLS) with tagged metadata fields that enable rich media information display.
+Phase 3B implements DLS+ (Dynamic Label Plus) support in the StreamDAB Analyser, providing structured "now playing" metadata for DAB/DAB+ radio broadcasts. DLS+ extends basic Dynamic Label (DLS) with tagged metadata fields that enable rich media information display.
 
 ### What is DLS+?
 
@@ -37,7 +37,7 @@ DLS+ is an enhancement to the Dynamic Label system defined in ETSI TS 102 980. I
 
 ### Viewing "Now Playing" Information
 
-1. **Launch DAB-XPlorer** (StreamDAB Analyzer GUI)
+1. **Launch DAB-XPlorer** (StreamDAB Analyser GUI)
 2. **Load an ETI file** containing DAB+ audio with DLS+ metadata:
    - Click **File → Open ETI File**
    - Navigate to your ETI file (e.g., `eti/bkk_20062022_141637.eti`)
@@ -337,7 +337,7 @@ Future enhancement (not yet implemented):
 - **PHASE_3B_TECHNICAL_NOTES.md** - Technical implementation details
 - **PHASE_3B_DLS_PLUS_PLAN.md** - Development plan and architecture
 - **PHASE_3A_USER_GUIDE.md** - DAB+ Audio Stream Validator (prerequisite)
-- **README.md** - StreamDAB Analyzer overview
+- **README.md** - StreamDAB Analyser overview
 
 ### ETSI Standards
 - **ETSI TS 102 980** - Dynamic Label Plus (DLS+) specification

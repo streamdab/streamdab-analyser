@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project uses large binary ETI (Ensemble Transport Interface) test files for real-world validation of the DAB stream analyzer. These files are **excluded from git** to prevent repository bloat.
+This project uses large binary ETI (Ensemble Transport Interface) test files for real-world validation of the DAB stream analyser. These files are **excluded from git** to prevent repository bloat.
 
 ## Current Test Files (Not in Git)
 
@@ -95,8 +95,8 @@ After adding ETI test files, verify they work:
 cd build/
 cmake .. && make
 
-# Run the analyzer
-./StreamDABAnalyzer
+# Run the analyser
+./StreamDABAnalyser
 
 # In the GUI:
 # 1. Click "Open ETI File"
@@ -222,7 +222,7 @@ git log --all --pretty=format: --name-only --diff-filter=A | sort -u | grep -E '
 2. **Keep test files local**: Share via external means, not git
 3. **Document significant files**: Update this file if adding important test cases
 4. **Use descriptive names**: Name ETI files to indicate their purpose
-5. **Organize by category**: Create subdirectories in `eti/` if needed (e.g., `eti/german/`, `eti/asian/`)
+5. **Organise by category**: Create subdirectories in `eti/` if needed (e.g., `eti/german/`, `eti/asian/`)
 
 ## ETI File Format Reference
 
@@ -255,5 +255,5 @@ For questions about obtaining ETI test files or setting up your development envi
 ---
 
 **Last Updated**: October 17, 2025
-**Maintainer**: StreamDAB Analyzer Development Team
-**License**: Same as main project
+**Maintainer**: StreamDAB Analyser Development Team
+**Licence**: Same as main project

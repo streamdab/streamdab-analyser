@@ -17,7 +17,7 @@ repos:
     hooks:
       - id: tdd-unit-tests-required
         name: TDD Unit Tests Must Pass
-        entry: bash -c 'cd build && make eti_analyzer_unit_tests && ./tests/eti_analyzer_unit_tests'
+        entry: bash -c 'cd build && make eti_analyser_unit_tests && ./tests/eti_analyser_unit_tests'
         language: system
         files: \.(cpp|h)$
         fail_fast: true
@@ -59,7 +59,7 @@ repos:
     hooks:
       - id: tdd-cmake-validation
         name: TDD CMake Configuration Check
-        entry: bash -c 'cmake --build build --target help | grep -q "eti_analyzer_unit_tests\|eti_analyzer_gui_tests" || (echo "❌ TDD: Test targets missing from build" && exit 1)'
+        entry: bash -c 'cmake --build build --target help | grep -q "eti_analyser_unit_tests\|eti_analyser_gui_tests" || (echo "❌ TDD: Test targets missing from build" && exit 1)'
         language: system
         files: CMakeLists\.txt$
         fail_fast: true

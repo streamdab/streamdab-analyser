@@ -5,17 +5,17 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>StreamDAB Stream Analyzer</string>
+    <string>StreamDAB Stream Analyser</string>
     <key>CFBundleExecutable</key>
-    <string>ETIStreamAnalyzer</string>
+    <string>ETIStreamAnalyser</string>
     <key>CFBundleIconFile</key>
-    <string>eti-analyzer.icns</string>
+    <string>eti-analyser.icns</string>
     <key>CFBundleIdentifier</key>
-    <string>com.streamdab.analyzer</string>
+    <string>com.streamdab.analyser</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>StreamDAB Analyzer</string>
+    <string>StreamDAB Analyser</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -121,11 +121,11 @@
 
     <!-- Privacy Usage Descriptions -->
     <key>NSMicrophoneUsageDescription</key>
-    <string>StreamDAB Analyzer needs microphone access for real-time audio monitoring and analysis of broadcast streams.</string>
+    <string>StreamDAB Analyser needs microphone access for real-time audio monitoring and analysis of broadcast streams.</string>
     <key>NSNetworkVolumesUsageDescription</key>
-    <string>StreamDAB Analyzer accesses network volumes to analyze ETI streams from network-attached storage and broadcast servers.</string>
+    <string>StreamDAB Analyser accesses network volumes to analyze ETI streams from network-attached storage and broadcast servers.</string>
     <key>NSRemovableVolumesUsageDescription</key>
-    <string>StreamDAB Analyzer accesses removable volumes to analyze ETI stream files from external storage devices.</string>
+    <string>StreamDAB Analyser accesses removable volumes to analyze ETI stream files from external storage devices.</string>
 
     <!-- Professional Application Category -->
     <key>LSApplicationCategoryType</key>
@@ -133,7 +133,7 @@
 
     <!-- Copyright and Developer Information -->
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2024 StreamDAB Analyzer Team. All rights reserved.</string>
+    <string>Copyright © 2024 StreamDAB Analyser Team. All rights reserved.</string>
 
     <!-- Bundle URL Schemes for deep linking -->
     <key>CFBundleURLTypes</key>

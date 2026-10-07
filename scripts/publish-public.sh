@@ -74,7 +74,7 @@ KEEPS=(src tests include cmake docker packaging resources scripts \
        CMakeLists.txt CMakePresets.json .github .gitignore .gitattributes \
        README.md LICENSE INSTALL.md)
 
-echo "== StreamDAB-Analyzer public publish =="
+echo "== StreamDAB-Analyser public publish =="
 echo "  source repo : $ROOT_DIR (branch $BRANCH)"
 echo "  public remote: $REMOTE"
 echo "  mode        : $MODE"
@@ -108,7 +108,7 @@ else
     git checkout --quiet --orphan public
     git add -A
     for p in "${EXCLUDES[@]}"; do git rm -r --quiet --ignore-unmatch --cached "$p" >/dev/null 2>&1 || true; done
-    git commit --quiet -m "StreamDAB-Analyzer: public release snapshot"
+    git commit --quiet -m "StreamDAB-Analyser: public release snapshot"
 fi
 
 # 2) Pre-flight: nothing that must stay private may remain tracked.

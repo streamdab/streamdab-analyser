@@ -2,7 +2,7 @@
  * @file test_etsi_compliance_proof.cpp
  * @brief Comprehensive test suite proving ETSI compliance correctness
  *
- * This test suite proves StreamDAB Analyzer implementation is correct by:
+ * This test suite proves StreamDAB Analyser implementation is correct by:
  * 1. Testing against known bugs in etisnoop (ensemble ID, buffer overflow)
  * 2. Validating ETSI EN 300 401 compliance with reference data
  * 3. Demonstrating security fixes (all MEDIUM-priority issues)
@@ -179,7 +179,7 @@ void TestETSIComplianceProof::initTestCase()
 {
     qInfo() << "========================================";
     qInfo() << "ETSI Compliance Proof Test Suite";
-    qInfo() << "Verifying StreamDAB Analyzer Correctness";
+    qInfo() << "Verifying StreamDAB Analyser Correctness";
     qInfo() << "========================================";
 
     m_figParser = std::make_unique<FigParser>();
@@ -251,7 +251,7 @@ void TestETSIComplianceProof::test_fig10_buffer_overflow_protection()
     // If figlen < 18, this reads beyond allocated memory
     QByteArray malformed_data = createInvalidFig10_TooShort();
 
-    // StreamDAB Analyzer must detect this and reject it safely
+    // StreamDAB Analyser must detect this and reject it safely
     // Implementation should check: if (fig_data.size() < 19) return early
 
     // This should NOT crash or read out of bounds

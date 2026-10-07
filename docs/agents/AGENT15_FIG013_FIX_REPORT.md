@@ -341,7 +341,7 @@ Performance: 92% faster than target ✅
 - **Action:** Documented bit positions explicitly in comments
 
 ### **4. Systematic Debugging Approach**
-- **Observation:** Analyzing passing tests first revealed correct algorithm
+- **Observation:** Analysing passing tests first revealed correct algorithm
 - **Lesson:** Compare working vs broken cases to isolate root cause
 - **Action:** Used binary analysis to verify byte-level encoding
 

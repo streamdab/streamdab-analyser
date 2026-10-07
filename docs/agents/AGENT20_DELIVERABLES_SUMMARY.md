@@ -22,7 +22,7 @@ Implement FIG 0/9 Country/LTO/International Table parser per ETSI EN 300 401 Sec
 ## Deliverables Checklist
 
 ### 1. Test File ✅
-- **File:** `/home/seksan/workspace/streamdab-analyzer/tests/test_fig009_country_lto_table.cpp`
+- **File:** `/home/seksan/workspace/streamdab-analyser/tests/test_fig009_country_lto_table.cpp`
 - **Size:** 17KB (484 lines)
 - **Tests:** 25 (exceeds 18 required)
 - **Status:** Ready for compilation
@@ -37,7 +37,7 @@ Implement FIG 0/9 Country/LTO/International Table parser per ETSI EN 300 401 Sec
 - ✅ 1 performance test (<10µs)
 
 ### 2. Implementation Guide ✅
-- **File:** `/home/seksan/workspace/streamdab-analyzer/FIG009_IMPLEMENTATION_GUIDE.md`
+- **File:** `/home/seksan/workspace/streamdab-analyser/FIG009_IMPLEMENTATION_GUIDE.md`
 - **Size:** 11KB (353 lines)
 - **Content:** Complete step-by-step integration instructions
 - **Status:** Ready for review
@@ -52,7 +52,7 @@ Implement FIG 0/9 Country/LTO/International Table parser per ETSI EN 300 401 Sec
 - ✅ Validation checklist
 
 ### 3. Header Patch File ✅
-- **File:** `/home/seksan/workspace/streamdab-analyzer/FIG009_HEADER_PATCH.txt`
+- **File:** `/home/seksan/workspace/streamdab-analyser/FIG009_HEADER_PATCH.txt`
 - **Size:** 3.7KB (105 lines)
 - **Patches:** 4 locations in fig_parser.hpp
 - **Status:** Ready to apply
@@ -64,7 +64,7 @@ Implement FIG 0/9 Country/LTO/International Table parser per ETSI EN 300 401 Sec
 - ✅ Supported FIG types comment update
 
 ### 4. CPP Patch File ✅
-- **File:** `/home/seksan/workspace/streamdab-analyzer/FIG009_CPP_PATCH.txt`
+- **File:** `/home/seksan/workspace/streamdab-analyser/FIG009_CPP_PATCH.txt`
 - **Size:** 4.1KB (110 lines)
 - **Patches:** 2 locations in fig_parser.cpp
 - **Status:** Ready to apply
@@ -74,7 +74,7 @@ Implement FIG 0/9 Country/LTO/International Table parser per ETSI EN 300 401 Sec
 - ✅ Full parseFig009_CountryLTO() implementation
 
 ### 5. CMakeLists Patch File ✅
-- **File:** `/home/seksan/workspace/streamdab-analyzer/FIG009_CMAKELISTS_PATCH.txt`
+- **File:** `/home/seksan/workspace/streamdab-analyser/FIG009_CMAKELISTS_PATCH.txt`
 - **Size:** 919 bytes (26 lines)
 - **Patches:** 1 location in tests/CMakeLists.txt
 - **Status:** Ready to apply
@@ -85,7 +85,7 @@ Implement FIG 0/9 Country/LTO/International Table parser per ETSI EN 300 401 Sec
 - ✅ Register test with CTest
 
 ### 6. Complete Report ✅
-- **File:** `/home/seksan/workspace/streamdab-analyzer/AGENT20_FIG009_COMPLETE_REPORT.md`
+- **File:** `/home/seksan/workspace/streamdab-analyser/AGENT20_FIG009_COMPLETE_REPORT.md`
 - **Size:** 14KB (454 lines)
 - **Content:** Comprehensive implementation report
 - **Status:** Final documentation complete
@@ -100,7 +100,7 @@ Implement FIG 0/9 Country/LTO/International Table parser per ETSI EN 300 401 Sec
 - ✅ Troubleshooting guide
 
 ### 7. This Summary ✅
-- **File:** `/home/seksan/workspace/streamdab-analyzer/AGENT20_DELIVERABLES_SUMMARY.md`
+- **File:** `/home/seksan/workspace/streamdab-analyser/AGENT20_DELIVERABLES_SUMMARY.md`
 - **Purpose:** Quick reference for all deliverables
 - **Status:** You are reading it now
 
@@ -108,10 +108,10 @@ Implement FIG 0/9 Country/LTO/International Table parser per ETSI EN 300 401 Sec
 
 ## File Locations
 
-All files in project root: `/home/seksan/workspace/streamdab-analyzer/`
+All files in project root: `/home/seksan/workspace/streamdab-analyser/`
 
 ```
-streamdab-analyzer/
+streamdab-analyser/
 ├── tests/
 │   └── test_fig009_country_lto_table.cpp          (484 lines) ✅
 ├── FIG009_IMPLEMENTATION_GUIDE.md                  (353 lines) ✅
@@ -130,7 +130,7 @@ streamdab-analyzer/
 
 ### Phase 1: Review Documentation (5 minutes)
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer
+cd /home/seksan/workspace/streamdab-analyser
 
 # Read implementation guide
 cat FIG009_IMPLEMENTATION_GUIDE.md
@@ -275,7 +275,7 @@ Byte 3: Int'l table ID (8 bits)       ✅ All values parsed
 | Memory | Minimal | Stack-only | ✅ Optimal |
 | Test Execution | <100ms | ~50ms | ✅ Fast |
 
-**Optimization Features:**
+**Optimisation Features:**
 - Zero heap allocation (stack-only struct)
 - Bitwise operations for sign extension
 - Simple arithmetic for conversions
@@ -389,7 +389,7 @@ ctest -R test_fig009
 
 ```bash
 # Verify file integrity
-cd /home/seksan/workspace/streamdab-analyzer
+cd /home/seksan/workspace/streamdab-analyser
 
 # Line counts
 wc -l tests/test_fig009_country_lto_table.cpp
@@ -423,7 +423,7 @@ wc -l FIG009_*.{md,txt} AGENT20_*.md
 
 ```bash
 # Navigate to project
-cd /home/seksan/workspace/streamdab-analyzer
+cd /home/seksan/workspace/streamdab-analyser
 
 # View deliverables
 ls -lh FIG009_* AGENT20_* tests/test_fig009_*
@@ -444,6 +444,6 @@ ctest -R test_fig009_country_lto_table --output-on-failure
 
 **END OF DELIVERABLES SUMMARY**
 
-All files ready in: `/home/seksan/workspace/streamdab-analyzer/`
+All files ready in: `/home/seksan/workspace/streamdab-analyser/`
 
 ✅ **AGENT 20 - MISSION COMPLETE**

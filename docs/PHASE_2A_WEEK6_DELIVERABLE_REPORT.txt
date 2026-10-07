@@ -15,7 +15,7 @@ SUMMARY OF DELIVERABLES
 5 PARSERS IMPLEMENTED:
 ----------------------
 1. FIG 0/13 - User Application Information
-2. FIG 0/14 - FEC Sub-channel Organization  
+2. FIG 0/14 - FEC Sub-channel Organisation  
 3. FIG 0/17 - Programme Type
 4. FIG 0/18 - Announcement Support
 5. FIG 0/19 - Announcement Switching (EWS CRITICAL)
@@ -28,7 +28,7 @@ ALL PARSERS:
 - Support accessor methods for data retrieval
 
 ================================================================================
-STRUCTURE DEFINITIONS ADDED (advanced_fig_analyzer.h)
+STRUCTURE DEFINITIONS ADDED (advanced_fig_analyser.h)
 ================================================================================
 
 struct FIG0_13_UserApp {
@@ -65,7 +65,7 @@ struct FIG0_19_AnnouncementSwitching {
 };
 
 ================================================================================
-PARSER METHOD DECLARATIONS ADDED (advanced_fig_analyzer.h)
+PARSER METHOD DECLARATIONS ADDED (advanced_fig_analyser.h)
 ================================================================================
 
 void processFIG0_13(const QByteArray& data);  // User applications
@@ -75,7 +75,7 @@ void processFIG0_18(const QByteArray& data);  // Announcement support
 void processFIG0_19(const QByteArray& data);  // Announcement switching (EWS)
 
 ================================================================================
-DATA ACCESSOR METHODS ADDED (advanced_fig_analyzer.h)
+DATA ACCESSOR METHODS ADDED (advanced_fig_analyser.h)
 ================================================================================
 
 std::vector<FIG0_13_UserApp> getUserApplications() const;
@@ -85,7 +85,7 @@ std::vector<FIG0_18_AnnouncementSupport> getAnnouncementSupport() const;
 std::vector<FIG0_19_AnnouncementSwitching> getActiveAnnouncements() const;
 
 ================================================================================
-QT SIGNALS ADDED FOR EWS (advanced_fig_analyzer.h)
+QT SIGNALS ADDED FOR EWS (advanced_fig_analyser.h)
 ================================================================================
 
 void emergencyAlarmActivated(const FIG0_19_AnnouncementSwitching& announcement);
@@ -93,7 +93,7 @@ void announcementActivated(uint8_t cluster_id, uint16_t announcement_flags);
 void announcementDeactivated(uint8_t cluster_id);
 
 ================================================================================
-CONSTANTS DEFINED (advanced_fig_analyzer.h)
+CONSTANTS DEFINED (advanced_fig_analyser.h)
 ================================================================================
 
 USER APPLICATION TYPES (10 constants):
@@ -165,7 +165,7 @@ ANNOUNCEMENT_SPORT_REPORT = 0x0200    // Sport report
 ANNOUNCEMENT_FINANCIAL_REPORT = 0x0400 // Financial report
 
 ================================================================================
-PARSER IMPLEMENTATIONS (advanced_fig_analyzer.cpp)
+PARSER IMPLEMENTATIONS (advanced_fig_analyser.cpp)
 ================================================================================
 
 FIG 0/13: processFIG0_13()
@@ -220,7 +220,7 @@ Features:
 - NBTC compliance ready
 
 ================================================================================
-INTEGRATION UPDATES (advanced_fig_analyzer.cpp)
+INTEGRATION UPDATES (advanced_fig_analyser.cpp)
 ================================================================================
 
 processFIG0() Switch Statement:
@@ -259,14 +259,14 @@ BUILD VERIFICATION
 ================================================================================
 
 Command:
-cd /home/seksan/workspace/streamdab-analyzer/build
-make DABAnalyzer_Enhanced_FilteringBuild
+cd /home/seksan/workspace/streamdab-analyser/build
+make DABAnalyser_Enhanced_FilteringBuild
 
 Result: SUCCESS
 Output:
-[  0%] Built target DABAnalyzer_Enhanced_FilteringBuild_autogen_timestamp_deps
-[  0%] Built target DABAnalyzer_Enhanced_FilteringBuild_autogen
-[100%] Built target DABAnalyzer_Enhanced_FilteringBuild
+[  0%] Built target DABAnalyser_Enhanced_FilteringBuild_autogen_timestamp_deps
+[  0%] Built target DABAnalyser_Enhanced_FilteringBuild_autogen
+[100%] Built target DABAnalyser_Enhanced_FilteringBuild
 
 Compilation Errors: 0
 Warnings: 0
@@ -275,7 +275,7 @@ Warnings: 0
 FILE STATISTICS
 ================================================================================
 
-advanced_fig_analyzer.h:
+advanced_fig_analyser.h:
 - Original lines: ~490
 - New lines: ~616
 - Lines added: ~126
@@ -284,7 +284,7 @@ advanced_fig_analyzer.h:
 - Method declarations: 10
 - Signals added: 3
 
-advanced_fig_analyzer.cpp:
+advanced_fig_analyser.cpp:
 - Original lines: 2,232
 - New lines: 2,720
 - Lines added: 488
@@ -309,7 +309,7 @@ Score: 100%
 
 FIG 0/14 Compliance:
 --------------------
-✅ Section 6.2.2 - FEC sub-channel organization
+✅ Section 6.2.2 - FEC sub-channel organisation
 ✅ SubChId (6 bits) field extraction
 ✅ FEC scheme (2 bits) field extraction
 ✅ Reed-Solomon scheme support
@@ -444,11 +444,11 @@ FILES TO COMMIT
 ================================================================================
 
 Modified files ready for git commit:
-1. /home/seksan/workspace/streamdab-analyzer/src/core/advanced_fig_analyzer.h
-2. /home/seksan/workspace/streamdab-analyzer/src/core/advanced_fig_analyzer.cpp
+1. /home/seksan/workspace/streamdab-analyser/src/core/advanced_fig_analyser.h
+2. /home/seksan/workspace/streamdab-analyser/src/core/advanced_fig_analyser.cpp
 
 Documentation files:
-3. /home/seksan/workspace/streamdab-analyzer/docs/PHASE_2A_WEEK6_IMPLEMENTATION_SUMMARY.md
+3. /home/seksan/workspace/streamdab-analyser/docs/PHASE_2A_WEEK6_IMPLEMENTATION_SUMMARY.md
 
 ================================================================================
 FINAL STATUS

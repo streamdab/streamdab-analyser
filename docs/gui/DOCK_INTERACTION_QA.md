@@ -16,7 +16,7 @@ cd build && ctest -R "test_dock_interactions|test_gui_dock_layout" --output-on-f
 
 ## 1. What the automated suite covers
 
-Each test drives the real `DABAnalyzerWindow` (27 docks, 4 `CDockManager`s) through the Qt-ADS API
+Each test drives the real `DABAnalyserWindow` (27 docks, 4 `CDockManager`s) through the Qt-ADS API
 and asserts the resulting state. No fixture load; headless (offscreen) only.
 
 | # | Test | Interaction driven | Asserted |
@@ -38,12 +38,12 @@ Settings isolation: `QStandardPaths::setTestModeEnabled(true)` + per-test cleari
 
 ## 2. Manual checklist (headless CI cannot exercise these)
 
-Run the app with a real display: `./build/StreamDABAnalyzer`. Tick every box on the shipping layout
+Run the app with a real display: `./build/StreamDABAnalyser`. Tick every box on the shipping layout
 (27 docks, `DOCKING_LAYOUT_VERSION = 8`).
 
 **Drag & drop**
 - [ ] Drag a dock by its tab/title bar within the same area → it reorders / becomes current.
-- [ ] Drag a dock onto another area's **center** → tabifies into a group with it.
+- [ ] Drag a dock onto another area's **centre** → tabifies into a group with it.
 - [ ] Drag a dock to a window **edge** (left/right/top/bottom) → drop indicator appears and it splits there.
 - [ ] Drag a whole tabbed group (multi-tab) → all tabs move together, no tab lost.
 - [ ] Drag a dock to the **window outside** → it floats; drag it back → re-docks cleanly.
@@ -84,5 +84,5 @@ Run the app with a real display: `./build/StreamDABAnalyzer`. Tick every box on 
 - `ctest -R "test_dock_interactions|test_gui_dock_layout"` → pass.
 - Full idle `ctest` → 54/54.
 - Fixture parity unchanged (DLS+ 1114, MOT 97/97, 0 MOT warnings) — asserted by `test_gui_dock_layout`.
-- GUI smoke `timeout 10 ./build/StreamDABAnalyzer eti/bkk_20062022_141637.eti` → exit **124** (still running, no crash).
+- GUI smoke `timeout 10 ./build/StreamDABAnalyser eti/bkk_20062022_141637.eti` → exit **124** (still running, no crash).
 - CLI: exit 0 on the fixture; YAML decode output unchanged.

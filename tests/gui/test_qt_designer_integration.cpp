@@ -15,7 +15,7 @@
  * 
  * @author UI/UX Agent - TDD Lead
  * @date 2025-09-22
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #include "professional_gui_tdd_framework.h"

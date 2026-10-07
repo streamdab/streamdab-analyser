@@ -132,7 +132,7 @@ list(APPEND EXISTING_ETSI_TEST_SOURCES
 )
 
 # Create ETSI Comprehensive Compliance Test executable
-add_executable(eti_analyzer_etsi_comprehensive_tests
+add_executable(eti_analyser_etsi_comprehensive_tests
     ${EXISTING_ETSI_TEST_SOURCES}
 
     # Include test fixtures and support files
@@ -146,7 +146,7 @@ add_executable(eti_analyzer_etsi_comprehensive_tests
 )
 
 # Link dependencies for ETSI compliance tests
-target_link_libraries(eti_analyzer_etsi_comprehensive_tests
+target_link_libraries(eti_analyser_etsi_comprehensive_tests
     ${GTEST_LIBS}
     Qt6::Core
     Qt6::Test
@@ -154,7 +154,7 @@ target_link_libraries(eti_analyzer_etsi_comprehensive_tests
 )
 
 # Include directories for ETSI compliance tests
-target_include_directories(eti_analyzer_etsi_comprehensive_tests PRIVATE
+target_include_directories(eti_analyser_etsi_comprehensive_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
@@ -166,7 +166,7 @@ target_include_directories(eti_analyzer_etsi_comprehensive_tests PRIVATE
 )
 
 # Compile definitions for ETSI compliance tests
-target_compile_definitions(eti_analyzer_etsi_comprehensive_tests PRIVATE
+target_compile_definitions(eti_analyser_etsi_comprehensive_tests PRIVATE
     ${FAAD2_CFLAGS_OTHER}
     ${FFTW3_CFLAGS_OTHER}
     ETSI_COMPLIANCE_TESTING_ENABLED=1
@@ -176,7 +176,7 @@ target_compile_definitions(eti_analyzer_etsi_comprehensive_tests PRIVATE
 
 # Register ETSI comprehensive compliance tests with CTest
 add_test(NAME etsi_comprehensive_compliance_tests
-         COMMAND eti_analyzer_etsi_comprehensive_tests)
+         COMMAND eti_analyser_etsi_comprehensive_tests)
 
 # Set test properties for better organization
 set_tests_properties(etsi_comprehensive_compliance_tests PROPERTIES
@@ -188,72 +188,72 @@ set_tests_properties(etsi_comprehensive_compliance_tests PROPERTIES
 add_custom_target(etsi_comprehensive_tdd_red_phase
     COMMAND echo "🔴 ETSI Comprehensive TDD RED Phase: Running failing ETSI compliance tests"
     COMMAND echo "Expected result: Tests should FAIL (validates test completeness)"
-    COMMAND eti_analyzer_etsi_comprehensive_tests --gtest_filter="*ShouldFailUntilImplemented*" || echo "✅ RED phase validated - tests correctly fail"
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    COMMAND eti_analyser_etsi_comprehensive_tests --gtest_filter="*ShouldFailUntilImplemented*" || echo "✅ RED phase validated - tests correctly fail"
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "ETSI Comprehensive TDD RED: Expecting test failures (this validates comprehensive test coverage)"
 )
 
 add_custom_target(etsi_comprehensive_tdd_green_phase
     COMMAND echo "🟢 ETSI Comprehensive TDD GREEN Phase: Running ETSI compliance tests expecting pass"
-    COMMAND eti_analyzer_etsi_comprehensive_tests
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    COMMAND eti_analyser_etsi_comprehensive_tests
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "ETSI Comprehensive TDD GREEN: All ETSI compliance tests must pass"
 )
 
 add_custom_target(etsi_comprehensive_tdd_refactor_phase
     COMMAND echo "🔵 ETSI Comprehensive TDD REFACTOR Phase: Optimizing while maintaining test success"
-    COMMAND eti_analyzer_etsi_comprehensive_tests --gtest_filter="*Performance*"
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    COMMAND eti_analyser_etsi_comprehensive_tests --gtest_filter="*Performance*"
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "ETSI Comprehensive TDD REFACTOR: Performance optimization validation"
 )
 
 # ETSI specific test categories
 add_custom_target(run_etsi_en_300_401_tests
     COMMAND echo "📻 ETSI EN 300 401 DAB Core Broadcasting Tests"
-    COMMAND eti_analyzer_etsi_comprehensive_tests --gtest_filter="*EN300401*:*DabCore*:*TransmissionMode*:*FicStructure*:*MscOrganization*"
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    COMMAND eti_analyser_etsi_comprehensive_tests --gtest_filter="*EN300401*:*DabCore*:*TransmissionMode*:*FicStructure*:*MscOrganization*"
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "Running ETSI EN 300 401 DAB Radio Broadcasting compliance tests"
 )
 
 add_custom_target(run_etsi_en_302_077_tests
     COMMAND echo "📡 ETSI EN 302 077 Harmonized Radio Standard Tests"
-    COMMAND eti_analyzer_etsi_comprehensive_tests --gtest_filter="*EN302077*:*HarmonizedStandard*:*EVM*:*SpectrumCompliance*"
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    COMMAND eti_analyser_etsi_comprehensive_tests --gtest_filter="*EN302077*:*HarmonizedStandard*:*EVM*:*SpectrumCompliance*"
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "Running ETSI EN 302 077 Harmonized Radio Standard compliance tests"
 )
 
 add_custom_target(run_etsi_ts_102_563_tests
     COMMAND echo "🎵 ETSI TS 102 563 DAB+ Audio Coding Tests"
-    COMMAND eti_analyzer_etsi_comprehensive_tests --gtest_filter="*TS102563*:*DabPlusAudio*:*HeAac*:*ReedSolomon*"
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    COMMAND eti_analyser_etsi_comprehensive_tests --gtest_filter="*TS102563*:*DabPlusAudio*:*HeAac*:*ReedSolomon*"
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "Running ETSI TS 102 563 DAB+ Audio Coding compliance tests"
 )
 
 add_custom_target(run_etsi_en_300_799_tests
     COMMAND echo "🔗 ETSI EN 300 799 ETI Distribution Interface Tests"
-    COMMAND eti_analyzer_etsi_comprehensive_tests --gtest_filter="*EN300799*:*EtiFrame*:*SyncPattern*:*CrcValidation*"
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    COMMAND eti_analyser_etsi_comprehensive_tests --gtest_filter="*EN300799*:*EtiFrame*:*SyncPattern*:*CrcValidation*"
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "Running ETSI EN 300 799 ETI Distribution Interface compliance tests"
 )
 
 add_custom_target(run_thai_dab_compliance_tests
     COMMAND echo "🇹🇭 Thai DAB NBTC Compliance Tests"
-    COMMAND eti_analyzer_etsi_comprehensive_tests --gtest_filter="*ThaiDab*:*Nbtc*:*ThaiCharacter*:*ThaiCompliance*"
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    COMMAND eti_analyser_etsi_comprehensive_tests --gtest_filter="*ThaiDab*:*Nbtc*:*ThaiCharacter*:*ThaiCompliance*"
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "Running Thai DAB NBTC regulatory compliance tests"
 )
 
 add_custom_target(run_dab_service_discovery_tests
     COMMAND echo "🔍 DAB Service Discovery Compliance Tests"
-    COMMAND eti_analyzer_etsi_comprehensive_tests --gtest_filter="*ServiceDiscovery*:*FigParsing*:*ServiceOrganization*"
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    COMMAND eti_analyser_etsi_comprehensive_tests --gtest_filter="*ServiceDiscovery*:*FigParsing*:*ServiceOrganization*"
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "Running DAB service discovery compliance tests"
 )
 
 add_custom_target(run_compliance_reporting_tests
     COMMAND echo "📊 Automated Compliance Reporting Tests"
-    COMMAND eti_analyzer_etsi_comprehensive_tests --gtest_filter="*ComplianceReporting*:*CertificationPackage*:*RegulatorySubmission*"
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    COMMAND eti_analyser_etsi_comprehensive_tests --gtest_filter="*ComplianceReporting*:*CertificationPackage*:*RegulatorySubmission*"
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "Running automated compliance reporting framework tests"
 )
 
@@ -288,7 +288,7 @@ add_custom_target(run_complete_etsi_compliance_validation
     COMMAND ${CMAKE_MAKE_PROGRAM} run_compliance_reporting_tests
     COMMAND echo ""
     COMMAND echo "✅ COMPLETE ETSI COMPLIANCE VALIDATION FINISHED"
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "Complete ETSI compliance validation with all standards and Thai NBTC requirements"
 )
 
@@ -296,12 +296,12 @@ add_custom_target(run_complete_etsi_compliance_validation
 add_custom_target(generate_professional_certification_package
     COMMAND echo "📜 Professional Broadcast Industry Certification Package Generation"
     COMMAND echo "=================================================================="
-    COMMAND eti_analyzer_etsi_comprehensive_tests --gtest_filter="*CertificationPackage*:*ProfessionalBroadcast*:*RegulatorySubmission*"
+    COMMAND eti_analyser_etsi_comprehensive_tests --gtest_filter="*CertificationPackage*:*ProfessionalBroadcast*:*RegulatorySubmission*"
     COMMAND echo "📋 Generating ETSI compliance certificates..."
     COMMAND echo "🇹🇭 Generating Thai NBTC regulatory submission package..."
     COMMAND echo "🌍 Generating international certification compatibility report..."
     COMMAND echo "✅ Professional certification package generation complete"
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "Generate complete professional broadcast industry certification package"
 )
 
@@ -309,14 +309,14 @@ add_custom_target(generate_professional_certification_package
 add_custom_target(validate_etsi_compliance_performance
     COMMAND echo "⚡ ETSI Compliance Performance Validation"
     COMMAND echo "========================================"
-    COMMAND eti_analyzer_etsi_comprehensive_tests --gtest_filter="*Performance*:*Realtime*:*Latency*:*Memory*"
+    COMMAND eti_analyser_etsi_comprehensive_tests --gtest_filter="*Performance*:*Realtime*:*Latency*:*Memory*"
     COMMAND echo "📈 Performance targets:"
     COMMAND echo "   - Service discovery: >500 checks/sec"
     COMMAND echo "   - Thai compliance: >300 checks/sec"
     COMMAND echo "   - Report generation: <5 seconds"
     COMMAND echo "   - Memory usage: <50MB during reporting"
     COMMAND echo "   - Real-time latency: <10ms"
-    DEPENDS eti_analyzer_etsi_comprehensive_tests
+    DEPENDS eti_analyser_etsi_comprehensive_tests
     COMMENT "Validate ETSI compliance performance requirements for real-time operation"
 )
 
@@ -325,7 +325,7 @@ add_custom_target(validate_etsi_compliance_performance
 set(ETSI_TESTS_INTEGRATED TRUE PARENT_SCOPE)
 
 # Export ETSI test information for main CMakeLists.txt
-set(ETSI_COMPREHENSIVE_TEST_EXECUTABLE eti_analyzer_etsi_comprehensive_tests PARENT_SCOPE)
+set(ETSI_COMPREHENSIVE_TEST_EXECUTABLE eti_analyser_etsi_comprehensive_tests PARENT_SCOPE)
 set(ETSI_COMPREHENSIVE_TEST_TARGETS
     etsi_comprehensive_tdd_red_phase
     etsi_comprehensive_tdd_green_phase

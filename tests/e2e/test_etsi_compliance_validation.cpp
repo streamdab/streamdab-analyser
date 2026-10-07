@@ -25,7 +25,7 @@
 
 // Core includes
 #include "gui/main_window.h"
-#include "gui/analyzer_widget.h"
+#include "gui/analyser_widget.h"
 #include "gui/service_browser.h"
 #include "gui/constellation_widget.h"
 #include "gui/eti_service_tree_model.h"
@@ -330,10 +330,10 @@ TEST_F(ETSIComplianceValidationTest, ETIFrameProcessingCompliance) {
     EXPECT_FALSE(validateETIFrameStructure(nonCompliantFrame)) << "Non-compliant frame should be detected";
     
     // Test 3: Frame timing precision (24ms)
-    auto* analyzerWidget = mainWindow->getAnalyzerWidget();
-    ASSERT_TRUE(analyzerWidget);
+    auto* analyserWidget = mainWindow->getAnalyserWidget();
+    ASSERT_TRUE(analyserWidget);
     
-    auto* frameTable = analyzerWidget->findChild<QTableWidget*>("frameListTable");
+    auto* frameTable = analyserWidget->findChild<QTableWidget*>("frameListTable");
     if (frameTable) {
         // Simulate frame processing with 24ms timing
         QElapsedTimer frameTiming;
@@ -586,9 +586,9 @@ TEST_F(ETSIComplianceValidationTest, ErrorDetectionAndAlertSystem) {
     EXPECT_FALSE(validateETIFrameStructure(errorFrame)) << "Error frame should be detected";
     
     // Test frame error highlighting in UI
-    auto* analyzerWidget = mainWindow->getAnalyzerWidget();
-    if (analyzerWidget) {
-        auto* frameTable = analyzerWidget->findChild<QTableWidget*>("frameListTable");
+    auto* analyserWidget = mainWindow->getAnalyserWidget();
+    if (analyserWidget) {
+        auto* frameTable = analyserWidget->findChild<QTableWidget*>("frameListTable");
         if (frameTable) {
             testDataGenerator->populateFrameList(frameTable);
             QTest::qWait(200);

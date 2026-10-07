@@ -194,7 +194,7 @@ void updateFrameDetails(ProcessedFrame frame)
 
 ## 📊 Technical Analysis
 
-### std::vector Reallocation Behavior
+### std::vector Reallocation Behaviour
 
 When `push_back()` exceeds capacity:
 ```
@@ -226,22 +226,22 @@ Process:
 
 ### Build Status
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake --build . -j$(nproc)
 ```
 **Result:** ✅ SUCCESS (0 errors)
 
 ### Regression Tests
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build/tests
+cd /home/seksan/workspace/streamdab-analyser/build/tests
 ./test_segfault_fixes
 ```
 **Result:** ✅ 10/10 tests passed
 
 ### Application Test
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
-./StreamDABAnalyzer
+cd /home/seksan/workspace/streamdab-analyser/build
+./StreamDABAnalyser
 # Load: eti/bkk_20062022_141637.eti
 ```
 **Expected:** All 5001 frames process without crash
@@ -325,6 +325,6 @@ When using Qt types (QByteArray, QString, etc.) in STL containers (std::vector, 
 ---
 
 **Last Updated:** October 24, 2025  
-**Build Location:** `/home/seksan/workspace/streamdab-analyzer/build/StreamDABAnalyzer`  
+**Build Location:** `/home/seksan/workspace/streamdab-analyser/build/StreamDABAnalyser`  
 **Binary Size:** 1.7 MB  
 **Test Coverage:** 10 regression tests (100% pass rate)

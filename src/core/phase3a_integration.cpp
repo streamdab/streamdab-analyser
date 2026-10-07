@@ -24,7 +24,7 @@ namespace eti::integration {
 Phase3AIntegrationManager::Phase3AIntegrationManager(QObject* parent)
     : QObject(parent)
     , m_etiParser(nullptr)
-    , m_figAnalyzer(nullptr)
+    , m_figAnalyser(nullptr)
     , m_audioValidator(nullptr)
     , m_motProtocol(nullptr)
     , m_epgDecoder(nullptr)
@@ -65,13 +65,13 @@ bool Phase3AIntegrationManager::initializeComponents()
         }
         qDebug() << "[Phase3A Integration] ✓ ETI Frame Parser created";
 
-        // Create FIG Analyzer
-        m_figAnalyzer = new AdvancedFIGAnalyzer(this);
-        if (!m_figAnalyzer) {
-            emit initializationError("AdvancedFIGAnalyzer", "Failed to create instance");
+        // Create FIG Analyser
+        m_figAnalyser = new AdvancedFIGAnalyser(this);
+        if (!m_figAnalyser) {
+            emit initializationError("AdvancedFIGAnalyser", "Failed to create instance");
             return false;
         }
-        qDebug() << "[Phase3A Integration] ✓ FIG Analyzer created";
+        qDebug() << "[Phase3A Integration] ✓ FIG Analyser created";
 
         // Create Audio Validator
         m_audioValidator = new eti::audio::DABPlusStreamValidator(this);
@@ -132,23 +132,23 @@ bool Phase3AIntegrationManager::connectSignals()
     qInfo() << "[Phase3A Integration] Connecting signal/slot pipelines...";
 
     // ========================================================================
-    // Pipeline 1: FIG Analyzer Signals → Integration Manager
+    // Pipeline 1: FIG Analyser Signals → Integration Manager
     // ========================================================================
 
     // Service discovery
-    connect(m_figAnalyzer, &AdvancedFIGAnalyzer::serviceDiscovered,
+    connect(m_figAnalyser, &AdvancedFIGAnalyser::serviceDiscovered,
             this, [this](const ServiceInfo& service) {
                 onServiceDiscovered(service.serviceId, service.label);
             });
 
     // Ensemble discovery (ensembleUpdated signal, not ensembleDiscovered)
-    connect(m_figAnalyzer, &AdvancedFIGAnalyzer::ensembleUpdated,
+    connect(m_figAnalyser, &AdvancedFIGAnalyser::ensembleUpdated,
             this, [this](const EnsembleInfo& ensemble) {
                 onEnsembleDiscovered(static_cast<uint16_t>(ensemble.ensembleId), 
                                    ensemble.ensembleLabel);
             });
 
-    qDebug() << "[Phase3A Integration] ✓ FIG Analyzer → Integration Manager connected";
+    qDebug() << "[Phase3A Integration] ✓ FIG Analyser → Integration Manager connected";
 
     // ========================================================================
     // Pipeline 2: Audio Validator Signals → Integration Manager
@@ -285,7 +285,7 @@ void Phase3AIntegrationManager::shutdownComponents()
 
     // Components are QObject children, will be deleted automatically
     // Just clear our pointers
-    m_figAnalyzer = nullptr;
+    m_figAnalyser = nullptr;
     m_audioValidator = nullptr;
     m_motProtocol = nullptr;
     m_epgDecoder = nullptr;
@@ -416,9 +416,9 @@ bool Phase3AIntegrationManager::processETIFrame(const QByteArray& frameData)
     // Emit frame processed signal
     emit frameProcessed(m_current_frame_number);
 
-    // Process FIC data through FIG analyzer
+    // Process FIC data through FIG analyser
     if (!parsedFrame.fic_data.isEmpty()) {
-        m_figAnalyzer->analyzeFICData(parsedFrame.fic_data);
+        m_figAnalyser->analyzeFICData(parsedFrame.fic_data);
     }
 
     // Process MSC data through audio validator and MOT protocol
@@ -434,7 +434,7 @@ bool Phase3AIntegrationManager::processETIFrame(const QByteArray& frameData)
             // NOTE (T26): MOT is NOT fed from raw sub-channel bytes. A MOT
             // object is carried in standard EN 300 401 §5.3.3 MSC data groups
             // assembled from the DAB+ X-PAD CI 12/13 sub-fields (see
-            // DABAnalyzerWindow's PAD parser). Feeding `subchannel.data` (raw
+            // DABAnalyserWindow's PAD parser). Feeding `subchannel.data` (raw
             // sub-channel bytes) to MOTProtocol::processMOTData() can never
             // parse, so this hook is intentionally removed. Any future MSC
             // data-service path must assemble the data group first, then call

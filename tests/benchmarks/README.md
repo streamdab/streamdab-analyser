@@ -1,6 +1,6 @@
 # TDD Performance Benchmarks Directory
 
-This directory contains performance benchmarks for the ETI Stream Analyzer TDD framework.
+This directory contains performance benchmarks for the ETI Stream Analyser TDD framework.
 
 ## Purpose
 
@@ -105,10 +105,10 @@ TEST(PerformanceTest, OptimizedEtiProcessing) {
 make run_benchmarks
 
 # Run specific benchmark
-./eti_analyzer_benchmarks --benchmark_filter=BM_EtiProcessing
+./eti_analyser_benchmarks --benchmark_filter=BM_EtiProcessing
 
 # Generate benchmark report
-./eti_analyzer_benchmarks --benchmark_format=json > benchmark_results.json
+./eti_analyser_benchmarks --benchmark_format=json > benchmark_results.json
 ```
 
 ### Performance Monitoring

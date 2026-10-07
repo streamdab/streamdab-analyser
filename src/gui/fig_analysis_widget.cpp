@@ -24,7 +24,7 @@
 
 FigAnalysisWidget::FigAnalysisWidget(QWidget *parent)
     : QWidget(parent)
-    , m_figAnalyzer(nullptr)
+    , m_figAnalyser(nullptr)
     , m_mainLayout(nullptr)
     , m_mainTabs(nullptr)
     , m_overviewTab(nullptr)
@@ -87,20 +87,20 @@ FigAnalysisWidget::~FigAnalysisWidget()
     Logger::instance().log(Logger::Info, "FigAnalysisWidget", "Destructor completed");
 }
 
-bool FigAnalysisWidget::initialize(eti::modern::EnhancedFIGAnalyzer *analyzer)
+bool FigAnalysisWidget::initialize(eti::modern::EnhancedFIGAnalyser *analyser)
 {
-    if (!analyzer) {
-        Logger::instance().log(Logger::Error, "FigAnalysisWidget", "Invalid FIG analyzer provided");
+    if (!analyser) {
+        Logger::instance().log(Logger::Error, "FigAnalysisWidget", "Invalid FIG analyser provided");
         return false;
     }
     
-    Logger::instance().log(Logger::Info, "FigAnalysisWidget", "Initializing with Enhanced FIG Analyzer");
+    Logger::instance().log(Logger::Info, "FigAnalysisWidget", "Initializing with Enhanced FIG Analyser");
     
-    m_figAnalyzer = analyzer;
+    m_figAnalyser = analyser;
     
-    // Connect Modern ETI Core analyzer signals
-    // Note: These connections would need to be adapted based on actual analyzer signals
-    // connect(m_figAnalyzer, &eti::modern::EnhancedFIGAnalyzer::complianceIssue,
+    // Connect Modern ETI Core analyser signals
+    // Note: These connections would need to be adapted based on actual analyser signals
+    // connect(m_figAnalyser, &eti::modern::EnhancedFIGAnalyser::complianceIssue,
     //         this, &FigAnalysisWidget::onEtsiComplianceIssue);
     
     // Enable real-time updates by default

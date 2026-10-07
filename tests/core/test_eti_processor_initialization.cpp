@@ -5,7 +5,7 @@
 
 #include "core/eti_processor.hpp"
 #include "core/modern_eti_frame_parser.hpp"
-#include "core/enhanced_fig_analyzer.hpp"
+#include "core/enhanced_fig_analyser.hpp"
 #include "core/comprehensive_etsi_validator.hpp"
 #include "gui/main_window.h"
 

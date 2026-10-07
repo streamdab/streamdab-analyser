@@ -4,7 +4,7 @@
 **Branch:** `feature/gui-qtads`
 **Status:** ✅ Review PASSED (after F1–F9 fixes applied) — **changes still uncommitted** (pending final verification wave)
 **Scope:** CLI + GUI decode paths — ETI framing (EN 300 799), FIG parsing (EN 300 401), ECC/country (TS 101 756)
-**Reference implementation:** [etisnoop](https://github.com/Opendigitalradio/etisnoop) (behavioral ground truth — GPL, no code copied)
+**Reference implementation:** [etisnoop](https://github.com/Opendigitalradio/etisnoop) (behavioural ground truth — GPL, no code copied)
 **Test fixture:** `eti/bkk_20062022_141637.eti` (Bangkok DAB+, ensemble 0x2000, ECC 0xF3 — 5001 × 6144 B RAW ETI-NI)
 
 ---
@@ -16,7 +16,7 @@ The CLI/`headless` decode did not match etisnoop: `ensemble_label "(no label)"`,
 subchannel reported `UEP`. Compared against etisnoop byte-for-byte, three layered bugs were found
 (see §2) and fixed; a standards-based code review then produced the finding set in §3 and the
 **option-variant matrix** in [`OPTION_VARIANT_MATRIX.md`](OPTION_VARIANT_MATRIX.md), which drives the
-upcoming analyzer-settings feature.
+upcoming analyser-settings feature.
 
 ## 2. Root cause (original decode bugs)
 
@@ -60,7 +60,7 @@ etisnoop source (`etianalyse.cpp`, `fig0_1.cpp`, `fig1.cpp`, `fig0_2.cpp`, `char
 
 | ID | Sev | Finding (file:line @ review time) | Fix (applied) |
 |----|-----|----------------------------------|---------------|
-| F1 | HIGH | FIG 0/1 EEP/UEP form semantics **inverted**: bit7=1 (EEP long form: option `(b2>>4)&7`, level `(b2>>2)&3`, size `((b2&3)<<8)|b3`) was decoded as "UEP" with a 5-bit level (0x88 → level 34). Every subchannel of the fixture misreported. | `ModernETIFrameParser::processFIG01_SubchannelOrg` + the same branch in `EnhancedFIGAnalyzer` + `FigParser::parseFig01*` fixed to spec; UEP short form (bit7=0): `tsw=(b2>>6)&1`, `idx=b2&0x3F`, size from UEP table (not encoded). Real `0x88 0x18` → **EEP 3-A, size 24 CU**. |
+| F1 | HIGH | FIG 0/1 EEP/UEP form semantics **inverted**: bit7=1 (EEP long form: option `(b2>>4)&7`, level `(b2>>2)&3`, size `((b2&3)<<8)|b3`) was decoded as "UEP" with a 5-bit level (0x88 → level 34). Every subchannel of the fixture misreported. | `ModernETIFrameParser::processFIG01_SubchannelOrg` + the same branch in `EnhancedFIGAnalyser` + `FigParser::parseFig01*` fixed to spec; UEP short form (bit7=0): `tsw=(b2>>6)&1`, `idx=b2&0x3F`, size from UEP table (not encoded). Real `0x88 0x18` → **EEP 3-A, size 24 CU**. |
 | F2 | HIGH | STC TPL EEP/UEP test inverted: `is_eep=(tpl&0x38)==0x08`; correct = `(tpl&0x20)` (TPL = top 6 bits of STC byte 2; real TPL 0x22 = EEP 3-A). `test16_SubchannelTPL` baked the wrong convention. | `parseETI_NI_Frame` TPL decode fixed (verifies byte 10/11 fixture `0x88 0x18`); `test16` rewritten to real-stream fixture, strengthened (EEP, option 0, level 3, size 24). |
 | F3 | MED-HIGH | Service-level ECC propagation frame-order dependent → programme services printed `country_name "Unknown"` while ensemble said "Thailand". FIG 0/9 is processed before same-frame 0/2 services. | After the FIG loop, stamp ensemble ECC onto services with ECC==0; headless merge falls back to ensemble ECC. → **all 16 services = "Thailand"** (ECC 0xF3, CId 2). |
 | F4 | MEDIUM | Label **charset ignored** (raw byte passthrough). etisnoop decodes charset 0 (EBU Latin), 3 (UTF-8), 6 (Thai TIS-620). Raw TIS-620 in UTF-8 output = mojibake + violates the project's "Thai UTF-8 first-class" rule. | `processFIG10/11`: charset `(data[0]>>4)&0x0F`; 0 → EBU-Latin→UTF-8 (reused `charset_converter`), 3 → UTF-8, 6 → TIS-620→UTF-8 (0xA1→ก … 0xFB→U+0E5B), unknown → raw + one warning per charset. New `tests/test_charset_converter.cpp` (9 tests). |
@@ -95,7 +95,7 @@ etisnoop (STL 24 ×14, 12, 3 → 192/96/24 kbps) · FIB CRC: 14 994/14 994 pass 
 ## 5. Files changed (fix wave, uncommitted)
 
 `eti_types.hpp/.cpp`, `modern_eti_frame_parser.hpp/.cpp`, `fig_parser.hpp/.cpp`,
-`enhanced_fig_analyzer.cpp`, `enhanced_eti_processor_qt.cpp/.h`, `eti_processor.cpp`,
+`enhanced_fig_analyser.cpp`, `enhanced_eti_processor_qt.cpp/.h`, `eti_processor.cpp`,
 `headless_eti_processor.cpp`, `comprehensive_etsi_validator.cpp`,
 `standards_compliance_perfection.cpp`, `etsi_registered_tables.cpp` (ECC 0xE0→0xF3, TS 101 756),
 `charset_converter.hpp/.cpp`, `yaml_output_generator.cpp` (country lookup keyed on (ECC, CId)),
@@ -108,12 +108,12 @@ tests `test_eti_ni_parser`, `test_etsi_registered_tables`, `test_yaml_output_gen
 - ctest: **44/45** — only the known v1.4 `test_fig_week2_comprehensive::test_performance_fig019_parsing_speed`
   HW-threshold failure (untouched FIG 0/19 parser; 7.06 µs vs 5 µs).
 - CLI: `streamdab-cli --input eti/bkk_20062022_141637.eti` → ensemble/services/subchannels match §4.
-- GUI smoke: `timeout 10 ./build/StreamDABAnalyzer eti/bkk_20062022_141637.eti` → exit 124 (no crash).
+- GUI smoke: `timeout 10 ./build/StreamDABAnalyser eti/bkk_20062022_141637.eti` → exit 124 (no crash).
 
 ## 7. Status & next steps
 
 - [x] Decode fix (root cause) — **committed** (see commit log for T5/T7)
 - [x] Standards review (this record) — PASSED after F1–F9
 - [x] Commit decode fix + review docs (T7)
-- [x] **Analyzer settings feature** — matrix `SETTING` rows implemented (AnalyzerSettings + settings-dialog Analyzer tab + 13 CLI flags; etisnoop-parity defaults byte-identical)
+- [x] **Analyser settings feature** — matrix `SETTING` rows implemented (AnalyserSettings + settings-dialog Analyser tab + 13 CLI flags; etisnoop-parity defaults byte-identical)
 - [x] Matrix FIX leftovers — auto raw-FIC fallback (row 4), tail TIST for ETI-NI (row 10)

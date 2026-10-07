@@ -1,6 +1,6 @@
 /**
  * @file professional_gui_tdd_framework.h
- * @brief Professional GUI TDD Framework for StreamDAB Analyzer
+ * @brief Professional GUI TDD Framework for StreamDAB Analyser
  * 
  * Comprehensive test-driven development framework specifically designed for
  * professional broadcast industry GUI components with Qt6 integration,
@@ -17,7 +17,7 @@
  * 
  * @author UI/UX Agent - TDD Lead
  * @date 2025-09-22
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #pragma once

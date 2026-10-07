@@ -87,7 +87,7 @@ add_test(NAME test_fig007_stream_mode COMMAND test_fig007_stream_mode)
 ## Build and Test (2 minutes)
 
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake ..
 make test_fig007_stream_mode
 ./tests/test_fig007_stream_mode

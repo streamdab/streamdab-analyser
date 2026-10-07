@@ -9,22 +9,22 @@
 
 ### Files Created/Modified
 
-1. **Header File:** `/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.hpp`
+1. **Header File:** `/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.hpp`
    - Added `RegionDefinition` struct (60 lines) after `FECSubchannelOrganization` (line 643)
    - Added `parseFig011_RegionDefinition()` method declaration (line 982)
    - Added `regionDefinitionDiscovered()` signal (line 1165)
    - Updated header comment to include FIG 0/11 (line 18)
 
-2. **Implementation File:** `/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.cpp`
+2. **Implementation File:** `/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.cpp`
    - Added case 11 to `parseFigType0()` switch statement (line 278)
    - Implemented `parseFig011_RegionDefinition()` method (85 lines, line 1448)
 
-3. **Test File:** `/home/seksan/workspace/streamdab-analyzer/tests/test_fig011_region_definition.cpp`
+3. **Test File:** `/home/seksan/workspace/streamdab-analyser/tests/test_fig011_region_definition.cpp`
    - Created comprehensive test suite (350 lines)
    - 10 test cases covering all functionality
    - Performance benchmark test
 
-4. **Build System:** `/home/seksan/workspace/streamdab-analyzer/tests/CMakeLists.txt`
+4. **Build System:** `/home/seksan/workspace/streamdab-analyser/tests/CMakeLists.txt`
    - Added test_fig011_region_definition target configuration
 
 ### Test Results
@@ -154,7 +154,7 @@ case 11: { // FIG 0/11 - Region definition
 
 ```bash
 # Build the test
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake --build . --target test_fig011_region_definition
 
 # Run the test

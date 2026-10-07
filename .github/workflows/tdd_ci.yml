@@ -1,6 +1,6 @@
 name: TDD Continuous Integration
 
-# TDD CI/CD Pipeline for ETI Stream Analyzer
+# TDD CI/CD Pipeline for ETI Stream Analyser
 # Enforces Test-Driven Development methodology at every commit
 
 on:

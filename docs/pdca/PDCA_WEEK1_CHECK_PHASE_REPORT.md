@@ -46,7 +46,7 @@ namespace eti::fig {
 }
 ```
 
-**File Modified:** `/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.hpp` (lines 40-50)
+**File Modified:** `/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.hpp` (lines 40-50)
 
 **Result:** ✅ **RESOLVED** - All tests now compile successfully
 
@@ -532,7 +532,7 @@ This suggests the parser validation is working, but the test data structure is w
 
 **1. Fix Agent 1 Test Helpers** (Priority 1)
 ```bash
-# Edit: /home/seksan/workspace/streamdab-analyzer/tests/test_fig10_ensemble_label.cpp
+# Edit: /home/seksan/workspace/streamdab-analyser/tests/test_fig10_ensemble_label.cpp
 # Complete createValidFig10() function to generate proper 21-byte FIG 1/0 data
 # Add 16-byte label field (space-padded)
 # Add 2-byte character flag field

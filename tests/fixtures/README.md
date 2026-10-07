@@ -1,6 +1,6 @@
 # TDD Test Fixtures Directory
 
-This directory contains test data and fixtures for the ETI Stream Analyzer TDD framework.
+This directory contains test data and fixtures for the ETI Stream Analyser TDD framework.
 
 ## Purpose
 

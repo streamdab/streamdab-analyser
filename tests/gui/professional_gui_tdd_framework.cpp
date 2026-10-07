@@ -7,7 +7,7 @@
  * 
  * @author UI/UX Agent - TDD Lead
  * @date 2025-09-22
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #include "professional_gui_tdd_framework.h"
@@ -61,8 +61,8 @@ bool ProfessionalGUITestFramework::initializeProfessionalTestEnvironment()
     // Set professional application properties
     QApplication* app = qobject_cast<QApplication*>(QApplication::instance());
     if (app) {
-        app->setApplicationName("ETI Stream Analyzer (Test Mode)");
-        app->setApplicationDisplayName("Professional ETI Stream Analyzer");
+        app->setApplicationName("ETI Stream Analyser (Test Mode)");
+        app->setApplicationDisplayName("Professional ETI Stream Analyser");
         app->setOrganizationName("StreamDAB");
         
         // Set professional font for testing
@@ -428,7 +428,7 @@ bool ThreePanelLayoutValidator::checkMainContentPanel(QMainWindow* mainWindow,
     QWidget* centralWidget = mainWindow->centralWidget();
     
     if (centralWidget) {
-        // Check for analyzer or table widget in central area
+        // Check for analyser or table widget in central area
         QTableView* tableView = centralWidget->findChild<QTableView*>();
         QWidget* analysisWidget = centralWidget->findChild<EtiAnalysisWidget*>();
         

@@ -25,7 +25,7 @@ Agent 48 successfully completed comprehensive integration validation of the ETI-
 
 ### 1. Comprehensive Validation Report ✅
 
-**File:** `/home/seksan/workspace/streamdab-analyzer/FINAL_VALIDATION_REPORT.md`
+**File:** `/home/seksan/workspace/streamdab-analyser/FINAL_VALIDATION_REPORT.md`
 
 **Contents:**
 - Integration test results (Bangkok ETI file)
@@ -43,7 +43,7 @@ Agent 48 successfully completed comprehensive integration validation of the ETI-
 
 ### 2. Subchannel Comparison Table ✅
 
-**File:** `/home/seksan/workspace/streamdab-analyzer/SUBCHANNEL_COMPARISON.md`
+**File:** `/home/seksan/workspace/streamdab-analyser/SUBCHANNEL_COMPARISON.md`
 
 **Contents:**
 - Detailed subchannel comparison (StreamDAB vs etisnoop)
@@ -232,7 +232,7 @@ YAML output: "subchannels: []"
 **Status:** Design decision needed
 
 **Description:**
-ETI-NI frames have no FIC/FIG data (FICF=0), so service information cannot be extracted using the normal FIG 0/2 processing. This is **expected behavior** for ETI-NI format, but the tool should handle it gracefully.
+ETI-NI frames have no FIC/FIG data (FICF=0), so service information cannot be extracted using the normal FIG 0/2 processing. This is **expected behaviour** for ETI-NI format, but the tool should handle it gracefully.
 
 **Options:**
 1. **Infer dummy services** from subchannels (e.g., "Service 1", "Service 2")
@@ -406,7 +406,7 @@ ETI-NI frames have no FIC/FIG data (FICF=0), so service information cannot be ex
 **Estimated Time:** 30-60 minutes
 
 **Files to Modify:**
-- `/home/seksan/workspace/streamdab-analyzer/src/core/modern_eti_frame_parser.cpp` (lines 401-406)
+- `/home/seksan/workspace/streamdab-analyser/src/core/modern_eti_frame_parser.cpp` (lines 401-406)
 
 **Fix Required:**
 ```cpp
@@ -416,7 +416,7 @@ result.subchannels = frame.get_subchannel_info();
 
 **Validation Command:**
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 ./streamdab-cli --input ../eti/bkk_20062022_141637.eti --output bangkok_fixed.yaml
 grep -c "scid:" bangkok_fixed.yaml  # Must output: 10
 ```

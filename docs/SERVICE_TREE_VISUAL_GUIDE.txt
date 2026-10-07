@@ -2,8 +2,8 @@
 SERVICE TREE POPULATION - VISUAL IMPLEMENTATION GUIDE
 ================================================================================
 
-Project: StreamDAB Analyzer - Qt6 Service Tree Implementation
-Location: /home/seksan/workspace/streamdab-analyzer
+Project: StreamDAB Analyser - Qt6 Service Tree Implementation
+Location: /home/seksan/workspace/streamdab-analyser
 Target: src/main.cpp
 
 ================================================================================
@@ -81,7 +81,7 @@ DATA FLOW DIAGRAM
        │
        ▼
 ┌──────────────────────────────────┐
-│  AdvancedFIGAnalyzer             │
+│  AdvancedFIGAnalyser             │
 │  analyzeFICData()                │
 └──────┬───────────────────────────┘
        │
@@ -114,7 +114,7 @@ DATA FLOW DIAGRAM
        ▼                                                             ▼
 ┌──────────────────────┐                                  ┌──────────────────────┐
 │  FIG 0/1 Processing  │                                  │  FIG 0/2 Processing  │
-│  Subchannel Info     │                                  │  Service Organization│
+│  Subchannel Info     │                                  │  Service Organisation│
 └──────┬───────────────┘                                  └──────┬───────────────┘
        │                                                          │
        │ emit subChannelsUpdated()                               │ emit servicesUpdated()
@@ -151,7 +151,7 @@ DATA FLOW DIAGRAM
 CODE STRUCTURE MAP
 ================================================================================
 
-main.cpp - DABAnalyzerWindow class:
+main.cpp - DABAnalyserWindow class:
 ────────────────────────────────────
 
 Line ~1411: ┌────────────────────────────────────────────┐
@@ -168,17 +168,17 @@ Line ~2268: ┌─────────────────────�
             │  void setupSignalConnections()             │
             │  {                                         │
             │    // EXISTING CONNECTION                  │
-            │    connect(m_figAnalyzer,                  │
-            │      &AdvancedFIGAnalyzer::serviceDiscovered,
+            │    connect(m_figAnalyser,                  │
+            │      &AdvancedFIGAnalyser::serviceDiscovered,
             │      this, &...::onServiceDiscovered);     │
             │                                            │
             │    // NEW CONNECTIONS (Add these)          │
-            │    connect(m_figAnalyzer,                  │
-            │      &AdvancedFIGAnalyzer::servicesUpdated,│
+            │    connect(m_figAnalyser,                  │
+            │      &AdvancedFIGAnalyser::servicesUpdated,│
             │      this, &...::onServicesUpdated);       │
             │                                            │
-            │    connect(m_figAnalyzer,                  │
-            │      &AdvancedFIGAnalyzer::ensembleInfoUpdated,
+            │    connect(m_figAnalyser,                  │
+            │      &AdvancedFIGAnalyser::ensembleInfoUpdated,
             │      this, &...::updateHierarchicalServiceTree);
             │                                            │
             │    connect(m_hierarchicalServiceTree,      │
@@ -202,7 +202,7 @@ Line ~2358: ┌─────────────────────�
             │  {                                         │
             │    // Save expansion state                 │
             │    // Clear tree                           │
-            │    // Get real data from FIG analyzer      │
+            │    // Get real data from FIG analyser      │
             │    // Create ensemble root item            │
             │    // Loop through services:               │
             │    //   - Create service items with icons  │
@@ -247,11 +247,11 @@ Line ~2358: ┌─────────────────────�
 SIGNAL CONNECTION FLOW
 ================================================================================
 
-FIG Analyzer Signals → DABAnalyzerWindow Slots
+FIG Analyser Signals → DABAnalyserWindow Slots
 ───────────────────────────────────────────────
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│ AdvancedFIGAnalyzer                 DABAnalyzerWindow               │
+│ AdvancedFIGAnalyser                 DABAnalyserWindow               │
 │                                                                     │
 │  servicesUpdated() ─────────────────► onServicesUpdated()           │
 │       │                                      │                      │
@@ -266,7 +266,7 @@ FIG Analyzer Signals → DABAnalyzerWindow Slots
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│ m_hierarchicalServiceTree           DABAnalyzerWindow               │
+│ m_hierarchicalServiceTree           DABAnalyserWindow               │
 │                                                                     │
 │  currentItemChanged() ───────────────► onServiceTreeSelection      │
 │                                         Changed()                   │
@@ -276,12 +276,12 @@ FIG Analyzer Signals → DABAnalyzerWindow Slots
 └─────────────────────────────────────────────────────────────────────┘
 
 ================================================================================
-FILE ORGANIZATION
+FILE ORGANISATION
 ================================================================================
 
 Implementation Files (Generated):
 ──────────────────────────────────
-/home/seksan/workspace/streamdab-analyzer/
+/home/seksan/workspace/streamdab-analyser/
 │
 ├── SERVICE_TREE_UPDATE_IMPLEMENTATION.cpp      (24 KB)
 │   └── Complete annotated implementation with extensive documentation
@@ -308,8 +308,8 @@ src/main.cpp
 Related Source Files:
 ─────────────────────
 src/core/
-├── advanced_fig_analyzer.h        (FIG analyzer interface)
-├── advanced_fig_analyzer.cpp      (FIG processing logic)
+├── advanced_fig_analyser.h        (FIG analyser interface)
+├── advanced_fig_analyser.cpp      (FIG processing logic)
 └── eti_types.h                    (Data structures)
 
 ================================================================================
@@ -329,7 +329,7 @@ Step 1: Review Documentation
 Step 2: Backup and Prepare
 ───────────────────────────
 ┌─────────────────────────────────────────────────────────────────┐
-│ $ cd /home/seksan/workspace/streamdab-analyzer                  │
+│ $ cd /home/seksan/workspace/streamdab-analyser                  │
 │ $ cp src/main.cpp src/main.cpp.backup                          │
 │ $ git status  # Verify clean working tree                      │
 └─────────────────────────────────────────────────────────────────┘
@@ -358,7 +358,7 @@ Step 4: Build and Test
 │ $ make                                                          │
 │   Expected: Zero compilation errors                             │
 │                                                                 │
-│ $ ./StreamDABAnalyzer                                           │
+│ $ ./StreamDABAnalyser                                           │
 │   1. File → Open ETI File                                       │
 │   2. Navigate to "FIC-Extractor" tab                            │
 │   3. Verify "Hierarchical Service Tree" panel                   │

@@ -1,4 +1,4 @@
-# StreamDAB Analyzer - CLI Build Success v1.2
+# StreamDAB Analyser - CLI Build Success v1.2
 
 **Date:** November 6, 2025
 **Build Status:** ✅ **CLI EXECUTABLE COMPLETE**
@@ -11,7 +11,7 @@
 ## ✅ **CLI BUILD SUCCESS SUMMARY**
 
 ### **Executable Built:**
-- **File:** `/home/seksan/workspace/streamdab-analyzer/build/streamdab-cli`
+- **File:** `/home/seksan/workspace/streamdab-analyser/build/streamdab-cli`
 - **Size:** 1.2 MB
 - **Status:** ✅ **FULLY FUNCTIONAL**
 - **Build Time:** ~2 minutes
@@ -20,7 +20,7 @@
 
 ### **Build Command:**
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake ..
 make streamdab-cli -j4
 ```
@@ -28,12 +28,12 @@ make streamdab-cli -j4
 ### **Test Results:**
 ```bash
 $ ./streamdab-cli --help
-StreamDAB Analyzer v1.1 - CLI Mode
-ETSI EN 300 401 compliant DAB/DAB+ stream analyzer
+StreamDAB Analyser v1.1 - CLI Mode
+ETSI EN 300 401 compliant DAB/DAB+ stream analyser
 ... [full help output] ...
 
 $ ./streamdab-cli --version
-StreamDAB Analyzer v1.1 - CLI Mode
+StreamDAB Analyser v1.1 - CLI Mode
 Build date: Nov  6 2025 10:54:34
 Qt version: 6.4.2
 ETSI Standards:
@@ -186,7 +186,7 @@ src/core/headless_eti_processor.cpp
 src/core/eti_processor.cpp
 src/core/eti_types.cpp
 src/core/modern_eti_frame_parser.cpp
-src/core/enhanced_fig_analyzer.cpp
+src/core/enhanced_fig_analyser.cpp
 src/core/performance_profiler.cpp
 src/core/fig_parser.cpp
 src/core/ensemble_manager.cpp
@@ -211,7 +211,7 @@ src/utils/logger.cpp
 ./streamdab-cli --input sample.eti --output report.yaml
 ```
 
-### **Analyze First 1000 Frames:**
+### **Analyse First 1000 Frames:**
 ```bash
 ./streamdab-cli --input stream.eti --max-frames 1000 --verbose
 ```

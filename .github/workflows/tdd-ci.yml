@@ -200,11 +200,11 @@ jobs:
       if: success()
       uses: actions/upload-artifact@v3
       with:
-        name: eti-analyzer-${{ matrix.os }}
+        name: eti-analyser-${{ matrix.os }}
         path: |
-          build/ETIStreamAnalyzer*
+          build/ETIStreamAnalyser*
           build/*.app
-          build/Release/ETIStreamAnalyzer.exe
+          build/Release/ETIStreamAnalyser.exe
 
   # INTEGRATION TESTING
   integration-tests:
@@ -220,11 +220,11 @@ jobs:
     - name: Download Linux artifacts
       uses: actions/download-artifact@v3
       with:
-        name: eti-analyzer-ubuntu-22.04
+        name: eti-analyser-ubuntu-22.04
 
     - name: Run Integration Tests
       run: |
-        chmod +x ETIStreamAnalyzer
+        chmod +x ETIStreamAnalyser
         # Add integration test commands here
         echo "Integration testing framework would run here"
         # ./scripts/integration_tests.sh
@@ -282,7 +282,7 @@ jobs:
     - name: Download artifacts
       uses: actions/download-artifact@v3
       with:
-        name: eti-analyzer-${{ matrix.os }}
+        name: eti-analyser-${{ matrix.os }}
 
     - name: Create packages
       run: |

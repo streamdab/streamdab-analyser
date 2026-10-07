@@ -1,6 +1,6 @@
 /**
  * @file yaml_output_generator.hpp
- * @brief ETISnoop-Compatible YAML Output Generator for StreamDAB Analyzer
+ * @brief ETISnoop-Compatible YAML Output Generator for StreamDAB Analyser
  *
  * Generates YAML formatted output compatible with ETISnoop for comprehensive
  * DAB/DAB+ stream analysis results. Supports Thai UTF-8 encoding and follows
@@ -8,7 +8,7 @@
  *
  * @author Agent 35 - YAML Output Generator
  * @date 2025-11-05
- * @copyright StreamDAB Analyzer Project - PDCA Week 8
+ * @copyright StreamDAB Analyser Project - PDCA Week 8
  *
  * ENHANCED (2025-11-08): Added etisnoop-compatible detailed output
  * - Ensemble labels from FIG 1/0
@@ -37,8 +37,9 @@
 #include <QFile>
 #include <QTextStream>
 #include "../core/eti_types.hpp"
+#include "../core/product_version.hpp"
 #include "../core/fig_parser.hpp"
-#include "../core/analyzer_settings.hpp"
+#include "../core/analyser_settings.hpp"
 
 namespace cli {
 
@@ -144,7 +145,7 @@ struct FrameAnalysisData {
 };
 
 /**
- * @brief YAML Output Generator for StreamDAB Analyzer
+ * @brief YAML Output Generator for StreamDAB Analyser
  *
  * Generates ETISnoop-compatible YAML output containing:
  * - ETI stream metadata (format, frames, errors, timing)
@@ -252,16 +253,16 @@ public:
     void setETIStreamInfo(int total_frames, int valid_frames, int error_frames, int crc_errors);
 
     /**
-     * @brief Set the user-selected analyzer decode options (rows 8/12/6).
+     * @brief Set the user-selected analyser decode options (rows 8/12/6).
      *
      * Drives service_id rendering (sid_display_mode), the optional
      * service_short_label / ensemble_short_label emission (show_short_labels)
      * and the ECC used for country lookup (ecc_override). Defaults match the
      * pre-settings output so default runs are byte-identical.
      *
-     * @param settings Analyzer decode options to use
+     * @param settings Analyser decode options to use
      */
-    void setAnalyzerSettings(const eti::AnalyzerSettings& settings) { m_data.settings = settings; }
+    void setAnalyserSettings(const eti::AnalyserSettings& settings) { m_data.settings = settings; }
 
     /**
      * @brief Enable the strict frame-CRC stats line in the ETI stream section.
@@ -330,8 +331,8 @@ private:
      * @brief Complete YAML output data
      */
     struct YAMLData {
-        QString version{"1.1"};
-        QString generator{"StreamDAB Analyzer v1.1 - Verbose Mode"};
+        QString version{DABX_VERSION};
+        QString generator{"StreamDAB Analyser v" DABX_VERSION " - Verbose Mode"};
         QDateTime timestamp;
         QString input_file;
         qint64 analysis_duration_ms{0};
@@ -371,8 +372,8 @@ private:
         bool verbose_mode{false};
         QList<FrameAnalysisData> frame_analyses;
 
-        // User-selected analyzer decode options (rows 6/8/12)
-        eti::AnalyzerSettings settings;
+        // User-selected analyser decode options (rows 6/8/12)
+        eti::AnalyserSettings settings;
     } m_data;
 
     // ========================================================================

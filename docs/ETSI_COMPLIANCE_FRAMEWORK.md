@@ -1,4 +1,4 @@
-# ETSI Compliance Framework for StreamDAB Analyzer
+# ETSI Compliance Framework for StreamDAB Analyser
 
 **Document Version:** 4.0 (Phase 4 Complete + Reality Update)
 **Date:** October 28, 2025
@@ -27,7 +27,7 @@
 
 ## Executive Summary
 
-**StreamDAB Analyzer has achieved 98% ETSI compliance** for professional DAB/DAB+ broadcast analysis, with comprehensive implementation of core standards and production-ready code quality.
+**StreamDAB Analyser has achieved 98% ETSI compliance** for professional DAB/DAB+ broadcast analysis, with comprehensive implementation of core standards and production-ready code quality.
 
 ### Current Implementation Status (October 28, 2025)
 
@@ -88,12 +88,12 @@
   - Country ID and ECC (Extended Country Code)
   - Alarm flag and CIF count
   - **Verified bug-free** vs etisnoop implementation
-- **FIG 0/1 - Sub-channel Organization:**
+- **FIG 0/1 - Sub-channel Organisation:**
   - Sub-channel ID and start address
   - Short form (EEP) and long form (UEP) support
   - Protection level extraction
   - Bitrate calculation
-- **FIG 0/2 - Service Organization:**
+- **FIG 0/2 - Service Organisation:**
   - Service ID extraction
   - Service-to-component mapping
   - Audio/data service detection
@@ -240,8 +240,8 @@ bool ModernEtiFrameParser::parseFrame(const uint8_t* data, size_t size) {
 
 **Implemented FIG Types:**
 - ✅ FIG 0/0 - Ensemble information (Section 8.1.4)
-- ✅ FIG 0/1 - Sub-channel organization (Section 8.1.5)
-- ✅ FIG 0/2 - Service organization (Section 8.1.6)
+- ✅ FIG 0/1 - Sub-channel organisation (Section 8.1.5)
+- ✅ FIG 0/2 - Service organisation (Section 8.1.6)
 - ✅ FIG 1/0 - Ensemble label (Section 8.1.13)
 - ✅ FIG 1/1 - Service label (Section 8.1.14)
 - ✅ FIG 1/4 - Service component label
@@ -322,7 +322,7 @@ ETI Frame (6144 bytes total):
 - etisnoop incorrectly calculates FIC offset
 - Misses EOH (End of Header) section
 
-**StreamDAB Analyzer Correct Implementation:**
+**StreamDAB Analyser Correct Implementation:**
 ```cpp
 // modern_eti_frame_parser.cpp:325
 // FIC starts after: 4 (SYNC) + 4 (ERR) + 4*NST (STLN) + 4 (EOH)
@@ -427,8 +427,8 @@ private:
 | **FIG** | **Description** | **Status** | **File** |
 |---------|----------------|------------|----------|
 | **0/0** | Ensemble information | ✅ Complete | fig_parser.cpp:272-320 |
-| **0/1** | Sub-channel organization | ✅ Complete | fig_parser.cpp:323-395 |
-| **0/2** | Service organization | ✅ Complete | fig_parser.cpp:397-486 |
+| **0/1** | Sub-channel organisation | ✅ Complete | fig_parser.cpp:323-395 |
+| **0/2** | Service organisation | ✅ Complete | fig_parser.cpp:397-486 |
 | **0/3** | Service component (packet mode) | ⏳ Not implemented | - |
 | **0/4** | Service component with CA | ⏳ Not implemented | - |
 | **0/5** | Service component language | ⏳ Not implemented | - |
@@ -858,7 +858,7 @@ ctest --output-on-failure
 
 ### **Phase 5-6: Performance & Professional Features (Future)**
 
-#### **Priority P0: Performance Optimization**
+#### **Priority P0: Performance Optimisation**
 - Target: >1000 FPS sustained processing
 - Multi-threaded frame processing
 - GPU acceleration for FIG parsing
@@ -884,7 +884,7 @@ ctest --output-on-failure
 
 ## Conclusion
 
-**StreamDAB Analyzer has achieved production-ready ETSI compliance (98%)** with comprehensive implementation of core DAB/DAB+ standards. The project successfully implements:
+**StreamDAB Analyser has achieved production-ready ETSI compliance (98%)** with comprehensive implementation of core DAB/DAB+ standards. The project successfully implements:
 
 ✅ **Complete ETI processing** (EN 300 799)
 ✅ **Core FIG processing** (EN 300 401)

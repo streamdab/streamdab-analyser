@@ -32,7 +32,7 @@ fig_statistics:
 
 ## Root Cause Analysis
 
-### Location: `/home/seksan/workspace/streamdab-analyzer/src/core/headless_eti_processor.cpp`
+### Location: `/home/seksan/workspace/streamdab-analyser/src/core/headless_eti_processor.cpp`
 
 #### Problem 1: Frame Processing Loop Does Nothing (Lines 121-138)
 
@@ -96,7 +96,7 @@ if (processedFrames > 1000) {  // Only if we processed substantial data
 
 **CRITICAL ISSUE:** All service data is hardcoded test data, not extracted from ETI frames!
 
-#### Problem 3: Components Initialized But Never Used (Lines 207-244)
+#### Problem 3: Components Initialised But Never Used (Lines 207-244)
 
 ```cpp
 bool HeadlessETIProcessor::initialize_components()
@@ -108,9 +108,9 @@ bool HeadlessETIProcessor::initialize_components()
         return false;
     }
 
-    m_figAnalyzer = std::make_unique<eti::modern::EnhancedFIGAnalyzer>();
-    if (!m_figAnalyzer->initialize()) {
-        Logger::instance().log(Logger::Error, "HeadlessETIProcessor", "Failed to initialize EnhancedFIGAnalyzer");
+    m_figAnalyser = std::make_unique<eti::modern::EnhancedFIGAnalyser>();
+    if (!m_figAnalyser->initialize()) {
+        Logger::instance().log(Logger::Error, "HeadlessETIProcessor", "Failed to initialize EnhancedFIGAnalyser");
         return false;
     }
 
@@ -184,23 +184,23 @@ while (!frameFile.atEnd()) {
 ## Related Code Files
 
 ### Working Components (Verified)
-- `/home/seksan/workspace/streamdab-analyzer/src/core/modern_eti_frame_parser.cpp`
+- `/home/seksan/workspace/streamdab-analyser/src/core/modern_eti_frame_parser.cpp`
   - `parseFrame()` - ✅ Implemented correctly (lines 90-148)
   - `analyzeFIGData()` - ✅ Implemented correctly (lines 170-230)
   - FIG extraction - ✅ Working (lines 459-503)
 
-- `/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.cpp`
+- `/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.cpp`
   - FIG 0/1 subchannel parser - ✅ Implemented (lines 468-616)
   - FIG 0/2 service parser - ✅ Implemented
   - All FIG types 0-24 - ✅ Implemented
 
 ### Broken Component
-- `/home/seksan/workspace/streamdab-analyzer/src/core/headless_eti_processor.cpp`
+- `/home/seksan/workspace/streamdab-analyser/src/core/headless_eti_processor.cpp`
   - `process_file()` frame loop - ❌ DOES NOT CALL PARSERS
-  - Components initialized but never used - ❌ WASTED MEMORY
+  - Components initialised but never used - ❌ WASTED MEMORY
 
 ### Output Generator (Correct Implementation)
-- `/home/seksan/workspace/streamdab-analyzer/src/cli/yaml_output_generator.cpp`
+- `/home/seksan/workspace/streamdab-analyser/src/cli/yaml_output_generator.cpp`
   - ✅ Correctly formats data to YAML
   - ✅ Problem: Receives empty data structures
 
@@ -214,8 +214,8 @@ while (!frameFile.atEnd()) {
 
 ### FIG Types (ETSI EN 300 401)
 - **FIG 0/0:** Ensemble information (ID, country code)
-- **FIG 0/1:** Sub-channel organization ✅ **SOURCE OF SUBCHANNEL DATA**
-- **FIG 0/2:** Service organization ✅ **SOURCE OF SERVICE DATA**
+- **FIG 0/1:** Sub-channel organisation ✅ **SOURCE OF SUBCHANNEL DATA**
+- **FIG 0/2:** Service organisation ✅ **SOURCE OF SERVICE DATA**
 - **FIG 1/0:** Ensemble label
 - **FIG 1/1:** Service labels
 

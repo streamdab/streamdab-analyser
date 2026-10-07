@@ -1,5 +1,5 @@
 ================================================================================
-AGENT 21 - FIG 0/14 FEC SUB-CHANNEL ORGANIZATION PARSER
+AGENT 21 - FIG 0/14 FEC SUB-CHANNEL ORGANISATION PARSER
 DELIVERY SUMMARY AND INTEGRATION INSTRUCTIONS
 ================================================================================
 
@@ -55,7 +55,7 @@ Step 1: Apply 7 code patches from FIG014_CODE_PATCHES.txt
         - 1 patch to tests/CMakeLists.txt (test registration)
 
 Step 2: Build project
-        cd /home/seksan/workspace/streamdab-analyzer/build
+        cd /home/seksan/workspace/streamdab-analyser/build
         cmake --build .
 
 Step 3: Run tests
@@ -69,7 +69,7 @@ QUICK REFERENCE
 ================================================================================
 
 What is FIG 0/14?
-  - FEC (Forward Error Correction) Sub-channel Organization signaling
+  - FEC (Forward Error Correction) Sub-channel Organisation signalling
   - Indicates FEC scheme applied to DAB sub-channels
   - Supports both short form and long form parsing
 
@@ -124,7 +124,7 @@ BUILD COMMANDS
 ================================================================================
 
 # Navigate to build directory
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 
 # Rebuild project
 cmake --build .
@@ -292,11 +292,11 @@ Immediate (Required):
   1. Apply code patches
   2. Build and test
   3. Verify 22/22 tests pass
-  4. Commit with message: "feat: Add FIG 0/14 FEC Sub-channel Organization parser (Agent 21 - PDCA Week 5)"
+  4. Commit with message: "feat: Add FIG 0/14 FEC Sub-channel Organisation parser (Agent 21 - PDCA Week 5)"
 
 Short-term (Recommended):
   1. Connect GUI to fecSubchannelOrganizationDiscovered() signal
-  2. Display FEC scheme information in ETI analyzer panels
+  2. Display FEC scheme information in ETI analyser panels
   3. Update project documentation with FIG 0/14 support
   4. Add FIG 0/14 to user manual
 
@@ -339,11 +339,11 @@ CONTACT AND ATTRIBUTION
 Implementation: Agent 21 - Python Pro
 PDCA Week: Week 5
 Date: November 3, 2025
-Mission: FIG 0/14 FEC Sub-channel Organization Parser
+Mission: FIG 0/14 FEC Sub-channel Organisation Parser
 
 Based on ETSI standard:
   ETSI EN 300 401 Section 8.1.5
-  "FEC sub-channel organization"
+  "FEC sub-channel organisation"
 
 Quality Assurance:
   - 22/22 comprehensive tests

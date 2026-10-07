@@ -1,6 +1,6 @@
-# StreamDAB Analyzer — Project Instructions
+# StreamDAB Analyser — Project Instructions
 
-Qt6 / C++20 DAB/ETI stream analyzer. CMake 3.16+. ETSI EN 300 799 (ETI), EN 300 401 (DAB FIG).
+Qt6 / C++20 DAB/ETI stream analyser. CMake 3.16+. ETSI EN 300 799 (ETI), EN 300 401 (DAB FIG).
 
 **Current Phase:** v1.3 — GUI Migration to Qt-ADS (feature/gui-qtads branch)
 **Next:** v1.4 test closeout → v2.0 EWS/EDI (see `docs/PHASE_E_PLAN.md`)
@@ -9,11 +9,16 @@ Qt6 / C++20 DAB/ETI stream analyzer. CMake 3.16+. ETSI EN 300 799 (ETI), EN 300 
 
 ```bash
 sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev build-essential
-cmake -B build -S . && cmake --build build --parallel "$(bash scripts/build_jobs.sh)"  # build (bounded jobs; zero errors/warnings)
-export QT_QPA_PLATFORM=offscreen                  # before configure: enables all 43 test targets
-cd build && ctest --output-on-failure             # tests (must be 100% pass, 43 targets)
-./build/streamdab-cli --input eti/bkk_20062022_141637.eti --output /tmp/opencode/smoke.yaml  # CLI smoke test
+export QT_QPA_PLATFORM=offscreen                  # BEFORE configure: enables every GUI test target
+JOBS="$(bash scripts/build_jobs.sh)"              # bounded: min(nproc, RAM_GB/2, 8) -> 8 here
+export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"         # nested cmake/make (Qt-ADS) honour this too
+cmake -B build -S . && cmake --build build --parallel "$JOBS"   # build (zero errors/warnings)
+cd build && ctest --output-on-failure             # tests (must be 100% pass)
+cd .. && ./build/streamdab-cli --input eti/bkk_20062022_141637.eti --output /tmp/opencode/smoke.yaml  # CLI smoke test
 ```
+
+> Never use a bare `-j` / `--parallel`: with no value make runs **unbounded**
+> (one compiler per target), which forks the machine to a standstill.
 
 - Real ETI fixtures live in `eti/` — use them for E2E validation, never synthetic-only tests.
 - Sanitizers/Valgrind expected clean on touched paths (memory- and thread-safe code).

@@ -1,12 +1,12 @@
 /**
- * @file test_analyzer_settings.cpp
- * @brief Unit tests for the user-selectable analyzer decode options
+ * @file test_analyser_settings.cpp
+ * @brief Unit tests for the user-selectable analyser decode options
  *        (option-variant matrix rows 1-6, 8, 10-12, 14).
  *
  * Covers:
  *  - defaults() byte-parity with the etisnoop-parity behavior (gate 2)
- *  - QSettings round-trip (group "analyzer/")
- *  - CLI-flag -> AnalyzerSettings mapping
+ *  - QSettings round-trip (group "analyser/")
+ *  - CLI-flag -> AnalyserSettings mapping
  *  - behavior changes on synthetic data:
  *      force_charset overrides a FIG 1/1 label charset
  *      nst_offset_1 decodes the STC count-1 correction
@@ -21,22 +21,24 @@
 #include <QtTest/QtTest>
 #include <QTemporaryDir>
 #include <QFile>
+#include <QStandardPaths>
 #include <QTextStream>
 #include <cstring>
 #include <string>
 #include <vector>
 
-#include "core/analyzer_settings.hpp"
+#include "core/analyser_settings.hpp"
 #include "core/eti_types.hpp"
 #include "core/modern_eti_frame_parser.hpp"
 #include "core/crc16.hpp"
 #include "core/etsi_registered_tables.hpp"
 #include "cli/cli_argument_parser.hpp"
 #include "cli/yaml_output_generator.hpp"
+#include "utils/app_settings.hpp"
 
 using namespace eti;
 
-class TestAnalyzerSettings : public QObject {
+class TestAnalyserSettings : public QObject {
     Q_OBJECT
 
 private slots:
@@ -45,7 +47,7 @@ private slots:
     // ======================================================================
     void defaultsMatchCurrentBehavior()
     {
-        const AnalyzerSettings d = AnalyzerSettings::defaults();
+        const AnalyserSettings d = AnalyserSettings::defaults();
 
         QCOMPARE(d.force_charset, -1);                                  // row 1: follow stream
         QCOMPARE(d.charset_fallback_policy, CharsetFallbackPolicy::Raw); // row 1: raw + warn-once
@@ -62,30 +64,30 @@ private slots:
         QCOMPARE(d.sid_display_mode, SidDisplayMode::Hex32);            // row 12: full hex
 
         // The default FIC decode mode maps to the shared auto-fallback mode.
-        QCOMPARE(AnalyzerSettings::toFicDecodeMode(FicModeSetting::Auto),
+        QCOMPARE(AnalyserSettings::toFicDecodeMode(FicModeSetting::Auto),
                  FicDecodeMode::AutoFallback);
-        QCOMPARE(AnalyzerSettings::toFicDecodeMode(FicModeSetting::Strict),
+        QCOMPARE(AnalyserSettings::toFicDecodeMode(FicModeSetting::Strict),
                  FicDecodeMode::Strict);
-        QCOMPARE(AnalyzerSettings::toFicDecodeMode(FicModeSetting::Raw),
+        QCOMPARE(AnalyserSettings::toFicDecodeMode(FicModeSetting::Raw),
                  FicDecodeMode::Raw);
     }
 
     void validateRejectsBadValues()
     {
-        AnalyzerSettings s = AnalyzerSettings::defaults();
+        AnalyserSettings s = AnalyserSettings::defaults();
         QVERIFY(s.validate());
 
         s.force_charset = 2;  // only -1/0/3/6 allowed
         QString err;
         QVERIFY(!s.validate(&err));
 
-        s = AnalyzerSettings::defaults();
+        s = AnalyserSettings::defaults();
         s.ecc_override = 300;
         QVERIFY(!s.validate());
     }
 
     // ======================================================================
-    // 2. QSettings round-trip (group "analyzer/")
+    // 2. QSettings round-trip (group "analyser/")
     // ======================================================================
     void qsettingsRoundTrip()
     {
@@ -93,7 +95,7 @@ private slots:
         QVERIFY(dir.isValid());
         QSettings s(dir.path() + QStringLiteral("/settings.ini"), QSettings::IniFormat);
 
-        AnalyzerSettings a = AnalyzerSettings::defaults();
+        AnalyserSettings a = AnalyserSettings::defaults();
         a.force_charset = 6;
         a.charset_fallback_policy = CharsetFallbackPolicy::Skip;
         a.eti_mode = EtiModeSetting::Ni;
@@ -110,7 +112,7 @@ private slots:
         a.saveToQSettings(s);
         s.sync();
 
-        AnalyzerSettings b = AnalyzerSettings::defaults();
+        AnalyserSettings b = AnalyserSettings::defaults();
         b.loadFromQSettings(s);
 
         QCOMPARE(b.force_charset, 6);
@@ -134,22 +136,22 @@ private slots:
         QVERIFY(dir.isValid());
         QSettings s(dir.path() + QStringLiteral("/empty.ini"), QSettings::IniFormat);
 
-        AnalyzerSettings b = AnalyzerSettings::defaults();
+        AnalyserSettings b = AnalyserSettings::defaults();
         b.force_charset = 3;  // mutate, then prove a fresh load resets to defaults
         b.loadFromQSettings(s);
 
-        const AnalyzerSettings d = AnalyzerSettings::defaults();
+        const AnalyserSettings d = AnalyserSettings::defaults();
         QCOMPARE(b.force_charset, d.force_charset);
         QCOMPARE(b.fic_mode, d.fic_mode);
         QCOMPARE(b.sid_display_mode, d.sid_display_mode);
     }
 
     // ======================================================================
-    // 3. CLI-flag -> AnalyzerSettings mapping
+    // 3. CLI-flag -> AnalyserSettings mapping
     // ======================================================================
     void cliFlagMapping()
     {
-        // Build a CLI parse with every analyzer flag set.
+        // Build a CLI parse with every analyser flag set.
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
         QFile input(dir.path() + "/x.eti");
@@ -159,7 +161,7 @@ private slots:
         const QByteArray inputPath = input.fileName().toUtf8();
 
         const char* argv[] = {
-            "streamdab-analyzer",
+            "streamdab-analyser",
             "--input", inputPath.constData(),
             "--force-charset", "3",
             "--charset-fallback", "skip",
@@ -193,8 +195,8 @@ private slots:
         QCOMPARE(options.timestamp_source, QString("mtime"));
         QCOMPARE(options.sid_display_mode, QString("ecc-sid"));
 
-        AnalyzerSettings s = AnalyzerSettings::defaults();
-        s.applyCliOverrides(options.analyzerOverrides());
+        AnalyserSettings s = AnalyserSettings::defaults();
+        s.applyCliOverrides(options.analyserOverrides());
 
         QCOMPARE(s.force_charset, 3);
         QCOMPARE(s.charset_fallback_policy, CharsetFallbackPolicy::Skip);
@@ -221,13 +223,13 @@ private slots:
         input.close();
         const QByteArray inputPath = input.fileName().toUtf8();
 
-        const char* argv[] = {"streamdab-analyzer", "--input", inputPath.constData()};
+        const char* argv[] = {"streamdab-analyser", "--input", inputPath.constData()};
         const int argc = 3;
         cli::CLIOptions options = cli::CLIArgumentParser::parse(argc, const_cast<char**>(argv));
 
-        AnalyzerSettings s = AnalyzerSettings::defaults();
+        AnalyserSettings s = AnalyserSettings::defaults();
         s.force_charset = 6;  // ensure overrides never leak in
-        s.applyCliOverrides(options.analyzerOverrides());
+        s.applyCliOverrides(options.analyserOverrides());
 
         QCOMPARE(s.force_charset, 6);  // untouched: flag absent
         QCOMPARE(s.fic_mode, FicModeSetting::Auto);
@@ -270,13 +272,13 @@ private slots:
         pr.detected_format = eti::ETIFormat::ETI_NI;
 
         // Default (follow stream): charset 6 -> Thai TIS-620 conversion.
-        std::string defaultLabel = parseLabelFromFrame(ef, pr, AnalyzerSettings::defaults());
+        std::string defaultLabel = parseLabelFromFrame(ef, pr, AnalyserSettings::defaults());
         QVERIFY(!defaultLabel.empty());
         QVERIFY(QString::fromStdString(defaultLabel)
                     .contains(QString::fromUtf8("\u0E01\u0E02\u0E03")));  // ก ข ค
 
         // force_charset = 0 (EBU Latin): a different conversion of the same bytes.
-        AnalyzerSettings forced = AnalyzerSettings::defaults();
+        AnalyserSettings forced = AnalyserSettings::defaults();
         forced.force_charset = 0;
         std::string forcedLabel = parseLabelFromFrame(ef, pr, forced);
         QVERIFY(!forcedLabel.empty());
@@ -307,10 +309,10 @@ private slots:
         pr.has_fic = true;
         pr.detected_format = eti::ETIFormat::ETI_NI;
 
-        std::string rawLabel = parseLabelFromFrame(ef, pr, AnalyzerSettings::defaults());
+        std::string rawLabel = parseLabelFromFrame(ef, pr, AnalyserSettings::defaults());
         QVERIFY(!rawLabel.empty());   // raw passthrough (default)
 
-        AnalyzerSettings skip = AnalyzerSettings::defaults();
+        AnalyserSettings skip = AnalyserSettings::defaults();
         skip.charset_fallback_policy = CharsetFallbackPolicy::Skip;
         std::string skipLabel = parseLabelFromFrame(ef, pr, skip);
         QVERIFY(skipLabel.empty());
@@ -350,11 +352,11 @@ private slots:
         QCOMPARE(static_cast<int>(rDefault.subchannels_from_stc.size()), 16);
 
         // nst_offset_1: the missing 17th stream is recovered.
-        AnalyzerSettings settings = AnalyzerSettings::defaults();
+        AnalyserSettings settings = AnalyserSettings::defaults();
         settings.nst_offset_1 = true;
         eti::modern::ModernETIFrameParser parserOffset;
         QVERIFY(parserOffset.initialize(config));
-        parserOffset.setAnalyzerSettings(settings);
+        parserOffset.setAnalyserSettings(settings);
         auto rOffset = parserOffset.parseFrame(std::span<const uint8_t, 6144>{frame});
         QVERIFY(rOffset.success);
         QCOMPARE(static_cast<int>(rOffset.subchannels_from_stc.size()), 17);
@@ -418,16 +420,16 @@ private slots:
         // Manual ECC 0x20 must not resolve to Thailand for the same CId.
         QVERIFY(QString::fromLatin1(etsi::ts101756::getCountryName(0x20, 0x02)) != "Thailand");
 
-        AnalyzerSettings s = AnalyzerSettings::defaults();
+        AnalyserSettings s = AnalyserSettings::defaults();
         QCOMPARE(s.effectiveEcc(0xF3), 0xF3);   // no override -> stream value
         s.ecc_override = 0x20;
         QCOMPARE(s.effectiveEcc(0xF3), 0x20);   // override wins
 
         // End-to-end through the YAML layer: the override changes country_name.
         cli::YAMLOutputGenerator y;
-        eti::AnalyzerSettings a = AnalyzerSettings::defaults();
+        eti::AnalyserSettings a = AnalyserSettings::defaults();
         a.ecc_override = 0x20;
-        y.setAnalyzerSettings(a);
+        y.setAnalyserSettings(a);
 
         eti::DabService service;
         service.service_id = 0x2C61;
@@ -451,34 +453,34 @@ private slots:
         // --- hex32 (default) ---
         {
             cli::YAMLOutputGenerator y;
-            y.setAnalyzerSettings(AnalyzerSettings::defaults());
+            y.setAnalyserSettings(AnalyserSettings::defaults());
             y.addService(makeDataService());
             QVERIFY(y.generateYAML().contains(QStringLiteral("service_id: 0xF3200001")));
         }
         // --- ecc-sid: ECC:CId:SRef decomposition ---
         {
             cli::YAMLOutputGenerator y;
-            eti::AnalyzerSettings a = AnalyzerSettings::defaults();
+            eti::AnalyserSettings a = AnalyserSettings::defaults();
             a.sid_display_mode = SidDisplayMode::EccSid;
-            y.setAnalyzerSettings(a);
+            y.setAnalyserSettings(a);
             y.addService(makeDataService());
             QVERIFY(y.generateYAML().contains(QStringLiteral("service_id: \"F3:2:00001\"")));
         }
         // --- hex16: lower 16 bits ---
         {
             cli::YAMLOutputGenerator y;
-            eti::AnalyzerSettings a = AnalyzerSettings::defaults();
+            eti::AnalyserSettings a = AnalyserSettings::defaults();
             a.sid_display_mode = SidDisplayMode::Hex16;
-            y.setAnalyzerSettings(a);
+            y.setAnalyserSettings(a);
             y.addService(makeDataService());
             QVERIFY(y.generateYAML().contains(QStringLiteral("service_id: 0x0001")));
         }
         // --- ecc-sid for a 16-bit programme service ---
         {
             cli::YAMLOutputGenerator y;
-            eti::AnalyzerSettings a = AnalyzerSettings::defaults();
+            eti::AnalyserSettings a = AnalyserSettings::defaults();
             a.sid_display_mode = SidDisplayMode::EccSid;
-            y.setAnalyzerSettings(a);
+            y.setAnalyserSettings(a);
 
             eti::DabService prog;
             prog.service_id = 0x2C61;
@@ -536,17 +538,144 @@ private slots:
 
         // The YAML layer emits the short label only when the setting is on.
         cli::YAMLOutputGenerator y;
-        y.setAnalyzerSettings(AnalyzerSettings::defaults());  // off
+        y.setAnalyserSettings(AnalyserSettings::defaults());  // off
         y.addService(svc);
         QVERIFY(!y.generateYAML().contains(QStringLiteral("service_short_label")));
 
         cli::YAMLOutputGenerator y2;
-        eti::AnalyzerSettings a = AnalyzerSettings::defaults();
+        eti::AnalyserSettings a = AnalyserSettings::defaults();
         a.show_short_labels = true;
-        y2.setAnalyzerSettings(a);
+        y2.setAnalyserSettings(a);
         y2.addService(svc);
         QVERIFY(y2.generateYAML().contains(
             QStringLiteral("service_short_label: \"ABCDIJKL\"")));
+    }
+
+    // ======================================================================
+    // 5. QSettings scope migration (old American spelling -> "Analyser")
+    // ======================================================================
+    void legacyScopeMigratesOnce()
+    {
+        QStandardPaths::setTestModeEnabled(true);
+        using namespace streamdab::app_settings;
+
+        // Start from a clean slate for both scopes.
+        { QSettings n(organization(), application()); n.clear(); n.sync(); }
+        { QSettings o(legacyOrganization(), legacyApplication()); o.clear(); o.sync(); }
+
+        // Seed the legacy (pre-rename) scope.
+        {
+            QSettings o(legacyOrganization(), legacyApplication());
+            o.setValue(QStringLiteral("docking/tab1"), QByteArray("layout"));
+            o.setValue(streamdab::app_settings::legacy::settingsGroup()
+                           + QStringLiteral("/force_charset"),
+                       6);
+            o.setValue(QStringLiteral("window/geometry"), QByteArray("geom"));
+            o.sync();
+        }
+
+        QVERIFY(migrateLegacyScope());  // migration performed
+
+        {
+            QSettings n(organization(), application());
+            QCOMPARE(n.value(QStringLiteral("docking/tab1")).toByteArray(), QByteArray("layout"));
+            QCOMPARE(n.value(QStringLiteral("window/geometry")).toByteArray(), QByteArray("geom"));
+            // The old key group is renamed to the Analyser spelling.
+            QCOMPARE(n.value(QStringLiteral("analyser/force_charset")).toInt(), 6);
+            QVERIFY(n.value(streamdab::app_settings::legacy::settingsGroup()
+                                + QStringLiteral("/force_charset"))
+                        .isNull());
+        }
+        {
+            QSettings o(legacyOrganization(), legacyApplication());
+            QVERIFY(o.allKeys().isEmpty());  // legacy scope removed
+        }
+
+        // Idempotent: the legacy scope is now empty -> no-op.
+        QVERIFY(!migrateLegacyScope());
+    }
+
+    void legacyScopeNotOverwrittenWhenNewScopeInUse()
+    {
+        QStandardPaths::setTestModeEnabled(true);
+        using namespace streamdab::app_settings;
+
+        { QSettings n(organization(), application()); n.clear(); n.sync(); }
+        { QSettings o(legacyOrganization(), legacyApplication()); o.clear(); o.sync(); }
+
+        // New scope already carries a persisted docking layout.
+        {
+            QSettings n(organization(), application());
+            n.setValue(QStringLiteral("docking/layout_version"), 8);
+            n.setValue(QStringLiteral("window/geometry"), QByteArray("new"));
+            n.sync();
+        }
+        // Legacy scope still holds stale data.
+        {
+            QSettings o(legacyOrganization(), legacyApplication());
+            o.setValue(QStringLiteral("window/geometry"), QByteArray("old"));
+            o.sync();
+        }
+
+        QVERIFY(!migrateLegacyScope());  // skipped: new scope already in use
+
+        {
+            QSettings n(organization(), application());
+            QCOMPARE(n.value(QStringLiteral("window/geometry")).toByteArray(), QByteArray("new"));
+        }
+        {
+            QSettings o(legacyOrganization(), legacyApplication());
+            QVERIFY(!o.allKeys().isEmpty());  // legacy scope left untouched
+            o.clear();
+            o.sync();
+        }
+        { QSettings n(organization(), application()); n.clear(); n.sync(); }
+    }
+
+    // MEDIUM fix regression: new scope has SOME data but no docking/layout_version
+    // (abnormal exit before the dock state was saved). Migration must copy the
+    // legacy keys but NEVER overwrite the newer new-scope values.
+    void legacyScopeDoesNotOverwriteExistingNewKeysWithoutLayoutVersion()
+    {
+        QStandardPaths::setTestModeEnabled(true);
+        using namespace streamdab::app_settings;
+
+        { QSettings n(organization(), application()); n.clear(); n.sync(); }
+        { QSettings o(legacyOrganization(), legacyApplication()); o.clear(); o.sync(); }
+
+        // New scope: a partial store (e.g. a Settings-dialog edit), no layout_version.
+        {
+            QSettings n(organization(), application());
+            n.setValue(QStringLiteral("window/geometry"), QByteArray("new-geom"));
+            n.setValue(QStringLiteral("analyser/force_charset"), 7);
+            n.sync();
+        }
+        // Legacy scope: stale values for the colliding keys + one missing key.
+        {
+            QSettings o(legacyOrganization(), legacyApplication());
+            o.setValue(QStringLiteral("window/geometry"), QByteArray("old-geom"));
+            o.setValue(streamdab::app_settings::legacy::settingsGroup()
+                           + QStringLiteral("/force_charset"),
+                       3);
+            o.setValue(QStringLiteral("docking/tab1"), QByteArray("layout"));
+            o.sync();
+        }
+
+        QVERIFY(migrateLegacyScope());  // partial new scope -> migration runs
+
+        {
+            QSettings n(organization(), application());
+            // Colliding keys keep the NEWER new-scope values.
+            QCOMPARE(n.value(QStringLiteral("window/geometry")).toByteArray(), QByteArray("new-geom"));
+            QCOMPARE(n.value(QStringLiteral("analyser/force_charset")).toInt(), 7);
+            // The missing key is migrated in.
+            QCOMPARE(n.value(QStringLiteral("docking/tab1")).toByteArray(), QByteArray("layout"));
+        }
+        {
+            QSettings o(legacyOrganization(), legacyApplication());
+            QVERIFY(o.allKeys().isEmpty());  // legacy scope removed after copy
+        }
+        { QSettings n(organization(), application()); n.clear(); n.sync(); }
     }
 
 private:
@@ -564,7 +693,7 @@ private:
 
     std::string parseLabelFromFrame(const eti::EtiFrame& ef,
                                     const eti::modern::ETIParseResult& pr,
-                                    const AnalyzerSettings& settings)
+                                    const AnalyserSettings& settings)
     {
         eti::modern::ProcessingConfig config;
         config.enable_threading = false;
@@ -573,7 +702,7 @@ private:
         if (!parser.initialize(config)) {
             return std::string();
         }
-        parser.setAnalyzerSettings(settings);
+        parser.setAnalyserSettings(settings);
         auto figResult = parser.analyzeFIGData(ef, pr);
         if (figResult.discovered_services.empty()) {
             return std::string();
@@ -582,5 +711,5 @@ private:
     }
 };
 
-QTEST_MAIN(TestAnalyzerSettings)
-#include "test_analyzer_settings.moc"
+QTEST_MAIN(TestAnalyserSettings)
+#include "test_analyser_settings.moc"

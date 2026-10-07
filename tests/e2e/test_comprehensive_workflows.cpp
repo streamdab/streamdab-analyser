@@ -22,7 +22,7 @@
 #include <QSplitter>
 
 #include "gui/main_window.h"
-#include "gui/analyzer_widget.h"
+#include "gui/analyser_widget.h"
 #include "gui/service_browser.h"
 #include "gui/constellation_widget.h"
 #include "gui/settings_dialog.h"
@@ -141,7 +141,7 @@ void TestComprehensiveWorkflows::testNewUserFirstTimeExperience()
     // Check that main components are visible and properly laid out
     QSplitter* mainSplitter = mainWindow->findChild<QSplitter*>();
     ServiceBrowser* serviceBrowser = mainWindow->findChild<ServiceBrowser*>();
-    AnalyzerWidget* analyzerWidget = mainWindow->findChild<AnalyzerWidget*>();
+    AnalyserWidget* analyserWidget = mainWindow->findChild<AnalyserWidget*>();
     
     if (mainSplitter) {
         Logger::instance().log(Logger::Debug, "E2EWorkflows", "Main splitter layout found");
@@ -198,8 +198,8 @@ void TestComprehensiveWorkflows::testNewUserFirstTimeExperience()
         // New user should see services listed in a clear, understandable way
     }
     
-    if (analyzerWidget) {
-        Logger::instance().log(Logger::Debug, "E2EWorkflows", "Verifying analyzer shows meaningful information for new user");
+    if (analyserWidget) {
+        Logger::instance().log(Logger::Debug, "E2EWorkflows", "Verifying analyser shows meaningful information for new user");
         // New user should see analysis results in comprehensible format
     }
     
@@ -222,13 +222,13 @@ void TestComprehensiveWorkflows::testQuickETIFileAnalysisWorkflow()
     simulateQuickAnalysisScenario();
     
     // Step 2: Verify quick analysis information is available
-    AnalyzerWidget* analyzerWidget = mainWindow->findChild<AnalyzerWidget*>();
-    if (analyzerWidget) {
+    AnalyserWidget* analyserWidget = mainWindow->findChild<AnalyserWidget*>();
+    if (analyserWidget) {
         // Check for quick summary information
-        QTabWidget* tabWidget = analyzerWidget->findChild<QTabWidget*>();
+        QTabWidget* tabWidget = analyserWidget->findChild<QTabWidget*>();
         if (tabWidget) {
             Logger::instance().log(Logger::Debug, "E2EWorkflows", 
-                                  QString("Analyzer has %1 tabs available").arg(tabWidget->count()));
+                                  QString("Analyser has %1 tabs available").arg(tabWidget->count()));
             
             // Look for Overview or Summary tab (quick analysis)
             for (int i = 0; i < tabWidget->count(); ++i) {
@@ -275,9 +275,9 @@ void TestComprehensiveWorkflows::testDetailedTechnicalAnalysisWorkflow()
     simulateDetailedAnalysisScenario();
     
     // Step 2: Navigate through detailed analysis tabs
-    AnalyzerWidget* analyzerWidget = mainWindow->findChild<AnalyzerWidget*>();
-    if (analyzerWidget) {
-        QTabWidget* tabWidget = analyzerWidget->findChild<QTabWidget*>();
+    AnalyserWidget* analyserWidget = mainWindow->findChild<AnalyserWidget*>();
+    if (analyserWidget) {
+        QTabWidget* tabWidget = analyserWidget->findChild<QTabWidget*>();
         if (tabWidget) {
             // Test navigation through all analysis tabs
             QStringList expectedTabs = {"Overview", "FIG Analysis", "Error Log", "Statistics", "Raw Data"};
@@ -369,9 +369,9 @@ void TestComprehensiveWorkflows::testTroubleshootingWorkflow()
     simulateDetailedAnalysisScenario();
     
     // Step 1: Look for error indicators
-    AnalyzerWidget* analyzerWidget = mainWindow->findChild<AnalyzerWidget*>();
-    if (analyzerWidget) {
-        QTabWidget* tabWidget = analyzerWidget->findChild<QTabWidget*>();
+    AnalyserWidget* analyserWidget = mainWindow->findChild<AnalyserWidget*>();
+    if (analyserWidget) {
+        QTabWidget* tabWidget = analyserWidget->findChild<QTabWidget*>();
         if (tabWidget) {
             // Navigate to error analysis tab
             for (int i = 0; i < tabWidget->count(); ++i) {
@@ -402,10 +402,10 @@ void TestComprehensiveWorkflows::testComplianceValidationWorkflow()
     simulateDetailedAnalysisScenario();
     
     // Step 1: Look for compliance information
-    AnalyzerWidget* analyzerWidget = mainWindow->findChild<AnalyzerWidget*>();
-    if (analyzerWidget) {
+    AnalyserWidget* analyserWidget = mainWindow->findChild<AnalyserWidget*>();
+    if (analyserWidget) {
         // Check for compliance or standards tab
-        QTabWidget* tabWidget = analyzerWidget->findChild<QTabWidget*>();
+        QTabWidget* tabWidget = analyserWidget->findChild<QTabWidget*>();
         if (tabWidget) {
             for (int i = 0; i < tabWidget->count(); ++i) {
                 QString tabText = tabWidget->tabText(i);

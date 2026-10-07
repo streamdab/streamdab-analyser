@@ -278,7 +278,7 @@ Average FPS:     2309.93 ✅ EXCEEDS 1000 FPS target
 
 4. **Processing time slightly over target:** 2165 ms vs 2000 ms
    - **Impact:** Minor (still achieves 2309 FPS)
-   - **Optimization:** Possible but not critical
+   - **Optimisation:** Possible but not critical
 
 ---
 
@@ -372,7 +372,7 @@ The ETI-NI parser implementation is **95% complete** with excellent performance 
 
 **Validation command:**
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 ./streamdab-cli --input ../eti/bkk_20062022_141637.eti --output bangkok_fixed.yaml
 grep -c "scid:" bangkok_fixed.yaml  # Should output: 10
 ```

@@ -1,15 +1,15 @@
-# ETISnoop FIG Processing Bug Analysis & StreamDAB Analyzer Verification
+# ETISnoop FIG Processing Bug Analysis & StreamDAB Analyser Verification
 
 **Date:** October 28, 2025  
 **Analyst:** PM Agent  
 **Source Repository:** https://github.com/Opendigitalradio/etisnoop  
-**Comparison Project:** StreamDAB Analyzer
+**Comparison Project:** StreamDAB Analyser
 
 ---
 
 ## Executive Summary
 
-Analysis of the etisnoop source code has revealed **critical bugs** in FIG 0/0 (Ensemble Information) and **security vulnerabilities** in FIG 1/0 (Ensemble Label) processing. These bugs cause incorrect ensemble identification and potential buffer overflows. StreamDAB Analyzer has been verified to **NOT have these bugs** and implements correct ETSI EN 300 401 compliant parsing.
+Analysis of the etisnoop source code has revealed **critical bugs** in FIG 0/0 (Ensemble Information) and **security vulnerabilities** in FIG 1/0 (Ensemble Label) processing. These bugs cause incorrect ensemble identification and potential buffer overflows. StreamDAB Analyser has been verified to **NOT have these bugs** and implements correct ETSI EN 300 401 compliant parsing.
 
 ---
 
@@ -46,8 +46,8 @@ According to ETSI EN 300 401:
 - Country ID extraction conflicts with ensemble ID extraction (both read from byte 1)
 - **Breaks multi-ensemble support** and service discovery
 
-### Correct Implementation (StreamDAB Analyzer)
-**File:** `streamdab-analyzer/src/core/fig_parser.cpp:287-292`
+### Correct Implementation (StreamDAB Analyser)
+**File:** `streamdab-analyser/src/core/fig_parser.cpp:287-292`
 
 ```cpp
 // Parse ensemble ID (16-bit) - CORRECT
@@ -78,7 +78,7 @@ memcpy(label.data(), f+fig1.figlen-18, 16);
 ### Problem Description
 The code copies 16 bytes for the label without validating that `fig1.figlen >= 18`. This causes:
 1. **Buffer overflow risk:** If `figlen < 18`, reads beyond allocated memory
-2. **Memory corruption:** Undefined behavior from out-of-bounds access
+2. **Memory corruption:** Undefined behaviour from out-of-bounds access
 3. **Security vulnerability:** Can be exploited with malformed ETI streams
 
 ### ETSI EN 300 401 Specification (Section 8.1.13 - FIG 1/0)
@@ -96,8 +96,8 @@ Minimum size: 21 bytes (1 + 2 + 2 + 16)
 - **Crashes:** Segmentation faults on malformed streams
 - **Security risk:** Potential exploit vector for DAB broadcast attacks
 
-### Correct Implementation (StreamDAB Analyzer)
-**File:** `streamdab-analyzer/src/core/fig_parser.cpp:417-435`
+### Correct Implementation (StreamDAB Analyser)
+**File:** `streamdab-analyser/src/core/fig_parser.cpp:417-435`
 
 ```cpp
 std::vector<ServiceLabel> FigParser::parseFig11_ProgrammeServiceLabels(
@@ -159,7 +159,7 @@ Problems:
 
 ---
 
-## StreamDAB Analyzer Verification Results
+## StreamDAB Analyser Verification Results
 
 ### ✅ FIG 0/0 Processing - CORRECT
 **Files verified:**
@@ -212,7 +212,7 @@ ensemble.country_id = (country_ecc >> 4) & 0x0F;
 4. **MEDIUM:** Complete FIG sequence tracking implementation
 5. **MEDIUM:** Add UTF-8/multibyte encoding support
 
-### For StreamDAB Analyzer
+### For StreamDAB Analyser
 ✅ **No changes needed** - All implementations are ETSI compliant and secure
 
 ### Testing Recommendations
@@ -225,7 +225,7 @@ ensemble.country_id = (country_ecc >> 4) & 0x0F;
 
 ## Code Quality Comparison
 
-| **Aspect** | **etisnoop** | **StreamDAB Analyzer** |
+| **Aspect** | **etisnoop** | **StreamDAB Analyser** |
 |------------|--------------|------------------------|
 | **ETSI Compliance** | ❌ FIG 0/0 incorrect | ✅ 100% compliant |
 | **Memory Safety** | ❌ Buffer overflow risk | ✅ Bounds checked |
@@ -238,9 +238,9 @@ ensemble.country_id = (country_ecc >> 4) & 0x0F;
 
 ## Conclusion
 
-**etisnoop has critical bugs** in ensemble processing that violate ETSI EN 300 401 specifications and create security vulnerabilities. **StreamDAB Analyzer implements correct, secure, and production-grade FIG processing** with comprehensive validation, proper encoding support, and extensive test coverage.
+**etisnoop has critical bugs** in ensemble processing that violate ETSI EN 300 401 specifications and create security vulnerabilities. **StreamDAB Analyser implements correct, secure, and production-grade FIG processing** with comprehensive validation, proper encoding support, and extensive test coverage.
 
-The StreamDAB Analyzer codebase can serve as a reference implementation for fixing these issues in etisnoop.
+The StreamDAB Analyser codebase can serve as a reference implementation for fixing these issues in etisnoop.
 
 ---
 
@@ -248,7 +248,7 @@ The StreamDAB Analyzer codebase can serve as a reference implementation for fixi
 
 1. **ETSI EN 300 401 V2.1.1** - Radio Broadcasting Systems; DAB
 2. **etisnoop source:** https://github.com/Opendigitalradio/etisnoop
-3. **StreamDAB Analyzer:** /home/seksan/workspace/streamdab-analyzer
+3. **StreamDAB Analyser:** /home/seksan/workspace/streamdab-analyser
 
 **Report prepared by:** PM Agent  
 **Verification method:** Source code comparison + ETSI standards validation

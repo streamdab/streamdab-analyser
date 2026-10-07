@@ -238,10 +238,10 @@ The StreamDAB CLI parser is **NOT production-ready** for real-world ETI files. T
 ---
 
 **Files Referenced:**
-- Bangkok ETI: `/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti`
-- Etisnoop output: `/home/seksan/workspace/streamdab-analyzer/build/etisnoop-result.txt`
-- CLI output: `/home/seksan/workspace/streamdab-analyzer/build/cli.txt`
-- CLI executable: `/home/seksan/workspace/streamdab-analyzer/build/streamdab-cli`
+- Bangkok ETI: `/home/seksan/workspace/streamdab-analyser/eti/bkk_20062022_141637.eti`
+- Etisnoop output: `/home/seksan/workspace/streamdab-analyser/build/etisnoop-result.txt`
+- CLI output: `/home/seksan/workspace/streamdab-analyser/build/cli.txt`
+- CLI executable: `/home/seksan/workspace/streamdab-analyser/build/streamdab-cli`
 
 **Documentation:**
 - [CLI_BUILD_SUCCESS_v1.2.md](CLI_BUILD_SUCCESS_v1.2.md)

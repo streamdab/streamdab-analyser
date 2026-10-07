@@ -2,7 +2,7 @@
 
 **Date:** October 24, 2025  
 **Status:** ✅ **ALL FIXES APPLIED AND TESTED**  
-**Build:** `/home/seksan/workspace/streamdab-analyzer/build/StreamDABAnalyzer`
+**Build:** `/home/seksan/workspace/streamdab-analyser/build/StreamDABAnalyser`
 
 ---
 
@@ -30,7 +30,7 @@ Successfully resolved **all four user-reported issues** including a critical seg
 
 **Fix:** Restructured main UI to show 4 tabs:
 - **Tab 1:** 📡 DAB Ensemble & ETI Analysis
-- **Tab 2:** 🔬 FIC-Analyzer
+- **Tab 2:** 🔬 FIC-Analyser
 - **Tab 3:** 📊 FIC-Extractor
 - **Tab 4:** ⚙️ Advanced Features
 
@@ -38,7 +38,7 @@ Successfully resolved **all four user-reported issues** including a critical seg
 
 ---
 
-### 3. Load File Button Behavior ✅
+### 3. Load File Button Behaviour ✅
 **Problem:** "Load File" button opened file dialog instead of loading selected file
 
 **Fix:** Changed to load file directly from text field path
@@ -126,7 +126,7 @@ frame.msc_data = QByteArray(combined_msc.constData(), combined_msc.size());
 #### Fix 3: Qt Meta-Type Registration (CRITICAL)
 **File:** `src/main.cpp` lines 51-59
 
-Added meta-type registration at static initialization:
+Added meta-type registration at static initialisation:
 
 ```cpp
 namespace {
@@ -177,7 +177,7 @@ void updateFrameDetails(ProcessedFrame frame)  // Pass by value
 
 3. ✅ **Copy Assignment Operator**
    - Verifies assignment operator creates deep copies
-   - Tests operator= behavior
+   - Tests operator= behaviour
 
 4. ✅ **Stack-to-Heap Copy Scenario**
    - Simulates exact crash scenario
@@ -210,7 +210,7 @@ void updateFrameDetails(ProcessedFrame frame)  // Pass by value
 ### Test Execution:
 
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build/tests
+cd /home/seksan/workspace/streamdab-analyser/build/tests
 ./test_segfault_fixes
 ```
 
@@ -231,7 +231,7 @@ Totals: 12 passed, 0 failed, 0 skipped, 0 blacklisted, 1ms
 
 **Build Command:**
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake --build . -j$(nproc)
 ```
 
@@ -262,7 +262,7 @@ cmake --build . -j$(nproc)
 1. **`src/core/enhanced_eti_processor_qt.h`**
    - Added explicit copy constructor to `ProcessedFrame`
    - Added copy assignment operator
-   - Added default member initializers
+   - Added default member initialisers
 
 2. **`src/core/enhanced_eti_processor_qt.cpp`**
    - Forced deep copies of QByteArray in `processEtiFrame()`
@@ -273,7 +273,7 @@ cmake --build . -j$(nproc)
    - Added Qt meta-type registration (lines 51-59)
    - Fixed DLS+ widget theme (line ~2908)
    - Restructured tab layout to 4 tabs (line ~2095)
-   - Fixed Load File button behavior (line ~1212)
+   - Fixed Load File button behaviour (line ~1212)
    - Changed slots to pass-by-value (lines 186, 2026, 3590)
 
 ### Test Framework:
@@ -290,7 +290,7 @@ cmake --build . -j$(nproc)
 
 ### 1. Run Regression Tests
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 ctest -R test_segfault_fixes -V
 ```
 
@@ -298,12 +298,12 @@ ctest -R test_segfault_fixes -V
 
 ### 2. Test with Problematic ETI File
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
-./StreamDABAnalyzer
+cd /home/seksan/workspace/streamdab-analyser/build
+./StreamDABAnalyser
 ```
 
 **Steps:**
-1. Click "Browse" and select `/home/seksan/workspace/streamdab-analyzer/eti/bkk_20062022_141637.eti`
+1. Click "Browse" and select `/home/seksan/workspace/streamdab-analyser/eti/bkk_20062022_141637.eti`
 2. Click "Load File" (should NOT open dialog again)
 3. Wait for processing to complete
 
@@ -336,8 +336,8 @@ If any issues occur, collect debugging data:
 
 ### GDB Backtrace:
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
-gdb ./StreamDABAnalyzer
+cd /home/seksan/workspace/streamdab-analyser/build
+gdb ./StreamDABAnalyser
 run
 # When it crashes:
 bt
@@ -346,7 +346,7 @@ bt
 ### Valgrind Memory Check:
 ```bash
 valgrind --leak-check=full --show-leak-kinds=all \
-  ./StreamDABAnalyzer 2>&1 | tee valgrind.log
+  ./StreamDABAnalyser 2>&1 | tee valgrind.log
 ```
 
 ---
@@ -396,4 +396,4 @@ All criteria met:
 
 **Last Updated:** October 24, 2025  
 **Engineer:** PM Agent (AI Code Assistant)  
-**Build:** `/home/seksan/workspace/streamdab-analyzer/build/StreamDABAnalyzer`
+**Build:** `/home/seksan/workspace/streamdab-analyser/build/StreamDABAnalyser`

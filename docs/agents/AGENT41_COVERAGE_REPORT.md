@@ -75,8 +75,8 @@
 **Failure Details:**
 ```
 FAIL: TestFIG0Processor::testFIG0_1_InvalidSubChannelID()
-Location: /home/seksan/workspace/streamdab-analyzer/tests/test_fig0_processor.cpp:396
-Assertion: !m_analyzer->getLastError().isEmpty() || m_analyzer->getValidFIGsCount() == 0
+Location: /home/seksan/workspace/streamdab-analyser/tests/test_fig0_processor.cpp:396
+Assertion: !m_analyser->getLastError().isEmpty() || m_analyser->getValidFIGsCount() == 0
 Issue: Invalid sub-channel ID (64) not being rejected by parser
 Expected: Error message or zero valid FIGs
 Actual: Parser accepted invalid sub-channel (exceeds 6-bit max of 63)
@@ -110,7 +110,7 @@ if (subchannel_id > 63) {
 
 **2.1. testFIG1_1_ProgrammeServiceLabel()**
 ```
-Location: /home/seksan/workspace/streamdab-analyzer/tests/test_fig1_processor.cpp:382
+Location: /home/seksan/workspace/streamdab-analyser/tests/test_fig1_processor.cpp:382
 Assertion: svc.label.contains("MCOT Radio")
 Issue: Service label not being stored/retrieved correctly
 Expected: Label "MCOT Radio" stored in service
@@ -119,7 +119,7 @@ Actual: Label not found in service structure
 
 **2.2. testLabelWithServiceDiscovery()**
 ```
-Location: /home/seksan/workspace/streamdab-analyzer/tests/test_fig1_processor.cpp:683
+Location: /home/seksan/workspace/streamdab-analyser/tests/test_fig1_processor.cpp:683
 Assertion: services.size() > 0
 Issue: Service discovery not returning services
 Expected: At least 1 service discovered
@@ -128,7 +128,7 @@ Actual: Empty service list
 
 **2.3. testLabelUpdateSequence()**
 ```
-Location: /home/seksan/workspace/streamdab-analyzer/tests/test_fig1_processor.cpp:752
+Location: /home/seksan/workspace/streamdab-analyser/tests/test_fig1_processor.cpp:752
 Assertion: svc.label.contains("Final Label")
 Issue: Label update sequence not applying final label
 Expected: Label updated to "Final Label"
@@ -159,7 +159,7 @@ Actual: Label not updated correctly
 **Failure Details:**
 ```
 FAIL: TestFig005Language::test_parsing_performance()
-Location: /home/seksan/workspace/streamdab-analyzer/tests/test_fig005_language.cpp:447
+Location: /home/seksan/workspace/streamdab-analyser/tests/test_fig005_language.cpp:447
 Assertion: avg_time_us < 5.0
 Expected: < 5.0 µs per FIG 0/5 parse
 Actual: 12.11 µs per FIG 0/5 parse
@@ -281,7 +281,7 @@ Result: No --coverage or -fprofile-arcs -ftest-coverage flags present
 
 ```bash
 # 1. Clean build directory
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 rm -rf *
 
 # 2. Reconfigure with coverage flags
@@ -749,7 +749,7 @@ void test_SignalHandling();
 
 ```bash
 # Run all tests with detailed output
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 ctest --output-on-failure --verbose
 
 # Run specific test category
@@ -768,14 +768,14 @@ ctest --show-only
 
 ```bash
 # Verify source files exist
-ls -la /home/seksan/workspace/streamdab-analyzer/tests/test_pft_reassembler.cpp
-ls -la /home/seksan/workspace/streamdab-analyzer/tests/test_fig020_service_component_info.cpp
-ls -la /home/seksan/workspace/streamdab-analyzer/tests/test_fig024_oe_services.cpp
-ls -la /home/seksan/workspace/streamdab-analyzer/tests/test_cli_main_integration.cpp
-ls -la /home/seksan/workspace/streamdab-analyzer/tests/test_cli_mode_functional.cpp
+ls -la /home/seksan/workspace/streamdab-analyser/tests/test_pft_reassembler.cpp
+ls -la /home/seksan/workspace/streamdab-analyser/tests/test_fig020_service_component_info.cpp
+ls -la /home/seksan/workspace/streamdab-analyser/tests/test_fig024_oe_services.cpp
+ls -la /home/seksan/workspace/streamdab-analyser/tests/test_cli_main_integration.cpp
+ls -la /home/seksan/workspace/streamdab-analyser/tests/test_cli_mode_functional.cpp
 
 # Check CMakeLists.txt registration
-cd /home/seksan/workspace/streamdab-analyzer/tests
+cd /home/seksan/workspace/streamdab-analyser/tests
 grep -E "add_executable.*test_cli_main_integration" CMakeLists.txt
 grep -E "add_executable.*test_cli_mode_functional" CMakeLists.txt
 grep -E "add_test.*test_cli_main_integration" CMakeLists.txt
@@ -786,7 +786,7 @@ grep -E "add_test.*test_cli_mode_functional" CMakeLists.txt
 
 ```bash
 # Clean and rebuild with coverage
-cd /home/seksan/workspace/streamdab-analyzer
+cd /home/seksan/workspace/streamdab-analyser
 rm -rf build/*
 cd build
 

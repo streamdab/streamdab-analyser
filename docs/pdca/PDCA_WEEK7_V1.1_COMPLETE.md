@@ -9,7 +9,7 @@
 
 ## 🎯 MISSION ACCOMPLISHED
 
-**StreamDAB Analyzer v1.1 has achieved 100% ETSI EN 300 401 compliance with all 22 FIG 0/* types fully implemented and tested.**
+**StreamDAB Analyser v1.1 has achieved 100% ETSI EN 300 401 compliance with all 22 FIG 0/* types fully implemented and tested.**
 
 ### **Final Metrics**
 
@@ -167,8 +167,8 @@ uint32_t mjd = ((fig_data[2] & 0xFF) << 9) |  // bits 16-9
 | **Type** | **Description** | **Tests** | **Pass Rate** | **Status** |
 |----------|----------------|-----------|---------------|------------|
 | 0/0 | Ensemble information | 14 | 100% | ✅ |
-| 0/1 | Sub-channel organization | 16 | 100% | ✅ |
-| 0/2 | Service organization | 18 | 100% | ✅ |
+| 0/1 | Sub-channel organisation | 16 | 100% | ✅ |
+| 0/2 | Service organisation | 18 | 100% | ✅ |
 | 0/3 | Service component packet mode | 12 | 100% | ✅ |
 | 0/5 | Service component language | 10 | 100% | ✅ |
 | **0/7** | **Service component stream mode** | **15** | **100%** | ✅ **FIXED** |
@@ -178,7 +178,7 @@ uint32_t mjd = ((fig_data[2] & 0xFF) << 9) |  // bits 16-9
 | 0/11 | Region definition | 12 | 100% | ✅ |
 | 0/12 | MPEG-2 TS streaming | 11 | 100% | ✅ |
 | 0/13 | User application information | 10 | 100% | ✅ |
-| 0/14 | FEC sub-channel organization | 9 | 100% | ✅ |
+| 0/14 | FEC sub-channel organisation | 9 | 100% | ✅ |
 | 0/15 | Programme number | 10 | 100% | ✅ |
 | 0/16 | Programme type international | 11 | 100% | ✅ |
 | 0/17 | Programme type | 12 | 100% | ✅ |
@@ -466,7 +466,7 @@ Per user directive: "Option A then Option C"
 
 ## 🏆 V1.1 FINAL STATEMENT
 
-**StreamDAB Analyzer v1.1 achieves 100% ETSI EN 300 401 compliance, making it the first fully open-source DAB/DAB+ analyzer to implement all 22 mandatory FIG 0/* types with comprehensive test coverage and professional-grade code quality.**
+**StreamDAB Analyser v1.1 achieves 100% ETSI EN 300 401 compliance, making it the first fully open-source DAB/DAB+ analyser to implement all 22 mandatory FIG 0/* types with comprehensive test coverage and professional-grade code quality.**
 
 **Status:** ✅ **PRODUCTION READY**
 **Quality:** A+ (99/100)

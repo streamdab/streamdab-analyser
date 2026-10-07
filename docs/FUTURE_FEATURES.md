@@ -1,4 +1,4 @@
-# Future Features - StreamDAB Analyzer
+# Future Features - StreamDAB Analyser
 
 > **Status:** 📋 Planned features for future releases  
 > **Current Version:** v1.0 (Phase 3B Complete)  
@@ -27,10 +27,10 @@ Simultaneous analysis of multiple ETI streams for comparative analysis and valid
 2. **Before/After Analysis**
    - Compare stream before and after configuration changes
    - Validate upgrade impacts
-   - Track service organization changes
+   - Track service organisation changes
 
 3. **Multi-region Analysis**
-   - Analyze DAB broadcasts from different regions
+   - Analyse DAB broadcasts from different regions
    - Compare ensemble configurations
    - Study international DAB implementations
 
@@ -64,9 +64,9 @@ Simultaneous analysis of multiple ETI streams for comparative analysis and valid
 **2. FIG Difference Viewer**
 - Highlight FIG types present in one stream but not another
 - Show FIG content differences (service labels, bitrates, etc.)
-- Color-coded diff view (added/removed/changed)
+- Colour-coded diff view (added/removed/changed)
 
-**3. Service Organization Comparison**
+**3. Service Organisation Comparison**
 - Compare service IDs and labels
 - Identify missing/extra services
 - Bitrate and protection level differences
@@ -239,7 +239,7 @@ struct FIGChange {
 - Create Tab 4 Multi-stream Analysis
 - Implement active streams tree
 - Implement comparative analysis panel
-- Add diff visualization (color-coded)
+- Add diff visualization (colour-coded)
 
 **Phase 5.4: Testing & Polish (Week 4)**
 - End-to-end testing with real streams
@@ -385,7 +385,7 @@ Stream_B,DR_P1,8,6,580,250.3
 
 ---
 
-## Phase 7: Performance Optimization
+## Phase 7: Performance Optimisation
 
 **Status:** ⏳ Planned  
 **Priority:** High (for production deployment)  
@@ -399,24 +399,24 @@ Stream_B,DR_P1,8,6,580,250.3
 - Zero memory leaks (Valgrind clean - already achieved)
 - Zero data races (ThreadSanitizer clean - already achieved)
 
-### Optimization Targets
+### Optimisation Targets
 
-**1. ETI Parsing Optimization**
+**1. ETI Parsing Optimisation**
 - SIMD acceleration for CRC checks
 - Zero-copy buffer handling
 - Batch frame processing
 
-**2. FIG Processing Optimization**
+**2. FIG Processing Optimisation**
 - FIG cache to avoid re-parsing
 - Incremental updates only
 - Lazy evaluation
 
-**3. UI Rendering Optimization**
+**3. UI Rendering Optimisation**
 - Virtual scrolling for large tables
 - Throttling improvements (Pattern 8)
 - GPU acceleration for charts
 
-**4. Memory Optimization**
+**4. Memory Optimisation**
 - Circular buffer for frame storage
 - Smart pointer optimization
 - String interning for labels
@@ -478,12 +478,12 @@ Stream_B,DR_P1,8,6,580,250.3
 
 **Placeholder for user-requested features**
 
-Submit feature requests at: https://github.com/streamdab/streamdab-analyzer/issues
+Submit feature requests at: https://git.morange.co.th/morange/streamdab-analyser.git/issues
 
 ### Most Requested (Placeholder)
 
 1. **Audio Playback** (Phase 3 - optional MOT decoding)
-2. **Real-time Spectrum Analyzer** (Phase 7)
+2. **Real-time Spectrum Analyser** (Phase 7)
 3. **Configuration Export/Import** (Phase 8)
 
 ---

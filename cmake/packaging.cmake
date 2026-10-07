@@ -1,21 +1,21 @@
 # =============================================================================
 # PROFESSIONAL CROSS-PLATFORM PACKAGING CONFIGURATION
-# ETI Stream Analyzer Professional Desktop Application
+# ETI Stream Analyser Professional Desktop Application
 # =============================================================================
 
 # Include system runtime libraries and CPack
 include(InstallRequiredSystemLibraries)
 
 # Professional packaging metadata
-set(CPACK_PACKAGE_NAME "StreamDAB Stream Analyzer")
+set(CPACK_PACKAGE_NAME "StreamDAB Stream Analyser")
 set(CPACK_PACKAGE_VENDOR "Professional Broadcast Tools")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Professional ETI/DAB Stream Analysis Tool for Broadcast Engineers")
 set(CPACK_PACKAGE_DESCRIPTION "Professional desktop application for analyzing ETI (Ensemble Transport Interface) and DAB/DAB+ streams. Provides real-time monitoring, offline analysis, ETSI compliance validation, and comprehensive reporting for broadcast industry professionals.")
 
 # Professional contact and support information
-set(CPACK_PACKAGE_CONTACT "ETI Analyzer Professional Support <support@eti-analyzer.org>")
-set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/eti-analyzer/desktop")
+set(CPACK_PACKAGE_CONTACT "ETI Analyser Professional Support <support@eti-analyser.org>")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/eti-analyser/desktop")
 
 # Professional branding and resources
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
@@ -32,11 +32,11 @@ if(WIN32)
     set(CPACK_GENERATOR "NSIS")
 
     # Professional Windows installer configuration
-    set(CPACK_NSIS_PACKAGE_NAME "StreamDAB Stream Analyzer Professional")
-    set(CPACK_NSIS_DISPLAY_NAME "StreamDAB Stream Analyzer v${PROJECT_VERSION}")
-    set(CPACK_NSIS_HELP_LINK "https://eti-analyzer.org/support")
-    set(CPACK_NSIS_URL_INFO_ABOUT "https://eti-analyzer.org")
-    set(CPACK_NSIS_CONTACT "support@eti-analyzer.org")
+    set(CPACK_NSIS_PACKAGE_NAME "StreamDAB Stream Analyser Professional")
+    set(CPACK_NSIS_DISPLAY_NAME "StreamDAB Stream Analyser v${PROJECT_VERSION}")
+    set(CPACK_NSIS_HELP_LINK "https://eti-analyser.org/support")
+    set(CPACK_NSIS_URL_INFO_ABOUT "https://eti-analyser.org")
+    set(CPACK_NSIS_CONTACT "support@eti-analyser.org")
 
     # Professional installation options
     set(CPACK_NSIS_MODIFY_PATH ON)
@@ -45,12 +45,12 @@ if(WIN32)
 
     # Desktop and Start Menu shortcuts
     set(CPACK_NSIS_CREATE_ICONS_EXTRA "
-        CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\StreamDAB Stream Analyzer.lnk' '$INSTDIR\\\\bin\\\\${PROJECT_NAME}.exe'
-        CreateShortCut '$DESKTOP\\\\StreamDAB Stream Analyzer.lnk' '$INSTDIR\\\\bin\\\\${PROJECT_NAME}.exe'
+        CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\StreamDAB Stream Analyser.lnk' '$INSTDIR\\\\bin\\\\${PROJECT_NAME}.exe'
+        CreateShortCut '$DESKTOP\\\\StreamDAB Stream Analyser.lnk' '$INSTDIR\\\\bin\\\\${PROJECT_NAME}.exe'
     ")
     set(CPACK_NSIS_DELETE_ICONS_EXTRA "
-        Delete '$SMPROGRAMS\\\\$START_MENU\\\\StreamDAB Stream Analyzer.lnk'
-        Delete '$DESKTOP\\\\StreamDAB Stream Analyzer.lnk'
+        Delete '$SMPROGRAMS\\\\$START_MENU\\\\StreamDAB Stream Analyser.lnk'
+        Delete '$DESKTOP\\\\StreamDAB Stream Analyser.lnk'
     ")
 
     # Professional file associations for .eti files
@@ -104,7 +104,7 @@ elseif(APPLE)
     set(CPACK_GENERATOR "DragNDrop")
 
     # Professional macOS DMG configuration
-    set(CPACK_DMG_VOLUME_NAME "StreamDAB Stream Analyzer v${PROJECT_VERSION}")
+    set(CPACK_DMG_VOLUME_NAME "StreamDAB Stream Analyser v${PROJECT_VERSION}")
     set(CPACK_DMG_FORMAT "UDZO")  # Compressed DMG for smaller distribution
     set(CPACK_DMG_SLA_USE_RESOURCE_FILE_LICENSE ON)
 
@@ -117,9 +117,9 @@ elseif(APPLE)
     endif()
 
     # Bundle configuration for professional appearance
-    set(CPACK_BUNDLE_NAME "StreamDAB Stream Analyzer")
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-analyzer.icns")
-        set(CPACK_BUNDLE_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-analyzer.icns")
+    set(CPACK_BUNDLE_NAME "StreamDAB Stream Analyser")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-analyser.icns")
+        set(CPACK_BUNDLE_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-analyser.icns")
     endif()
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/Info.plist.in")
         set(CPACK_BUNDLE_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/Info.plist.in")
@@ -140,13 +140,13 @@ elseif(UNIX)
     set(CPACK_GENERATOR "DEB;RPM;TGZ")
 
     # Debian/Ubuntu DEB package configuration
-    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "ETI Analyzer Team <team@eti-analyzer.org>")
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "ETI Analyser Team <team@eti-analyser.org>")
     set(CPACK_DEBIAN_PACKAGE_SECTION "multimedia")
     set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "qtbase5-dev | qt6-base-dev, libfaad-dev, libfftw3-dev, libyaml-cpp-dev, libc6 (>= 2.17)")
     set(CPACK_DEBIAN_PACKAGE_SUGGESTS "alsa-utils, pulseaudio")
-    set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "Professional StreamDAB Stream Analyzer
- The StreamDAB Stream Analyzer is a professional desktop application designed for
+    set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "Professional StreamDAB Stream Analyser
+ The StreamDAB Stream Analyser is a professional desktop application designed for
  broadcast engineers to analyze ETI (Ensemble Transport Interface) and DAB/DAB+
  streams. It provides real-time monitoring, offline analysis, ETSI compliance
  validation, and comprehensive reporting capabilities.
@@ -168,10 +168,10 @@ elseif(UNIX)
     set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
     set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
     set(CPACK_RPM_PACKAGE_VENDOR "Professional Broadcast Tools")
-    set(CPACK_RPM_PACKAGE_URL "https://eti-analyzer.org")
+    set(CPACK_RPM_PACKAGE_URL "https://eti-analyser.org")
     set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase-devel, faad2-devel, fftw-devel, yaml-cpp-devel")
     set(CPACK_RPM_PACKAGE_SUGGESTS "alsa-lib, pulseaudio")
-    set(CPACK_RPM_PACKAGE_DESCRIPTION "Professional ETI/DAB Stream Analyzer for broadcast engineers. Provides real-time monitoring, offline analysis, and ETSI compliance validation for ETI and DAB/DAB+ streams.")
+    set(CPACK_RPM_PACKAGE_DESCRIPTION "Professional ETI/DAB Stream Analyser for broadcast engineers. Provides real-time monitoring, offline analysis, and ETSI compliance validation for ETI and DAB/DAB+ streams.")
 
     # RPM scripts for desktop integration
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/rpm_postinst.sh")
@@ -190,7 +190,7 @@ endif()
 set(CPACK_COMPONENTS_ALL Runtime Documentation Samples Development)
 
 # Runtime component (main application) - REQUIRED
-set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "StreamDAB Stream Analyzer Application")
+set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "StreamDAB Stream Analyser Application")
 set(CPACK_COMPONENT_RUNTIME_DESCRIPTION "Main application executable and required runtime libraries for ETI stream analysis")
 set(CPACK_COMPONENT_RUNTIME_REQUIRED ON)
 set(CPACK_COMPONENT_RUNTIME_GROUP "Core")

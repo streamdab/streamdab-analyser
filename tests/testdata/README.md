@@ -25,7 +25,7 @@ tests/testdata/
 ### Building the Generator
 
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 g++ -std=c++20 -o synthetic_eti_generator ../tests/testdata/synthetic_eti_generator.cpp
 ```
 

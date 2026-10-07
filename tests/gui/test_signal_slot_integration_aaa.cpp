@@ -24,7 +24,7 @@
 
 // GUI Component includes
 #include "../../src/gui/main_window.h"
-#include "../../src/gui/analyzer_widget.h"
+#include "../../src/gui/analyser_widget.h"
 #include "../../src/gui/service_browser.h"
 #include "../../src/gui/settings_dialog.h"
 #include "../../src/gui/constellation_widget.h"
@@ -53,13 +53,13 @@ private slots:
     void test_main_window_network_streaming_signals_AAA();
     void test_main_window_error_propagation_AAA();
 
-    // **ANALYZER WIDGET SIGNAL/SLOT VALIDATION - AAA PATTERNS**
-    void test_analyzer_widget_orphaned_signals_AAA();
-    void test_analyzer_widget_button_connections_AAA();
-    void test_analyzer_widget_real_time_updates_AAA();
-    void test_analyzer_widget_statistics_emission_AAA();
-    void test_analyzer_widget_export_functionality_AAA();
-    void test_analyzer_widget_context_menu_AAA();
+    // **ANALYSER WIDGET SIGNAL/SLOT VALIDATION - AAA PATTERNS**
+    void test_analyser_widget_orphaned_signals_AAA();
+    void test_analyser_widget_button_connections_AAA();
+    void test_analyser_widget_real_time_updates_AAA();
+    void test_analyser_widget_statistics_emission_AAA();
+    void test_analyser_widget_export_functionality_AAA();
+    void test_analyser_widget_context_menu_AAA();
 
     // **SERVICE BROWSER SIGNAL/SLOT VALIDATION - AAA PATTERNS**
     void test_service_browser_selection_signals_AAA();
@@ -103,7 +103,7 @@ private:
     // Test fixture management
     std::unique_ptr<QApplication> m_app;
     std::unique_ptr<MainWindow> m_mainWindow;
-    std::unique_ptr<AnalyzerWidget> m_analyzerWidget;
+    std::unique_ptr<AnalyserWidget> m_analyserWidget;
     std::unique_ptr<ServiceBrowser> m_serviceBrowser;
     std::unique_ptr<SettingsDialog> m_settingsDialog;
     std::unique_ptr<ConstellationWidget> m_constellationWidget;
@@ -144,7 +144,7 @@ void SignalSlotIntegrationTestAAA::cleanup()
 {
     // Reset components for next test
     m_mainWindow.reset();
-    m_analyzerWidget.reset();
+    m_analyserWidget.reset();
     m_serviceBrowser.reset();
     m_settingsDialog.reset();
     m_constellationWidget.reset();
@@ -156,7 +156,7 @@ void SignalSlotIntegrationTestAAA::setupTestComponents()
 {
     // Create test instances of all GUI components
     m_mainWindow = std::make_unique<MainWindow>();
-    m_analyzerWidget = std::make_unique<AnalyzerWidget>();
+    m_analyserWidget = std::make_unique<AnalyserWidget>();
     m_serviceBrowser = std::make_unique<ServiceBrowser>();
     m_settingsDialog = std::make_unique<SettingsDialog>();
     m_constellationWidget = std::make_unique<ConstellationWidget>();
@@ -165,7 +165,7 @@ void SignalSlotIntegrationTestAAA::setupTestComponents()
     
     // Initialize components
     m_mainWindow->initialize();
-    m_analyzerWidget->initialize();
+    m_analyserWidget->initialize();
     m_serviceBrowser->initialize();
 }
 
@@ -253,20 +253,20 @@ void SignalSlotIntegrationTestAAA::test_main_window_eti_processor_signals_AAA()
     QCOMPARE(errorSpy.first().at(0).toString(), "Test error message");
 }
 
-// **ANALYZER WIDGET SIGNAL/SLOT TESTS**
+// **ANALYSER WIDGET SIGNAL/SLOT TESTS**
 
-void SignalSlotIntegrationTestAAA::test_analyzer_widget_orphaned_signals_AAA()
+void SignalSlotIntegrationTestAAA::test_analyser_widget_orphaned_signals_AAA()
 {
     // Arrange
-    QVERIFY(m_analyzerWidget != nullptr);
+    QVERIFY(m_analyserWidget != nullptr);
     
     // Test for orphaned signals that should be connected
-    QSignalSpy analysisStartedSpy(m_analyzerWidget.get(), &AnalyzerWidget::analysisStarted);
-    QSignalSpy analysisStoppedSpy(m_analyzerWidget.get(), &AnalyzerWidget::analysisStopped);
-    QSignalSpy errorDetectedSpy(m_analyzerWidget.get(), &AnalyzerWidget::errorDetected);
+    QSignalSpy analysisStartedSpy(m_analyserWidget.get(), &AnalyserWidget::analysisStarted);
+    QSignalSpy analysisStoppedSpy(m_analyserWidget.get(), &AnalyserWidget::analysisStopped);
+    QSignalSpy errorDetectedSpy(m_analyserWidget.get(), &AnalyserWidget::errorDetected);
     
     // Act - Start analysis to trigger signals
-    bool started = m_analyzerWidget->startAnalysis();
+    bool started = m_analyserWidget->startAnalysis();
     
     // Assert - Verify analysis started signal emitted
     QVERIFY(started);
@@ -274,7 +274,7 @@ void SignalSlotIntegrationTestAAA::test_analyzer_widget_orphaned_signals_AAA()
     QCOMPARE(analysisStartedSpy.count(), 1);
     
     // Act - Stop analysis
-    m_analyzerWidget->stopAnalysis();
+    m_analyserWidget->stopAnalysis();
     
     // Assert - Verify analysis stopped signal emitted
     QVERIFY(analysisStoppedSpy.wait(1000));
@@ -284,14 +284,14 @@ void SignalSlotIntegrationTestAAA::test_analyzer_widget_orphaned_signals_AAA()
     // Current implementation has orphaned signals requiring connection fixes
 }
 
-void SignalSlotIntegrationTestAAA::test_analyzer_widget_statistics_emission_AAA()
+void SignalSlotIntegrationTestAAA::test_analyser_widget_statistics_emission_AAA()
 {
     // Arrange
-    QVERIFY(m_analyzerWidget != nullptr);
-    QSignalSpy statisticsSpy(m_analyzerWidget.get(), &AnalyzerWidget::statisticsUpdated);
+    QVERIFY(m_analyserWidget != nullptr);
+    QSignalSpy statisticsSpy(m_analyserWidget.get(), &AnalyserWidget::statisticsUpdated);
     
     // Act - Start analysis and let statistics accumulate
-    m_analyzerWidget->startAnalysis();
+    m_analyserWidget->startAnalysis();
     
     // Wait for statistics to be updated (real-time timer should trigger)
     QVERIFY(statisticsSpy.wait(2000));
@@ -415,11 +415,11 @@ void SignalSlotIntegrationTestAAA::test_orphaned_signal_detection_AAA()
     // Arrange - Create a comprehensive list of signals that should be connected
     QStringList orphanedSignals;
     
-    // Check AnalyzerWidget orphaned signals
-    if (m_analyzerWidget) {
+    // Check AnalyserWidget orphaned signals
+    if (m_analyserWidget) {
         // These signals are declared but not connected in current implementation
-        orphanedSignals << "AnalyzerWidget::errorDetected";
-        orphanedSignals << "AnalyzerWidget::frameRateChanged";
+        orphanedSignals << "AnalyserWidget::errorDetected";
+        orphanedSignals << "AnalyserWidget::frameRateChanged";
     }
     
     // Check ServiceBrowser orphaned signals  
@@ -451,11 +451,11 @@ void SignalSlotIntegrationTestAAA::test_context_menu_missing_handlers_AAA()
     // Arrange - Test context menu functionality in key components
     QStringList missingContextMenus;
     
-    // Check AnalyzerWidget context menu
-    if (m_analyzerWidget) {
-        QMenu* analyzerMenu = m_analyzerWidget->findChild<QMenu*>();
-        if (!analyzerMenu) {
-            missingContextMenus << "AnalyzerWidget context menu";
+    // Check AnalyserWidget context menu
+    if (m_analyserWidget) {
+        QMenu* analyserMenu = m_analyserWidget->findChild<QMenu*>();
+        if (!analyserMenu) {
+            missingContextMenus << "AnalyserWidget context menu";
         }
     }
     

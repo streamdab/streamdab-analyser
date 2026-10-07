@@ -1,7 +1,7 @@
 # GitHub Publishing Plan — Open-Source Release from a Private Repo
 
 **Date:** 2026-10-07 · **Status:** plan (nothing published yet)
-**Goal:** publish StreamDAB-Analyzer as an **open-source project** on GitHub (with GitHub Actions building/releasing), while keeping **internal documentation and AI/IDE tooling out of the public repo**.
+**Goal:** publish StreamDAB-Analyser as an **open-source project** on GitHub (with GitHub Actions building/releasing), while keeping **internal documentation and AI/IDE tooling out of the public repo**.
 
 ---
 
@@ -40,7 +40,7 @@
 pipx install git-filter-repo            # or pip install git-filter-repo
 
 # 1) Work on a CLONE — never filter the live repo
-git clone --no-local /path/to/streamdab-analyzer ../streamdab-public
+git clone --no-local /path/to/streamdab-analyser ../streamdab-public
 cd ../streamdab-public
 
 # 2) Remove everything that must not be public (from ALL commits)
@@ -63,7 +63,7 @@ git filter-repo --force \
   --path output.yaml
 
 # 3) Add the public remote and push
-git remote add public git@github.com:<org>/<repo>.git
+git remote add public https://git.morange.co.th/morange/streamdab-analyser.git
 git push public main --tags
 ```
 
@@ -75,13 +75,13 @@ git archive HEAD -- src tests include cmake docker packaging resources \
   README.md LICENSE INSTALL.md scripts \
   | tar -x -C ../streamdab-public-tree
 cd ../streamdab-public-tree && git init && git add -A \
-  && git commit -m "StreamDAB-Analyzer: first public release"
+  && git commit -m "StreamDAB-Analyser: first public release"
 ```
 
 ## 4. Safeguards before the first push
 
 1. **Secret scan**: `grep -rInE "(api[_-]?key|token|password|secret|BEGIN .*PRIVATE KEY)" --exclude-dir=.git .` over the *filtered* tree; add a `gitleaks`/`trufflehog` run in CI.
-2. **License check**: `LICENSE` is the project license (verify: GPL-3.0) and **third-party compliance** — Qt-ADS (LGPL-2.1), Qt (LGPL/GPL), libfaad (GPL-2.0 — verify redistribution implications for a **public** binary!), libzmq (MPL-2.0), FFTW (GPL-2.0). `docs/LICENSE_COMPLIANCE_REPORT.md` (private) has the audit; the **public** repo must ship a correct `LICENSE` + `THIRD_PARTY_NOTICES.md`.
+2. **Licence check**: `LICENSE` is the project licence (verify: GPL-3.0) and **third-party compliance** — Qt-ADS (LGPL-2.1), Qt (LGPL/GPL), libfaad (GPL-2.0 — verify redistribution implications for a **public** binary!), libzmq (MPL-2.0), FFTW (GPL-2.0). `docs/LICENSE_COMPLIANCE_REPORT.md` (private) has the audit; the **public** repo must ship a correct `LICENSE` + `THIRD_PARTY_NOTICES.md`.
 3. **`.gitattributes`** with `export-ignore` for every non-public path (protects `git archive` users from accidentally exporting them):
    ```
    docs/ export-ignore
@@ -110,6 +110,6 @@ Planned workflow set (see the cross-platform plan for the build matrix):
 1. **Cleanup pass (in progress)**: delete junk + move scripts → `scripts/`; drop the dead `cmake/*Config.cmake`/`packaging/` decision from the cross-platform plan.
 2. **Docs reorg**: root keeps `README.md`, `LICENSE`, `INSTALL.md` (+ `AGENTS.md` private-only, excluded above); `CLAUDE.md` → `docs/archive/`.
 3. **`.gitattributes`** (export-ignore list) + `.gitignore` updates.
-4. **`scripts/publish-public.sh`** — implements §3 (filter-repo on a temp clone) with a `--single-commit` alternative flag, a pre-flight secret/license check, and a confirmation prompt.
+4. **`scripts/publish-public.sh`** — implements §3 (filter-repo on a temp clone) with a `--single-commit` alternative flag, a pre-flight secret/licence check, and a confirmation prompt.
 5. **CI matrix** (`ci.yml`) + **release pipeline** (`release.yml`) — after the cross-platform build work lands (macOS/presets/audio backend).
 6. First publication = the filtered clone pushed to the public remote; thereafter re-run §3 per release.

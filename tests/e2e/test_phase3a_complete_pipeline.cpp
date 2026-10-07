@@ -3,7 +3,7 @@
  * @brief Phase 3A Complete Pipeline End-to-End Testing
  *
  * Comprehensive E2E test suite validating the complete Phase 3A pipeline:
- * - ETI Frame Parser → FIG Analyzer → Service Discovery
+ * - ETI Frame Parser → FIG Analyser → Service Discovery
  * - ETI → MSC → Audio Validation (DAB+ Stream Validator)
  * - ETI → MSC → MOT Protocol → Object Extraction
  * - MOT → EPG Decoder → Program Guide Events
@@ -46,7 +46,7 @@
 
 // Individual component headers
 #include "core/enhanced_eti_processor_qt.h"
-#include "core/advanced_fig_analyzer.h"
+#include "core/advanced_fig_analyser.h"
 #include "core/dabplus_stream_validator.hpp"
 #include "core/mot_protocol.hpp"
 #include "core/epg_decoder.hpp"
@@ -949,8 +949,8 @@ void TestPhase3ACompletePipeline::testRealWorld_RealETIFile()
     // Check for real ETI files
     QString real_file;
     QStringList search_paths = {
-        "/home/seksan/workspace/streamdab-analyzer/tests/testdata/real_eti/",
-        "/home/seksan/workspace/streamdab-analyzer/testdata/",
+        "/home/seksan/workspace/streamdab-analyser/tests/testdata/real_eti/",
+        "/home/seksan/workspace/streamdab-analyser/testdata/",
         "/home/seksan/workspace/"
     };
     

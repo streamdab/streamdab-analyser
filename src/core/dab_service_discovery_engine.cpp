@@ -13,7 +13,7 @@
  * 
  * @author Standards Compliance Agent  
  * @date September 22, 2025
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #include "dab_service_discovery_engine.hpp"

@@ -12,7 +12,7 @@
 
 #include "gui/main_window.h"
 #include "gui/service_browser.h"
-#include "gui/analyzer_widget.h"
+#include "gui/analyser_widget.h"
 #include "utils/logger.h"
 
 class TestMenuInteractions : public QObject

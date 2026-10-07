@@ -1,6 +1,6 @@
 /**
  * @file test_dock_interactions.cpp
- * @brief Automated Qt-ADS dock INTERACTION QA for DABAnalyzerWindow (v1.3, T4)
+ * @brief Automated Qt-ADS dock INTERACTION QA for DABAnalyserWindow (v1.3, T4)
  *
  * Companion to test_gui_dock_layout.cpp. That suite validates the DEFAULT
  * layout + persistence + version reset; THIS suite drives the interactive dock
@@ -45,7 +45,7 @@
 #include "AutoHideTab.h"
 
 // Include the real application window implementation (main() excluded via
-// GUI_TEST_MODE compile definition). DABAnalyzerWindow + all panels come here.
+// GUI_TEST_MODE compile definition). DABAnalyserWindow + all panels come here.
 #include "../src/main.cpp"
 
 class TestDockInteractions : public QObject
@@ -104,12 +104,12 @@ private:
         };
     }
 
-    // Removes every DABAnalyzerWindow QSettings key so each window-based test
+    // Removes every DABAnalyserWindow QSettings key so each window-based test
     // starts from a CLEARED store (window.close() saves dock state; without
     // this the next window would restore the previous layout).
     static void clearSettingsStore()
     {
-        QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
         s.remove(QStringLiteral("window/geometry"));
         s.remove(QStringLiteral("docking/layout_version"));
         s.remove(QStringLiteral("docking/tab1"));
@@ -156,7 +156,7 @@ private:
         return names;
     }
 
-    static int totalDockCount(const DABAnalyzerWindow& w)
+    static int totalDockCount(const DABAnalyserWindow& w)
     {
         int total = 0;
         const QList<ads::CDockManager*> managers = w.findChildren<ads::CDockManager*>();
@@ -173,8 +173,8 @@ void TestDockInteractions::initTestCase()
     // never touched, and start empty. SettingsDialog uses default QSettings, so
     // match the app's org/app names too.
     QStandardPaths::setTestModeEnabled(true);
-    QCoreApplication::setOrganizationName(QStringLiteral("StreamDAB-Analyzer"));
-    QCoreApplication::setApplicationName(QStringLiteral("DABAnalyzer"));
+    QCoreApplication::setOrganizationName(QStringLiteral("StreamDAB-Analyser"));
+    QCoreApplication::setApplicationName(QStringLiteral("DABAnalyser"));
     clearSettingsStore();
 }
 
@@ -200,7 +200,7 @@ void TestDockInteractions::cleanup()
 // ============================================================================
 void TestDockInteractions::testFloatAndRedockTab1()
 {
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     pump();
 
@@ -245,7 +245,7 @@ void TestDockInteractions::testFloatAndRedockTab1()
 
 void TestDockInteractions::testFloatAndRedockBottom()
 {
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     pump();
 
@@ -285,7 +285,7 @@ void TestDockInteractions::testFloatAndRedockBottom()
 // ============================================================================
 void TestDockInteractions::testAutoHideToggleTab1()
 {
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     pump();
 
@@ -331,7 +331,7 @@ void TestDockInteractions::testAutoHideToggleTab1()
 
 void TestDockInteractions::testAutoHideToggleBottom()
 {
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     pump();
 
@@ -373,7 +373,7 @@ void TestDockInteractions::testAutoHideToggleBottom()
 // ============================================================================
 void TestDockInteractions::testMoveAcrossAreasTab1()
 {
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     pump();
 
@@ -421,7 +421,7 @@ void TestDockInteractions::testMoveAcrossAreasTab1()
 
 void TestDockInteractions::testMoveAcrossAreasBottom()
 {
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     pump();
 
@@ -460,7 +460,7 @@ void TestDockInteractions::testMoveAcrossAreasBottom()
 // ============================================================================
 void TestDockInteractions::testTabifyAndUntabify()
 {
-    DABAnalyzerWindow w;
+    DABAnalyserWindow w;
     w.show();
     pump();
 
@@ -519,7 +519,7 @@ void TestDockInteractions::testPersistenceAfterInteractions()
     const QString sysMsgName = QStringLiteral("bottom_SystemMessages");
 
     {
-        DABAnalyzerWindow w;
+        DABAnalyserWindow w;
         w.show();
         pump();
 
@@ -556,13 +556,13 @@ void TestDockInteractions::testPersistenceAfterInteractions()
     }
 
     {
-        const QSettings s(QStringLiteral("StreamDAB-Analyzer"), QStringLiteral("DABAnalyzer"));
+        const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
         QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 8);
         QVERIFY(!s.value(QStringLiteral("docking/bottom")).isNull());
     }
 
     {
-        DABAnalyzerWindow w2;
+        DABAnalyserWindow w2;
         w2.show();
         pump();
 
@@ -606,7 +606,7 @@ void TestDockInteractions::testAllDocksReachableAfterInteractionsAndRestart()
 
     // Window 1: shake the layout with one of each interaction.
     {
-        DABAnalyzerWindow w;
+        DABAnalyserWindow w;
         w.show();
         pump();
 
@@ -647,7 +647,7 @@ void TestDockInteractions::testAllDocksReachableAfterInteractionsAndRestart()
 
     // Window 2: restart with the fully perturbed layout.
     {
-        DABAnalyzerWindow w2;
+        DABAnalyserWindow w2;
         w2.show();
         pump();
 

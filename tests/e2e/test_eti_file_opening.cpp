@@ -20,7 +20,7 @@
 #include <QProgressBar>
 
 #include "gui/main_window.h"
-#include "gui/analyzer_widget.h"
+#include "gui/analyser_widget.h"
 #include "gui/service_browser.h"
 #include "utils/logger.h"
 
@@ -40,7 +40,7 @@ private slots:
     void testETIFileOpenDialog();
     void testGUIUpdatesAfterFileOpen();
     void testServiceBrowserPopulation();
-    void testAnalyzerWidgetUpdates();
+    void testAnalyserWidgetUpdates();
     void testErrorHandlingForInvalidFiles();
     void testMultipleFileOpeningSequence();
 
@@ -54,7 +54,7 @@ private:
     void simulateFileSelection(const QString& filePath);
     bool waitForGUIUpdate(int timeoutMs = 5000);
     void verifyServiceBrowserContent();
-    void verifyAnalyzerWidgetContent();
+    void verifyAnalyserWidgetContent();
 };
 
 void TestETIFileOpening::initTestCase()
@@ -171,7 +171,7 @@ void TestETIFileOpening::testCompleteFileOpeningWorkflow()
     
     // Step 7: Verify GUI components were updated
     verifyServiceBrowserContent();
-    verifyAnalyzerWidgetContent();
+    verifyAnalyserWidgetContent();
 }
 
 void TestETIFileOpening::testFileMenuAccess()
@@ -287,16 +287,16 @@ void TestETIFileOpening::testGUIUpdatesAfterFileOpen()
     
     // Verify initial state
     ServiceBrowser* serviceBrowser = mainWindow->findChild<ServiceBrowser*>();
-    AnalyzerWidget* analyzerWidget = mainWindow->findChild<AnalyzerWidget*>();
+    AnalyserWidget* analyserWidget = mainWindow->findChild<AnalyserWidget*>();
     
     if (serviceBrowser) {
         // Check if service browser is initially empty or has default content
         Logger::instance().log(Logger::Debug, "E2ETest", "ServiceBrowser found - checking initial state");
     }
     
-    if (analyzerWidget) {
-        // Check analyzer widget initial state
-        Logger::instance().log(Logger::Debug, "E2ETest", "AnalyzerWidget found - checking initial state");
+    if (analyserWidget) {
+        // Check analyser widget initial state
+        Logger::instance().log(Logger::Debug, "E2ETest", "AnalyserWidget found - checking initial state");
     }
     
     // Simulate file opening via direct method call (more reliable than dialog simulation)
@@ -338,16 +338,16 @@ void TestETIFileOpening::testServiceBrowserPopulation()
     QVERIFY2(true, "Service browser population test framework established");
 }
 
-void TestETIFileOpening::testAnalyzerWidgetUpdates()
+void TestETIFileOpening::testAnalyserWidgetUpdates()
 {
-    Logger::instance().log(Logger::Debug, "E2ETest", "Testing analyzer widget updates");
+    Logger::instance().log(Logger::Debug, "E2ETest", "Testing analyser widget updates");
     
-    AnalyzerWidget* analyzerWidget = mainWindow->findChild<AnalyzerWidget*>();
+    AnalyserWidget* analyserWidget = mainWindow->findChild<AnalyserWidget*>();
     
-    if (analyzerWidget) {
-        // Check for expected analyzer components
-        QTextEdit* logDisplay = analyzerWidget->findChild<QTextEdit*>();
-        QLabel* statusLabel = analyzerWidget->findChild<QLabel*>();
+    if (analyserWidget) {
+        // Check for expected analyser components
+        QTextEdit* logDisplay = analyserWidget->findChild<QTextEdit*>();
+        QLabel* statusLabel = analyserWidget->findChild<QLabel*>();
         
         if (logDisplay) {
             Logger::instance().log(Logger::Debug, "E2ETest", "Log display widget found");
@@ -357,12 +357,12 @@ void TestETIFileOpening::testAnalyzerWidgetUpdates()
             Logger::instance().log(Logger::Debug, "E2ETest", "Status label widget found");
         }
         
-        QVERIFY(analyzerWidget->isVisible());
+        QVERIFY(analyserWidget->isVisible());
     } else {
-        Logger::instance().log(Logger::Warning, "E2ETest", "AnalyzerWidget not found in MainWindow");
+        Logger::instance().log(Logger::Warning, "E2ETest", "AnalyserWidget not found in MainWindow");
     }
     
-    QVERIFY2(true, "Analyzer widget update test framework established");
+    QVERIFY2(true, "Analyser widget update test framework established");
 }
 
 void TestETIFileOpening::testErrorHandlingForInvalidFiles()
@@ -442,15 +442,15 @@ void TestETIFileOpening::verifyServiceBrowserContent()
     }
 }
 
-void TestETIFileOpening::verifyAnalyzerWidgetContent()
+void TestETIFileOpening::verifyAnalyserWidgetContent()
 {
-    Logger::instance().log(Logger::Debug, "E2ETest", "Verifying analyzer widget content");
+    Logger::instance().log(Logger::Debug, "E2ETest", "Verifying analyser widget content");
     
-    AnalyzerWidget* analyzerWidget = mainWindow->findChild<AnalyzerWidget*>();
-    if (analyzerWidget) {
-        // Verify analyzer displays correct information about the opened file
+    AnalyserWidget* analyserWidget = mainWindow->findChild<AnalyserWidget*>();
+    if (analyserWidget) {
+        // Verify analyser displays correct information about the opened file
         // Check statistics, frame counts, error reports, etc.
-        Logger::instance().log(Logger::Info, "E2ETest", "Analyzer widget content verification ready");
+        Logger::instance().log(Logger::Info, "E2ETest", "Analyser widget content verification ready");
     }
 }
 

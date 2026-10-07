@@ -1,7 +1,7 @@
-# CLAUDE.md - DAB+ Stream Analyzer Architecture Guide
+# CLAUDE.md - DAB+ Stream Analyser Architecture Guide
 
 ## Project Overview
-Building a professional-grade ETSI DAB+ stream packet analyzer (similar to Elecard Stream Analyzer and DAB-XPlorer) using Qt6 C++. The application needs to parse and display ETI (Ensemble Transport Interface) frames in real-time with multiple synchronized views.
+Building a professional-grade ETSI DAB+ stream packet analyser (similar to Elecard Stream Analyser and DAB-XPlorer) using Qt6 C++. The application needs to parse and display ETI (Ensemble Transport Interface) frames in real-time with multiple synchronized views.
 
 ## Stream Characteristics
 - **Protocol**: ETSI DAB+ ETI frames
@@ -914,7 +914,7 @@ private:
 ---
 
 ### Phase 7: Advanced Widgets
-**Goal**: Complete the analyzer UI
+**Goal**: Complete the analyser UI
 
 **Tasks**:
 - [ ] Full `HexViewWidget` with scrolling
@@ -935,7 +935,7 @@ private:
 - [ ] Implement FIG parser (Fast Information Groups)
 - [ ] Decode ensemble label (FIG 1/0)
 - [ ] Decode service list (FIG 0/2)
-- [ ] Decode subchannel organization (FIG 0/1)
+- [ ] Decode subchannel organisation (FIG 0/1)
 - [ ] Update `FICDatabase` structure
 - [ ] Emit `serviceListUpdated()` signals
 
@@ -957,7 +957,7 @@ private:
 
 ---
 
-### Phase 10: Polish & Optimization
+### Phase 10: Polish & Optimisation
 **Goal**: Professional quality
 
 **Tasks**:
@@ -1131,8 +1131,8 @@ void testSharedDataConcurrentAccess() {
 - Thread-Safety: https://doc.qt.io/qt-6/threads-synchronizing.html
 
 ### Reference Tools
-- **Elecard Stream Analyzer**: Commercial analyzer (reference UI)
-- **DAB-XPlorer**: Open-source DAB analyzer
+- **Elecard Stream Analyser**: Commercial analyser (reference UI)
+- **DAB-XPlorer**: Open-source DAB analyser
 - **ODR-DabMux**: ETI multiplexer (parser reference)
 - **ODR-AudioEnc**: Audio encoder
 - **CRC-DabMux**: Original DAB multiplexer
@@ -1167,7 +1167,7 @@ This architecture uses **Pattern 3 + 5 + 7 + 8** to achieve professional-grade D
 1. **Pattern 3** (Worker Thread): Continuous ETI processing isolated from UI
 2. **Pattern 5** (Shared Data): Efficient zero-copy data sharing with mutex protection
 3. **Pattern 7** (Specialized Signals): Selective widget updates per data layer
-4. **Pattern 8** (Throttling): Optimized refresh rates prevent UI overload
+4. **Pattern 8** (Throttling): Optimised refresh rates prevent UI overload
 
 **Expected Results**:
 - ✅ Smooth UI at 41 fps input rate
@@ -1189,17 +1189,17 @@ This architecture uses **Pattern 3 + 5 + 7 + 8** to achieve professional-grade D
 
 ```bash
 # Clone or create project
-mkdir dab-analyzer && cd dab-analyzer
+mkdir dab-analyser && cd dab-analyser
 
 # CMakeLists.txt setup
 cmake_minimum_required(VERSION 3.16)
-project(DABAnalyzer LANGUAGES CXX)
+project(DABAnalyser LANGUAGES CXX)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network)
 
 qt_standard_project_setup()
 
-add_executable(dab-analyzer
+add_executable(dab-analyser
     main.cpp
     mainwindow.cpp
     etireaderthread.cpp
@@ -1207,7 +1207,7 @@ add_executable(dab-analyzer
     # ... add widget sources
 )
 
-target_link_libraries(dab-analyzer PRIVATE 
+target_link_libraries(dab-analyser PRIVATE 
     Qt6::Core 
     Qt6::Widgets 
     Qt6::Network
@@ -1219,7 +1219,7 @@ cmake ..
 make -j"$(bash scripts/build_jobs.sh)"
 
 # Run
-./dab-analyzer
+./dab-analyser
 ```
 
 ---

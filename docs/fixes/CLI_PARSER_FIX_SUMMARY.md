@@ -1,8 +1,8 @@
-# CLI Parser Fix Summary - StreamDAB Analyzer
+# CLI Parser Fix Summary - StreamDAB Analyser
 
 **Date:** 2025-11-06
 **Status:** ✅ **FIX IMPLEMENTED AND COMPILED SUCCESSFULLY**
-**Component:** `/home/seksan/workspace/streamdab-analyzer/src/core/headless_eti_processor.cpp`
+**Component:** `/home/seksan/workspace/streamdab-analyser/src/core/headless_eti_processor.cpp`
 
 ## Problem Identified
 
@@ -43,11 +43,11 @@ if (processedFrames > 1000) {
 }
 ```
 
-#### Critical Issue #3: Components Initialized But Never Used
+#### Critical Issue #3: Components Initialised But Never Used
 ```cpp
 // Lines 207-244: Components created but NEVER CALLED
 m_frameParser = std::make_unique<eti::modern::ModernETIFrameParser>();
-m_figAnalyzer = std::make_unique<eti::modern::EnhancedFIGAnalyzer>();
+m_figAnalyser = std::make_unique<eti::modern::EnhancedFIGAnalyser>();
 // ❌ These were never used in the frame processing loop!
 ```
 
@@ -148,7 +148,7 @@ qCInfo(etiMain) << "  FIG types seen:" << fig_type_counts.size();
 ```
 
 **Build Time:** < 5 seconds
-**Executable:** `/home/seksan/workspace/streamdab-analyzer/build/streamdab-cli`
+**Executable:** `/home/seksan/workspace/streamdab-analyser/build/streamdab-cli`
 
 ### Files Modified
 
@@ -167,7 +167,7 @@ qCInfo(etiMain) << "  FIG types seen:" << fig_type_counts.size();
 
 **Files Checked:**
 - `/home/seksan/ดาวน์โหลด/HR1_Trim_3.eti` - ❌ Invalid sync pattern (ff 07 3a b6 instead of 49 93 1E 03)
-- `/home/seksan/workspace/streamdab-analyzer/tests/test_data/sample.eti` - ❌ Invalid format
+- `/home/seksan/workspace/streamdab-analyser/tests/test_data/sample.eti` - ❌ Invalid format
 
 **Required:** ETI file starting with sync bytes: `0x49, 0x93, 0x1E, 0x03`
 
@@ -246,8 +246,8 @@ config.target_fps = 1000.0;
 
 **FIG Type 0 (Multiplex Configuration):**
 - 0/0: Ensemble information
-- 0/1: Sub-channel organization ✅ **SOURCE OF SUBCHANNEL DATA**
-- 0/2: Service organization ✅ **SOURCE OF SERVICE DATA**
+- 0/1: Sub-channel organisation ✅ **SOURCE OF SUBCHANNEL DATA**
+- 0/2: Service organisation ✅ **SOURCE OF SERVICE DATA**
 - 0/3-0/19: Additional configuration
 
 **FIG Type 1 (Labels):**
@@ -288,7 +288,7 @@ config.target_fps = 1000.0;
 
 2. **Run Test**
    ```bash
-   cd /home/seksan/workspace/streamdab-analyzer
+   cd /home/seksan/workspace/streamdab-analyser
    ./build/streamdab-cli --input <path_to_valid_eti> --output test_output.yaml --verbose
    ```
 
@@ -314,27 +314,27 @@ config.target_fps = 1000.0;
    - Frame-level error recovery
    - Detailed error reporting
 
-3. **Performance Optimization**
+3. **Performance Optimisation**
    - Enable threading for multi-core processing
    - Enable caching for repeated FIG lookups
    - Batch processing for large files
 
 ## Files Created
 
-1. **`/home/seksan/workspace/streamdab-analyzer/BUG_REPORT_CLI_PARSER.md`**
+1. **`/home/seksan/workspace/streamdab-analyser/BUG_REPORT_CLI_PARSER.md`**
    - Comprehensive bug analysis
    - Evidence comparison (etisnoop vs streamdab)
    - Root cause analysis
    - ETSI standards reference
 
-2. **`/home/seksan/workspace/streamdab-analyzer/CLI_PARSER_FIX_SUMMARY.md`** (this file)
+2. **`/home/seksan/workspace/streamdab-analyser/CLI_PARSER_FIX_SUMMARY.md`** (this file)
    - Fix implementation summary
    - Testing instructions
    - Expected results
 
 ## Related Documentation
 
-- **Bug Report:** `/home/seksan/workspace/streamdab-analyzer/BUG_REPORT_CLI_PARSER.md`
+- **Bug Report:** `/home/seksan/workspace/streamdab-analyser/BUG_REPORT_CLI_PARSER.md`
 - **CLAUDE.md:** Project documentation (describes Phase 1-4 completion)
 - **ETSI EN 300 799:** ETI frame structure specification
 - **ETSI EN 300 401:** FIG types and encoding specification

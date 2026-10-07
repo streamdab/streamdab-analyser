@@ -1,7 +1,7 @@
 /**
- * @file test_advanced_fig_analyzer.cpp
+ * @file test_advanced_fig_analyser.cpp
  * @brief Unit tests for the GUI-path FIC/FIB decode fix in
- *        AdvancedFIGAnalyzer (DAB Ensemble Explorer labels).
+ *        AdvancedFIGAnalyser (DAB Ensemble Explorer labels).
  *
  * Covers:
  *  (a) REAL FIB bytes from eti/bkk_20062022_141637.eti frame 5 (all three
@@ -22,8 +22,8 @@
 #include <QtTest/QtTest>
 #include <cstring>
 
-#include "core/advanced_fig_analyzer.h"
-#include "core/analyzer_settings.hpp"
+#include "core/advanced_fig_analyser.h"
+#include "core/analyser_settings.hpp"
 #include "core/crc16.hpp"
 
 namespace {
@@ -84,7 +84,7 @@ QByteArray makePaddingFib()
 
 } // namespace
 
-class TestAdvancedFIGAnalyzer : public QObject
+class TestAdvancedFIGAnalyser : public QObject
 {
     Q_OBJECT
 
@@ -110,16 +110,16 @@ private:
     static QByteArray serviceLabelFig(uint8_t charset, uint32_t sid16,
                                       const QByteArray& label16,
                                       uint16_t mask);
-    static void expectService(const AdvancedFIGAnalyzer& ana, uint32_t sid,
+    static void expectService(const AdvancedFIGAnalyser& ana, uint32_t sid,
                               const QString& label, const QString& shortLabel,
                               uint16_t mask);
 };
 
 // (a) ========================================================================
 
-void TestAdvancedFIGAnalyzer::testRealFrame5FIBs()
+void TestAdvancedFIGAnalyser::testRealFrame5FIBs()
 {
-    AdvancedFIGAnalyzer ana;
+    AdvancedFIGAnalyser ana;
 
     QByteArray fic;
     fic += makeFib(kFIB1_FIG_AREA, kFIB1_CRC);
@@ -152,9 +152,9 @@ void TestAdvancedFIGAnalyzer::testRealFrame5FIBs()
 
 // (1) ========================================================================
 
-void TestAdvancedFIGAnalyzer::testFig10ShortNoMask()
+void TestAdvancedFIGAnalyser::testFig10ShortNoMask()
 {
-    AdvancedFIGAnalyzer ana;
+    AdvancedFIGAnalyser ana;
 
     // FIG 1/0 with the LEGAL 19-byte payload (ext + EId + 16-byte label, NO
     // optional 2-byte character flag — EN 300 401 8.1.13). The old
@@ -181,9 +181,9 @@ void TestAdvancedFIGAnalyzer::testFig10ShortNoMask()
 
 // (b) ========================================================================
 
-void TestAdvancedFIGAnalyzer::testFIBBadCRCStrict()
+void TestAdvancedFIGAnalyser::testFIBBadCRCStrict()
 {
-    AdvancedFIGAnalyzer ana;
+    AdvancedFIGAnalyser ana;
 
     // FIB1 carries the service label but its stored CRC is corrupted
     QByteArray badArea(reinterpret_cast<const char*>(kFIB2_FIG_AREA), 30);
@@ -202,12 +202,12 @@ void TestAdvancedFIGAnalyzer::testFIBBadCRCStrict()
     QVERIFY(ana.getDABServices().empty());
 }
 
-void TestAdvancedFIGAnalyzer::testFIBBadCRCIgnore()
+void TestAdvancedFIGAnalyser::testFIBBadCRCIgnore()
 {
-    AdvancedFIGAnalyzer ana;
-    eti::AnalyzerSettings settings = eti::AnalyzerSettings::defaults();
+    AdvancedFIGAnalyser ana;
+    eti::AnalyserSettings settings = eti::AnalyserSettings::defaults();
     settings.fib_ignore_crc = true;
-    ana.setAnalyzerSettings(settings);
+    ana.setAnalyserSettings(settings);
 
     QByteArray badArea(reinterpret_cast<const char*>(kFIB2_FIG_AREA), 30);
     badArea[28] = 0x00;  // corrupt one byte -> CRC mismatch
@@ -224,12 +224,12 @@ void TestAdvancedFIGAnalyzer::testFIBBadCRCIgnore()
                   QStringLiteral("RROne101"), 0xF870);
 }
 
-void TestAdvancedFIGAnalyzer::testFIBRawMode()
+void TestAdvancedFIGAnalyser::testFIBRawMode()
 {
-    AdvancedFIGAnalyzer ana;
-    eti::AnalyzerSettings settings = eti::AnalyzerSettings::defaults();
+    AdvancedFIGAnalyser ana;
+    eti::AnalyserSettings settings = eti::AnalyserSettings::defaults();
     settings.fic_mode = eti::FicModeSetting::Raw;
-    ana.setAnalyzerSettings(settings);
+    ana.setAnalyserSettings(settings);
 
     // Same corrupted FIB bytes, but raw mode walks the whole FIC without
     // any per-FIB CRC gate.
@@ -247,12 +247,12 @@ void TestAdvancedFIGAnalyzer::testFIBRawMode()
                   QStringLiteral("RROne101"), 0xF870);
 }
 
-void TestAdvancedFIGAnalyzer::testFIBAllBadAutoFallback()
+void TestAdvancedFIGAnalyser::testFIBAllBadAutoFallback()
 {
-    AdvancedFIGAnalyzer ana;
-    eti::AnalyzerSettings settings = eti::AnalyzerSettings::defaults();
+    AdvancedFIGAnalyser ana;
+    eti::AnalyserSettings settings = eti::AnalyserSettings::defaults();
     settings.fic_mode = eti::FicModeSetting::Auto;  // default
-    ana.setAnalyzerSettings(settings);
+    ana.setAnalyserSettings(settings);
 
     // Corrupt every FIB's CRC (stored CRC = 0x0000)
     QByteArray fic;
@@ -274,7 +274,7 @@ void TestAdvancedFIGAnalyzer::testFIBAllBadAutoFallback()
 
 // (c) ========================================================================
 
-QByteArray TestAdvancedFIGAnalyzer::serviceLabelFig(uint8_t charset,
+QByteArray TestAdvancedFIGAnalyser::serviceLabelFig(uint8_t charset,
                                                     uint32_t sid16,
                                                     const QByteArray& label16,
                                                     uint16_t mask)
@@ -292,9 +292,9 @@ QByteArray TestAdvancedFIGAnalyzer::serviceLabelFig(uint8_t charset,
     return fig;
 }
 
-void TestAdvancedFIGAnalyzer::testCharset6ThaiLabel()
+void TestAdvancedFIGAnalyser::testCharset6ThaiLabel()
 {
-    AdvancedFIGAnalyzer ana;
+    AdvancedFIGAnalyser ana;
 
     // 16-character label field with TIS-620 bytes: 0xA1 0xA2 0xA3 = ก ข ฃ
     QByteArray label16(16, ' ');
@@ -311,9 +311,9 @@ void TestAdvancedFIGAnalyzer::testCharset6ThaiLabel()
 
 // (d) ========================================================================
 
-void TestAdvancedFIGAnalyzer::testCharset0EBULatinSpecials()
+void TestAdvancedFIGAnalyser::testCharset0EBULatinSpecials()
 {
-    AdvancedFIGAnalyzer ana;
+    AdvancedFIGAnalyser ana;
 
     // EBU-Latin special bytes per the TS 101 756 table used by
     // charset_converter.cpp: 0x80 -> 'á' (U+00E1), 0xE1 -> 'Å' (U+00C5)
@@ -330,9 +330,9 @@ void TestAdvancedFIGAnalyzer::testCharset0EBULatinSpecials()
 
 // (e) ========================================================================
 
-void TestAdvancedFIGAnalyzer::testInputGuards()
+void TestAdvancedFIGAnalyser::testInputGuards()
 {
-    AdvancedFIGAnalyzer ana;
+    AdvancedFIGAnalyser ana;
 
     // Empty FIC
     ana.analyzeFICData(QByteArray());
@@ -345,7 +345,7 @@ void TestAdvancedFIGAnalyzer::testInputGuards()
     QVERIFY(ana.getLastError().contains("too large"));
 
     // 768-byte FIC is accepted (24 FIBs of padding)
-    AdvancedFIGAnalyzer ana768;
+    AdvancedFIGAnalyser ana768;
     QByteArray fic768;
     while (fic768.size() < 768) {
         fic768 += makePaddingFib();
@@ -355,12 +355,12 @@ void TestAdvancedFIGAnalyzer::testInputGuards()
     QCOMPARE(ana768.getFibCrcFailureCount(), 0);  // padding CRCs valid
 }
 
-void TestAdvancedFIGAnalyzer::testForceCharsetOverride()
+void TestAdvancedFIGAnalyser::testForceCharsetOverride()
 {
-    AdvancedFIGAnalyzer ana;
-    eti::AnalyzerSettings settings = eti::AnalyzerSettings::defaults();
+    AdvancedFIGAnalyser ana;
+    eti::AnalyserSettings settings = eti::AnalyserSettings::defaults();
     settings.force_charset = 6;  // override: treat every label as TIS-620
-    ana.setAnalyzerSettings(settings);
+    ana.setAnalyserSettings(settings);
 
     QByteArray label16(16, ' ');
     label16[0] = static_cast<char>(0xA1);
@@ -379,7 +379,7 @@ void TestAdvancedFIGAnalyzer::testForceCharsetOverride()
 // Helpers
 // ============================================================================
 
-void TestAdvancedFIGAnalyzer::expectService(const AdvancedFIGAnalyzer& ana,
+void TestAdvancedFIGAnalyser::expectService(const AdvancedFIGAnalyser& ana,
                                             uint32_t sid,
                                             const QString& label,
                                             const QString& shortLabel,
@@ -397,5 +397,5 @@ void TestAdvancedFIGAnalyzer::expectService(const AdvancedFIGAnalyzer& ana,
     QFAIL(QString("Service 0x%1 not found").arg(sid, 8, 16, QChar('0')).toUtf8());
 }
 
-QTEST_MAIN(TestAdvancedFIGAnalyzer)
-#include "test_advanced_fig_analyzer.moc"
+QTEST_MAIN(TestAdvancedFIGAnalyser)
+#include "test_advanced_fig_analyser.moc"

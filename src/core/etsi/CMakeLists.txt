@@ -240,7 +240,7 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 
     # Install headers
     install(FILES ${ETSI_HEADERS}
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/eti_analyzer/etsi
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/eti_analyser/etsi
         COMPONENT Development
     )
 

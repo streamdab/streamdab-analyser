@@ -1,4 +1,4 @@
-# Session Resumption Guide for StreamDAB Analyzer
+# Session Resumption Guide for StreamDAB Analyser
 
 **Document Version:** 1.0  
 **Date:** October 1, 2025  
@@ -9,7 +9,7 @@
 
 ### Current Project State (October 1, 2025)
 ```bash
-Project: StreamDAB Stream Analyzer
+Project: StreamDAB Stream Analyser
 Status: Option B Implementation - Professional Tool Development
 Timeline: 6-8 weeks (Phase 1 starting)
 Foundation: Qt6 GUI Complete, Real ETI Engine Required
@@ -32,7 +32,7 @@ Next Step: Implement ETI Core Engine (Phase 1, Week 1)
 ### Quick Setup Commands
 ```bash
 # Navigate to project
-cd /home/seksan/workspace/streamdab-analyzer
+cd /home/seksan/workspace/streamdab-analyser
 
 # Verify clean git state
 git status
@@ -43,7 +43,7 @@ cd build && make
 # Should build with zero errors
 
 # Test application launch
-./StreamDABAnalyzer
+./StreamDABAnalyser
 # Should launch Qt6 GUI without crashes
 
 # Return to project root
@@ -58,11 +58,11 @@ Your branch is up to date with 'origin/main'.
 nothing to commit, working tree clean
 
 # Build should show
-[100%] Built target DABAnalyzer_Enhanced_FilteringBuild
+[100%] Built target DABAnalyser_Enhanced_FilteringBuild
 
 # Application should launch professional Qt6 interface with:
 - Three-panel layout (Ensemble Explorer, Frame Navigator, Service Details)
-- Bottom tabbed interface (FIC-Analyzer, Performance, etc.)
+- Bottom tabbed interface (FIC-Analyser, Performance, etc.)
 - File menu with "Open ETI File" working
 - All panels displaying simulation data
 ```
@@ -84,7 +84,7 @@ sudo apt-get install qt6-base-dev libfaad-dev libfftw3-dev cmake build-essential
 # Primary file with complete Qt6 application
 File: src/main.cpp
 Size: ~2450 lines
-Content: Complete DABAnalyzerWindow class with embedded GUI
+Content: Complete DABAnalyserWindow class with embedded GUI
 Status: Functional with simulation data
 
 # Current functionality:
@@ -105,7 +105,7 @@ Status: Functional with simulation data
 ```bash
 # Core implementation files ready for Option B development
 src/core/enhanced_eti_processor_qt.cpp    # Next: Add ETIFrameParser class
-src/core/advanced_fig_analyzer.cpp        # Next: Add FIGProcessor class
+src/core/advanced_fig_analyser.cpp        # Next: Add FIGProcessor class
 src/core/etsi_compliance_engine.cpp       # Next: Add ETSI validation
 src/core/multi_stream_processor.cpp       # Ready for future use
 src/core/professional_logging_system.cpp  # Functional logging system
@@ -187,7 +187,7 @@ void loadETIFile(const QString& filePath) {
 ### Starting a New Session
 ```bash
 # 1. Verify environment
-cd /home/seksan/workspace/streamdab-analyzer
+cd /home/seksan/workspace/streamdab-analyser
 git pull  # Get latest changes
 git status  # Verify clean state
 
@@ -196,7 +196,7 @@ cd build && make
 # Should build cleanly
 
 # 3. Test current functionality
-./StreamDABAnalyzer
+./StreamDABAnalyser
 # Should launch Qt6 GUI
 
 # 4. Review current implementation phase
@@ -223,7 +223,7 @@ ls -la src/core/enhanced_eti_processor_qt.*
 
 # 3. Build and test frequently
 cd build && make
-./StreamDABAnalyzer
+./StreamDABAnalyser
 
 # 4. Commit daily progress
 git add -A
@@ -244,7 +244,7 @@ file eti/bkk_20062022_141637.eti
 # Should show: 6144-byte ETI frame data
 
 # Test integration
-./build/StreamDABAnalyzer
+./build/StreamDABAnalyser
 # Use File -> Open ETI File to test real parsing
 ```
 
@@ -306,7 +306,7 @@ cd build && make clean && make
 ```bash
 # If GUI doesn't launch:
 export QT_QPA_PLATFORM=xcb  # For Linux
-./build/StreamDABAnalyzer
+./build/StreamDABAnalyser
 
 # If file dialog crashes:
 # Check file permissions and paths
@@ -363,7 +363,7 @@ ls -la eti/
 # Week 1 Success: 
 ✅ Real ETI file opens without errors
 ✅ 6144-byte frames parsed correctly
-✅ Sync patterns recognized
+✅ Sync patterns recognised
 ✅ Headers extracted with validation
 
 # Week 2 Success:
@@ -391,7 +391,7 @@ ls -la eti/
 ✅ Cross-platform deployment packages
 
 # Commercial Competitiveness:
-✅ Feature parity with commercial DAB analyzers
+✅ Feature parity with commercial DAB analysers
 ✅ Performance competitive with industry tools
 ✅ Professional GUI matching broadcast standards
 ✅ Comprehensive ETSI compliance reporting

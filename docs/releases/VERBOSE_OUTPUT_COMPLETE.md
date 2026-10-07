@@ -8,7 +8,7 @@
 
 ## 🎯 **ACHIEVEMENT**
 
-**StreamDAB Analyzer now outputs MORE detail than etisnoop!**
+**StreamDAB Analyser now outputs MORE detail than etisnoop!**
 
 ✅ **Per-frame analysis:** ALL 4998 frames with complete ETI header data
 ✅ **STC fields:** Every subchannel per frame (ETI-NI)
@@ -54,7 +54,7 @@
 
 ### **Example with Bangkok File:**
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 ./streamdab-cli --input ../eti/bkk_20062022_141637.eti --verbose-frames -o bangkok_verbose.yaml
 
 # Result:
@@ -71,7 +71,7 @@ cd /home/seksan/workspace/streamdab-analyzer/build
 ### **Summary Section** (Both Modes)
 ```yaml
 version: "1.1"
-generator: "StreamDAB Analyzer v1.1 - Verbose Mode"
+generator: "StreamDAB Analyser v1.1 - Verbose Mode"
 timestamp: "2025-11-08T05:30:24Z"
 input_file: "../eti/bkk_20062022_141637.eti"
 analysis_duration_ms: 452
@@ -354,7 +354,7 @@ etisnoop -i file.eti > etisnoop.txt
 - ✅ Per-frame validation status
 - ✅ Thai UTF-8 native support
 
-### **vs Commercial DAB Analyzers ($2K-$50K):**
+### **vs Commercial DAB Analysers ($2K-$50K):**
 - ✅ FREE and open source
 - ✅ Complete source code access
 - ✅ Cross-platform (Linux/Windows/macOS)
@@ -419,9 +419,9 @@ etisnoop -i file.eti > etisnoop.txt
 
 ## 🎉 **CONCLUSION**
 
-**The StreamDAB Analyzer now provides THE MOST COMPREHENSIVE ETI stream analysis available in open source.**
+**The StreamDAB Analyser now provides THE MOST COMPREHENSIVE ETI stream analysis available in open source.**
 
-✅ **User Request:** "we are stream analyzer which should output everything we can decoded"
+✅ **User Request:** "we are stream analyser which should output everything we can decoded"
 ✅ **Delivered:** Frame-by-frame analysis with ALL ETI header, STC, FIC, and FIG data
 
 ✅ **Comparison:** MORE detailed than etisnoop

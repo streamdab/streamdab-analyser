@@ -1,4 +1,4 @@
-# Building StreamDAB Analyzer on Windows 10 / 11 (x64)
+# Building StreamDAB Analyser on Windows 10 / 11 (x64)
 
 Detailed, copy-pasteable guide for a native **MSVC (Visual Studio 2022) + Qt 6 +
 vcpkg** build. It reflects the current tree (branch `main`, Qt-ADS GUI, C++20)
@@ -10,8 +10,8 @@ configuration:
 | `DABX_ENABLE_ZMQ` | `ON` | Build the ZeroMQ (`zmq+tcp://`) ETI transport when `libzmq` + `cppzmq` are found; otherwise it is compiled out cleanly. |
 | `DABX_ENABLE_ALSA` | `ON` | Build the ALSA audio **output** backend (Linux only; not found on Windows → no-op). Audio **decode** is unaffected. |
 
-> GUI and CLI binaries: **`StreamDABAnalyzer.exe`** (GUI, CMake target
-> `DABAnalyzer_Enhanced_FilteringBuild`) and **`streamdab-cli.exe`** (headless).
+> GUI and CLI binaries: **`StreamDABAnalyser.exe`** (GUI, CMake target
+> `DABAnalyser_Enhanced_FilteringBuild`) and **`streamdab-cli.exe`** (headless).
 
 ---
 
@@ -19,7 +19,7 @@ configuration:
 
 ```powershell
 # From a "x64 Native Tools Command Prompt for VS 2022" (or after vcvars64.bat)
-cd C:\src\streamdab-analyzer
+cd C:\src\streamdab-analyser
 $env:QT_QPA_PLATFORM = "offscreen"
 
 cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
@@ -66,7 +66,7 @@ aqt install-qt windows desktop 6.11.0 win64_msvc2022_64 -O C:\Qt
 # Result: C:\Qt\6.11.0\msvc2022_64
 ```
 
-The analyzer only needs the **qtbase** module (`Core`, `Widgets`, `Network`,
+The analyser only needs the **qtbase** module (`Core`, `Widgets`, `Network`,
 and `Test` for the unit-test suites). Qt Multimedia is **not** used. To fetch
 only what is needed (smaller download):
 
@@ -113,7 +113,7 @@ Open the **x64 Native Tools Command Prompt for VS 2022** (so `cl.exe` and the
 SDK are set up), then:
 
 ```powershell
-cd C:\src\streamdab-analyzer
+cd C:\src\streamdab-analyser
 $env:QT_QPA_PLATFORM = "offscreen"   # set BEFORE configure so GUI tests register
 
 cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
@@ -217,7 +217,7 @@ ctest --test-dir build -C Release -R test_network_stream_validation --output-on-
 .\build\Release\streamdab-cli.exe --input eti\bkk_20062022_141637.eti --output out.yaml
 
 # GUI (needs a real desktop session, i.e. without QT_QPA_PLATFORM=offscreen):
-.\build\Release\StreamDABAnalyzer.exe
+.\build\Release\StreamDABAnalyser.exe
 ```
 
 Build outputs are multi-config: binaries land in `build\Release\` (GUI/CLI)
@@ -279,7 +279,7 @@ The script was rewritten to match reality. It:
 | vcpkg complains about triplet `x64-windows-static` vs `x64-windows` | Keep the **same triplet** for `vcpkg install` and `-DVCPKG_TARGET_TRIPLET`. Do not mix static and dynamic triplets in one build tree. |
 | vcpkg "is not a clean checkout" / rebuild loops | Delete the `build\` directory and re-configure from scratch with the correct toolchain file. |
 | GUI tests are skipped / not registered | `QT_QPA_PLATFORM` was not set **before** running `cmake`. `$env:QT_QPA_PLATFORM = "offscreen"`, then delete `build\CMakeCache.txt` (or `build\`) and re-configure. |
-| Thai/English labels show as boxes or mojibake | Use a UTF-8 aware console (`chcp 65001`) and a Thai-capable font (e.g. *TH Sarabun New* / *Leelawadee UI*). The analyzer stores and processes UTF-8 internally; the fixtures carry Thai labels. |
+| Thai/English labels show as boxes or mojibake | Use a UTF-8 aware console (`chcp 65001`) and a Thai-capable font (e.g. *TH Sarabun New* / *Leelawadee UI*). The analyser stores and processes UTF-8 internally; the fixtures carry Thai labels. |
 | Build machine becomes unresponsive | Too many parallel compilers. Cap with `--parallel 8` (or lower); never use an unbounded `--parallel`. |
 
 ---

@@ -1,4 +1,4 @@
-# E2E Testing Framework for ETI Stream Analyzer
+# E2E Testing Framework for ETI Stream Analyser
 # Tests real user interactions and GUI workflows
 
 cmake_minimum_required(VERSION 3.16)
@@ -20,7 +20,7 @@ file(COPY ../../eti DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 set(E2E_LIB_SOURCES
     ../../src/core/eti_processor.cpp
     ../../src/core/modern_eti_frame_parser.cpp
-    ../../src/core/enhanced_fig_analyzer.cpp
+    ../../src/core/enhanced_fig_analyser.cpp
     ../../src/core/comprehensive_etsi_validator.cpp
 
     ../../src/core/eti_file_worker.cpp

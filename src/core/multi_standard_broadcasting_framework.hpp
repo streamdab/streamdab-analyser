@@ -20,7 +20,7 @@
  * @author Advanced Features Agent - Perfect 10.0/10.0 Specialist
  * @date 2025-09-27
  * @version 2.0.0
- * @copyright Professional Broadcast Solutions - StreamDAB Analyzer
+ * @copyright Professional Broadcast Solutions - StreamDAB Analyser
  */
 
 #pragma once

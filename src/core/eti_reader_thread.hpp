@@ -1,4 +1,4 @@
-// /home/seksan/workspace/streamdab-analyzer/src/core/eti_reader_thread.hpp
+// src/core/eti_reader_thread.hpp
 #ifndef ETI_READER_THREAD_HPP
 #define ETI_READER_THREAD_HPP
 
@@ -19,7 +19,7 @@
 
 // Forward declarations for existing components
 class EnhancedETIProcessorQt;
-class AdvancedFIGAnalyzer;
+class AdvancedFIGAnalyser;
 
 /**
  * @brief Additional data structures for ETI processing signals
@@ -125,7 +125,7 @@ private:
     QList<ServiceInfo> extractServiceList();
 
     std::unique_ptr<EnhancedETIProcessorQt> m_processor;
-    std::unique_ptr<AdvancedFIGAnalyzer> m_figAnalyzer;
+    std::unique_ptr<AdvancedFIGAnalyser> m_figAnalyser;
 
     mutable QMutex m_controlMutex;
     bool m_running;

@@ -1,6 +1,6 @@
 /**
  * @file configuration_manager.h
- * @brief Configuration Management System for ETI Stream Analyzer
+ * @brief Configuration Management System for ETI Stream Analyser
  * 
  * Professional configuration management system with .ini file support,
  * import/export functionality, cross-platform configuration paths,
@@ -231,7 +231,7 @@ public:
      * @return true if initialization successful
      */
     bool initialize(const QString& organization = "StreamDAB Technologies",
-                   const QString& application = "ETI Stream Analyzer");
+                   const QString& application = "ETI Stream Analyser");
     
     /**
      * @brief Check if manager is initialized

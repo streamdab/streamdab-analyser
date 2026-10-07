@@ -6,7 +6,7 @@
 
 ## Implementation Status
 
-- ✅ Test Suite Created: `/home/seksan/workspace/streamdab-analyzer/tests/test_fig007_stream_mode.cpp`
+- ✅ Test Suite Created: `/home/seksan/workspace/streamdab-analyser/tests/test_fig007_stream_mode.cpp`
 - ⏳ Header Struct: Needs manual addition to `fig_parser.hpp` (concurrent modifications)
 - ⏳ Parser Implementation: Needs manual addition to `fig_parser.cpp`
 - ⏳ CMakeLists.txt: Needs test executable configuration
@@ -233,7 +233,7 @@ Byte 3: [SubChId 6-bit][RFA 2-bit]
 
 ## Test Coverage
 
-The test suite `/home/seksan/workspace/streamdab-analyzer/tests/test_fig007_stream_mode.cpp` includes:
+The test suite `/home/seksan/workspace/streamdab-analyser/tests/test_fig007_stream_mode.cpp` includes:
 
 1. ✅ Basic parsing (SCId, SubChId extraction)
 2. ✅ CA flag handling
@@ -263,7 +263,7 @@ The test suite `/home/seksan/workspace/streamdab-analyzer/tests/test_fig007_stre
 After applying the manual changes:
 
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake ..
 make test_fig007_stream_mode
 ./tests/test_fig007_stream_mode
@@ -281,7 +281,7 @@ Totals: 13 passed, 0 failed, 0 skipped, 0 blacklisted
 
 - Parser execution: <15µs per call
 - Test benchmark validates actual performance
-- Optimized bit manipulation for 12-bit field extraction
+- Optimised bit manipulation for 12-bit field extraction
 
 ## Notes
 

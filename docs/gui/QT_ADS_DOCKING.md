@@ -1,14 +1,14 @@
 # Qt-ADS Docking — v1.3 GUI Migration + v2 UI Redesign
 
 **@brief** Design + usage notes for the Qt-ADS (Qt Advanced Docking System 4.5.0) layout of `DAB-XPlorer`
-("StreamDAB Analyzer", Qt6/C++20). The v1.3 migration (`263bcab`) wrapped every existing named panel of the
-original `DABAnalyzerWindow` layout from `src/main.cpp` in an `ads::CDockWidget`. The **v2 UI redesign**
+("StreamDAB Analyser", Qt6/C++20). The v1.3 migration (`263bcab`) wrapped every existing named panel of the
+original `DABAnalyserWindow` layout from `src/main.cpp` in an `ads::CDockWidget`. The **v2 UI redesign**
 (`docs/gui/UI_REDESIGN_PLAN.md`) regrouped the Tab-1 docks into tabbed groups, moved the Input Source panel
 into a page-top toolbar, moved Messages into the shared bottom strip, and added a layout-version guard.
 Code-style conventions live in `docs/Qt6_CPP20_Style_Guide.md`; this document is the design counterpart.
 
-**Branch:** `feature/gui-qtads` · **Runnable:** `./build/StreamDABAnalyzer` (CMake target
-`DABAnalyzer_Enhanced_FilteringBuild` keeps its name for tests, `OUTPUT_NAME = StreamDABAnalyzer`).
+**Branch:** `feature/gui-qtads` · **Runnable:** `./build/StreamDABAnalyser` (CMake target
+`DABAnalyser_Enhanced_FilteringBuild` keeps its name for tests, `OUTPUT_NAME = StreamDABAnalyser`).
 
 **Revisions:** 2026-10-02 — v2 UI redesign (grouped Tab-1 docks, Input toolbar, Messages→strip,
 `docking/layout_version = 2`); earlier placeholder-panel experiment rejected (layout-preserving plan kept).
@@ -29,7 +29,7 @@ Four independent `ads::CDockManager` instances:
 | # | Manager | Host | Docks | QSettings key |
 |---|---------|------|-------|---------------|
 | 1 | tab1 manager | Tab "📡 DAB Ensemble & ETI Analysis" | 15 | `docking/tab1` |
-| 2 | tab2 manager | Tab "🔬 FIC-Analyzer" | 3 | `docking/tab2` |
+| 2 | tab2 manager | Tab "🔬 FIC-Analyser" | 3 | `docking/tab2` |
 | 3 | tab3 manager | Tab "📊 FIC-Extractor" | 2 | `docking/tab3` |
 | 4 | bottom manager | Window-level bottom strip (shared across tabs) | 7 | `docking/bottom` |
 
@@ -43,13 +43,13 @@ above its dock manager (see §1.1).
 
 ```
 +--------------------------------------------------------------------+
-| DABAnalyzerWindow (QMainWindow)                                    |
+| DABAnalyserWindow (QMainWindow)                                    |
 |                                                                    |
 |  mainVerticalSplitter (QSplitter::Vertical)                        |
 |  +--------------------------------------------------------------+  |
 |  | QTabWidget — tabs area                      (~70% height)   |  |
 |  |                                                              |  |
-|  |  [ 📡 DAB Ensemble & ETI Analysis ] [ 🔬 FIC-Analyzer ]     |  |
+|  |  [ 📡 DAB Ensemble & ETI Analysis ] [ 🔬 FIC-Analyser ]     |  |
 |  |  [ 📊 FIC-Extractor ]                                       |  |
 |  |                                                              |  |
 |  |  Tab 1 page (QVBoxLayout):                                  |  |
@@ -95,7 +95,7 @@ group is the default active tab.
 ```
 
 * `*` = default active tab of its group.
-* CU Usage moved from the right column into the center Signal Analysis group.
+* CU Usage moved from the right column into the centre Signal Analysis group.
 * Messages dock removed from the left column → bottom strip (T41 later removed the whole tab).
 * Input Source dock removed → toolbar (`inputToolbar`) at the top of the Tab-1 page; its network row
   (stream URL / quick examples / Connect / Disconnect / Record / stream stats) expands only in
@@ -122,24 +122,24 @@ title is the original column name (`Left`/`Center`/`Right`) exactly as passed to
 | `tab1_Decoder` | Decoder | Transport (3 tabs) | Left |
 | `tab1_Audio` | Audio | Transport (3 tabs) | Left |
 | `tab1_System` | System | — (standalone) | Left |
-| `tab1_EnsembleExplorer` | DAB Ensemble Explorer | Signal Analysis (3 tabs) | Center |
-| `tab1_SubchannelOrg` | Subchannel Organization | Signal Analysis (3 tabs) | Center |
-| `tab1_CUUsage` | CU Usage | Signal Analysis (3 tabs) | Center |
-| `tab1_FrameNavigator` | ETI Frame Navigator | Frame Analysis (2 tabs) | Center |
-| `tab1_HexCompliance` | Hex Viewer / ETSI Compliance | Frame Analysis (2 tabs) | Center |
-| `tab1_NowPlaying` | Now Playing / Slideshow | — (standalone; left/right splitter DLS+ text | Slideshow 4:3 letterbox, ≈200 px) | Center |
+| `tab1_EnsembleExplorer` | DAB Ensemble Explorer | Signal Analysis (3 tabs) | Centre |
+| `tab1_SubchannelOrg` | Subchannel Organisation | Signal Analysis (3 tabs) | Centre |
+| `tab1_CUUsage` | CU Usage | Signal Analysis (3 tabs) | Centre |
+| `tab1_FrameNavigator` | ETI Frame Navigator | Frame Analysis (2 tabs) | Centre |
+| `tab1_HexCompliance` | Hex Viewer / ETSI Compliance | Frame Analysis (2 tabs) | Centre |
+| `tab1_NowPlaying` | Now Playing / Slideshow | — (standalone; left/right splitter DLS+ text | Slideshow 4:3 letterbox, ≈200 px) | Centre |
 | `tab1_ETIOverview` | ETI Overview | Signal Info (3 tabs) | Right |
 | `tab1_Status` | Status | Signal Info (3 tabs) | Right |
 | `tab1_Timing` | Timing | Signal Info (3 tabs) | Right |
 | `tab1_ErrorCounter` | DAB Error Counter | Error & Statistics (2 tabs) | Right |
 | `tab1_StreamStats` | DAB Stream Statistics | Error & Statistics (2 tabs) | Right |
 
-### Tab 2 — 🔬 FIC-Analyzer (3)
+### Tab 2 — 🔬 FIC-Analyser (3)
 
 | Dock objectName | Visible title | Column / area |
 |-----------------|---------------|---------------|
 | `tab2_Left` | Service Tree | Left |
-| `tab2_Center` | Ensemble & Sub-Channel Tables | Center |
+| `tab2_Center` | Ensemble & Sub-Channel Tables | Centre |
 | `tab2_Right` | FIG Content | Right |
 
 ### Tab 3 — 📊 FIC-Extractor (2)
@@ -203,14 +203,14 @@ controls are disabled.
 > `createLoggingTab()` were removed with it. `DOCKING_LAYOUT_VERSION` was bumped **7 → 8** so existing
 > users reset once to the 7-tab default.
 
-## 3. User-facing behavior
+## 3. User-facing behaviour
 
 - **Float** — double-click a dock title bar (or drag it out of the area) to detach into a floating window;
   inside a tabbed group the whole group area floats (per-dock float keeps working as in v1.3).
 - **Close** — title-bar ✕ hides the dock for the session. A closed dock returns on next launch under the
   saved layout, or in the default layout if no state was saved.
 - **Rearrange** — drag dock title bars to re-tab, split, or move between columns/areas (ADS
-  `CDockAreaWidget` behavior). Tab 1/2/3 rearrangements are independent per tab; the bottom strip is shared.
+  `CDockAreaWidget` behaviour). Tab 1/2/3 rearrangements are independent per tab; the bottom strip is shared.
 - **Auto-hide / collapse** — ADS auto-hide is enabled on all docks: the pin button collapses a dock into an
   auto-hide side pane and re-opens it on hover.
 - **Input toolbar** — the File/Network radios + path + Browse… + Load File bar sits at the top of Tab 1;
@@ -219,7 +219,7 @@ controls are disabled.
   `onLoadFileClicked`, `onQuickExampleSelected`, `onConnectClicked`, `onDisconnectClicked`, `onRecordClicked`);
   the menu-bar **Input** menu was removed (T23 option A) — the menu bar is now File / View / Help, and the UDP settings live on a ⚙ button at the end of the network row.
 - **Layout persistence + versioning** — on exit, each `CDockManager::saveState()` is stored alongside the
-  window geometry in QSettings (`org = "StreamDAB-Analyzer"`, `app = "DABAnalyzer"`); on start,
+  window geometry in QSettings (`org = "StreamDAB-Analyser"`, `app = "DABAnalyser"`); on start,
   `restoreState()` restores it. Keys: `window/geometry`, `docking/layout_version`, `docking/tab1`,
   `docking/tab2`, `docking/tab3`, `docking/bottom`.
   - `docking/layout_version = 8` is written on save. On restore, any saved version **≠ 8** (including a
@@ -232,20 +232,20 @@ controls are disabled.
     v6 → v7 added the T34 Audio tab; v7 → v8 (T41/T42) removed the redundant Messages strip tab and added
     the Tab-3 right-dock Hex Viewer inner tab).
 - **First launch** — no saved state ⇒ each manager builds the default layout (§1), identical to the mockup
-  (`docs/gui/StreamDAB-Analyzer UI Redesign.html`).
+  (`docs/gui/StreamDAB-Analyser UI Redesign.html`).
 
 ### First-launch approximations (v2)
 
-- Tab-1 horizontal proportions: `root->setSizes({230, 698, 272})` (left | center | right ≈ mockup 230/flex/272);
+- Tab-1 horizontal proportions: `root->setSizes({230, 698, 272})` (left | centre | right ≈ mockup 230/flex/272);
   Tab 2 `{300, 600, 300}`, Tab 3 `{400, 600}` (40% | 60%), window-level tabs/bottom 700/300 vertical split.
 - Tab-1 vertical group heights (Qt-ADS 4.5.0 has no public API for per-dock vertical stretch; splitter
   sizes are **approximations** — residual differences are documented/expected):
   `leftV {178, 320}` (Transport ≈ 178, System grows), `rightV {210, 240}` (Signal Info ≈ 210,
   Error & Statistics grows), `centerV {200, 190, 150}` (Signal Analysis ≈ 190, Frame Analysis flex,
-  Now Playing / Slideshow ≈ 200) with `tab1_NowPlaying` area `setMinimumHeight(200)` (bottom of center;
+  Now Playing / Slideshow ≈ 200) with `tab1_NowPlaying` area `setMinimumHeight(200)` (bottom of centre;
   T27 — the dock hosts a **left/right `QSplitter`**: left = DLS+ text block, right = MOT Slideshow image in
   a fixed **4:3 letterbox** frame; the splitter default is 45/55 and is user-draggable).
-  The center column is rebuilt in our own vertical `CDockSplitter` (the Qt-ADS built one carries an empty
+  The centre column is rebuilt in our own vertical `CDockSplitter` (the Qt-ADS built one carries an empty
   bookkeeping "ghost" splitter; the clean column is swapped into the root).
 - Per-panel **vertical** proportions inside each group are set by the group tabs (one tab visible at a time).
 
@@ -261,7 +261,7 @@ controls are disabled.
   reused verbatim, only the outer `CDockWidget` wrapper and the group placement change.
 - Groups are built with `CDockManager::addDockWidgetTabToArea(dock, area)` on the FIRST dock's area
   (registration order = tab order, first dock = default active tab).
-- Tab-1 column structure: left/right/center areas are moved into our own vertical `CDockSplitter` columns
+- Tab-1 column structure: left/right/centre areas are moved into our own vertical `CDockSplitter` columns
   (Qt-ADS has no API to stack multiple areas vertically in a Left/Right strip); tabified docks share one
   `CDockAreaWidget`, so each unique area is added to the column splitter once.
 - The Input toolbar (`inputToolbar`) replaces the `tab1_InputSource` dock; its network row
@@ -275,7 +275,7 @@ controls are disabled.
 - **Per-tab bottom strips** — the bottom dock area stays window-level and shared, as in the original design.
 - **View-menu dock toggle actions** — no in-app menu to re-show a closed dock; closing persists via the saved
   layout only.
-- **Panel content changes** — panels are preserved from the original `DABAnalyzerWindow`; "rich panel content
+- **Panel content changes** — panels are preserved from the original `DABAnalyserWindow`; "rich panel content
   porting" is not needed and not attempted. The redesign is layout regrouping/relocation only (ฟังก์ชันหลักเหมือนเดิม).
 - **Mockup short title** — the HTML mockup shortens "ETI Frame Navigator" to "ETI Navigator"; the xlsx and
   this redesign keep "ETI Frame Navigator" (see `docs/gui/UI_REDESIGN_PLAN.md` §1.4).

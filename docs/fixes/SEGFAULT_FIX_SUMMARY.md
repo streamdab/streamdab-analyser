@@ -3,7 +3,7 @@
 ## Build Status: ✅ SUCCESS (0 errors, 0 warnings)
 
 **Date:** October 24, 2025  
-**Build:** `/home/seksan/workspace/streamdab-analyzer/build/StreamDABAnalyzer`
+**Build:** `/home/seksan/workspace/streamdab-analyser/build/StreamDABAnalyser`
 
 ---
 
@@ -26,7 +26,7 @@
 **Fix Applied:**
 - Restructured main tab layout in `src/main.cpp`:
   - **Tab 1:** DAB Ensemble & ETI Analysis (renamed from Ensemble Explorer)
-  - **Tab 2:** FIC-Analyzer (promoted from sub-tab to main tab)
+  - **Tab 2:** FIC-Analyser (promoted from sub-tab to main tab)
   - **Tab 3:** FIC-Extractor (promoted from sub-tab to main tab)
   - **Tab 4:** Advanced Features (renamed)
 
@@ -81,7 +81,7 @@ The crash was caused by **QByteArray lifecycle issues with Qt::QueuedConnection*
 
 **Fix 1: Added Explicit Copy Constructor to ProcessedFrame**
 - File: `src/core/enhanced_eti_processor_qt.h` (lines 23-71)
-- Added default member initializers
+- Added default member initialisers
 - Added explicit copy constructor with `.detach()` calls on QByteArray members
 - Added copy assignment operator
 - Forces deep copies of all QByteArray data
@@ -120,7 +120,7 @@ frame.msc_data = QByteArray(combined_msc.constData(), combined_msc.size());
 
 **Fix 3: Register Meta-Type in main.cpp Compilation Unit**
 - File: `src/main.cpp` (lines 51-59)
-- Added `qRegisterMetaType<ProcessedFrame>()` at static initialization time
+- Added `qRegisterMetaType<ProcessedFrame>()` at static initialisation time
 - Ensures Qt can properly handle ProcessedFrame across compilation units
 
 ```cpp
@@ -141,7 +141,7 @@ namespace {
 ## 📋 Testing Instructions
 
 ### Test 1: DLS+ Widget Theme
-1. Launch application: `cd build && ./StreamDABAnalyzer`
+1. Launch application: `cd build && ./StreamDABAnalyser`
 2. Check "Now Playing (DLS+)" widget in bottom right
 3. **Expected:** Widget background matches system theme (not white)
 
@@ -150,7 +150,7 @@ namespace {
 2. Check main tab bar at top
 3. **Expected:** Four tabs visible:
    - 📡 DAB Ensemble & ETI Analysis
-   - 🔬 FIC-Analyzer
+   - 🔬 FIC-Analyser
    - 📊 FIC-Extractor
    - ⚙️ Advanced Features
 
@@ -199,17 +199,17 @@ namespace {
 ## 📊 Build Verification
 
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
+cd /home/seksan/workspace/streamdab-analyser/build
 cmake --build . -j$(nproc)
 
-# Expected: [100%] Built target DABAnalyzer_Enhanced_FilteringBuild
+# Expected: [100%] Built target DABAnalyser_Enhanced_FilteringBuild
 # 0 errors, 0 warnings
 ```
 
 ### Run Application
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer/build
-./StreamDABAnalyzer
+cd /home/seksan/workspace/streamdab-analyser/build
+./StreamDABAnalyser
 ```
 
 ---
@@ -250,8 +250,8 @@ If segmentation fault still occurs, collect:
 
 ```bash
 # Run with debugging enabled
-cd /home/seksan/workspace/streamdab-analyzer/build
-gdb ./StreamDABAnalyzer
+cd /home/seksan/workspace/streamdab-analyser/build
+gdb ./StreamDABAnalyser
 
 # In GDB:
 run
@@ -262,11 +262,11 @@ bt
 
 Or run with Valgrind:
 ```bash
-valgrind --leak-check=full ./build/StreamDABAnalyzer 2>&1 | tee valgrind.log
+valgrind --leak-check=full ./build/StreamDABAnalyser 2>&1 | tee valgrind.log
 ```
 
 ---
 
-**Build Location:** `/home/seksan/workspace/streamdab-analyzer/build/StreamDABAnalyzer`  
+**Build Location:** `/home/seksan/workspace/streamdab-analyser/build/StreamDABAnalyser`  
 **Last Build:** October 24, 2025  
 **Status:** ✅ All fixes applied, ready for user testing

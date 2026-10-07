@@ -2,7 +2,7 @@
 
 ## Overview
 
-The ETI format auto-detection feature allows the StreamDAB Analyzer to automatically identify whether an ETI file is in ETI-LI or ETI-NI format based on sync patterns.
+The ETI format auto-detection feature allows the StreamDAB Analyser to automatically identify whether an ETI file is in ETI-LI or ETI-NI format based on sync patterns.
 
 ## Quick Start
 

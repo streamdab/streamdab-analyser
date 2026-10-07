@@ -1,20 +1,20 @@
 # Configuration
 
-Where the StreamDAB Analyzer stores settings, which key groups are in use, and
+Where the StreamDAB Analyser stores settings, which key groups are in use, and
 how to reset or export them. Written after the v1.3 settings audit: **every
 control in the Settings dialog either drives real behaviour or was removed —
 there are no silent no-ops.**
 
 ## Store location (per platform)
 
-All settings — the Settings dialog, the Analyzer decode options and the
+All settings — the Settings dialog, the Analyser decode options and the
 window/docking state — use ONE explicit scope created with
-`QSettings("StreamDAB-Analyzer", "DABAnalyzer")` (see `src/utils/app_settings.hpp`):
+`QSettings("StreamDAB-Analyser", "DABAnalyser")` (see `src/utils/app_settings.hpp`):
 
 | Platform | Native store |
 |---|---|
-| Linux   | `~/.config/StreamDAB-Analyzer/DABAnalyzer.conf` (INI) |
-| Windows | Registry `HKEY_CURRENT_USER\Software\StreamDAB-Analyzer\DABAnalyzer` |
+| Linux   | `~/.config/StreamDAB-Analyser/DABAnalyser.conf` (INI) |
+| Windows | Registry `HKEY_CURRENT_USER\Software\StreamDAB-Analyser\DABAnalyser` |
 | macOS   | `~/Library/Preferences/...plist` (via CFPreferences) |
 
 The Settings dialog shows the resolved path on the **General** tab
@@ -22,9 +22,24 @@ The Settings dialog shows the resolved path on the **General** tab
 agree because both construct `QSettings` with the same explicit org/app.
 Two legacy configuration classes are **not compiled** and use their own
 scopes, so they cannot affect the store: `src/utils/config_manager.*`
-(org/app "ETI Stream Analyzer", incl. a `files/` key that nothing reads) and
+(org/app "ETI Stream Analyser", incl. a `files/` key that nothing reads) and
 `src/utils/configuration_manager.*` if present. If they are ever revived they
 must be migrated to this helper before use.
+
+### Migration from the pre-rename scope
+
+v1.3 changed the project spelling to the British "Analyser", which also
+changed the QSettings scope to `("StreamDAB-Analyser", "DABAnalyser")`. At GUI
+start-up `streamdab::app_settings::migrateLegacyScope()` runs once:
+
+- if the new scope already holds a persisted docking layout
+  (`docking/layout_version`), it is left untouched;
+- otherwise every key from the legacy (American-spelled) scope is copied
+  across, any legacy decode-options group key is renamed to `analyser/…`, and
+  the legacy scope is removed.
+
+The migration is idempotent — after it runs the legacy scope is empty, so later
+starts are no-ops. See `src/utils/app_settings.hpp`.
 
 ### Reset / export
 
@@ -47,17 +62,17 @@ What each tab controls, and when a change takes effect:
 | **Processing** | Dashboard update rate (`Hz`); network receive buffer (`frames`) | Update rate changes the dashboard/Real-Time-Chart sampler immediately. The buffer is applied to a new ETI-over-IP connection and re-initialises an active one; file playback is unaffected. |
 | **Audio** | Output device, mute, volume | Applies immediately to the T34 audio controller; the Transport Audio tab shows the same state (no second copy). |
 | **Advanced** | Log level (Error/Warning/Info/Debug/Critical) | Applies immediately to the singleton `Logger` (console + file). Also editable from the bottom-strip **Logging** tab (same key). |
-| **Analyzer** | Decode options (charset, ETI mode, FIC/FIB handling, labels, timestamp, SId) | Persisted on OK/Apply but take full effect on the **next file load**; the CLI builds on the same defaults. |
+| **Analyser** | Decode options (charset, ETI mode, FIC/FIB handling, labels, timestamp, SId) | Persisted on OK/Apply but take full effect on the **next file load**; the CLI builds on the same defaults. |
 
 ## Key groups in use
 
 | Group | Keys | Wired to |
 |---|---|---|
-| `general/` | `confirmExit` (bool) | close confirmation in `DABAnalyzerWindow::closeEvent` (window X and File→Exit only; headless runs never prompt) |
+| `general/` | `confirmExit` (bool) | close confirmation in `DABAnalyserWindow::closeEvent` (window X and File→Exit only; headless runs never prompt) |
 | `analysis/` | `updateRate` (Hz 1..10), `bufferSize` (frames 10..10000) | dashboard sampler interval (`m_perfSampleTimer`, 1 Hz default == historical 1 s); ETI-over-IP receiver frame buffer (applied to a live receiver and to every new connection) |
 | `audio/` | `device` (string), `muted` (bool), `volume` (0..100) | the T34 `AudioPlaybackController` **and** the Transport group's Audio tab — one shared state (both the tab and the Settings dialog edit/persist it) |
 | `advanced/` | `logLevel` (0=Error, 1=Warning, 2=Info, 3=Debug, 4=Critical) | `Logger::setLogLevel` (immediate). Written/read by BOTH Settings→Advanced and the bottom-strip Logging tab (single source of truth: the `Logger`). |
-| `analyzer/` | rows 1-14 of the option-variant matrix (force charset, ETI mode, NST-1, FIC mode, FIB CRC, ECC, labels, timestamp, frame CRC, SId) | `eti::AnalyzerSettings` (honored by the FIG analyzer on the next file load; CLI flags build on the same defaults) |
+| `analyser/` | rows 1-14 of the option-variant matrix (force charset, ETI mode, NST-1, FIC mode, FIB CRC, ECC, labels, timestamp, frame CRC, SId) | `eti::AnalyserSettings` (honored by the FIG analyser on the next file load; CLI flags build on the same defaults) |
 | `window/`, `docking/` | geometry, dock states, layout version | window layout persistence (Qt-ADS), not shown in the dialog |
 
 ### Apply semantics
@@ -65,7 +80,7 @@ What each tab controls, and when a change takes effect:
 - **Apply immediately**: confirm-exit, update rate, network buffer, log level,
   audio device/mute/volume (both the dialog and the Audio tab reflect it right
   away).
-- **Applied on the next load**: `analyzer/*` decode options. The GUI re-applies
+- **Applied on the next load**: `analyser/*` decode options. The GUI re-applies
   them at the next file load; the Settings dialog's status bar says so.
 - Every remaining control therefore has an observable effect; nothing is
   written-then-ignored.
@@ -87,12 +102,12 @@ The Network Stream input accepts exactly these URL forms (validated by
   a host name **without** a transport scheme (ambiguous), unicast UDP, IPv6,
   paths and malformed addresses/ports.
 - **ZMQ publisher expectation:** ODR-DabMux configured with a ZeroMQ ETI output,
-  e.g. `outputs.zmq { endpoint "tcp://*:9201"; }`. The analyzer connects a
+  e.g. `outputs.zmq { endpoint "tcp://*:9201"; }`. The analyser connects a
   `ZMQ_SUB` socket, subscribes to everything and expects each message to be a
   raw 6144-byte ETI frame. EDI/PFT (ETSI TS 102 693) is **not** supported yet —
   it is the v2.0 Phase E-2 work.
 - **ZMQ slow-joiner:** ZeroMQ PUB/SUB has no subscription handshake. The
-  analyzer's SUB socket therefore **loses the first frames** the publisher sends
+  analyser's SUB socket therefore **loses the first frames** the publisher sends
   until the subscription has propagated (and again after any reconnect). This is
   inherent `ZMQ_SUB` behaviour, not a bug; the stream stabilises after a few
   frames.

@@ -8,7 +8,7 @@
  * 
  * @author TDD Framework Completion Specialist (Agent 6)
  * @date 2025-09-26
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #include <QtTest/QtTest>
@@ -24,7 +24,7 @@
 #include "../../src/core/eti_processor.h"
 #include "../../src/core/eti_types.hpp"
 #include "../../src/core/modern_eti_frame_parser.h"
-#include "../../src/core/enhanced_fig_analyzer.h"
+#include "../../src/core/enhanced_fig_analyser.h"
 
 /**
  * @class ComprehensiveETIProcessorTest
@@ -152,7 +152,7 @@ private slots:
         QVERIFY2(initResult, "Processor initialization must succeed");
         QVERIFY2(m_processor->is_initialized(), "Processor must report initialized state");
         QVERIFY2(m_processor->get_eti_parser() != nullptr, "ETI parser must be available");
-        QVERIFY2(m_processor->get_fig_analyzer() != nullptr, "FIG analyzer must be available");
+        QVERIFY2(m_processor->get_fig_analyser() != nullptr, "FIG analyser must be available");
         QCOMPARE(m_processor->get_frame_count(), 0ull);
         
         qDebug() << "✅ Initialization test passed - processor ready";

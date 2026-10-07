@@ -8,14 +8,14 @@
  * 
  * @author TDD Lead Agent  
  * @date 2025-09-23
- * @copyright StreamDAB Analyzer Project
+ * @copyright StreamDAB Analyser Project
  */
 
 #include "../tdd_framework.h"
 #include "core/eti_processor.hpp"
 #include "core/eti_types.hpp"
 #include "core/modern_eti_frame_parser.hpp"
-#include "core/enhanced_fig_analyzer.hpp"
+#include "core/enhanced_fig_analyser.hpp"
 #include <QtTest/QtTest>
 #include <QSignalSpy>
 #include <QTemporaryFile>
@@ -78,7 +78,7 @@ public slots:
         // Verify basic state after initialization using correct method names
         QVERIFY(processor.is_initialized());
         QVERIFY(processor.get_eti_parser() != nullptr);
-        QVERIFY(processor.get_fig_analyzer() != nullptr);
+        QVERIFY(processor.get_fig_analyser() != nullptr);
     }
 
     /**

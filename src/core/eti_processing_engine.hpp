@@ -18,7 +18,7 @@
 
 #include "eti_types.hpp"
 #include "modern_eti_frame_parser.hpp"
-#include "enhanced_fig_analyzer.hpp"
+#include "enhanced_fig_analyser.hpp"
 #include <QObject>
 #include <memory>
 #include <atomic>
@@ -42,7 +42,7 @@ struct EngineConfiguration {
     // Component-specific feature flags
     struct ComponentFlags {
         bool use_modern_frame_parser{true};
-        bool use_enhanced_fig_analyzer{true};
+        bool use_enhanced_fig_analyser{true};
         bool use_integrated_audio_extractor{true};
         bool use_modern_error_detector{true};
         bool enable_performance_profiling{true};
@@ -115,7 +115,7 @@ struct MigrationProgress {
     
     struct ComponentMigrationStatus {
         std::atomic<bool> frame_parser_migrated{false};
-        std::atomic<bool> fig_analyzer_migrated{false};
+        std::atomic<bool> fig_analyser_migrated{false};
         std::atomic<bool> audio_extractor_migrated{false};
         std::atomic<bool> error_detector_migrated{false};
         std::atomic<double> overall_migration_percent{0.0};
@@ -202,7 +202,7 @@ public:
      * @brief Enable/disable specific components
      */
     void enableModernFrameParser(bool enable);
-    void enableEnhancedFIGAnalyzer(bool enable);
+    void enableEnhancedFIGAnalyser(bool enable);
     void enableIntegratedAudioExtractor(bool enable);
     void enableModernErrorDetector(bool enable);
 
@@ -350,7 +350,7 @@ private:
     // Engine components
     // std::unique_ptr<EtisnoopWrapper> wrapper_engine_; // Removed - using Modern ETI Core only
     std::unique_ptr<eti::modern::ModernETIFrameParser> integrated_parser_;
-    std::unique_ptr<eti::modern::EnhancedFIGAnalyzer> enhanced_fig_analyzer_;
+    std::unique_ptr<eti::modern::EnhancedFIGAnalyser> enhanced_fig_analyser_;
     
     // Migration tracking
     MigrationProgress migration_progress_;

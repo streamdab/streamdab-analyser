@@ -1,5 +1,5 @@
 #!/bin/bash
-# StreamDAB Analyzer Post-Installation Script
+# StreamDAB Analyser Post-Installation Script
 
 set -e
 
@@ -14,14 +14,14 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
 fi
 
 # Create application data directory
-mkdir -p /var/lib/streamdab-analyzer
-chmod 755 /var/lib/streamdab-analyzer
+mkdir -p /var/lib/streamdab-analyser
+chmod 755 /var/lib/streamdab-analyser
 
 # Configure logging directory
-mkdir -p /var/log/streamdab-analyzer
-chmod 755 /var/log/streamdab-analyzer
+mkdir -p /var/log/streamdab-analyser
+chmod 755 /var/log/streamdab-analyser
 
-echo "StreamDAB Analyzer installation completed successfully."
+echo "StreamDAB Analyser installation completed successfully."
 echo "You can run the application from Applications menu or by typing 'StreamDAB_Enhanced'"
 
 exit 0

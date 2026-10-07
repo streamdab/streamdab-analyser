@@ -61,7 +61,7 @@ find_package(Threads REQUIRED)      # replaces the raw `pthread` link
 
 ### 3.3 Presets (`CMakePresets.json`)
 - configure presets conditioned on `hostSystemName` — `linux-gcc`, `windows-msvc` (adds `CMAKE_TOOLCHAIN_FILE=$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake` when set), `macos-brew` (`CMAKE_PREFIX_PATH=$env{QT_DIR}` or `$(brew --prefix qt@6)`).
-- build presets keep the bounded job counts (12 default / 4 low-memory / 1 serial) — same rationale as the Linux work (`scripts/build_jobs.sh`).
+- build presets keep the bounded job counts (8 default / 4 low-memory / 1 serial) — same rationale as the Linux work (`scripts/build_jobs.sh`). A bare `-j`/`--parallel` with no value is unbounded and must never be used.
 - test presets: `$env{QT_QPA_PLATFORM="offscreen"}` on the offscreen-capable suites.
 
 ### 3.4 Scripts

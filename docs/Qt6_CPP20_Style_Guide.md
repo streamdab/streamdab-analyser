@@ -3,7 +3,7 @@
 ## Table of Contents
 1. [Overview](#overview)
 2. [Naming Conventions](#naming-conventions)
-3. [Code Organization](#code-organization)
+3. [Code Organisation](#code-organisation)
 4. [Formatting Rules](#formatting-rules)
 5. [Qt-Specific Guidelines](#qt-specific-guidelines)
 6. [C++20 Modern Features](#cpp20-modern-features)
@@ -96,7 +96,7 @@ enum class connection_state {
 };
 ```
 
-## Code Organization
+## Code Organisation
 
 ### Directory Structure
 ```
@@ -122,7 +122,7 @@ project/
 - QML files: `.qml`
 - Resource files: `.qrc`
 
-### Include Organization
+### Include Organisation
 ```cpp
 // System headers
 #include <memory>
@@ -582,7 +582,7 @@ private:
 
 ### General
 - [ ] Consistent naming convention within each layer
-- [ ] Proper include order and organization
+- [ ] Proper include order and organisation
 - [ ] No magic numbers or hardcoded strings
 - [ ] Appropriate use of const/constexpr
 - [ ] RAII principles followed
@@ -597,7 +597,7 @@ private:
 - [ ] Smart pointers used instead of raw pointers
 - [ ] Range-based for loops where applicable
 - [ ] auto used appropriately
-- [ ] Move semantics utilized
+- [ ] Move semantics utilised
 - [ ] Concepts used for template constraints
 
 ### Performance

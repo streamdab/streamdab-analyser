@@ -182,23 +182,23 @@ result.ua_type = (ca_and_uatype >> 5) & 0x7FF;  // Shift right by 5, mask to 11 
 
 **✅ Parser Implementations:**
 ```
-/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.hpp (+140 lines)
-/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.cpp (+329 lines)
+/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.hpp (+140 lines)
+/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.cpp (+329 lines)
 ```
 
 **✅ Test Suites:**
 ```
-/home/seksan/workspace/streamdab-analyzer/tests/test_fig003_packet_mode.cpp (392 lines)
-/home/seksan/workspace/streamdab-analyzer/tests/test_fig006_service_linking.cpp (467 lines)
-/home/seksan/workspace/streamdab-analyzer/tests/test_fig013_user_application.cpp (450 lines)
-/home/seksan/workspace/streamdab-analyzer/tests/CMakeLists.txt (+65 lines)
+/home/seksan/workspace/streamdab-analyser/tests/test_fig003_packet_mode.cpp (392 lines)
+/home/seksan/workspace/streamdab-analyser/tests/test_fig006_service_linking.cpp (467 lines)
+/home/seksan/workspace/streamdab-analyser/tests/test_fig013_user_application.cpp (450 lines)
+/home/seksan/workspace/streamdab-analyser/tests/CMakeLists.txt (+65 lines)
 ```
 
 **✅ Test Executables:**
 ```
-/home/seksan/workspace/streamdab-analyzer/build/tests/test_fig003_packet_mode (1.2MB)
-/home/seksan/workspace/streamdab-analyzer/build/tests/test_fig006_service_linking (1.2MB)
-/home/seksan/workspace/streamdab-analyzer/build/tests/test_fig013_user_application (1.2MB)
+/home/seksan/workspace/streamdab-analyser/build/tests/test_fig003_packet_mode (1.2MB)
+/home/seksan/workspace/streamdab-analyser/build/tests/test_fig006_service_linking (1.2MB)
+/home/seksan/workspace/streamdab-analyser/build/tests/test_fig013_user_application (1.2MB)
 ```
 
 **✅ Git Commits:**
@@ -266,7 +266,7 @@ _*73% is Week 4 only; overall project remains 95%+_
 **Next Targets (FIG 0 remaining):**
 - FIG 0/8: Service Component Global Definition
 - FIG 0/9: Country/LTO/International Table
-- FIG 0/14: FEC Sub-channel Organization
+- FIG 0/14: FEC Sub-channel Organisation
 
 **Expected Complexity:** Medium (similar to Week 4)
 

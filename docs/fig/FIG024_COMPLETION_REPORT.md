@@ -17,14 +17,14 @@ FIG 0/24 (Other Ensemble Services) implementation successfully completed with fu
 
 ## Deliverables
 
-### 1. Header File Updates (/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.hpp)
+### 1. Header File Updates (/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.hpp)
 
 **Already Completed by Agent 33:**
 - ✅ OEServices struct (lines 486-531)
 - ✅ parseFig024_OEServices() method declaration (lines 1390-1396)
 - ✅ oeServicesDiscovered() signal (lines 1592-1596)
 
-### 2. Implementation File (/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.cpp)
+### 2. Implementation File (/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.cpp)
 
 **Added:** parseFig024_OEServices() implementation (line 3170+)
 
@@ -45,7 +45,7 @@ Bytes 3-6: Service ID (32-bit big-endian)
 Byte 7: [CA flag bit 7][RFA bits 6-0]
 ```
 
-### 3. Switch Case Integration (/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.cpp)
+### 3. Switch Case Integration (/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.cpp)
 
 **Added:** Case 24 to parseFigType0() switch statement (line 358+)
 
@@ -60,7 +60,7 @@ case 24: { // FIG 0/24 - Other ensemble services (PDCA Week 7 - Final / Agent 33
 }
 ```
 
-### 4. Test Suite (/home/seksan/workspace/streamdab-analyzer/tests/test_fig024_oe_services.cpp)
+### 4. Test Suite (/home/seksan/workspace/streamdab-analyser/tests/test_fig024_oe_services.cpp)
 
 **File Created:** Comprehensive 12-test suite using Qt Test framework
 
@@ -91,7 +91,7 @@ case 24: { // FIG 0/24 - Other ensemble services (PDCA Week 7 - Final / Agent 33
    - Qt signal/slot verification
    - Parameter validation
 
-### 5. Build Configuration (/home/seksan/workspace/streamdab-analyzer/tests/CMakeLists.txt)
+### 5. Build Configuration (/home/seksan/workspace/streamdab-analyser/tests/CMakeLists.txt)
 
 **Added:** test_fig024_oe_services configuration
 
@@ -242,15 +242,15 @@ if (oe_services.is_valid) {
 ## Files Created/Modified
 
 ### Created Files (2)
-1. `/home/seksan/workspace/streamdab-analyzer/tests/test_fig024_oe_services.cpp` (354 lines)
-2. `/home/seksan/workspace/streamdab-analyzer/FIG024_COMPLETION_REPORT.md` (this file)
+1. `/home/seksan/workspace/streamdab-analyser/tests/test_fig024_oe_services.cpp` (354 lines)
+2. `/home/seksan/workspace/streamdab-analyser/FIG024_COMPLETION_REPORT.md` (this file)
 
 ### Modified Files (2)
-1. `/home/seksan/workspace/streamdab-analyzer/src/core/fig_parser.cpp`
+1. `/home/seksan/workspace/streamdab-analyser/src/core/fig_parser.cpp`
    - Added parseFig024_OEServices() implementation (68 lines)
    - Added case 24 to parseFigType0() switch (8 lines)
 
-2. `/home/seksan/workspace/streamdab-analyzer/tests/CMakeLists.txt`
+2. `/home/seksan/workspace/streamdab-analyser/tests/CMakeLists.txt`
    - Added test_fig024_oe_services configuration (13 lines)
 
 **Total Lines Added:** 443 lines of production code and tests
@@ -305,7 +305,7 @@ if (oe_services.is_valid) {
 
 1. **Qt Test Framework:** Confirmed as standard for this project (not Google Test)
 2. **Signal Registration:** Q_DECLARE_METATYPE needed for custom types in signals
-3. **Build Optimization:** Incremental builds ~5s for single test
+3. **Build Optimisation:** Incremental builds ~5s for single test
 4. **Performance:** Simple parsing operations can exceed targets significantly
 
 ---

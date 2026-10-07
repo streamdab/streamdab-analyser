@@ -2,24 +2,24 @@
 
 ## Files Created
 
-1. **/home/seksan/workspace/streamdab-analyzer/src/cli/cli_main.hpp** (27 lines)
-2. **/home/seksan/workspace/streamdab-analyzer/src/cli/cli_main.cpp** (252 lines)
-3. **/home/seksan/workspace/streamdab-analyzer/tests/test_cli_main_integration.cpp** (267 lines)
-4. **/home/seksan/workspace/streamdab-analyzer/AGENT36_CLI_MAIN_INTEGRATION_REPORT.md** (Full status report)
-5. **/home/seksan/workspace/streamdab-analyzer/AGENT36_FILE_SUMMARY.md** (This file)
+1. **/home/seksan/workspace/streamdab-analyser/src/cli/cli_main.hpp** (27 lines)
+2. **/home/seksan/workspace/streamdab-analyser/src/cli/cli_main.cpp** (252 lines)
+3. **/home/seksan/workspace/streamdab-analyser/tests/test_cli_main_integration.cpp** (267 lines)
+4. **/home/seksan/workspace/streamdab-analyser/AGENT36_CLI_MAIN_INTEGRATION_REPORT.md** (Full status report)
+5. **/home/seksan/workspace/streamdab-analyser/AGENT36_FILE_SUMMARY.md** (This file)
 
 ## Files Modified
 
-6. **/home/seksan/workspace/streamdab-analyzer/src/main.cpp**
+6. **/home/seksan/workspace/streamdab-analyser/src/main.cpp**
    - Line 57: Added `#include "cli/cli_main.hpp"`
    - Lines 5501-5625: Replaced runCLIMode() and main() with simplified CLI detection
 
-7. **/home/seksan/workspace/streamdab-analyzer/CMakeLists.txt**
+7. **/home/seksan/workspace/streamdab-analyser/CMakeLists.txt**
    - After line 50: Added CLI_SOURCES section
    - Line 56: Added ${CLI_SOURCES} to executable
    - After line 43: Added 7 core dependencies for HeadlessETIProcessor
 
-8. **/home/seksan/workspace/streamdab-analyzer/tests/CMakeLists.txt**
+8. **/home/seksan/workspace/streamdab-analyser/tests/CMakeLists.txt**
    - End of file: Added test_cli_main_integration executable configuration
 
 ## Key Code Snippets
@@ -47,7 +47,7 @@ for (int i = 1; i < argc; i++) {
 
 if (cli_mode) {
     QCoreApplication app(argc, argv);
-    app.setApplicationName("StreamDAB Analyzer");
+    app.setApplicationName("StreamDAB Analyser");
     app.setApplicationVersion("1.1");
     return cli::cli_main(argc, argv);
 }

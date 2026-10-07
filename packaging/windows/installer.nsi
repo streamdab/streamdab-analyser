@@ -1,4 +1,4 @@
-# ETI Stream Analyzer Professional Windows Installer
+# ETI Stream Analyser Professional Windows Installer
 # NSIS Script for Professional Broadcast Tools Distribution
 
 # Modern UI and Professional Setup
@@ -24,11 +24,11 @@ VIAddVersionKey "LegalCopyright" "© 2024 Professional Broadcast Tools"
 VIAddVersionKey "FileDescription" "${PRODUCT_NAME} Professional Installer"
 VIAddVersionKey "FileVersion" "${PRODUCT_VERSION}.0.0"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
-VIAddVersionKey "InternalName" "ETIStreamAnalyzerInstaller"
+VIAddVersionKey "InternalName" "ETIStreamAnalyserInstaller"
 
 # Professional branding
 Name "${MUI_PRODUCT}"
-OutFile "ETI_Stream_Analyzer_Professional_${PRODUCT_VERSION}_Setup.exe"
+OutFile "ETI_Stream_Analyser_Professional_${PRODUCT_VERSION}_Setup.exe"
 InstallDir "$PROGRAMFILES64\${PRODUCT_NAME}"
 InstallDirRegKey HKLM "${PRODUCT_UNINST_KEY}" "InstallLocation"
 BrandingText "${MUI_BRANDINGTEXT}"
@@ -130,7 +130,7 @@ Section "Core Application" SecCore
     SectionIn RO  # Required section
 
     SetOutPath "$INSTDIR\bin"
-    File "ETIStreamAnalyzer.exe"
+    File "ETIStreamAnalyser.exe"
     File "*.dll"
 
     SetOutPath "$INSTDIR"
@@ -139,12 +139,12 @@ Section "Core Application" SecCore
 
     # Professional shortcuts
     CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
-    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\bin\ETIStreamAnalyzer.exe"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\bin\ETIStreamAnalyser.exe"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\User Manual.lnk" "$INSTDIR\README.md"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\uninstall.exe"
 
     # Professional desktop shortcut
-    CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\bin\ETIStreamAnalyzer.exe"
+    CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\bin\ETIStreamAnalyser.exe"
 
     # Professional file associations
     Call RegisterFileAssociations
@@ -198,31 +198,31 @@ Function RegisterFileAssociations
     WriteRegStr HKCR ".eti" "" "ETIStreamFile"
     WriteRegStr HKCR ".eti" "Content Type" "application/x-eti-stream"
     WriteRegStr HKCR "ETIStreamFile" "" "ETI Stream File"
-    WriteRegStr HKCR "ETIStreamFile\DefaultIcon" "" "$INSTDIR\bin\ETIStreamAnalyzer.exe,0"
-    WriteRegStr HKCR "ETIStreamFile\shell\open\command" "" '"$INSTDIR\bin\ETIStreamAnalyzer.exe" "%1"'
-    WriteRegStr HKCR "ETIStreamFile\shell\analyze\command" "" '"$INSTDIR\bin\ETIStreamAnalyzer.exe" --analyze "%1"'
+    WriteRegStr HKCR "ETIStreamFile\DefaultIcon" "" "$INSTDIR\bin\ETIStreamAnalyser.exe,0"
+    WriteRegStr HKCR "ETIStreamFile\shell\open\command" "" '"$INSTDIR\bin\ETIStreamAnalyser.exe" "%1"'
+    WriteRegStr HKCR "ETIStreamFile\shell\analyze\command" "" '"$INSTDIR\bin\ETIStreamAnalyser.exe" --analyze "%1"'
 
     # ETI-NI files
     WriteRegStr HKCR ".etini" "" "ETINIStreamFile"
     WriteRegStr HKCR "ETINIStreamFile" "" "ETI-NI Stream File"
-    WriteRegStr HKCR "ETINIStreamFile\DefaultIcon" "" "$INSTDIR\bin\ETIStreamAnalyzer.exe,0"
-    WriteRegStr HKCR "ETINIStreamFile\shell\open\command" "" '"$INSTDIR\bin\ETIStreamAnalyzer.exe" "%1"'
+    WriteRegStr HKCR "ETINIStreamFile\DefaultIcon" "" "$INSTDIR\bin\ETIStreamAnalyser.exe,0"
+    WriteRegStr HKCR "ETINIStreamFile\shell\open\command" "" '"$INSTDIR\bin\ETIStreamAnalyser.exe" "%1"'
 
     # ETI-LI files
     WriteRegStr HKCR ".etili" "" "ETILIStreamFile"
     WriteRegStr HKCR "ETILIStreamFile" "" "ETI-LI Stream File"
-    WriteRegStr HKCR "ETILIStreamFile\DefaultIcon" "" "$INSTDIR\bin\ETIStreamAnalyzer.exe,0"
-    WriteRegStr HKCR "ETILIStreamFile\shell\open\command" "" '"$INSTDIR\bin\ETIStreamAnalyzer.exe" "%1"'
+    WriteRegStr HKCR "ETILIStreamFile\DefaultIcon" "" "$INSTDIR\bin\ETIStreamAnalyser.exe,0"
+    WriteRegStr HKCR "ETILIStreamFile\shell\open\command" "" '"$INSTDIR\bin\ETIStreamAnalyser.exe" "%1"'
 
     # Application registration
-    WriteRegStr HKLM "SOFTWARE\Classes\Applications\ETIStreamAnalyzer.exe\SupportedTypes" ".eti" ""
-    WriteRegStr HKLM "SOFTWARE\Classes\Applications\ETIStreamAnalyzer.exe\SupportedTypes" ".etini" ""
-    WriteRegStr HKLM "SOFTWARE\Classes\Applications\ETIStreamAnalyzer.exe\SupportedTypes" ".etili" ""
-    WriteRegStr HKLM "SOFTWARE\Classes\Applications\ETIStreamAnalyzer.exe\shell\open\command" "" '"$INSTDIR\bin\ETIStreamAnalyzer.exe" "%1"'
+    WriteRegStr HKLM "SOFTWARE\Classes\Applications\ETIStreamAnalyser.exe\SupportedTypes" ".eti" ""
+    WriteRegStr HKLM "SOFTWARE\Classes\Applications\ETIStreamAnalyser.exe\SupportedTypes" ".etini" ""
+    WriteRegStr HKLM "SOFTWARE\Classes\Applications\ETIStreamAnalyser.exe\SupportedTypes" ".etili" ""
+    WriteRegStr HKLM "SOFTWARE\Classes\Applications\ETIStreamAnalyser.exe\shell\open\command" "" '"$INSTDIR\bin\ETIStreamAnalyser.exe" "%1"'
 
     # Add to Windows Programs list
-    WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\ETIStreamAnalyzer.exe" "" "$INSTDIR\bin\ETIStreamAnalyzer.exe"
-    WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\ETIStreamAnalyzer.exe" "Path" "$INSTDIR\bin"
+    WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\ETIStreamAnalyser.exe" "" "$INSTDIR\bin\ETIStreamAnalyser.exe"
+    WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\ETIStreamAnalyser.exe" "Path" "$INSTDIR\bin"
 
     # Notify Windows of file association changes
     System::Call 'shell32.dll::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)'
@@ -231,7 +231,7 @@ FunctionEnd
 # Professional uninstaller
 Section "Uninstall"
     # Remove files
-    Delete "$INSTDIR\bin\ETIStreamAnalyzer.exe"
+    Delete "$INSTDIR\bin\ETIStreamAnalyser.exe"
     Delete "$INSTDIR\bin\*.dll"
     Delete "$INSTDIR\README.md"
     Delete "$INSTDIR\LICENSE"
@@ -262,8 +262,8 @@ Section "Uninstall"
     DeleteRegKey HKCR "ETIStreamFile"
     DeleteRegKey HKCR "ETINIStreamFile"
     DeleteRegKey HKCR "ETILIStreamFile"
-    DeleteRegKey HKLM "SOFTWARE\Classes\Applications\ETIStreamAnalyzer.exe"
-    DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\ETIStreamAnalyzer.exe"
+    DeleteRegKey HKLM "SOFTWARE\Classes\Applications\ETIStreamAnalyser.exe"
+    DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\ETIStreamAnalyser.exe"
 
     # Remove registry entries
     DeleteRegKey HKLM "${PRODUCT_UNINST_KEY}"

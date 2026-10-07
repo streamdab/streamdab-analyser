@@ -158,7 +158,7 @@ All 32 ETSI TS 101 756 Table 10 codes implemented:
 
 **Target:** < 5 µs per FIG 0/17 parse
 
-**Optimization Techniques:**
+**Optimisation Techniques:**
 - Direct memory access (no intermediate copies)
 - Efficient bit manipulation
 - Static lookup table (no dynamic allocation)
@@ -212,22 +212,22 @@ All 32 ETSI TS 101 756 Table 10 codes implemented:
 ## File Locations
 
 ### Created Files (Ready to Use):
-1. `/home/seksan/workspace/streamdab-analyzer/tests/test_fig017_programme_type.cpp`
+1. `/home/seksan/workspace/streamdab-analyser/tests/test_fig017_programme_type.cpp`
    - **Status:** ✅ COMPLETE
    - **Size:** 500+ lines
    - **Tests:** 19
 
-2. `/home/seksan/workspace/streamdab-analyzer/FIG017_IMPLEMENTATION_GUIDE.md`
+2. `/home/seksan/workspace/streamdab-analyser/FIG017_IMPLEMENTATION_GUIDE.md`
    - **Status:** ✅ COMPLETE
    - **Size:** 2,500+ words
    - **Content:** Full specification
 
-3. `/home/seksan/workspace/streamdab-analyzer/FIG017_PATCHES.txt`
+3. `/home/seksan/workspace/streamdab-analyser/FIG017_PATCHES.txt`
    - **Status:** ✅ COMPLETE
    - **Patches:** 8 sections
    - **Lines:** ~180 additions
 
-4. `/home/seksan/workspace/streamdab-analyzer/FIG017_DELIVERY_REPORT.md`
+4. `/home/seksan/workspace/streamdab-analyser/FIG017_DELIVERY_REPORT.md`
    - **Status:** ✅ COMPLETE (this file)
 
 ### Files Requiring Manual Integration:
@@ -241,7 +241,7 @@ All 32 ETSI TS 101 756 Table 10 codes implemented:
 
 ### Step 1: Apply Patches
 ```bash
-cd /home/seksan/workspace/streamdab-analyzer
+cd /home/seksan/workspace/streamdab-analyser
 
 # Edit src/core/fig_parser.hpp
 # - Insert ProgrammeType struct (Patch 1)

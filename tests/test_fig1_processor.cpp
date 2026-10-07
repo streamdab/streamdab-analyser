@@ -18,7 +18,7 @@
 #include <QtTest/QtTest>
 #include <QObject>
 #include <QDebug>
-#include "../src/core/advanced_fig_analyzer.h"
+#include "../src/core/advanced_fig_analyser.h"
 
 class TestFIG1Processor : public QObject
 {
@@ -88,7 +88,7 @@ private slots:
     void testMissingServiceReference();
 
 private:
-    AdvancedFIGAnalyzer* m_analyzer;
+    AdvancedFIGAnalyser* m_analyser;
 
     // Helper methods
     QByteArray createFIG1_0(const QString& label, uint16_t char_flag = 0xFF00);
@@ -128,19 +128,19 @@ void TestFIG1Processor::cleanupTestCase()
 
 void TestFIG1Processor::init()
 {
-    m_analyzer = new AdvancedFIGAnalyzer();
-    QVERIFY(m_analyzer != nullptr);
+    m_analyser = new AdvancedFIGAnalyser();
+    QVERIFY(m_analyser != nullptr);
 
     // Enable FIG Type 1 processing
-    m_analyzer->enableFIGType(1, 0, true);  // Ensemble labels
-    m_analyzer->enableFIGType(1, 1, true);  // Service labels
-    m_analyzer->enableFIGType(1, 4, true);  // Component labels
+    m_analyser->enableFIGType(1, 0, true);  // Ensemble labels
+    m_analyser->enableFIGType(1, 1, true);  // Service labels
+    m_analyser->enableFIGType(1, 4, true);  // Component labels
 }
 
 void TestFIG1Processor::cleanup()
 {
-    delete m_analyzer;
-    m_analyzer = nullptr;
+    delete m_analyser;
+    m_analyser = nullptr;
 }
 
 // ============================================================================
@@ -294,14 +294,14 @@ void TestFIG1Processor::testSpecialCharacters()
 void TestFIG1Processor::testFIG1_0_EnsembleLabel()
 {
     // Setup ensemble ID first (required for FIG 1/0)
-    m_analyzer->analyzeFICData(createFIG0_0(0x1234));
+    m_analyser->analyzeFICData(createFIG0_0(0x1234));
 
     // Create ensemble with label "Bangkok DAB     "
     QByteArray fig = createFIG1_0("Bangkok DAB     ", 0xFF00);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    EnsembleInfo ensemble = m_analyzer->getCurrentEnsemble();
+    EnsembleInfo ensemble = m_analyser->getCurrentEnsemble();
     QVERIFY(!ensemble.ensembleLabel.isEmpty());
     QVERIFY(ensemble.ensembleLabel.contains("Bangkok DAB"));
 
@@ -311,7 +311,7 @@ void TestFIG1Processor::testFIG1_0_EnsembleLabel()
 void TestFIG1Processor::testFIG1_0_ShortLabel()
 {
     // Setup ensemble ID first
-    m_analyzer->analyzeFICData(createFIG0_0(0x1234));
+    m_analyser->analyzeFICData(createFIG0_0(0x1234));
 
     // Ensemble label with short form
     // Full: "Bangkok DAB     "
@@ -319,9 +319,9 @@ void TestFIG1Processor::testFIG1_0_ShortLabel()
     // Character flag (spec order, bit 15 = char 0): bits 15,14,13,7,6,5,4 = 0xE0F0
     QByteArray fig = createFIG1_0("Bangkok DAB     ", 0xE0F0);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    EnsembleInfo ensemble = m_analyzer->getCurrentEnsemble();
+    EnsembleInfo ensemble = m_analyser->getCurrentEnsemble();
     QVERIFY(!ensemble.ensembleLabel.isEmpty());
 
     qInfo() << "Ensemble label:" << ensemble.ensembleLabel;
@@ -330,32 +330,32 @@ void TestFIG1Processor::testFIG1_0_ShortLabel()
 void TestFIG1Processor::testFIG1_0_CharacterFlag()
 {
     // Setup ensemble ID first
-    m_analyzer->analyzeFICData(createFIG0_0(0x1234));
+    m_analyser->analyzeFICData(createFIG0_0(0x1234));
 
     // Test different character flag values
     uint16_t test_flags[] = {0x0000, 0x00FF, 0xFF00, 0xFFFF, 0xAAAA, 0x5555};
 
     for (uint16_t flag : test_flags) {
         QByteArray fig = createFIG1_0("Test Ensemble   ", flag);
-        m_analyzer->analyzeFICData(fig);
+        m_analyser->analyzeFICData(fig);
 
         qInfo() << "Character flag" << QString::number(flag, 16) << "processed";
     }
 
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() == 7);  // 1 FIG 0/0 + 6 FIG 1/0
+    QVERIFY(m_analyser->getTotalFIGsProcessed() == 7);  // 1 FIG 0/0 + 6 FIG 1/0
 }
 
 void TestFIG1Processor::testFIG1_0_MultipleEnsembleLabels()
 {
     // Setup ensemble ID first
-    m_analyzer->analyzeFICData(createFIG0_0(0x1234));
+    m_analyser->analyzeFICData(createFIG0_0(0x1234));
 
     // Process multiple ensemble labels (updates)
-    m_analyzer->analyzeFICData(createFIG1_0("Ensemble v1     "));
-    m_analyzer->analyzeFICData(createFIG1_0("Ensemble v2     "));
-    m_analyzer->analyzeFICData(createFIG1_0("Ensemble v3     "));
+    m_analyser->analyzeFICData(createFIG1_0("Ensemble v1     "));
+    m_analyser->analyzeFICData(createFIG1_0("Ensemble v2     "));
+    m_analyser->analyzeFICData(createFIG1_0("Ensemble v3     "));
 
-    EnsembleInfo ensemble = m_analyzer->getCurrentEnsemble();
+    EnsembleInfo ensemble = m_analyser->getCurrentEnsemble();
     QVERIFY(ensemble.ensembleLabel.contains("Ensemble"));
 
     qInfo() << "Final ensemble label:" << ensemble.ensembleLabel;
@@ -373,9 +373,9 @@ void TestFIG1Processor::testFIG1_1_ProgrammeServiceLabel()
     // Add label
     QByteArray fig = createFIG1_1(0xE0D00001, "MCOT Radio      ", 0xFF00);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    auto services = m_analyzer->getDiscoveredServices();
+    auto services = m_analyser->getDiscoveredServices();
     bool found = false;
     for (const auto& svc : services) {
         if (svc.serviceId == 0xE0D00001) {
@@ -396,9 +396,9 @@ void TestFIG1Processor::testFIG1_1_DataServiceLabel()
 
     QByteArray fig = createFIG1_1(0xE0D00002, "Data Service    ", 0xFF00, true);  // is_data_service=true
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() > 0);
 }
 
 void TestFIG1Processor::testFIG1_1_ServiceID16Bit()
@@ -410,9 +410,9 @@ void TestFIG1Processor::testFIG1_1_ServiceID16Bit()
 
     QByteArray fig = createFIG1_1(service_id, "Test Service    ", 0xFF00);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+    QVERIFY(m_analyser->getValidFIGsCount() > 0);
 }
 
 void TestFIG1Processor::testFIG1_1_ServiceID32Bit()
@@ -424,9 +424,9 @@ void TestFIG1Processor::testFIG1_1_ServiceID32Bit()
 
     QByteArray fig = createFIG1_1(service_id, "Data Test       ", 0xFF00);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+    QVERIFY(m_analyser->getValidFIGsCount() > 0);
 }
 
 void TestFIG1Processor::testFIG1_1_MultipleServiceLabels()
@@ -437,10 +437,10 @@ void TestFIG1Processor::testFIG1_1_MultipleServiceLabels()
 
     for (int i = 0; i < 4; ++i) {
         setupServiceForLabeling(service_ids[i]);
-        m_analyzer->analyzeFICData(createFIG1_1(service_ids[i], labels[i], 0xFF00));
+        m_analyser->analyzeFICData(createFIG1_1(service_ids[i], labels[i], 0xFF00));
     }
 
-    auto services = m_analyzer->getDiscoveredServices();
+    auto services = m_analyser->getDiscoveredServices();
     QVERIFY(services.size() >= 4);
 
     qInfo() << "Multiple services labeled:" << services.size();
@@ -458,9 +458,9 @@ void TestFIG1Processor::testFIG1_1_ShortLabelGeneration()
 
     QByteArray fig = createFIG1_1(0xE0D00001, "BBC WorldService", char_flag);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+    QVERIFY(m_analyser->getValidFIGsCount() > 0);
 }
 
 void TestFIG1Processor::testFIG1_1_ThaiCharacters()
@@ -471,10 +471,10 @@ void TestFIG1Processor::testFIG1_1_ThaiCharacters()
     // Note: DAB uses EBU Latin charset, Thai requires extended charset
     QByteArray fig = createFIG1_1(0xE0D00001, "MCOT กทม        ", 0xFF00);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Should process without crash even if Thai not fully supported
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() > 0);
 }
 
 // ============================================================================
@@ -487,9 +487,9 @@ void TestFIG1Processor::testFIG1_4_ComponentLabel()
 
     QByteArray fig = createFIG1_4(0xE0D00001, 0, "Main Audio      ");
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() > 0);
     qInfo() << "Component label processed";
 }
 
@@ -501,10 +501,10 @@ void TestFIG1Processor::testFIG1_4_ServiceComponentID()
     for (uint8_t comp_id = 0; comp_id < 4; ++comp_id) {
         QString label = QString("Component %1    ").arg(comp_id);
         QByteArray fig = createFIG1_4(0xE0D00001, comp_id, label);
-        m_analyzer->analyzeFICData(fig);
+        m_analyser->analyzeFICData(fig);
     }
 
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() >= 4);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() >= 4);
 }
 
 void TestFIG1Processor::testFIG1_4_PacketDataLabel()
@@ -514,9 +514,9 @@ void TestFIG1Processor::testFIG1_4_PacketDataLabel()
 
     QByteArray fig = createFIG1_4(0xE0D00002, 1, "Data Component  ");
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+    QVERIFY(m_analyser->getValidFIGsCount() > 0);
 }
 
 void TestFIG1Processor::testFIG1_4_MultipleComponents()
@@ -524,11 +524,11 @@ void TestFIG1Processor::testFIG1_4_MultipleComponents()
     setupServiceForLabeling(0xE0D00001);
 
     // Service with multiple components
-    m_analyzer->analyzeFICData(createFIG1_4(0xE0D00001, 0, "Primary Audio   "));
-    m_analyzer->analyzeFICData(createFIG1_4(0xE0D00001, 1, "Secondary Audio "));
-    m_analyzer->analyzeFICData(createFIG1_4(0xE0D00001, 2, "Data Broadcast  "));
+    m_analyser->analyzeFICData(createFIG1_4(0xE0D00001, 0, "Primary Audio   "));
+    m_analyser->analyzeFICData(createFIG1_4(0xE0D00001, 1, "Secondary Audio "));
+    m_analyser->analyzeFICData(createFIG1_4(0xE0D00001, 2, "Data Broadcast  "));
 
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() >= 3);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() >= 3);
 }
 
 // ============================================================================
@@ -665,10 +665,10 @@ void TestFIG1Processor::testLabelWithServiceDiscovery()
     setupServiceForLabeling(0xE0D0);
 
     // Step 3: Add label (FIG 1/1)
-    m_analyzer->analyzeFICData(createFIG1_1(0x0000E0D0, "MCOT Radio      ", 0xFF00));
+    m_analyser->analyzeFICData(createFIG1_1(0x0000E0D0, "MCOT Radio      ", 0xFF00));
 
     // Verify complete service with label
-    auto services = m_analyzer->getDiscoveredServices();
+    auto services = m_analyser->getDiscoveredServices();
     QVERIFY(services.size() > 0);
 
     qInfo() << "Complete service discovery with labels: " << services.size() << "services";
@@ -679,16 +679,16 @@ void TestFIG1Processor::testCompleteServiceLabeling()
     // Label all levels: ensemble, service, component
 
     // Ensemble label (FIG 1/0)
-    m_analyzer->analyzeFICData(createFIG1_0("Bangkok DAB     "));
+    m_analyser->analyzeFICData(createFIG1_0("Bangkok DAB     "));
 
     // Service setup and label
     setupServiceForLabeling(0xE0D00001);
-    m_analyzer->analyzeFICData(createFIG1_1(0xE0D00001, "MCOT Radio      "));
+    m_analyser->analyzeFICData(createFIG1_1(0xE0D00001, "MCOT Radio      "));
 
     // Component label (FIG 1/4)
-    m_analyzer->analyzeFICData(createFIG1_4(0xE0D00001, 0, "Main Audio      "));
+    m_analyser->analyzeFICData(createFIG1_4(0xE0D00001, 0, "Main Audio      "));
 
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() >= 3);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() >= 3);
     qInfo() << "Complete labeling hierarchy processed";
 }
 
@@ -697,7 +697,7 @@ void TestFIG1Processor::testEnsembleHierarchyLabels()
     // Build complete labeled ensemble tree
 
     // Ensemble
-    m_analyzer->analyzeFICData(createFIG1_0("Test Ensemble   "));
+    m_analyser->analyzeFICData(createFIG1_0("Test Ensemble   "));
 
     // Multiple services with labels
     for (uint32_t i = 1; i <= 3; ++i) {
@@ -705,14 +705,14 @@ void TestFIG1Processor::testEnsembleHierarchyLabels()
         setupServiceForLabeling(svc_id);
 
         QString label = QString("Service %1      ").arg(i);
-        m_analyzer->analyzeFICData(createFIG1_1(svc_id, label));
+        m_analyser->analyzeFICData(createFIG1_1(svc_id, label));
 
         // Component labels
-        m_analyzer->analyzeFICData(createFIG1_4(svc_id, 0, QString("Audio %1        ").arg(i)));
+        m_analyser->analyzeFICData(createFIG1_4(svc_id, 0, QString("Audio %1        ").arg(i)));
     }
 
-    EnsembleInfo ensemble = m_analyzer->getCurrentEnsemble();
-    auto services = m_analyzer->getDiscoveredServices();
+    EnsembleInfo ensemble = m_analyser->getCurrentEnsemble();
+    auto services = m_analyser->getDiscoveredServices();
 
     QVERIFY(!ensemble.ensembleLabel.isEmpty());
     QVERIFY(services.size() >= 3);
@@ -726,15 +726,15 @@ void TestFIG1Processor::testLabelUpdateSequence()
     setupServiceForLabeling(0xE0D00001);
 
     // Initial label
-    m_analyzer->analyzeFICData(createFIG1_1(0xE0D00001, "Initial Label   "));
+    m_analyser->analyzeFICData(createFIG1_1(0xE0D00001, "Initial Label   "));
 
     // Updated label
-    m_analyzer->analyzeFICData(createFIG1_1(0xE0D00001, "Updated Label   "));
+    m_analyser->analyzeFICData(createFIG1_1(0xE0D00001, "Updated Label   "));
 
     // Final label
-    m_analyzer->analyzeFICData(createFIG1_1(0xE0D00001, "Final Label     "));
+    m_analyser->analyzeFICData(createFIG1_1(0xE0D00001, "Final Label     "));
 
-    auto services = m_analyzer->getDiscoveredServices();
+    auto services = m_analyser->getDiscoveredServices();
     bool found = false;
     for (const auto& svc : services) {
         if (svc.serviceId == 0xE0D00001) {
@@ -756,9 +756,9 @@ void TestFIG1Processor::testETSI_EN300401_LabelFormat()
     // Test ETSI EN 300 401 label format compliance
     QByteArray fig = createFIG1_0("Valid Label     ", 0xFF00);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+    QVERIFY(m_analyser->getValidFIGsCount() > 0);
 }
 
 void TestFIG1Processor::testLabelLengthValidation()
@@ -768,9 +768,9 @@ void TestFIG1Processor::testLabelLengthValidation()
     QCOMPARE(valid_label.length(), 16);
 
     QByteArray fig = createFIG1_0(valid_label, 0xFF00);
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
-    QVERIFY(m_analyzer->getValidFIGsCount() > 0);
+    QVERIFY(m_analyser->getValidFIGsCount() > 0);
 }
 
 void TestFIG1Processor::testCharacterSetCompliance()
@@ -787,10 +787,10 @@ void TestFIG1Processor::testCharacterSetCompliance()
 
     for (const QString& label : test_labels) {
         QByteArray fig = createFIG1_0(label, 0xFF00);
-        m_analyzer->analyzeFICData(fig);
+        m_analyser->analyzeFICData(fig);
     }
 
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() == 4);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() == 4);
 }
 
 // ============================================================================
@@ -804,11 +804,11 @@ void TestFIG1Processor::testInvalidLabelLength()
     fig.append(static_cast<char>(0x10));  // Type=1, Ext=0
     fig.append(static_cast<char>(0x05));  // Length=5 (too short for label)
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Should detect error
-    QVERIFY(!m_analyzer->getLastError().isEmpty() ||
-            m_analyzer->getValidFIGsCount() == 0);
+    QVERIFY(!m_analyser->getLastError().isEmpty() ||
+            m_analyser->getValidFIGsCount() == 0);
 }
 
 void TestFIG1Processor::testTruncatedLabelData()
@@ -822,11 +822,11 @@ void TestFIG1Processor::testTruncatedLabelData()
         fig.append(static_cast<char>('A'));
     }
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Should detect truncation
-    QVERIFY(!m_analyzer->getLastError().isEmpty() ||
-            m_analyzer->getValidFIGsCount() == 0);
+    QVERIFY(!m_analyser->getLastError().isEmpty() ||
+            m_analyser->getValidFIGsCount() == 0);
 }
 
 void TestFIG1Processor::testCorruptedCharacterFlag()
@@ -834,10 +834,10 @@ void TestFIG1Processor::testCorruptedCharacterFlag()
     // Test with all bits set (unusual but valid)
     QByteArray fig = createFIG1_0("Test Label      ", 0xFFFF);
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Should process (0xFFFF is valid, just selects many characters)
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() > 0);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() > 0);
 }
 
 void TestFIG1Processor::testMissingServiceReference()
@@ -845,10 +845,10 @@ void TestFIG1Processor::testMissingServiceReference()
     // Try to add label for non-existent service
     QByteArray fig = createFIG1_1(0xFFFFFFFF, "Unknown Service ");
 
-    m_analyzer->analyzeFICData(fig);
+    m_analyser->analyzeFICData(fig);
 
     // Should handle gracefully (create service or skip)
-    QVERIFY(m_analyzer->getTotalFIGsProcessed() >= 0);
+    QVERIFY(m_analyser->getTotalFIGsProcessed() >= 0);
 }
 
 // ============================================================================
@@ -1025,7 +1025,7 @@ void TestFIG1Processor::setupServiceForLabeling(uint32_t service_id)
     fig0_1.append(static_cast<char>(0x00));  // SubChId=0 (bits 7-2) + Start[9:8]=0 (bits 1-0)
     fig0_1.append(static_cast<char>(0x00));  // Start Address[7:0]=0
     fig0_1.append(static_cast<char>(0x05));  // UEP short form (bit 7=0) + Table Index 5
-    m_analyzer->analyzeFICData(fig0_1);
+    m_analyser->analyzeFICData(fig0_1);
 
     // Step 2: Create service (FIG 0/2) with correct SId encoding per ETSI EN 300 401
     QByteArray fig0_2;
@@ -1070,7 +1070,7 @@ void TestFIG1Processor::setupServiceForLabeling(uint32_t service_id)
     // subchid = (b1 & 0xFC) >> 2, ps = (b1 & 0x02) >> 1, ca = b1 & 0x01
     fig0_2.append(static_cast<char>((0 << 2) | (1 << 1) | 0));  // SubChId=0, Primary, CA=0
 
-    m_analyzer->analyzeFICData(fig0_2);
+    m_analyser->analyzeFICData(fig0_2);
 
     qDebug() << "setupServiceForLabeling: Created service" << Qt::hex << service_id
              << (is_programme ? "(programme)" : "(data)");
