@@ -48,7 +48,7 @@ JOBS="$(bash scripts/build_jobs.sh)"       # e.g. min(nproc, RAM_GB/2, 8)
 export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"  # nested cmake/make honour this
 cmake --build build --parallel "$JOBS"
 # or with presets:
-cmake --preset default && cmake --build --preset default   # 8 jobs
+cmake --preset linux-gcc && cmake --build --preset build-linux   # 8 jobs
 cmake --build --preset low-memory                          # 4 jobs (small RAM)
 # overrides: JOBS=8 bash scripts/build.sh --jobs 8 | STREAMDAB_MAX_JOBS=6 ...
 ```
@@ -133,6 +133,21 @@ Features are optional and detected portably (no `pkg-config` required):
 backend is off by default on Windows. **Windows has no audio output backend
 yet** — DAB+ decode works, playback does not.
 
+## 3.5 Cross-platform reference
+
+| | Linux | Windows | macOS |
+|---|---|---|---|
+| Toolchain | gcc/clang + system Qt6 | MSVC 2022 + aqt Qt6 + vcpkg | Apple clang + Homebrew Qt6 |
+| Configure preset | `linux-gcc` | `windows-msvc` | `macos-brew` |
+| Build preset (8 jobs) | `build-linux` | `build-windows` | `build-macos` |
+| Test preset (serial) | `test-linux` | `test-windows` | `test-macos` |
+| Env vars | — | `VCPKG_ROOT` (vcpkg checkout) | `QT_DIR` (`brew --prefix qt@6`) |
+| Docs | this file | `docs/WINDOWS_BUILD.md` | `docs/MACOS_BUILD.md` |
+| Audio output | ALSA (default) | none yet | none yet |
+| Packaging | CPack/AppImage (roadmap) | NSIS/ZIP (roadmap) | `.app`/`.dmg` (roadmap) |
+
+## 4. macOS
+
 **Route B: MinGW cross (experimental)** — the removed legacy build Dockerfile's
 `windows-builder` stage is **unsupported**: it sets `CC=x86_64-w64-mingw32-gcc`
 but never installs Qt-for-Windows, so `find_package(Qt6)` fails. To make it work
@@ -141,13 +156,21 @@ that stage first. Never mix a `win64_mingw` Qt kit with the MSVC toolchain.
 
 ## 4. macOS
 
+See the dedicated guide: **[`docs/MACOS_BUILD.md`](docs/MACOS_BUILD.md)**.
+
 ```bash
-brew install qt@6 faad2 fftw libzmq googletest cmake ninja
-export QT_QPA_PLATFORM=offscreen     # for headless tests
-cmake -B build -S . -DCMAKE_PREFIX_PATH="$(brew --prefix qt@6)"
-cmake --build build --parallel "$(bash scripts/build_jobs.sh)" && (cd build && ctest --output-on-failure)
-# config hooks already exist: cmake/MacOSConfig.cmake
+brew install cmake qt@6 faad2 fftw libzmq googletest
+export QT_QPA_PLATFORM=offscreen     # before configure, else GUI tests are not registered
+export QT_DIR="$(brew --prefix qt@6)"  # qt@6 is keg-only
+cmake --preset macos-brew            # configure into build/ (Release)
+cmake --build --preset build-macos   # 8 jobs — never a bare -j (unbounded)
+ctest --preset test-macos
 ```
+
+Gaps: no audio output backend yet (ALSA is Linux-only; DAB+ decode works); no
+`.app`/`.dmg` packaging yet (CPack roadmap). `cmake/MacOSConfig.cmake` is a dead
+config file (not included by `CMakeLists.txt`) — tracked for the wire-or-delete
+decision, `docs/CROSS_PLATFORM_BUILD_PLAN.md` B8.
 
 ## 5. Alternatives / other build routes
 
@@ -155,10 +178,10 @@ cmake --build build --parallel "$(bash scripts/build_jobs.sh)" && (cd build && c
 |---|---|---|
 | **Reproducible container** | §2 above | ✅ canonical |
 | **Script wrapper** | `scripts/build.sh` (Linux/macOS/Git-Bash) | ✅ exists, thin wrapper |
-| **GitHub Actions CI** | `.github/workflows/tdd-ci.yml` (qt 6.5 aqt matrix ubuntu/windows/macos) | ⚠️ **stale** — predates the Qt-ADS migration / C++20 changes; update to current CMake + Qt 6.8/6.11 + `QT_QPA_PLATFORM=offscreen` before relying on it |
+| **GitHub Actions CI** | `.github/workflows/tdd-ci.yml` (qt 6.5 aqt matrix ubuntu/windows/macos) | ⚠️ **stale** — predates the Qt-ADS migration / C++20 changes; a fresh `ci.yml` (ubuntu/windows/macos, Qt 6.8/6.11, `QT_QPA_PLATFORM=offscreen`) is planned |
 | **AppImage (Linux)** | linuxdeploy + plugin-qt (legacy build Dockerfile `appimage` stage, now removed) | ⚠️ needs the install/CPack rules (see §6) |
 | **DEB/RPM/TGZ packages** | CPack — `cmake/packaging.cmake` defines metadata | ⚠️ needs `install()` rules added to `CMakeLists.txt` first |
-| **CMake presets** | not yet provided (`CMakePresets.json`) | todo |
+| **CMake presets** | per-OS: `linux-gcc` / `windows-msvc` / `macos-brew`, builds `build-linux` / `build-windows` / `build-macos` (8 jobs), tests `test-linux` / `test-windows` / `test-macos` | ✅ provided (`CMakePresets.json`) |
 
 ## 6. Known gaps for production packaging (roadmap)
 

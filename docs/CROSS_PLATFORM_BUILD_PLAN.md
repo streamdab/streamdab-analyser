@@ -59,17 +59,18 @@ find_package(Threads REQUIRED)      # replaces the raw `pthread` link
 | ALSA (audio out) | `libasound2-dev` | n/a (no backend yet) | n/a (no backend yet) |
 | Threads | `pthread` | `Threads::Threads` (empty) | `Threads::Threads` |
 
-### 3.3 Presets (`CMakePresets.json`)
-- configure presets conditioned on `hostSystemName` — `linux-gcc`, `windows-msvc` (adds `CMAKE_TOOLCHAIN_FILE=$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake` when set), `macos-brew` (`CMAKE_PREFIX_PATH=$env{QT_DIR}` or `$(brew --prefix qt@6)`).
-- build presets keep the bounded job counts (8 default / 4 low-memory / 1 serial) — same rationale as the Linux work (`scripts/build_jobs.sh`). A bare `-j`/`--parallel` with no value is unbounded and must never be used.
-- test presets: `$env{QT_QPA_PLATFORM="offscreen"}` on the offscreen-capable suites.
+### 3.3 Presets (`CMakePresets.json`) — **implemented**
+- configure presets conditioned on `hostSystemName` — `linux-gcc` (Unix Makefiles, system Qt6) · `windows-msvc` (Visual Studio 17 2022; `CMAKE_TOOLCHAIN_FILE=$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake`, `VCPKG_TARGET_TRIPLET=x64-windows` — `VCPKG_ROOT` must be set) · `macos-brew` (`CMAKE_PREFIX_PATH=$env{QT_DIR}` — `QT_DIR` must be set, e.g. `$(brew --prefix qt@6)`). `debug` is the Linux-only debug variant.
+- build presets keep the bounded job counts — `build-linux` / `build-windows` / `build-macos` (8 jobs each) + `low-memory` (4) / `serial` (1) / `debug` (4). A bare `-j`/`--parallel` with no value is unbounded and must never be used.
+- test presets — `test-linux` / `test-windows` / `test-macos`, serial (`jobs: 1`), `outputOnFailure`, since several GUI/dock tests share QSettings stores.
 
 ### 3.4 Scripts
 - `scripts/build_jobs.sh` (done, Linux/macOS) — Windows: `build-windows.ps1` computes `[Math]::Max(1, [Math]::Min(8, (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors))` and never uses unbounded parallelism.
-- Optional `scripts/build-macos.sh` wrapper (brew paths + presets).
+- Optional `scripts/build-macos.sh` wrapper (brew paths + presets) — not yet written; the presets + `docs/MACOS_BUILD.md` cover the same flow.
 
 ### 3.5 Docs
-- `docs/WINDOWS_BUILD.md` (detailed Windows 10/11 guide; in progress) — prerequisites (VS 2022 Build Tools, aqt, vcpkg), exact commands, run/test, troubleshooting (Qt vs toolchain mismatch: **never mix `win64_mingw` with MSVC**; triplet mismatch; bounded jobs).
+- `docs/WINDOWS_BUILD.md` (detailed Windows 10/11 guide) — prerequisites (VS 2022 Build Tools, aqt, vcpkg), exact commands, run/test, troubleshooting (Qt vs toolchain mismatch: **never mix `win64_mingw` with MSVC**; triplet mismatch; bounded jobs).
+- `docs/MACOS_BUILD.md` (detailed macOS guide) — Homebrew deps, keg-only `qt@6` / `QT_DIR`, presets, known gaps (no audio backend yet, no `.app`/`.dmg` yet), troubleshooting.
 - `docs/MACOS_BUILD.md` (new) — Homebrew deps, `cmake -DCMAKE_PREFIX_PATH="$(brew --prefix qt@6)"`, arm64 vs x86_64 (`-march=native` removed for arm64), offscreen tests, codesign/notarize notes for shipping a `.app`, known gaps.
 - `INSTALL.md` — a cross-platform matrix at the top (OS → packages → configure/build/test commands) linking both platform docs; `docs/README.md` updated.
 - Honest statements: audio-out gap on Windows/macOS; ZMQ requires cppzmq; fixtures (`eti/*.eti`) are not in git so fixture-based suites skip without them.

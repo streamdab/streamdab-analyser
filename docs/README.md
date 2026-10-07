@@ -37,6 +37,7 @@
 - **Instructions:** `../AGENTS.md` (build/test commands, workflow, repo rules)
 - **Cross-platform build plan (Linux/Windows/macOS):** [`CROSS_PLATFORM_BUILD_PLAN.md`](CROSS_PLATFORM_BUILD_PLAN.md)
 - **Windows build guide (detailed):** [`WINDOWS_BUILD.md`](WINDOWS_BUILD.md) — VS 2022 + Qt 6 MSVC + vcpkg,
+- **macOS build guide (detailed):** [`MACOS_BUILD.md`](MACOS_BUILD.md) — Homebrew + keg-only `qt@6` (`QT_DIR`), presets, known gaps, troubleshooting,
   `DABX_ENABLE_ZMQ`/`DABX_ENABLE_ALSA`, offscreen tests, fixture requirements, known gaps, troubleshooting
 - **Configuration:** `CONFIGURATION.md` (store location per platform, key groups, reset/export, removed options)
 - **Open-source publishing plan:** [`GITHUB_PUBLISHING_PLAN.md`](GITHUB_PUBLISHING_PLAN.md) — filter-repo route,
@@ -108,7 +109,7 @@ Phases: `PHASE_E_PLAN.md` (**main plan**), `PHASE_3B_{TECHNICAL_NOTES,USER_GUIDE
 `PHASE_2A_WEEK6_DELIVERABLE_REPORT.txt` ·
 Testing: `GUI_PATTERNS.md` ·
 Qt6: `Qt6_CPP20_Style_Guide.md` (cited by `AGENTS.md`), `SERVICE_TREE_VISUAL_GUIDE.txt` ·
-Cross-platform / publishing: `CROSS_PLATFORM_BUILD_PLAN.md`, `WINDOWS_BUILD.md`, `GITHUB_PUBLISHING_PLAN.md` ·
+Cross-platform / publishing: `CROSS_PLATFORM_BUILD_PLAN.md`, `WINDOWS_BUILD.md`, `MACOS_BUILD.md`, `GITHUB_PUBLISHING_PLAN.md` ·
 Configuration: `CONFIGURATION.md` ·
 Tasks: `TASK_LIST.md` (living v1.3 checklist) ·
 Other: `DATA_AVAILABILITY_MATRIX.md`, `DEPLOYMENT_GUIDE.md`, `LICENSE_COMPLIANCE_REPORT.md`,
