@@ -178,7 +178,8 @@ decision, `docs/CROSS_PLATFORM_BUILD_PLAN.md` B8.
 |---|---|---|
 | **Reproducible container** | §2 above | ✅ canonical |
 | **Script wrapper** | `scripts/build.sh` (Linux/macOS/Git-Bash) | ✅ exists, thin wrapper |
-| **GitHub Actions CI** | `.github/workflows/tdd-ci.yml` (qt 6.5 aqt matrix ubuntu/windows/macos) | ⚠️ **stale** — predates the Qt-ADS migration / C++20 changes; a fresh `ci.yml` (ubuntu/windows/macos, Qt 6.8/6.11, `QT_QPA_PLATFORM=offscreen`) is planned |
+| **GitHub Actions CI** | `.github/workflows/ci.yml` (ubuntu-24.04 / windows-2022 / macos-14, Qt 6.8, `QT_QPA_PLATFORM=offscreen`, per-OS presets) | ✅ current — builds + 55/55 suite + CLI smoke on the real fixture |
+| **GitHub Releases** | `.github/workflows/release.yml` (tag `v*` → per-OS binary archives + release notes) | ✅ current — upgraded to CPack artifacts when packaging lands |
 | **AppImage (Linux)** | linuxdeploy + plugin-qt (legacy build Dockerfile `appimage` stage, now removed) | ⚠️ needs the install/CPack rules (see §6) |
 | **DEB/RPM/TGZ packages** | CPack — `cmake/packaging.cmake` defines metadata | ⚠️ needs `install()` rules added to `CMakeLists.txt` first |
 | **CMake presets** | per-OS: `linux-gcc` / `windows-msvc` / `macos-brew`, builds `build-linux` / `build-windows` / `build-macos` (8 jobs), tests `test-linux` / `test-windows` / `test-macos` | ✅ provided (`CMakePresets.json`) |
