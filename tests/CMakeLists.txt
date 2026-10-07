@@ -1099,10 +1099,13 @@ set_tests_properties(test_dabplus_audio_decoder PROPERTIES
 # T34 audio output sink lifecycle (review gate 5) — headless, simulated backend
 # ============================================================================
 # Proves the sink's close()/destructor cannot hang on a stalled device and that
-# a bad device name fails gracefully. No real playback is required.
+# a bad device name fails gracefully. No real playback is required. The Qt
+# Multimedia sink source is also compiled here (with its define/link when the
+# module was found) so an enabled build compiles both sink backends.
 add_executable(test_audio_output_sink
     test_audio_output_sink.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/audio_output_sink.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/qt_audio_output_sink.cpp
 )
 target_link_libraries(test_audio_output_sink
     Qt6::Test
@@ -1114,6 +1117,39 @@ target_include_directories(test_audio_output_sink PRIVATE ${T34_AUDIO_INCLUDES})
 target_compile_definitions(test_audio_output_sink PRIVATE ${T34_AUDIO_DEFINES})
 add_test(NAME test_audio_output_sink COMMAND test_audio_output_sink)
 set_tests_properties(test_audio_output_sink PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 30
+)
+
+# ============================================================================
+# T34-ext Qt Multimedia (QAudioSink) output sink — graceful degradation, the
+# backend factory and (when the module is present) format mapping + the same
+# no-hang stall proof as test_audio_output_sink, on the Qt backend.
+# ============================================================================
+# On this host Qt Multimedia is absent (find_package fails, HAVE_QMULTIMEDIA
+# undefined) so every QAudio*/QMedia* symbol is compiled out and the suite
+# asserts the graceful-degradation contract; the controller's backend preference
+# is checked on every platform via #ifdef, and the module-only cases QSKIP.
+# When Qt6Multimedia_FOUND the ${T34_AUDIO_DEFINES}/${T34_AUDIO_LIBS} variables
+# carry HAVE_QMULTIMEDIA and Qt6::Multimedia above.
+add_executable(test_qt_audio_output_sink
+    test_qt_audio_output_sink.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/qt_audio_output_sink.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/audio_output_sink.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/audio_playback_controller.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dabplus_audio_decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dabplus_superframe.cpp
+)
+target_link_libraries(test_qt_audio_output_sink
+    Qt6::Test
+    Qt6::Core
+    ${T34_AUDIO_LIBS}
+    Threads::Threads
+)
+target_include_directories(test_qt_audio_output_sink PRIVATE ${T34_AUDIO_INCLUDES})
+target_compile_definitions(test_qt_audio_output_sink PRIVATE ${T34_AUDIO_DEFINES})
+add_test(NAME test_qt_audio_output_sink COMMAND test_qt_audio_output_sink)
+set_tests_properties(test_qt_audio_output_sink PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     TIMEOUT 30
 )
