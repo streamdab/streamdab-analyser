@@ -390,6 +390,83 @@ find_package(GTest REQUIRED)
 # Enable testing
 enable_testing()
 
+# ============================================================================
+# Installation + packaging (production distribution)
+#   * install() rules: binaries, Linux desktop/mime/icon, docs
+#   * macOS .app bundle properties (MACOSX_BUNDLE_*)
+#   * CPack — wired via cmake/packaging.cmake (single branding + per-OS
+#     generators: TGZ/DEB on Linux, NSIS/ZIP on Windows, BUNDLE/DragNDrop
+#     .app/.dmg on macOS). Must be included AFTER the install() rules so CPack
+#     sees the full install manifest.
+# Test data (eti/) is deliberately NOT installed.
+# ============================================================================
+
+if(APPLE)
+    # --- macOS .app bundle ---------------------------------------------------
+    # The installed artifact on macOS is StreamDAB-Analyser.app (OUTPUT_NAME
+    # applies to the bundle directory); Linux/Windows keep bin/StreamDABAnalyser.
+    set_target_properties(DABAnalyser_Enhanced_FilteringBuild PROPERTIES
+        MACOSX_BUNDLE TRUE
+        OUTPUT_NAME "StreamDAB-Analyser"
+        MACOSX_BUNDLE_BUNDLE_NAME "StreamDAB Analyser"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.streamdab-analyser.app"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${DABX_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${DABX_VERSION}"
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/Info.plist.in"
+    )
+    # MACOSX_BUNDLE_ICON_FILE is deliberately OMITTED: the project ships an SVG
+    # only, and macOS Finder icons must be .icns (Qt does not accept SVG here).
+    # Generating a .icns is a documented follow-up.
+    # Keep @rpath-based Qt links working for the installed .app (brew qt@6 uses
+    # @rpath); scripts/bundle-macos.sh runs macdeployqt afterwards, which
+    # rewrites them to @executable_path/../Frameworks.
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
+
+# GUI + CLI binaries. On macOS the GUI installs as the .app bundle
+# (BUNDLE DESTINATION .); on Linux/Windows as bin/StreamDABAnalyser.
+install(TARGETS DABAnalyser_Enhanced_FilteringBuild
+    RUNTIME DESTINATION bin
+    BUNDLE DESTINATION .
+)
+install(TARGETS streamdab-cli RUNTIME DESTINATION bin)
+
+if(UNIX AND NOT APPLE)
+    # Qt-ADS is a shared library that the GUI links dynamically, and its own
+    # install() rules place it in lib/. Embed an $ORIGIN-relative rpath so the
+    # installed binary finds it in a stage prefix, a TGZ/AppImage layout and
+    # /usr|/usr/local lib dirs alike (the build-tree rpath is not carried over).
+    set_target_properties(DABAnalyser_Enhanced_FilteringBuild PROPERTIES
+        INSTALL_RPATH "$ORIGIN/../lib")
+    # .desktop prerequisite check: the desktop file must reference the installed
+    # binary (Exec=StreamDABAnalyser) and the icon name, otherwise DEB/MIME
+    # desktop integration silently points at a binary that does not exist.
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/linux/eti-stream-analyser.desktop"
+        _dabx_desktop_content)
+    foreach(_dabx_needle IN ITEMS "Exec=StreamDABAnalyser" "Icon=eti-stream-analyser")
+        string(FIND "${_dabx_desktop_content}" "${_dabx_needle}" _dabx_needle_pos)
+        if(_dabx_needle_pos EQUAL -1)
+            message(FATAL_ERROR
+                "resources/linux/eti-stream-analyser.desktop must contain "
+                "'${_dabx_needle}' (install()/CPack prerequisite for desktop "
+                "integration); fix the file.")
+        endif()
+    endforeach()
+    install(FILES resources/linux/eti-stream-analyser.desktop
+        DESTINATION share/applications)
+    install(FILES resources/linux/eti-stream-analyser.xml
+        DESTINATION share/mime/packages)
+    install(FILES resources/icons/eti-stream-analyser.svg
+        DESTINATION share/icons/hicolor/scalable/apps)
+endif()
+
+# Docs ship with every package (also used as the CPack license/readme
+# resources on DEB/NSIS/DMG).
+install(FILES LICENSE README.md DESTINATION share/doc/streamdab-analyser)
+
+# CPack branding + per-OS generators (after the install() rules above).
+include(cmake/packaging.cmake)
+
 # Add tests subdirectory
 # Re-enabled after Phase 1 fixes complete with A+ grade
 add_subdirectory(tests)

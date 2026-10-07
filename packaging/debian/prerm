@@ -4,7 +4,7 @@
 set -e
 
 # Stop any running instances
-pkill -f StreamDAB_Enhanced || true
+pkill -f StreamDABAnalyser || true
 
 # Clean up temporary files
 rm -rf /tmp/streamdab-analyser-* || true

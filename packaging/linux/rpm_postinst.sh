@@ -1,5 +1,5 @@
 #!/bin/bash
-# Post-installation script for StreamDAB Stream Analyser
+# Post-installation script for StreamDAB Analyser
 # RPM-based distributions (Fedora/RHEL/SUSE) post-installation
 
 # Update MIME database for ETI file associations
@@ -24,7 +24,7 @@ fi
 
 # SELinux context restoration for RHEL/CentOS/Fedora
 if [ -x /usr/sbin/restorecon ]; then
-    /usr/sbin/restorecon -R /usr/bin/ETIStreamAnalyser >/dev/null 2>&1 || true
+    /usr/sbin/restorecon -R /usr/bin/StreamDABAnalyser >/dev/null 2>&1 || true
     /usr/sbin/restorecon -R /usr/share/applications/eti-stream-analyser.desktop >/dev/null 2>&1 || true
 fi
 
@@ -33,7 +33,7 @@ if ! getent group broadcast >/dev/null 2>&1; then
     groupadd -r broadcast 2>/dev/null || true
 fi
 
-echo "StreamDAB Stream Analyser installation completed successfully"
+echo "StreamDAB Analyser installation completed successfully"
 echo "Professional ETI analysis tools are now available"
 
 exit 0

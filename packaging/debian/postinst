@@ -22,6 +22,6 @@ mkdir -p /var/log/streamdab-analyser
 chmod 755 /var/log/streamdab-analyser
 
 echo "StreamDAB Analyser installation completed successfully."
-echo "You can run the application from Applications menu or by typing 'StreamDAB_Enhanced'"
+echo "You can run the application from Applications menu or by typing 'StreamDABAnalyser'"
 
 exit 0

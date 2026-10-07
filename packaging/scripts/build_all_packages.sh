@@ -1,15 +1,17 @@
 #!/bin/bash
-# ETI Stream Analyser - Professional Cross-Platform Package Builder
-# Automated build script for all distribution packages
+# StreamDAB Analyser - Cross-Platform Package Builder
+# Automated build script for all distribution packages (Linux/Windows/macOS)
 
 set -e
 
-# Professional build configuration
+# Build configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
-PARALLEL_JOBS="${PARALLEL_JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}"
+# Bounded parallelism (repo rule: never a bare -j/unbounded). Uses the same
+# helper as the CI/build scripts — min(nproc, RAM_GB/2, 8).
+PARALLEL_JOBS="${PARALLEL_JOBS:-$(bash "${PROJECT_ROOT}/scripts/build_jobs.sh" 2>/dev/null || echo 8)}"
 
 # Professional logging
 BUILD_LOG="${BUILD_DIR}/professional_build.log"
@@ -106,7 +108,10 @@ configure_build() {
             ;;
         macos)
             cmake_args+=("-G" "Unix Makefiles")
-            cmake_args+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0")
+            # Keep in step with packaging/macos/Info.plist.in
+            # (LSMinimumSystemVersion 12.0): deployment target must not exceed
+            # the documented minimum (review LOW).
+            cmake_args+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${DABX_OSX_DEPLOYMENT_TARGET:-12.0}")
             if [ "$(uname -m)" = "arm64" ]; then
                 cmake_args+=("-DCMAKE_OSX_ARCHITECTURES=arm64")
             else
@@ -195,12 +200,14 @@ create_packages() {
                 log_message "❌ Linux DEB package creation failed"
             fi
 
-            # RPM package
-            if cpack -G RPM; then
+            # RPM package (documented matrix is TGZ+DEB on Linux; RPM only when
+            # explicitly wanted, so the unbranded generic RPM is never emitted
+            # by default)
+            if [ -n "${DABX_BUILD_RPM:-}" ] && cpack -G RPM; then
                 packages_created+=("RPM")
-                log_message "✅ Linux RPM package created"
+                log_message "✅ Linux RPM package created (DABX_BUILD_RPM set)"
             else
-                log_message "❌ Linux RPM package creation failed"
+                log_message "ℹ️  Linux RPM skipped (set DABX_BUILD_RPM=1 to build)"
             fi
 
             # AppImage
@@ -313,8 +320,8 @@ main() {
     # Setup cleanup handler
     trap cleanup_on_exit EXIT
 
-    log_section "ETI Stream Analyser Professional Build System"
-    log_message "Starting professional cross-platform package build"
+    log_section "StreamDAB Analyser Package Build System"
+    log_message "Starting cross-platform package build"
     log_message "Target platform: $(detect_platform)"
 
     # Initialize build log

@@ -1,180 +1,144 @@
-#!/bin/bash
-# ETI Stream Analyser - Professional Linux AppImage Creation Script
-# Universal Linux distribution for all major distros
+#!/usr/bin/env bash
+# =============================================================================
+# StreamDAB Analyser — Linux AppImage builder (linuxdeploy + plugin-qt)
+# -----------------------------------------------------------------------------
+# Builds a self-contained AppImage from the `cmake --install` prefix using the
+# modern linuxdeploy toolchain. Requires a configured + built tree:
+#
+#   export QT_QPA_PLATFORM=offscreen
+#   cmake -B build -S .
+#   JOBS="$(bash scripts/build_jobs.sh)"        # bounded (never a bare -j)
+#   cmake --build build --parallel "$JOBS"
+#   ./packaging/linux/create_appimage.sh
+#
+# Output: build/StreamDAB-Analyser-<DABX_VERSION>-x86_64.AppImage
+# (the staging AppDir is build/appimage-stage/).
+#
+# Prerequisites (tool binaries are NOT downloaded by this script):
+#   - linuxdeploy            -> PATH, or $LINUXDEPLOY
+#   - linuxdeploy-plugin-qt  -> PATH, or $LINUXDEPLOY_PLUGIN_QT
+#   - (optional) appimagetool on PATH, or linuxdeploy-plugin-appimage, to produce
+#     the final .AppImage; without one of them the script stops after leaving a
+#     valid AppDir (build/appimage-stage/) and prints the manual command.
+#
+# Example install of the tools (one-time):
+#   mkdir -p ~/bin
+#   wget -qO ~/bin/linuxdeploy \
+#     https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+#   wget -qO ~/bin/linuxdeploy-plugin-qt \
+#     https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+#   chmod +x ~/bin/linuxdeploy ~/bin/linuxdeploy-plugin-qt
+#   export PATH="$HOME/bin:$PATH"
+#
+# On headless CI, set the AppImage container environment first:
+#   export APPIMAGE_EXTRACT_AND_RUN=1
+#
+# Env overrides:
+#   BUILD_DIR   build tree (default: <repo>/build)
+#   STAGE_DIR   AppDir staging prefix (default: <repo>/build/appimage-stage)
+#   LINUXDEPLOY / LINUXDEPLOY_PLUGIN_QT  explicit tool paths
+#   OUTPUT      AppImage file name (default: StreamDAB-Analyser-<ver>-x86_64.AppImage)
+# =============================================================================
+set -euo pipefail
 
-set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+BUILD_DIR="${BUILD_DIR:-${ROOT}/build}"
+STAGE_DIR="${STAGE_DIR:-${BUILD_DIR}/appimage-stage}"
+ARCH="$(uname -m)"                         # x86_64 / aarch64
 
-# Professional AppImage configuration
-APP_NAME="ETI Stream Analyser"
-APP_VERSION="${PROJECT_VERSION:-1.0.0}"
-APP_DIR="ETIStreamAnalyser.AppDir"
-APPIMAGE_NAME="ETI_Stream_Analyser-${APP_VERSION}-x86_64.AppImage"
+die() { echo "error: $*" >&2; exit 1; }
 
-echo "=== Creating Professional ETI Stream Analyser AppImage ==="
-echo "Version: ${APP_VERSION}"
-echo "Target: Universal Linux Distribution"
-
-# Clean previous builds
-rm -rf "${APP_DIR}"
-rm -f "${APPIMAGE_NAME}"
-
-# Create professional AppDir structure
-mkdir -p "${APP_DIR}/usr/bin"
-mkdir -p "${APP_DIR}/usr/lib"
-mkdir -p "${APP_DIR}/usr/share/applications"
-mkdir -p "${APP_DIR}/usr/share/icons/hicolor/256x256/apps"
-mkdir -p "${APP_DIR}/usr/share/mime/packages"
-mkdir -p "${APP_DIR}/usr/share/doc/eti-stream-analyser"
-
-# Copy main application
-echo "Installing application executable..."
-cp "${CMAKE_BINARY_DIR}/ETIStreamAnalyser" "${APP_DIR}/usr/bin/"
-chmod +x "${APP_DIR}/usr/bin/ETIStreamAnalyser"
-
-# Professional library bundling with linuxdeploy
-echo "Bundling required libraries..."
-if command -v linuxdeploy >/dev/null 2>&1; then
-    linuxdeploy --appdir "${APP_DIR}" --executable "${APP_DIR}/usr/bin/ETIStreamAnalyser"
-else
-    echo "Warning: linuxdeploy not found. Manual library copying required."
-    # Manual library detection and copying
-    ldd "${APP_DIR}/usr/bin/ETIStreamAnalyser" | grep "=>" | awk '{print $3}' | while read lib; do
-        if [[ "$lib" == /usr/lib* ]] || [[ "$lib" == /lib* ]]; then
-            continue  # Skip system libraries
-        fi
-        cp "$lib" "${APP_DIR}/usr/lib/" 2>/dev/null || true
-    done
-fi
-
-# Professional desktop integration
-echo "Creating professional desktop entry..."
-cat > "${APP_DIR}/usr/share/applications/eti-stream-analyser.desktop" << EOF
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=ETI Stream Analyser
-GenericName=Professional ETI/DAB Stream Analysis
-Comment=Professional ETI and DAB/DAB+ stream analyser for broadcast engineers
-Keywords=ETI;DAB;DAB+;Broadcast;Audio;Stream;Analysis;ETSI;Professional;
-Icon=eti-stream-analyser
-Exec=ETIStreamAnalyser %F
-Terminal=false
-MimeType=application/x-eti-stream;application/x-eti-ni;application/x-eti-li;
-Categories=AudioVideo;Audio;Professional;Engineering;
-StartupNotify=true
-StartupWMClass=ETIStreamAnalyser
-X-AppImage-Version=${APP_VERSION}
-X-AppImage-Comment=Professional broadcast engineering tool
-EOF
-
-# Create AppImage desktop file (required by AppImage spec)
-cp "${APP_DIR}/usr/share/applications/eti-stream-analyser.desktop" "${APP_DIR}/"
-
-# Professional MIME type support
-echo "Registering professional broadcast file types..."
-cat > "${APP_DIR}/usr/share/mime/packages/eti-stream-analyser.xml" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
-    <mime-type type="application/x-eti-stream">
-        <comment>ETI Stream File</comment>
-        <comment xml:lang="en">ETI (Ensemble Transport Interface) Stream File</comment>
-        <icon name="eti-stream-analyser"/>
-        <glob pattern="*.eti"/>
-        <magic priority="50">
-            <match value="ETI" type="string" offset="0"/>
-        </magic>
-    </mime-type>
-    <mime-type type="application/x-eti-ni">
-        <comment>ETI-NI Stream File</comment>
-        <icon name="eti-stream-analyser"/>
-        <glob pattern="*.eti"/>
-        <glob pattern="*.etini"/>
-    </mime-type>
-    <mime-type type="application/x-eti-li">
-        <comment>ETI-LI Stream File</comment>
-        <icon name="eti-stream-analyser"/>
-        <glob pattern="*.eti"/>
-        <glob pattern="*.etili"/>
-    </mime-type>
-</mime-info>
-EOF
-
-# Professional application icon
-echo "Installing professional application icon..."
-if [ -f "${CMAKE_SOURCE_DIR}/resources/icons/eti-analyser-256.png" ]; then
-    cp "${CMAKE_SOURCE_DIR}/resources/icons/eti-analyser-256.png" "${APP_DIR}/usr/share/icons/hicolor/256x256/apps/eti-stream-analyser.png"
-    cp "${CMAKE_SOURCE_DIR}/resources/icons/eti-analyser-256.png" "${APP_DIR}/eti-stream-analyser.png"
-else
-    echo "Warning: Application icon not found. Using placeholder."
-    # Create a simple placeholder icon
-    convert -size 256x256 xc:lightblue -pointsize 24 -fill black -gravity center -annotate +0+0 "ETI\nAnalyser" "${APP_DIR}/eti-stream-analyser.png" 2>/dev/null || true
-fi
-
-# Professional AppRun script
-echo "Creating professional AppRun launcher..."
-cat > "${APP_DIR}/AppRun" << 'EOF'
-#!/bin/bash
-# ETI Stream Analyser Professional AppImage Launcher
-
-HERE="$(dirname "$(readlink -f "${0}")")"
-
-# Professional environment setup
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-export PATH="${HERE}/usr/bin:${PATH}"
-export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS}"
-
-# Professional Qt application settings
-export QT_PLUGIN_PATH="${HERE}/usr/lib/qt6/plugins:${QT_PLUGIN_PATH}"
-export QML2_IMPORT_PATH="${HERE}/usr/lib/qt6/qml:${QML2_IMPORT_PATH}"
-
-# Professional broadcast engineering environment
-export ETI_ANALYSER_PORTABLE=1
-export ETI_ANALYSER_CONFIG_DIR="${HOME}/.config/eti-stream-analyser"
-
-# Create professional config directory
-mkdir -p "${ETI_ANALYSER_CONFIG_DIR}"
-
-# Launch professional application
-exec "${HERE}/usr/bin/ETIStreamAnalyser" "$@"
-EOF
-
-chmod +x "${APP_DIR}/AppRun"
-
-# Professional documentation
-echo "Installing professional documentation..."
-if [ -f "${CMAKE_SOURCE_DIR}/README.md" ]; then
-    cp "${CMAKE_SOURCE_DIR}/README.md" "${APP_DIR}/usr/share/doc/eti-stream-analyser/"
-fi
-if [ -f "${CMAKE_SOURCE_DIR}/LICENSE" ]; then
-    cp "${CMAKE_SOURCE_DIR}/LICENSE" "${APP_DIR}/usr/share/doc/eti-stream-analyser/"
-fi
-
-# Create professional AppImage
-echo "Creating professional AppImage package..."
-if command -v appimagetool >/dev/null 2>&1; then
-    # Use official AppImage tool
-    appimagetool "${APP_DIR}" "${APPIMAGE_NAME}"
-else
-    echo "Warning: appimagetool not found. Please install AppImageKit."
-    echo "AppDir created at: ${APP_DIR}"
-    echo "Manual AppImage creation required."
-    exit 1
-fi
-
-# Professional package validation
-if [ -f "${APPIMAGE_NAME}" ]; then
-    echo "=== Professional AppImage Created Successfully ==="
-    echo "File: ${APPIMAGE_NAME}"
-    echo "Size: $(du -h "${APPIMAGE_NAME}" | cut -f1)"
-    echo "Executable: chmod +x ${APPIMAGE_NAME} && ./${APPIMAGE_NAME}"
-
-    # Professional integrity check
-    if command -v sha256sum >/dev/null 2>&1; then
-        echo "SHA256: $(sha256sum "${APPIMAGE_NAME}" | cut -d' ' -f1)"
+# --- version (single source: DABX_VERSION -> CPACK_PACKAGE_VERSION in cache) --
+resolve_version() {
+    local v
+    v="$(sed -n 's/^CPACK_PACKAGE_VERSION:STRING=//p' \
+        "${BUILD_DIR}/CMakeCache.txt" 2>/dev/null | head -1)"
+    if [ -z "${v}" ]; then
+        v="$(sed -n 's/^set(CPACK_PACKAGE_VERSION "\(.*\)")$/\1/p' \
+            "${BUILD_DIR}/CPackConfig.cmake" 2>/dev/null | head -1)"
     fi
+    if [ -z "${v}" ]; then
+        v="$(git -C "${ROOT}" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)"
+    fi
+    [ -n "${v}" ] || die "cannot resolve the version — configure build/ first (cmake -B ${BUILD_DIR} -S ${ROOT})"
+    echo "${v}"
+}
 
-    echo "Ready for professional broadcast engineering deployment."
+# --- tool discovery ----------------------------------------------------------
+LINUXDEPLOY="${LINUXDEPLOY:-$(command -v linuxdeploy || true)}"
+LINUXDEPLOY_PLUGIN_QT="${LINUXDEPLOY_PLUGIN_QT:-$(command -v linuxdeploy-plugin-qt || true)}"
+[ -n "${LINUXDEPLOY}" ] || die "linuxdeploy not found — set LINUXDEPLOY or add it to PATH (see header)"
+[ -n "${LINUXDEPLOY_PLUGIN_QT}" ] || die "linuxdeploy-plugin-qt not found — set LINUXDEPLOY_PLUGIN_QT or add it to PATH (see header)"
+
+VERSION="$(resolve_version)"
+OUTPUT="${OUTPUT:-StreamDAB-Analyser-${VERSION}-${ARCH}.AppImage}"
+
+echo "=== StreamDAB Analyser AppImage (v${VERSION}, ${ARCH}) ==="
+echo "Staging : ${STAGE_DIR}"
+echo "linuxdeploy: ${LINUXDEPLOY}"
+echo "plugin-qt : ${LINUXDEPLOY_PLUGIN_QT}"
+
+# --- 1) fresh AppDir staged from cmake --install -------------------------------
+# cmake --install --prefix <stage> produces exactly the AppDir layout the
+# AppImage spec expects: usr/bin, usr/share/applications, usr/share/icons/...,
+# usr/share/mime/packages, usr/share/doc — plus the two binaries.
+rm -rf "${STAGE_DIR}"
+cmake --install "${BUILD_DIR}" --prefix "${STAGE_DIR}"
+
+[ -x "${STAGE_DIR}/usr/bin/StreamDABAnalyser" ] || die \
+    "staged AppDir has no usr/bin/StreamDABAnalyser — did the build succeed?"
+[ -f "${STAGE_DIR}/usr/share/applications/eti-stream-analyser.desktop" ] || die \
+    "staged AppDir has no desktop file — check install() rules"
+
+# --- 2) optional high-res raster icon (AppImage tooling prefers PNG) ----------
+# The install tree ships hicolor/scalable/apps/eti-stream-analyser.svg. If a
+# rasteriser is available, add a 256x256 PNG alongside it.
+if command -v rsvg-convert >/dev/null 2>&1; then
+    mkdir -p "${STAGE_DIR}/usr/share/icons/hicolor/256x256/apps"
+    rsvg-convert -w 256 -h 256 \
+        "${STAGE_DIR}/usr/share/icons/hicolor/scalable/apps/eti-stream-analyser.svg" \
+        -o "${STAGE_DIR}/usr/share/icons/hicolor/256x256/apps/eti-stream-analyser.png"
+elif command -v convert >/dev/null 2>&1; then
+    mkdir -p "${STAGE_DIR}/usr/share/icons/hicolor/256x256/apps"
+    convert -background none \
+        "${STAGE_DIR}/usr/share/icons/hicolor/scalable/apps/eti-stream-analyser.svg" \
+        -resize 256x256 \
+        "${STAGE_DIR}/usr/share/icons/hicolor/256x256/apps/eti-stream-analyser.png"
 else
-    echo "Error: AppImage creation failed."
-    exit 1
+    echo "note: no rsvg-convert/convert found — SVG icon stays scalable-only"
+fi
+
+# --- 3) bundle Qt + libs into the AppDir with linuxdeploy ----------------------
+"${LINUXDEPLOY}" \
+    --appdir "${STAGE_DIR}" \
+    --executable "${STAGE_DIR}/usr/bin/StreamDABAnalyser" \
+    --desktop-file "${STAGE_DIR}/usr/share/applications/eti-stream-analyser.desktop" \
+    --icon-file "${STAGE_DIR}/usr/share/icons/hicolor/scalable/apps/eti-stream-analyser.svg" \
+    --plugin qt
+
+# --- 4) produce the AppImage ---------------------------------------------------
+if command -v appimagetool >/dev/null 2>&1; then
+    echo "Creating ${OUTPUT} with appimagetool..."
+    appimagetool "${STAGE_DIR}" "${OUTPUT}"
+elif command -v linuxdeploy-plugin-appimage >/dev/null 2>&1; then
+    echo "Creating ${OUTPUT} with linuxdeploy-plugin-appimage (OUTPUT=${OUTPUT})..."
+    OUTPUT="${OUTPUT}" "${LINUXDEPLOY}" \
+        --appdir "${STAGE_DIR}" \
+        --output appimage
+else
+    echo "note: neither appimagetool nor linuxdeploy-plugin-appimage found."
+    echo "A valid AppDir is ready at: ${STAGE_DIR}"
+    echo "Create the AppImage manually, e.g.:"
+    echo "  appimagetool ${STAGE_DIR} ${OUTPUT}"
+    exit 0
+fi
+
+if [ -f "${OUTPUT}" ]; then
+    echo "=== AppImage created successfully ==="
+    echo "Artifact: ${OUTPUT}"
+    echo "Size    : $(du -h "${OUTPUT}" | cut -f1)"
+    echo "SHA256  : $(sha256sum "${OUTPUT}" | cut -d' ' -f1)"
+else
+    die "AppImage was not created (see tool output above)"
 fi

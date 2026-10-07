@@ -1,15 +1,11 @@
-# Release — tag-triggered GitHub Release with per-OS binaries.
+# Release — tag-triggered GitHub Release with per-OS packages.
 #
 # Triggered by tags vX.Y.Z (e.g. v1.6.0). Builds the same matrix as ci.yml,
-# packages the produced binaries into per-OS archives and publishes a GitHub
-# Release with auto-generated notes from the commit history since the previous
-# tag.
-#
-# NOTE on packaging: `install()` rules + CPack (AppImage/.app/.dmg/NSIS) are
-# still on the roadmap (INSTALL.md §6). Until then this job ships the raw
-# build outputs (StreamDABAnalyser + streamdab-cli + the eti fixtures for
-# validation); when CPack lands, switch these artifact steps to `cpack`
-# outputs without touching the rest of the pipeline.
+# packages the produced binaries with CPack (TGZ+DEB on Linux, ZIP on
+# Windows, .dmg on macOS via scripts/bundle-macos.sh) and publishes a GitHub
+# Release with auto-generated notes from the commit history since the
+# previous tag. NSIS installers and the AppImage script are documented in
+# INSTALL.md §6 (they need makensis / linuxdeploy on the runner).
 
 name: Release
 
@@ -98,39 +94,48 @@ jobs:
         run: ctest --preset test-${{ matrix.name }}
 
       # ----------------------------------------------------------- package
-      - name: Stage binaries (Linux/macOS)
+      # CPack artifacts (INSTALL.md §6): TGZ+DEB on Linux, ZIP on Windows,
+      # .dmg via scripts/bundle-macos.sh (install -> macdeployqt -> hdiutil)
+      # on macOS. NSIS needs makensis on the runner; enabled when available.
+      - name: "Package (Linux: TGZ + DEB)"
+        if: runner.os == 'Linux'
+        working-directory: build
+        run: |
+          cpack --config CPackConfig.cmake -G TGZ
+          cpack --config CPackConfig.cmake -G DEB
+
+      - name: "Package (Windows: ZIP)"
+        if: runner.os == 'Windows'
+        working-directory: build
+        shell: pwsh
+        run: cpack --config CPackConfig.cmake -G ZIP
+
+      - name: "Package (macOS: .app + .dmg)"
+        if: runner.os == 'macOS'
+        run: bash scripts/bundle-macos.sh
+
+      - name: Normalize artifact file names (Linux/macOS)
         if: runner.os != 'Windows'
         working-directory: build
         run: |
-          mkdir -p stage
-          cp StreamDABAnalyser streamdab-cli stage/
-        # Windows exe names are copied in the Windows step below.
+          # Rename the newest CPack/sript artifact to the matrix asset name.
+          latest="$(ls -t streamdab-analyser*.tar.gz *.deb *.dmg 2>/dev/null | head -1)"
+          [ -n "$latest" ] && cp "$latest" ${{ matrix.archive }}
 
-      - name: Stage binaries (Windows)
+      - name: Normalize artifact file name (Windows)
         if: runner.os == 'Windows'
         working-directory: build
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force stage | Out-Null
-          Copy-Item StreamDABAnalyser.exe stage/
-          Copy-Item streamdab-cli.exe stage/
-
-      - name: Archive
-        if: runner.os != 'Windows'
-        working-directory: build
-        run: tar -czf ${{ matrix.archive }} -C stage .
-
-      - name: Archive (Windows)
-        if: runner.os == 'Windows'
-        working-directory: build
-        shell: pwsh
-        run: Compress-Archive -Path stage/* -DestinationPath ${{ matrix.archive }}
+          $latest = Get-ChildItem streamdab-analyser*.zip | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if ($latest) { Copy-Item $latest.FullName -Destination ${{ matrix.archive }} }
 
       - name: Upload archive
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.archive }}
           path: build/${{ matrix.archive }}
+          if-no-files-found: error
 
   release:
     name: Publish GitHub Release
@@ -167,12 +172,12 @@ jobs:
             git log --format='- %s' "$PREV..HEAD" > RELEASE_NOTES.md
           fi
           {
-            echo "Built and tested on Linux, Windows and macOS (ctest 55/55,"
+            echo "Built and tested on Linux, Windows and macOS (ctest 56/56,"
             echo "fixture parity DLS+ 1114 / MOT 97/97)."
             echo ""
-            echo "Assets: per-OS archives with the GUI (StreamDABAnalyser) and"
-            echo "the CLI (streamdab-cli). Packaging via CPack/AppImage/.dmg"
-            echo "lands in the next release."
+            echo "Assets: CPack packages — TGZ + DEB (Linux), ZIP (Windows),"
+            echo ".dmg (macOS) — each carrying the GUI (StreamDABAnalyser) and"
+            echo "the CLI (streamdab-cli)."
           } >> RELEASE_NOTES.md
 
       - name: Create/update the GitHub Release

@@ -1,5 +1,5 @@
 #!/bin/bash
-# ETI Stream Analyser - Comprehensive Package Validation Script
+# StreamDAB Analyser - Comprehensive Package Validation Script
 # Professional validation for all distribution packages
 
 set -e
@@ -9,8 +9,8 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build"
 
 echo "============================================"
-echo "ETI Stream Analyser Package Validation Suite"
-echo "Professional Quality Assurance for v1.0.0"
+echo "StreamDAB Analyser Package Validation Suite"
+echo "Package validation for the installed binaries and CPack artifacts"
 echo "============================================"
 
 # Professional validation functions
@@ -137,9 +137,9 @@ validate_build_artifacts() {
     echo ""
     echo "=== Build Artifacts Validation ==="
 
-    local executable="${BUILD_DIR}/ETIStreamAnalyser"
-    local test_unit="${BUILD_DIR}/tests/eti_analyser_unit_tests"
-    local test_gui="${BUILD_DIR}/tests/eti_analyser_gui_tests"
+    local executable="${BUILD_DIR}/StreamDABAnalyser"
+    local test_unit="${BUILD_DIR}/tests/test_advanced_fig_analyser"
+    local test_gui="${BUILD_DIR}/tests/test_gui_dock_layout"
 
     validate_file_exists "$executable" "Main Application"
     validate_file_exists "$test_unit" "Unit Test Executable"
@@ -153,7 +153,7 @@ run_functional_tests() {
     echo ""
     echo "=== Functional Testing ==="
 
-    local executable="${BUILD_DIR}/ETIStreamAnalyser"
+    local executable="${BUILD_DIR}/StreamDABAnalyser"
 
     if [ -x "$executable" ]; then
         echo "🧪 Testing executable launch (help mode):"
@@ -205,7 +205,7 @@ generate_validation_report() {
     echo "============================================"
     echo "VALIDATION REPORT SUMMARY"
     echo "============================================"
-    echo "Project: ETI Stream Analyser v1.0.0"
+    echo "Project: StreamDAB Analyser"
     echo "Build Date: $(date)"
     echo "Platform: $(uname -s) $(uname -m)"
     echo "Validation Time: $(date '+%Y-%m-%d %H:%M:%S')"
@@ -242,19 +242,19 @@ main() {
 
     # Core validation
     validate_build_artifacts || ((validation_errors++))
-    validate_executable "${BUILD_DIR}/ETIStreamAnalyser" || ((validation_errors++))
+    validate_executable "${BUILD_DIR}/StreamDABAnalyser" || ((validation_errors++))
     validate_desktop_integration || ((validation_errors++))
     validate_packaging_metadata || ((validation_errors++))
 
-    # Package validation
-    local deb_file="${BUILD_DIR}/ETI Stream Analyser-1.0.0-Linux.deb"
-    local tar_file="${BUILD_DIR}/ETI Stream Analyser-1.0.0-Linux.tar.gz"
+    # Package validation (CPack artifacts: streamdab-analyser-<version>-Linux.*)
+    local deb_file="$(find "${BUILD_DIR}" -maxdepth 1 -name 'streamdab-analyser-*.deb' | head -1)"
+    local tar_file="$(find "${BUILD_DIR}" -maxdepth 1 -name 'streamdab-analyser-*.tar.gz' | head -1)"
 
-    if [ -f "$deb_file" ]; then
+    if [ -n "$deb_file" ] && [ -f "$deb_file" ]; then
         validate_deb_package "$deb_file" || ((validation_errors++))
     fi
 
-    if [ -f "$tar_file" ]; then
+    if [ -n "$tar_file" ] && [ -f "$tar_file" ]; then
         validate_tar_package "$tar_file" || ((validation_errors++))
     fi
 
