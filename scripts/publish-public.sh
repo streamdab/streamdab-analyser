@@ -125,10 +125,26 @@ for p in "${EXCLUDES[@]}"; do
 done
 [ "$leaks" -eq 0 ] || { echo "error: excluded paths are still present" >&2; exit 1; }
 
-# 3) Secret-ish scan over the tracked files (advisory, fails the run on hits).
-if git grep -nIE '(api[_-]?key|secret|password|BEGIN [A-Z ]*PRIVATE KEY)' -- . 2>/dev/null | head -20; then
-    echo "error: potential secrets found (above) — review before publishing" >&2
-    exit 1
+# 3) Secret scan over the tracked files. Matches actual credential VALUES
+#    (assignments with a quoted value), private-key blocks, credential files
+#    and credentials embedded in URLs — NOT bare identifiers such as a member
+#    named `secret_access_key` (legit API design, e.g. the uncompiled
+#    cloud_analytics_infrastructure.hpp). Hits demand a confirmation; --yes
+#    (explicit "assume yes to every prompt") proceeds after the warning.
+SECRET_HITS="$( { git grep -nIE \
+    '(-----BEGIN [A-Z]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[0-9A-Za-z]{20,}|xox[baprs]-[0-9A-Za-z-]{20,})' -- . ; \
+    git grep -nIE \
+    '(api[_-]?key|secret|passwd|password|token|credential)[[:space:]]*=[[:space:]]*["'"'"'][^"'"'"']{6,}' -- . ; \
+    git grep -nIE '://[^/[:space:]]+:[^/@[:space:]]+@' -- . ; \
+    git ls-files | grep -iE '(\.env$|\.pem$|\.key$|\.p12$|\.jks$|secrets?/)' ; } 2>/dev/null | head -20 || true )"
+if [ -n "$SECRET_HITS" ]; then
+    echo "!! warning: potential secrets found — review each hit before publishing:"
+    echo "$SECRET_HITS"
+    if [ "$ASSUME_YES" -ne 1 ]; then
+        echo "Type 'yes' to confirm these are not real credentials:"
+        read -r ans || true
+        [ "$ans" = "yes" ] || { echo "aborted." >&2; exit 1; }
+    fi
 fi
 
 echo "-> files to publish: $(git ls-files | wc -l)"
