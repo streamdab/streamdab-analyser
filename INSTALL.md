@@ -3,10 +3,11 @@
 Build & install instructions for **DAB-XPlorer** (Qt 6 / C++20 / CMake GUI + CLI).
 Reference runtime: **Qt 6.11 / g++ 13 / Ubuntu** — see the version matrix at the end.
 
-Test suite: **55/55 (100 %)** with `QT_QPA_PLATFORM=offscreen`. Real ETI fixtures live in
-`eti/` and are **gitignored** — several tests (GUI dock layout, CLI E2E) require them;
-without fixtures those tests are skipped/fail, so obtain captures (e.g.
-`bkk_20062022_141637.eti`) before running the full suite.
+Test suite: **55/55 (100 %)** with `QT_QPA_PLATFORM=offscreen`. The main fixture
+`eti/bkk_20062022_141637.eti` (30 MB) is **committed** — several tests (GUI dock
+layout, CLI E2E) and the CI parity/smoke gates require it and run on GitHub too.
+The other, larger capture directories in `eti/` stay gitignored; obtain them
+separately if a test needs them.
 
 ---
 
@@ -74,7 +75,7 @@ docker build -t streamdab:build --target build -f docker/Dockerfile .
 # Minimal runtime image
 docker build -t streamdab:latest -f docker/Dockerfile .
 
-# CLI on a capture (fixtures are gitignored → mount them):
+# CLI on a capture (bkk_... is IN the repo; the volume still makes /data tidy):
 docker run --rm -v $PWD/eti:/data streamdab:latest \
     streamdab-cli --input /data/bkk_20062022_141637.eti --output /data/out.yaml
 

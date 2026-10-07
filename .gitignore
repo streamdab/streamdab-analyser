@@ -248,11 +248,12 @@ config/local.*
 test_data/streams/
 samples/large/
 
-# Large ETI test data directories (excluded from git to prevent repo bloat)
-# Developers should obtain these files separately for testing
+# Large ETI test data directories (sample captures below stay unignored on
+# purpose: the public 55/55 parity gate + CI smoke run against bkk_... ).
+# Compressed broadcast captures are re-downloaded separately by developers.
 eti/BayerischerRundfunk-Warntag2024-2024-09-12/
 eti/EWSv1_1/
-eti/*.eti
+!eti/bkk_20062022_141637.eti
 
 # Generated reports
 reports/
