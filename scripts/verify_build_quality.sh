@@ -24,7 +24,11 @@ echo "🧹 Step 1: Clean build (removing cached artifacts)..."
 make clean > /dev/null 2>&1
 
 echo "🔨 Step 2: Full build with warning detection..."
-BUILD_OUTPUT=$(make -j$(nproc) 2>&1)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "${SCRIPT_DIR}/build_jobs.sh"
+VQ_JOBS=$(streamdab_build_jobs)
+export CMAKE_BUILD_PARALLEL_LEVEL="${VQ_JOBS}"
+BUILD_OUTPUT=$(make -j"${VQ_JOBS}" 2>&1)
 BUILD_EXIT_CODE=$?
 
 echo "📊 Step 3: Analyzing build results..."

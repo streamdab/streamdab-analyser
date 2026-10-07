@@ -1,0 +1,56 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Release (Unix Makefiles)",
+      "description": "Standard release configure used by the repo (build/ directory).",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug (Unix Makefiles)",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "displayName": "Build - RAM-safe parallelism (12 jobs)",
+      "description": "Caps parallelism so gmake cannot over-fork on many-core boxes. Override per invocation with: cmake --build --preset default --parallel N, or JOBS=N bash scripts/build.sh.",
+      "configurePreset": "default",
+      "jobs": 12
+    },
+    {
+      "name": "serial",
+      "displayName": "Build - 1 job (lowest memory)",
+      "configurePreset": "default",
+      "jobs": 1
+    },
+    {
+      "name": "low-memory",
+      "displayName": "Build - 4 jobs (small RAM)",
+      "configurePreset": "default",
+      "jobs": 4
+    },
+    {
+      "name": "debug",
+      "displayName": "Build Debug - 4 jobs",
+      "configurePreset": "debug",
+      "jobs": 4
+    }
+  ]
+}

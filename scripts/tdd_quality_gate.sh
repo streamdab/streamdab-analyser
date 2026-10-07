@@ -28,7 +28,11 @@ echo "" | tee -a "$TDD_LOG_FILE"
 # TDD GATE 1: Build System Integrity Check
 echo -e "${YELLOW}🔧 TDD GATE 1: Build System Integrity${NC}" | tee -a "$TDD_LOG_FILE"
 cd "$BUILD_DIR"
-if ! make -j$(nproc) 2>&1 | tee -a "$TDD_LOG_FILE"; then
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "${SCRIPT_DIR}/build_jobs.sh"
+TDD_JOBS=$(streamdab_build_jobs)
+export CMAKE_BUILD_PARALLEL_LEVEL="${TDD_JOBS}"
+if ! make -j"${TDD_JOBS}" 2>&1 | tee -a "$TDD_LOG_FILE"; then
     echo -e "${RED}❌ TDD GATE 1 FAILED: Build system broken${NC}" | tee -a "$TDD_LOG_FILE"
     exit 1
 fi

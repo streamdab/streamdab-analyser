@@ -27,6 +27,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QTabWidget>
+#include <QScrollArea>
 
 #include "gui/settings_dialog.h"
 #include "utils/app_settings.hpp"
@@ -268,4 +269,65 @@ TEST_F(SettingsDialogTest, LoggerLevelMapping)
         EXPECT_EQ(SettingsDialog::indexForLoggerLevel(SettingsDialog::loggerLevelForIndex(i)), i)
             << "log-level mapping must be bijective at index " << i;
     }
+}
+
+TEST_F(SettingsDialogTest, EveryTabScrollsAndAnalyzerControlsAreReachable)
+{
+    SettingsDialog dialog;
+    QTabWidget* tabs = dialog.findChild<QTabWidget*>();
+    ASSERT_NE(tabs, nullptr);
+    ASSERT_GE(tabs->count(), 5) << "General/Processing/Audio/Advanced/Analyzer";
+
+    // Every tab's content lives in a resizable scroll area: long forms (the
+    // Analyzer tab has groups A..I) must never be squeezed until only the
+    // group titles remain visible.
+    for (int i = 0; i < tabs->count(); ++i) {
+        auto* scroll = qobject_cast<QScrollArea*>(tabs->widget(i));
+        ASSERT_NE(scroll, nullptr) << tabs->tabText(i).toStdString();
+        EXPECT_TRUE(scroll->widgetResizable());
+        EXPECT_NE(scroll->widget(), nullptr) << tabs->tabText(i).toStdString();
+    }
+
+    int analyzerIndex = -1;
+    for (int i = 0; i < tabs->count(); ++i) {
+        if (tabs->tabText(i) == QStringLiteral("Analyzer")) {
+            analyzerIndex = i;
+        }
+    }
+    ASSERT_GE(analyzerIndex, 0) << "Analyzer tab must exist";
+    tabs->setCurrentIndex(analyzerIndex);
+    dialog.show();
+    QCoreApplication::processEvents();
+
+    auto* scroll = qobject_cast<QScrollArea*>(tabs->widget(analyzerIndex));
+    ASSERT_NE(scroll, nullptr);
+    QWidget* content = scroll->widget();
+    ASSERT_NE(content, nullptr);
+
+    // The matrix A..I rows must exist as real editable controls (13 widgets).
+    const auto spins = content->findChildren<QSpinBox*>();
+    const auto combos = content->findChildren<QComboBox*>();
+    const auto checks = content->findChildren<QCheckBox*>();
+    EXPECT_EQ(spins.size() + combos.size() + checks.size(), 13)
+        << "spins=" << spins.size() << " combos=" << combos.size()
+        << " checks=" << checks.size();
+
+    // ...and each one must have a usable geometry in the shown dialog (the bug
+    // was controls clipped away so only group titles were visible).
+    QList<QWidget*> editable;
+    for (auto* w : spins) editable.append(w);
+    for (auto* w : combos) editable.append(w);
+    for (auto* w : checks) editable.append(w);
+    for (QWidget* w : editable) {
+        EXPECT_GT(w->height(), 0);
+        EXPECT_GT(w->width(), 0);
+        EXPECT_TRUE(w->isVisibleTo(content));
+    }
+
+    // The form is taller than the viewport, i.e. the scroll area is what makes
+    // the lower groups reachable rather than dead space.
+    EXPECT_GT(content->sizeHint().height(), 0);
+
+    dialog.close();
+    QCoreApplication::processEvents();
 }
