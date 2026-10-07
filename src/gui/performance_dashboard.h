@@ -58,7 +58,7 @@ struct ComplianceResult {
  * @brief Professional real-time performance monitoring dashboard
  * 
  * This widget provides comprehensive real-time performance monitoring
- * for the ETI Stream Analyser with broadcast industry standards:
+ * for the StreamDAB Analyser with broadcast industry standards:
  * - Live FPS monitoring with 900+ FPS target validation
  * - Memory usage tracking with professional thresholds
  * - ETSI compliance monitoring and violation alerts

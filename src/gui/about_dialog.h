@@ -20,9 +20,9 @@
 
 /**
  * @class AboutDialog
- * @brief Professional about dialog for ETI Stream Analyser
+ * @brief Professional about dialog for StreamDAB Analyser
  * 
- * This dialog provides comprehensive information about the ETI Stream Analyser
+ * This dialog provides comprehensive information about the StreamDAB Analyser
  * application including version details, credits, license information, and
  * system information for professional broadcast environments.
  */
@@ -143,9 +143,9 @@ private:
     QTextEdit *m_systemInfoText;
 
     // Application information
-    static constexpr const char* APP_NAME = "StreamDAB Stream Analyser";
+    static constexpr const char* APP_NAME = "StreamDAB Analyser";
     static constexpr const char* APP_VERSION = DABX_VERSION;
-    static constexpr const char* APP_BUILD = "Professional Edition";
-    static constexpr const char* APP_COPYRIGHT = "Copyright © 2024 ETI Stream Analyser Team";
+    static constexpr const char* APP_BUILD = "Open Source Edition (GPL-3.0+)";
+    static constexpr const char* APP_COPYRIGHT = "Copyright © 2026 StreamDAB Analyser contributors";
     static constexpr const char* APP_WEBSITE = "https://git.morange.co.th/morange/streamdab-analyser";
 };
