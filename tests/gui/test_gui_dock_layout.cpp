@@ -158,6 +158,10 @@ private slots:
     void testMotSlideshowRealFixture();
     // T29: Player transport controls + playback controller + default Player tab
     void testPlayerPanelTransportControls();
+    // T45: live Logging tab (bottom strip) fed by the Logger singleton
+    void testLoggingTabLive();
+    // W1 #2: Logging-tab batching (burst -> bounded flush within the window)
+    void testLoggingTabBatching();
     void testPlaybackController();
     void testPlayerActiveTabAfterVersionBump();
     // T36: stale v5 center order/active tabs discarded (5 -> 6, superseded by T34 6 -> 7)
@@ -197,6 +201,9 @@ private:
         s.remove(QStringLiteral("docking/tab2"));
         s.remove(QStringLiteral("docking/tab3"));
         s.remove(QStringLiteral("docking/bottom"));
+        // W1 #3: the Logging tab writes advanced/logLevel; clear it too so a
+        // test cannot leak a Debug level into the next test.
+        s.remove(QStringLiteral("advanced/logLevel"));
         s.sync();
     }
 
@@ -618,12 +625,17 @@ void TestGuiDockLayout::testBottomStripDocks()
         QCOMPARE(actualTitles, expectedTitles);
     }
 
-    // Wave B: the four heavy adopted tabs are wrapped in frameless, resizable
+    // Wave B: the five heavy adopted tabs (Performance / Real-Time Chart /
+    // ETSI Compliance / Constellation / Logging) are wrapped in frameless,
+    // resizable
     // QScrollAreas so the 120 px strip cap keeps the light tabs compact while
     // the heavy tabs stay usable (scrollable) instead of being clipped.
     const QStringList heavyNames = {
         QStringLiteral("bottom_Performance"), QStringLiteral("bottom_RealTimeChart"),
-        QStringLiteral("bottom_EtsiCompliance"), QStringLiteral("bottom_Constellation")};
+        QStringLiteral("bottom_EtsiCompliance"), QStringLiteral("bottom_Constellation"),
+        // T45: the live Logging tab (table + level controls) is taller than the
+        // strip default and is wrapped in the same scroll area.
+        QStringLiteral("bottom_Logging")};
     for (const QString& name : heavyNames) {
         ads::CDockWidget* dock = mBottom->findDockWidget(name);
         QVERIFY2(dock, qPrintable(name));
@@ -3202,8 +3214,273 @@ void TestGuiDockLayout::testPlayerPanelTransportControls()
     QVERIFY2(!play->isEnabled(),
              "T29: transport controls must be disabled before a file is loaded");
 
+    // T44: every transport button must render something. The old unicode media
+    // glyphs were missing from the default font (blank/tofu buttons); each
+    // button must now carry either a non-null style icon or a text fallback.
+    const QStringList transportNames = {
+        QStringLiteral("playButton"), QStringLiteral("pauseButton"),
+        QStringLiteral("stopButton"), QStringLiteral("resetButton"),
+        QStringLiteral("skipBackButton"), QStringLiteral("skipForwardButton")};
+    for (const QString& name : transportNames) {
+        QPushButton* b = panel->findChild<QPushButton*>(name);
+        QVERIFY2(b, qPrintable(name));
+        QVERIFY2(!b->icon().isNull() || !b->text().isEmpty(),
+                 qPrintable(name + QStringLiteral(
+                     " must have an icon or non-empty text (must never be blank)")));
+    }
+
+    // W1 #5: the text fallback is the DEFENSIVE null-icon path (every shipped
+    // style supplies the media icons). Drive the public face helper directly
+    // with a null icon to prove both branches work.
+    {
+        QPushButton nullIconProbe;
+        DABAnalyzerWindow::applyTransportButtonFace(
+            &nullIconProbe, QIcon(), QStringLiteral("Play"));
+        QVERIFY2(nullIconProbe.icon().isNull(),
+                 "null icon must leave the button icon-less");
+        QCOMPARE(nullIconProbe.text(), QStringLiteral("Play"));
+        QVERIFY2(nullIconProbe.maximumWidth() >= nullIconProbe.minimumWidth(),
+                 "fallback button must keep a sane width range");
+
+        QPushButton styleIconProbe;
+        DABAnalyzerWindow::applyTransportButtonFace(
+            &styleIconProbe,
+            styleIconProbe.style()->standardIcon(QStyle::SP_MediaPlay),
+            QStringLiteral("Play"));
+        QVERIFY2(!styleIconProbe.icon().isNull(),
+                 "resolved style icon must be applied");
+        QVERIFY2(styleIconProbe.text().isEmpty(),
+                 "icon path must not also show fallback text");
+    }
+
     w.close();
     QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// T45: the bottom-strip "Logging" tab is a real, live, bounded log view fed by
+// the Logger singleton (not the old static placeholder). Verifies: the queued
+// logger signal populates the view, the in-tab level selector drives the
+// Logger and persists the SAME settings key as the Settings dialog, Clear
+// empties it, and the ring cap holds.
+// ============================================================================
+void TestGuiDockLayout::testLoggingTabLive()
+{
+    clearSettingsStore();
+    // W1 #3: capture the live Logger level so the test cannot leak Debug into
+    // the remaining dock tests.
+    const Logger::LogLevel originalLevel = Logger::instance().getLogLevel();
+
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // Threading contract: the Logger singleton is GUI-thread affine (created on
+    // the main thread during window construction); the Logging tab still uses a
+    // queued connection so any cross-thread emission is delivered safely.
+    QCOMPARE(Logger::instance().thread(), QCoreApplication::instance()->thread());
+
+    QTableWidget* table = w.loggingTableForTest();
+    QComboBox* combo = w.loggingLevelComboForTest();
+    QPushButton* clear = w.loggingClearButtonForTest();
+    QLabel* summary = w.loggingSummaryLabelForTest();
+    QVERIFY2(table, "Logging tab must expose a log table");
+    QVERIFY2(combo, "Logging tab must expose a level selector");
+    QVERIFY2(clear, "Logging tab must expose a clear button");
+    QVERIFY2(summary, "Logging tab must expose a summary label");
+    QCOMPARE(combo->count(), 5);  // Debug/Info/Warning/Error/Critical
+    QCOMPARE(w.loggingRowCapForTest(), 2000);
+
+    // Start from a clean slate (the tab only shows entries seen since connect).
+    clear->click();
+    QCOMPARE(table->rowCount(), 0);
+
+    // Level selector: choosing Debug drives the Logger and persists the SAME
+    // `advanced/logLevel` key the Settings dialog writes.
+    const int debugIndex = combo->findData(static_cast<int>(Logger::LogLevel::Debug));
+    QVERIFY2(debugIndex >= 0, "Debug must be selectable");
+    combo->setCurrentIndex(debugIndex);
+    QCOMPARE(static_cast<int>(Logger::instance().getLogLevel()),
+             static_cast<int>(Logger::LogLevel::Debug));
+    {
+        QSettings s(streamdab::app_settings::organization(),
+                    streamdab::app_settings::application());
+        // Logging-tab level must persist via the shared advanced/logLevel key.
+        QCOMPARE(s.value(QStringLiteral("advanced/logLevel")).toInt(),
+                 SettingsDialog::indexForLoggerLevel(
+                     static_cast<int>(Logger::LogLevel::Debug)));
+    }
+
+    // Emit through the real Logger: the queued signal must populate the view.
+    // Debug level can also surface background debug logs, so wait for OUR
+    // specific lines rather than just a row count.
+    Logger::instance().logInfo(QStringLiteral("unit-test-info"), QStringLiteral("TestCat"));
+    Logger::instance().logWarning(QStringLiteral("unit-test-warn"), QStringLiteral("TestCat"));
+    auto hasEntry = [table](const QString& category, const QString& message) {
+        for (int r = 0; r < table->rowCount(); ++r) {
+            const QString cat = table->item(r, 2) ? table->item(r, 2)->text() : QString();
+            const QString msg = table->item(r, 3) ? table->item(r, 3)->text() : QString();
+            if (cat == category && msg == message) {
+                return true;
+            }
+        }
+        return false;
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(
+        hasEntry(QStringLiteral("TestCat"), QStringLiteral("unit-test-info")), 3000);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        hasEntry(QStringLiteral("TestCat"), QStringLiteral("unit-test-warn")), 3000);
+
+    // W1 #4: ring cap holds AND the surviving rows are the NEWEST ones.
+    // Switch to Error so background Debug/Info/Warning logs cannot pollute the
+    // deterministic row set below.
+    const int errorIndex = combo->findData(static_cast<int>(Logger::LogLevel::Error));
+    QVERIFY2(errorIndex >= 0, "Error must be selectable");
+    combo->setCurrentIndex(errorIndex);
+    QCOMPARE(static_cast<int>(Logger::instance().getLogLevel()),
+             static_cast<int>(Logger::LogLevel::Error));
+
+    clear->click();
+    w.setLoggingRowCapForTest(5);
+    QCOMPARE(table->rowCount(), 0);
+    for (int i = 0; i < 12; ++i) {
+        Logger::instance().logError(QStringLiteral("ring-%1").arg(i), QStringLiteral("Ring"));
+    }
+    QTRY_COMPARE_WITH_TIMEOUT(table->rowCount(), 5, 3000);
+    {
+        QStringList survivors;
+        for (int r = 0; r < table->rowCount(); ++r) {
+            survivors << (table->item(r, 3) ? table->item(r, 3)->text() : QString());
+        }
+        for (int i = 7; i < 12; ++i) {  // newest five
+            QVERIFY2(survivors.contains(QStringLiteral("ring-%1").arg(i)),
+                     qPrintable(QStringLiteral("newest entry missing: ring-%1").arg(i)));
+        }
+        for (int i = 0; i < 7; ++i) {   // oldest seven dropped
+            QVERIFY2(!survivors.contains(QStringLiteral("ring-%1").arg(i)),
+                     qPrintable(QStringLiteral("oldest entry not dropped: ring-%1").arg(i)));
+        }
+    }
+    // Tally + summary: all 12 were Error but the ring holds 5 -> E must be 5
+    // (i.e. the evicted Errors were decremented, not accumulated).
+    QVERIFY2(summary->text().contains(QStringLiteral("5 entries")),
+             qPrintable(summary->text()));
+    QVERIFY2(summary->text().contains(QStringLiteral("E:5")),
+             qPrintable(summary->text()));
+
+    // W1 #4: per-level tally decrement on eviction. cap 3; feed W,W,E,C so the
+    // oldest W is evicted -> W:1 E:1 C:1 (not W:2).
+    const int warnIndex = combo->findData(static_cast<int>(Logger::LogLevel::Warning));
+    QVERIFY2(warnIndex >= 0, "Warning must be selectable");
+    combo->setCurrentIndex(warnIndex);
+    clear->click();
+    w.setLoggingRowCapForTest(3);
+    Logger::instance().logWarning(QStringLiteral("tally-1"), QStringLiteral("Tally"));
+    Logger::instance().logWarning(QStringLiteral("tally-2"), QStringLiteral("Tally"));
+    Logger::instance().logError(QStringLiteral("tally-3"), QStringLiteral("Tally"));
+    Logger::instance().logCritical(QStringLiteral("tally-4"), QStringLiteral("Tally"));
+    QTRY_COMPARE_WITH_TIMEOUT(table->rowCount(), 3, 3000);
+    QTRY_VERIFY_WITH_TIMEOUT(summary->text().contains(QStringLiteral("W:1")), 3000);
+    QVERIFY2(summary->text().contains(QStringLiteral("E:1")), qPrintable(summary->text()));
+    QVERIFY2(summary->text().contains(QStringLiteral("C:1")), qPrintable(summary->text()));
+    QVERIFY2(summary->text().contains(QStringLiteral("3 entries")), qPrintable(summary->text()));
+    {
+        QStringList survivors;
+        for (int r = 0; r < table->rowCount(); ++r) {
+            survivors << (table->item(r, 3) ? table->item(r, 3)->text() : QString());
+        }
+        QVERIFY2(!survivors.contains(QStringLiteral("tally-1")),
+                 "oldest warning must have been evicted");
+        QVERIFY2(survivors.contains(QStringLiteral("tally-2")), "tally-2 must survive");
+        QVERIFY2(survivors.contains(QStringLiteral("tally-3")), "tally-3 must survive");
+        QVERIFY2(survivors.contains(QStringLiteral("tally-4")), "tally-4 must survive");
+    }
+
+    // Clear empties the view and any staged-but-unflushed entries.
+    clear->click();
+    QCOMPARE(table->rowCount(), 0);
+    QCOMPARE(w.loggingPendingForTest(), 0);
+
+    // W1 #3: restore the pre-test Logger level (the settings key is cleared by
+    // clearSettingsStore()).
+    Logger::instance().setLogLevel(originalLevel);
+
+    w.close();
+    QCoreApplication::processEvents();
+    clearSettingsStore();
+}
+
+// ============================================================================
+// W1 #2: Logging-tab batching. A synchronous burst of log calls must NOT run
+// per-message table work immediately (it is staged), must be visible within the
+// flush window, and the ring cap must still hold.
+// ============================================================================
+void TestGuiDockLayout::testLoggingTabBatching()
+{
+    clearSettingsStore();
+    const Logger::LogLevel originalLevel = Logger::instance().getLogLevel();
+
+    DABAnalyzerWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    QTableWidget* table = w.loggingTableForTest();
+    QComboBox* combo = w.loggingLevelComboForTest();
+    QPushButton* clear = w.loggingClearButtonForTest();
+    QVERIFY(table && combo && clear);
+
+    // Critical filters out background Debug/Info/Warning logs so the burst is
+    // the only input to the view.
+    const int criticalIndex = combo->findData(static_cast<int>(Logger::LogLevel::Critical));
+    QVERIFY(criticalIndex >= 0);
+    combo->setCurrentIndex(criticalIndex);
+    clear->click();
+    QCOMPARE(table->rowCount(), 0);
+
+    // Synchronous burst, no event processing: the entries are staged on the
+    // Logger's queued path, so the table must still be untouched here.
+    const int kBurst = 2500;
+    for (int i = 0; i < kBurst; ++i) {
+        Logger::instance().logCritical(QStringLiteral("burst-%1").arg(i),
+                                       QStringLiteral("Burst"));
+    }
+    QCOMPARE(table->rowCount(), 0);
+
+    // Within the flush window the view fills, bounded by the 2000-row ring.
+    QTRY_COMPARE_WITH_TIMEOUT(table->rowCount(), 2000, 5000);
+
+    // The newest entry must EVENTUALLY appear: the table reaches the 2000-row
+    // cap before the last staged batch is flushed (batching is FIFO, 300 rows
+    // per 75 ms flush), so poll for it instead of checking once.
+    auto newestPresent = [table]() {
+        for (int r = 0; r < table->rowCount(); ++r) {
+            if (table->item(r, 3)
+                && table->item(r, 3)->text() == QStringLiteral("burst-2499")) {
+                return true;
+            }
+        }
+        return false;
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(newestPresent(), 5000);
+
+    // ...and FIFO + ring dropped the OLDEST burst entries.
+    bool sawOldest = false;
+    for (int r = 0; r < table->rowCount(); ++r) {
+        if (table->item(r, 3)
+            && table->item(r, 3)->text() == QStringLiteral("burst-0")) {
+            sawOldest = true;
+            break;
+        }
+    }
+    QVERIFY2(!sawOldest, "oldest burst entry must be evicted by the ring");
+
+    clear->click();
+    QCOMPARE(table->rowCount(), 0);
+
+    Logger::instance().setLogLevel(originalLevel);
+    w.close();
+    QCoreApplication::processEvents();
+    clearSettingsStore();
 }
 
 // ============================================================================

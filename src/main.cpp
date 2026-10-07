@@ -30,6 +30,7 @@
 #include <QToolButton>          // T23: ⚙ UDP-streaming-settings button in the network row
 // T29: playback controls (seek slider + transport buttons).
 #include <QSlider>
+#include <QStyle>               // T44: style media icons for the transport buttons
 #include <QSignalBlocker>
 #include <QFrame>
 #include <QDateTime>
@@ -58,6 +59,8 @@
 #include <chrono>
 #include <memory>
 #include <map>
+#include <deque>                // W1 #2: Logging-tab staging buffer (O(1) pop_front)
+#include <limits>               // W1 #2: drainAll flush budget
 #include <list>
 #include <deque>
 #include <functional>
@@ -1312,6 +1315,16 @@ public:
     QToolButton* udpSettingsButtonForTest() const { return m_udpSettingsBtn; }
     // Build (without exec'ing) the UDP Streaming Settings dialog. Caller owns it.
     QDialog* buildUdpSettingsDialogForTest() { return buildUDPSettingsDialog().dialog; }
+
+    // T45 test hooks: the live Logging tab widgets.
+    QTableWidget* loggingTableForTest() const { return m_loggingTable; }
+    QComboBox* loggingLevelComboForTest() const { return m_loggingLevelCombo; }
+    QCheckBox* loggingAutoScrollCheckForTest() const { return m_loggingAutoScrollCheck; }
+    QPushButton* loggingClearButtonForTest() const { return m_loggingClearButton; }
+    QLabel* loggingSummaryLabelForTest() const { return m_loggingSummaryLabel; }
+    int loggingRowCapForTest() const { return m_loggingRowCap; }
+    int loggingDroppedForTest() const { return m_logDroppedPending; }
+    int loggingPendingForTest() const { return static_cast<int>(m_logPending.size()); }
 
     // Wave B test hooks: adopted bottom-strip/managed widgets.
     PerformanceDashboard* performanceDashboardForTest() const { return m_performanceDashboard; }
@@ -3480,6 +3493,8 @@ public:
     // Settings audit: drive the live apply path without opening the modal
     // dialog (which would block an offscreen test).
     void applyPersistedAppSettingsForTest() { applyPersistedAppSettings(); }
+    // T45: exercise the Logging-tab ring cap without feeding thousands of rows.
+    void setLoggingRowCapForTest(int cap) { m_loggingRowCap = qMax(1, cap); }
     void applyAudioSettingsForTest(const QString& device, bool muted, int volume)
     {
         applyAudioSettings(device, muted, volume);
@@ -4146,7 +4161,7 @@ private:
             m_recordedFrames = 0;
             
             if (m_recordBtn) {
-                m_recordBtn->setText("⏹ Stop Recording");
+                m_recordBtn->setText("Stop Recording");  // W1 #1: plain text
                 m_recordBtn->setStyleSheet("background-color: #D32F2F; color: white; font-weight: bold;");
             }
             
@@ -4167,7 +4182,7 @@ private:
         m_recordingFile.close();
         
         if (m_recordBtn) {
-            m_recordBtn->setText("⏺ Record");
+            m_recordBtn->setText("Record");  // W1 #1: plain text
             m_recordBtn->setStyleSheet("background-color: #D32F2F; color: white;");
         }
         
@@ -5127,11 +5142,14 @@ private:
             m_networkReceiver->set_buffer_size(static_cast<size_t>(m_networkBufferFrames));
         }
 
-        // Advanced: logger level.
+        // Advanced: logger level (0=Error, 1=Warning, 2=Info, 3=Debug,
+        // 4=Critical; see SettingsDialog::loggerLevelForIndex). The Logger is
+        // the single source of truth; the bottom-strip Logging tab mirrors it.
         const int levelIndex =
-            qBound(0, s.value(QStringLiteral("advanced/logLevel"), 2).toInt(), 3);
+            qBound(0, s.value(QStringLiteral("advanced/logLevel"), 2).toInt(), 4);
         Logger::instance().setLogLevel(static_cast<Logger::LogLevel>(
             SettingsDialog::loggerLevelForIndex(levelIndex)));
+        syncLoggingLevelComboFromLogger();
 
         // Audio: shared with the T34 Audio tab / controller.
         applyAudioSettings(s.value(QStringLiteral("audio/device"), QString()).toString(),
@@ -5238,6 +5256,9 @@ protected:
 
         // v1.3: persist docking/window state BEFORE any component teardown
         saveDockingState();
+
+        // W1 #2: drain staged log entries into the table before teardown.
+        flushPendingLogEntries(/*drainAll=*/true);
 
         // T29: stop the playback playhead before teardown.
         m_playbackPlaying = false;
@@ -7698,7 +7719,10 @@ private:
         m_connectBtn->setStyleSheet("font-weight: bold; background-color: #107C10; color: white;");
         m_disconnectBtn = new QPushButton("Disconnect");
         m_disconnectBtn->setEnabled(false);
-        m_recordBtn = new QPushButton("⏺ Record");
+        // W1 #1: plain text only. Qt has no SP_MediaRecord standard icon, and
+        // the previous "⏺"/"⏹" glyphs (U+23FA/U+23F9) are font-dependent and
+        // rendered as tofu on fonts without them.
+        m_recordBtn = new QPushButton("Record");
         m_recordBtn->setEnabled(false);
         m_recordBtn->setStyleSheet("background-color: #D32F2F; color: white;");
         m_streamStatus = new QLabel("<span style='color: #666;'>● Disconnected</span>");
@@ -8538,11 +8562,21 @@ private:
             wrapHeavyPanel(m_etsiMonitor));
         m_bottomDockManager->addDockWidgetTabToArea(dEtsi, d1->dockAreaWidget());
 
-        // Tab 6: Logging Summary
+        // Tab 6: Logging (T45) — live, bounded log view fed by Logger. Wrapped
+        // in the same frameless scroll area as the other tall tabs so it stays
+        // usable at the ~120 px strip default.
         ads::CDockWidget* d4 = makeDock(m_bottomDockManager,
             QStringLiteral("bottom_Logging"), QStringLiteral("Logging"),
-            createLoggingSummaryTab());
+            wrapHeavyPanel(createLoggingSummaryTab()));
         m_bottomDockManager->addDockWidgetTabToArea(d4, d1->dockAreaWidget());
+        // W1 #2: flush staged entries when the Logging tab is hidden (tab
+        // switch / dock closed) so nothing is lost while the timer is stopped.
+        connect(d4, &ads::CDockWidget::visibilityChanged, this,
+                [this](bool visible) {
+                    if (!visible) {
+                        flushPendingLogEntries(/*drainAll=*/true);
+                    }
+                });
 
         // Tab 7: Constellation Viewer (real widget; synthetic post-demod path).
         ads::CDockWidget* d5 = makeDock(m_bottomDockManager,
@@ -8645,20 +8679,325 @@ private:
         return widget;
     }
 
+    // ========================================================================
+    // T45: live Logging tab (bottom strip)
+    // ------------------------------------------------------------------------
+    // The tab used to be a static italic placeholder ("Recent Activity: 0 log
+    // entries"). It is now a real, bounded log view fed by the singleton
+    // Logger::logMessageAdded signal: time | level | category | message, with
+    // a level selector (single source of truth: Logger + the shared
+    // `advanced/logLevel` Settings key), an auto-scroll toggle, a clear button
+    // and a summary line. The backing store is a ring of the last
+    // LOGGING_MAX_ROWS entries (oldest dropped).
+    //
+    // Threading: Logger::logMessageAdded is emitted from the Logger object's
+    // thread (it marshals to its own thread via QTimer::singleShot(0, this,…)),
+    // and the Logger singleton is created on the GUI thread during window
+    // construction, so it is GUI-thread affine. The signal is nonetheless
+    // connected with Qt::QueuedConnection so a cross-thread emission (if a
+    // future Logger ever lives/heartbeats on another thread) is always
+    // delivered to this GUI slot safely rather than touching widgets from a
+    // worker thread.
+    // ========================================================================
+
+    static QString logLevelDisplayName(Logger::LogLevel level)
+    {
+        switch (level) {
+            case Logger::LogLevel::Debug:    return QStringLiteral("Debug");
+            case Logger::LogLevel::Info:     return QStringLiteral("Info");
+            case Logger::LogLevel::Warning:  return QStringLiteral("Warning");
+            case Logger::LogLevel::Error:    return QStringLiteral("Error");
+            case Logger::LogLevel::Critical: return QStringLiteral("Critical");
+        }
+        return QStringLiteral("Unknown");
+    }
+
+    static QColor logLevelColor(Logger::LogLevel level)
+    {
+        switch (level) {
+            case Logger::LogLevel::Debug:    return QColor(0x88, 0x88, 0x88);
+            case Logger::LogLevel::Info:     return QColor(0x21, 0x8a, 0x3a);
+            case Logger::LogLevel::Warning:  return QColor(0xb8, 0x6e, 0x00);
+            case Logger::LogLevel::Error:    return QColor(0xc0, 0x28, 0x28);
+            case Logger::LogLevel::Critical: return QColor(0x8b, 0x00, 0x28);
+        }
+        return QColor(0x33, 0x33, 0x33);
+    }
+
+    /// Summary line: total entry count + per-level tallies.
+    void updateLoggingSummary()
+    {
+        if (!m_loggingSummaryLabel) {
+            return;
+        }
+        const int total = m_loggingTable ? m_loggingTable->rowCount() : 0;
+        QString text = tr("%1 entries — D:%2 I:%3 W:%4 E:%5 C:%6")
+                           .arg(total)
+                           .arg(m_loggingLevelCounts[0])
+                           .arg(m_loggingLevelCounts[1])
+                           .arg(m_loggingLevelCounts[2])
+                           .arg(m_loggingLevelCounts[3])
+                           .arg(m_loggingLevelCounts[4]);
+        if (m_logDroppedPending > 0) {
+            // Under backlog the oldest staged entries are dropped; surface it.
+            text += tr(" — %1 dropped (backlog)").arg(m_logDroppedPending);
+        }
+        m_loggingSummaryLabel->setText(text);
+    }
+
+    /// Reflect the authoritative Logger level in the tab's combo (no signal
+    /// echo, so this never re-persists or changes the Logger).
+    void syncLoggingLevelComboFromLogger()
+    {
+        if (!m_loggingLevelCombo) {
+            return;
+        }
+        const int levelInt = static_cast<int>(Logger::instance().getLogLevel());
+        const int index = m_loggingLevelCombo->findData(levelInt);
+        if (index >= 0 && index != m_loggingLevelCombo->currentIndex()) {
+            const QSignalBlocker blocker(m_loggingLevelCombo);
+            m_loggingLevelCombo->setCurrentIndex(index);
+        }
+    }
+
+    /// Drop every row / counter and any staged-but-unflushed entries.
+    void clearLogEntries()
+    {
+        if (m_loggingTable) {
+            m_loggingTable->setRowCount(0);
+        }
+        // Also drop staged entries so a pending flush cannot repopulate the
+        // view after the user pressed Clear.
+        m_logPending.clear();
+        m_logDroppedPending = 0;
+        for (int i = 0; i < LOG_LEVEL_COUNT; ++i) {
+            m_loggingLevelCounts[i] = 0;
+        }
+        updateLoggingSummary();
+    }
+
+    /// Level combo changed: drive the Logger now and persist the SAME Settings
+    /// key the Settings dialog writes, so the two never disagree.
+    void onLoggingLevelComboChanged(int index)
+    {
+        if (!m_loggingLevelCombo || index < 0) {
+            return;
+        }
+        const int levelInt = m_loggingLevelCombo->itemData(index).toInt();
+        Logger::instance().setLogLevel(static_cast<Logger::LogLevel>(levelInt));
+
+        if (!m_appSettings) {
+            m_appSettings = streamdab::app_settings::create(this);
+        }
+        m_appSettings->setValue(QStringLiteral("advanced/logLevel"),
+                                SettingsDialog::indexForLoggerLevel(levelInt));
+        m_appSettings->sync();
+    }
+
+    /// W1 #2: staged log entry for the Logging-tab batching (declared here
+    /// because appendLogEntryToTable() below uses it in its signature; the
+    /// staging queue and flush timer live with the other logging members).
+    struct PendingLogEntry {
+        Logger::LogLevel level;
+        QString message;
+        QString category;
+        QDateTime timestamp;
+    };
+
+    /// Append one entry to the table, applying the ring cap and per-level
+    /// tally bookkeeping. Does NOT scroll or recompute the summary — the
+    /// caller (flushPendingLogEntries) does that once per batch.
+    void appendLogEntryToTable(const PendingLogEntry& entry)
+    {
+        // Strict ring: evict the oldest row(s) once at capacity, keeping the
+        // per-level tally in sync.
+        while (m_loggingTable->rowCount() >= m_loggingRowCap) {
+            const QTableWidgetItem* evicted = m_loggingTable->item(0, 1);
+            if (evicted) {
+                const int evictedLevel = evicted->data(Qt::UserRole).toInt();
+                if (evictedLevel >= 0 && evictedLevel < LOG_LEVEL_COUNT
+                    && m_loggingLevelCounts[evictedLevel] > 0) {
+                    --m_loggingLevelCounts[evictedLevel];
+                }
+            }
+            m_loggingTable->removeRow(0);
+        }
+
+        const int levelInt = static_cast<int>(entry.level);
+        const int row = m_loggingTable->rowCount();
+        m_loggingTable->insertRow(row);
+
+        auto* timeItem = new QTableWidgetItem(entry.timestamp.toString("hh:mm:ss.zzz"));
+        auto* levelItem = new QTableWidgetItem(logLevelDisplayName(entry.level));
+        levelItem->setData(Qt::UserRole, levelInt);
+        levelItem->setForeground(logLevelColor(entry.level));
+        auto* categoryItem = new QTableWidgetItem(
+            entry.category.isEmpty() ? tr("General") : entry.category);
+        auto* messageItem = new QTableWidgetItem(entry.message);
+        messageItem->setToolTip(entry.message);
+
+        m_loggingTable->setItem(row, 0, timeItem);
+        m_loggingTable->setItem(row, 1, levelItem);
+        m_loggingTable->setItem(row, 2, categoryItem);
+        m_loggingTable->setItem(row, 3, messageItem);
+
+        if (levelInt >= 0 && levelInt < LOG_LEVEL_COUNT) {
+            ++m_loggingLevelCounts[levelInt];
+        }
+    }
+
+    /// Drain the staging buffer into the table in bounded batches.
+    ///
+    /// W1 #2: a burst of debug logs (e.g. a live 250+ fps stream at Debug
+    /// level) used to run a full insertRow/setItem×4/scrollToBottom/setText per
+    /// message inside the queued slot, flooding the GUI event loop. Entries are
+    /// now coalesced and applied by this timer-driven flush:
+    ///   - ordering preserved (FIFO deque),
+    ///   - at most LOG_FLUSH_MAX_BATCH rows per flush (keeps the GUI responsive),
+    ///   - oldest pending entries dropped past LOG_PENDING_MAX (staging bound),
+    ///   - ring cap + per-level tallies updated exactly as before.
+    /// When drainAll is true (shutdown/hide) the whole backlog is flushed so the
+    /// last entries are never lost.
+    void flushPendingLogEntries(bool drainAll = false)
+    {
+        if (!m_loggingTable) {
+            m_logPending.clear();
+            return;
+        }
+
+        int budget = drainAll ? std::numeric_limits<int>::max() : LOG_FLUSH_MAX_BATCH;
+        while (!m_logPending.empty() && budget-- > 0) {
+            appendLogEntryToTable(m_logPending.front());
+            m_logPending.pop_front();
+        }
+
+        if (m_logPending.empty()) {
+            if (m_logFlushTimer) {
+                m_logFlushTimer->stop();
+            }
+        } else if (!drainAll && m_logFlushTimer && !m_logFlushTimer->isActive()) {
+            // Backlog remains: re-arm so we keep draining without waiting for
+            // the next inbound message.
+            m_logFlushTimer->start();
+        }
+
+        if (m_loggingAutoScrollCheck && m_loggingAutoScrollCheck->isChecked()
+            && m_loggingTable->rowCount() > 0) {
+            m_loggingTable->scrollToBottom();
+        }
+        updateLoggingSummary();
+    }
+
+    /// Slot for Logger::logMessageAdded (queued -> runs on the GUI thread).
+    /// Stages the entry only; the table is updated by flushPendingLogEntries().
+    void onLogMessageAdded(Logger::LogLevel level, const QString& message,
+                           const QString& category, const QDateTime& timestamp)
+    {
+        if (!m_loggingTable || m_loggingRowCap <= 0) {
+            return;
+        }
+
+        // Bound the staging buffer: under a sustained flood (GUI starved) drop
+        // the OLDEST waiting entries — the newest are the most useful.
+        if (static_cast<int>(m_logPending.size()) >= LOG_PENDING_MAX) {
+            m_logPending.pop_front();
+            ++m_logDroppedPending;
+        }
+        m_logPending.push_back(PendingLogEntry{level, message, category, timestamp});
+
+        if (m_logFlushTimer && !m_logFlushTimer->isActive()) {
+            m_logFlushTimer->start();
+        }
+    }
+
     QWidget* createLoggingSummaryTab()
     {
         QWidget* widget = new QWidget();
+        widget->setObjectName(QStringLiteral("loggingTab"));
+        // Taller than the ~120 px strip default so the wrapping QScrollArea
+        // produces real scrollbars; the tab stays usable via scrolling.
+        widget->setMinimumHeight(200);
         QVBoxLayout* layout = new QVBoxLayout(widget);
-        
-        QLabel* summaryLabel = new QLabel("Logging Summary (see the live System Messages tab in the shared bottom strip)");
-        summaryLabel->setStyleSheet("font-style: italic; color: #666;");
-        layout->addWidget(summaryLabel);
-        
-        QLabel* quickStats = new QLabel("Recent Activity: 0 log entries");
-        quickStats->setStyleSheet("font-weight: bold; font-size: 11pt;");
-        layout->addWidget(quickStats);
-        
-        layout->addStretch();
+        layout->setContentsMargins(4, 4, 4, 4);
+        layout->setSpacing(4);
+
+        // Controls row: level selector + auto-scroll + clear + summary.
+        QHBoxLayout* controls = new QHBoxLayout();
+        QLabel* levelLabel = new QLabel(tr("Level:"));
+        controls->addWidget(levelLabel);
+
+        m_loggingLevelCombo = new QComboBox();
+        m_loggingLevelCombo->setObjectName(QStringLiteral("loggingLevelCombo"));
+        m_loggingLevelCombo->setToolTip(tr(
+            "Minimum severity shown in this tab and written to the log. "
+            "Applies immediately and is shared with Settings → Advanced."));
+        // itemData is Logger::LogLevel's integer value.
+        m_loggingLevelCombo->addItem(tr("Debug"), static_cast<int>(Logger::LogLevel::Debug));
+        m_loggingLevelCombo->addItem(tr("Info"), static_cast<int>(Logger::LogLevel::Info));
+        m_loggingLevelCombo->addItem(tr("Warning"), static_cast<int>(Logger::LogLevel::Warning));
+        m_loggingLevelCombo->addItem(tr("Error"), static_cast<int>(Logger::LogLevel::Error));
+        m_loggingLevelCombo->addItem(tr("Critical"), static_cast<int>(Logger::LogLevel::Critical));
+        controls->addWidget(m_loggingLevelCombo);
+
+        m_loggingAutoScrollCheck = new QCheckBox(tr("Auto-scroll"));
+        m_loggingAutoScrollCheck->setObjectName(QStringLiteral("loggingAutoScrollCheck"));
+        m_loggingAutoScrollCheck->setChecked(true);
+        m_loggingAutoScrollCheck->setToolTip(tr("Keep the newest entry visible."));
+        controls->addWidget(m_loggingAutoScrollCheck);
+
+        m_loggingClearButton = new QPushButton(tr("Clear"));
+        m_loggingClearButton->setObjectName(QStringLiteral("loggingClearButton"));
+        m_loggingClearButton->setToolTip(tr("Remove all entries from this tab."));
+        controls->addWidget(m_loggingClearButton);
+
+        controls->addStretch();
+
+        m_loggingSummaryLabel = new QLabel();
+        m_loggingSummaryLabel->setObjectName(QStringLiteral("loggingSummaryLabel"));
+        controls->addWidget(m_loggingSummaryLabel);
+        layout->addLayout(controls);
+
+        // Entry view: time | level | category | message.
+        m_loggingTable = new QTableWidget();
+        m_loggingTable->setObjectName(QStringLiteral("loggingTable"));
+        m_loggingTable->setColumnCount(4);
+        m_loggingTable->setHorizontalHeaderLabels(
+            {tr("Time"), tr("Level"), tr("Category"), tr("Message")});
+        m_loggingTable->verticalHeader()->setVisible(false);
+        m_loggingTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        m_loggingTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+        m_loggingTable->setSelectionMode(QAbstractItemView::SingleSelection);
+        m_loggingTable->setWordWrap(false);
+        m_loggingTable->horizontalHeader()->setStretchLastSection(true);
+        m_loggingTable->setColumnWidth(0, 110);
+        m_loggingTable->setColumnWidth(1, 70);
+        m_loggingTable->setColumnWidth(2, 120);
+        layout->addWidget(m_loggingTable, 1);
+
+        // Initial state: mirror the live Logger and the persisted key.
+        syncLoggingLevelComboFromLogger();
+        updateLoggingSummary();
+
+        // W1 #2: coalescing flush timer. Started on the first staged entry and
+        // stopped when the staging buffer drains, so an idle tab costs nothing.
+        m_logFlushTimer = new QTimer(this);
+        m_logFlushTimer->setInterval(LOG_FLUSH_INTERVAL_MS);
+        m_logFlushTimer->setTimerType(Qt::CoarseTimer);
+        connect(m_logFlushTimer, &QTimer::timeout, this,
+                [this]() { flushPendingLogEntries(); });
+
+        connect(m_loggingLevelCombo, &QComboBox::currentIndexChanged,
+                this, &DABAnalyzerWindow::onLoggingLevelComboChanged);
+        connect(m_loggingClearButton, &QPushButton::clicked,
+                this, &DABAnalyzerWindow::clearLogEntries);
+
+        // Queued connection: the Logger signal may originate on another thread
+        // (see the block comment above); deliver it to this GUI-thread slot.
+        qRegisterMetaType<Logger::LogLevel>("Logger::LogLevel");
+        connect(&Logger::instance(), &Logger::logMessageAdded,
+                this, &DABAnalyzerWindow::onLogMessageAdded,
+                Qt::QueuedConnection);
+
         return widget;
     }
 
@@ -8852,6 +9191,60 @@ private:
     // ========================================================================
     // Items #1-4 from DATA_AVAILABILITY_MATRIX.md (LEFT Panel)
 
+public:
+    /**
+     * @brief Apply an already-resolved icon (or the text fallback) to a button.
+     *
+     * W1 #5: the text fallback is the DEFENSIVE path for a platform/style whose
+     * QStyle::standardIcon() returns a null icon for the media pixmaps. Every
+     * shipped style (Fusion, and the offscreen/minimal Qt test styles) supplies
+     * these icons, so the fallback is intentionally unreachable in normal runs;
+     * it exists only so a blank ("tofu") transport button can never ship. This
+     * method is public so tests can drive the null-icon path directly.
+     *
+     * Object names, tooltips and click connections are untouched; only the
+     * button face (icon vs. text) and a sane width are set here.
+     */
+    static void applyTransportButtonFace(QPushButton* button, const QIcon& icon,
+                                         const QString& fallbackText)
+    {
+        if (!button) {
+            return;
+        }
+        if (!icon.isNull()) {
+            button->setIcon(icon);
+            button->setIconSize(QSize(16, 16));
+            button->setText(QString());
+            button->setMaximumWidth(40);   // icon-only: compact square-ish button
+        } else {
+            button->setIcon(QIcon());
+            button->setText(fallbackText);
+            button->setMaximumWidth(64);   // short text needs a little more room
+        }
+        button->setMinimumWidth(32);
+    }
+
+private:
+    /**
+     * @brief Give a transport button a Qt style media icon with a text fallback.
+     *
+     * T44: the previous implementation used unicode media glyphs (U+23F8 pause,
+     * U+23EE reset, U+23EA/23E9 skip, U+25A0 stop). The default font has no
+     * glyph for most of them, so the buttons rendered blank ("tofu"). Qt's
+     * built-in style icons are guaranteed to be present on every shipped style;
+     * the text fallback in applyTransportButtonFace() covers the defensive case
+     * where a style has no media icon.
+     */
+    static void setTransportButtonIcon(QPushButton* button,
+                                       QStyle::StandardPixmap icon,
+                                       const QString& fallbackText)
+    {
+        if (!button) {
+            return;
+        }
+        applyTransportButtonFace(button, button->style()->standardIcon(icon), fallbackText);
+    }
+
     /**
      * @brief Create Player Panel for LEFT panel (Item #1)
      * 
@@ -8925,29 +9318,45 @@ private:
                 this, &DABAnalyzerWindow::onServiceSelectionChanged);
 
         // Row 5: Transport controls (Play / Pause / Stop / Reset), Skip -/+
+        // T44: use Qt's built-in style media icons (never a blank/tofu button)
+        // with a plain-text fallback when the style has no media icon.
         QHBoxLayout* transportRow = new QHBoxLayout();
-        m_playButton = new QPushButton(QStringLiteral("▶"));
+        m_playButton = new QPushButton();
         m_playButton->setObjectName(QStringLiteral("playButton"));
         m_playButton->setToolTip(tr("Play"));
-        m_pauseButton = new QPushButton(QStringLiteral("⏸"));
+        m_pauseButton = new QPushButton();
         m_pauseButton->setObjectName(QStringLiteral("pauseButton"));
         m_pauseButton->setToolTip(tr("Pause"));
-        m_stopButton = new QPushButton(QStringLiteral("■"));
+        m_stopButton = new QPushButton();
         m_stopButton->setObjectName(QStringLiteral("stopButton"));
         m_stopButton->setToolTip(tr("Stop (stop + return to frame 0)"));
-        m_resetButton = new QPushButton(QStringLiteral("⏮"));
+        m_resetButton = new QPushButton();
         m_resetButton->setObjectName(QStringLiteral("resetButton"));
         m_resetButton->setToolTip(tr("Reset to frame 0 (keeps play/pause state)"));
-        m_skipBackButton = new QPushButton(QStringLiteral("⏪"));
+        m_skipBackButton = new QPushButton();
         m_skipBackButton->setObjectName(QStringLiteral("skipBackButton"));
         m_skipBackButton->setToolTip(tr("Skip back 10 s"));
-        m_skipForwardButton = new QPushButton(QStringLiteral("⏩"));
+        m_skipForwardButton = new QPushButton();
         m_skipForwardButton->setObjectName(QStringLiteral("skipForwardButton"));
         m_skipForwardButton->setToolTip(tr("Skip forward 10 s"));
-        for (QPushButton* b : {m_resetButton, m_skipBackButton, m_playButton, m_pauseButton,
-                               m_stopButton, m_skipForwardButton}) {
-            b->setMaximumWidth(40);
-            transportRow->addWidget(b);
+
+        struct TransportButtonSpec {
+            QPushButton* button;
+            QStyle::StandardPixmap icon;
+            const char* fallbackText;
+        };
+        const TransportButtonSpec transportButtons[] = {
+            {m_resetButton,       QStyle::SP_MediaSkipBackward, "|<<"},
+            {m_skipBackButton,    QStyle::SP_MediaSeekBackward, "<<"},
+            {m_playButton,        QStyle::SP_MediaPlay,         "Play"},
+            {m_pauseButton,       QStyle::SP_MediaPause,        "Pause"},
+            {m_stopButton,        QStyle::SP_MediaStop,         "Stop"},
+            {m_skipForwardButton, QStyle::SP_MediaSeekForward,  ">>"},
+        };
+        for (const TransportButtonSpec& spec : transportButtons) {
+            setTransportButtonIcon(spec.button, spec.icon,
+                                   QString::fromLatin1(spec.fallbackText));
+            transportRow->addWidget(spec.button);
         }
         layout->addLayout(transportRow, 5, 0, 1, 2);
 
@@ -10473,6 +10882,32 @@ private:
     // m_logEntriesTree, m_loggingStatsDisplay) were removed with the redundant
     // `bottom_Messages` dock; the backing ProfessionalLoggingSystem was never
     // constructed. "System Messages" is the live log.
+    //
+    // T45: the separate bottom-strip "Logging" tab is now a real live log view
+    // (NOT the removed ProfessionalLoggingSystem): these members back it with
+    // a bounded ring fed by Logger::logMessageAdded.
+    QTableWidget* m_loggingTable = nullptr;             // time | level | category | message
+    QComboBox* m_loggingLevelCombo = nullptr;           // level selector (single source of truth)
+    QCheckBox* m_loggingAutoScrollCheck = nullptr;      // keep newest visible
+    QPushButton* m_loggingClearButton = nullptr;        // clear the view
+    QLabel* m_loggingSummaryLabel = nullptr;            // count/level summary
+    // T45: Logging tab ring size + number of Logger::LogLevel values. Declared
+    // here (before the array bound below) so the constant is in scope.
+    static constexpr int LOGGING_MAX_ROWS = 2000;
+    static constexpr int LOG_LEVEL_COUNT = 5;
+    int m_loggingRowCap = LOGGING_MAX_ROWS;             // ring capacity
+    int m_loggingLevelCounts[LOG_LEVEL_COUNT] = {0, 0, 0, 0, 0};
+
+    // W1 #2: Logging-tab batching. Incoming log entries are staged in a FIFO
+    // (see struct PendingLogEntry above, declared with the logging helpers)
+    // and flushed to the (already bounded) table by a short timer, so a burst
+    // of debug logs cannot run per-message table work on the GUI thread.
+    std::deque<PendingLogEntry> m_logPending;           // staging buffer (FIFO)
+    QTimer* m_logFlushTimer = nullptr;                  // coalescing flush timer
+    int m_logDroppedPending = 0;                        // dropped due to backlog
+    static constexpr int LOG_FLUSH_INTERVAL_MS = 75;    // 50..100 ms flush window
+    static constexpr int LOG_FLUSH_MAX_BATCH = 300;     // rows applied per flush
+    static constexpr int LOG_PENDING_MAX = 4000;        // staging-buffer cap
     QLabel* m_frameDetails = nullptr;  // Frame details display (Tab 1 LEFT panel)
     QTableWidget* m_etiExplorerDetails = nullptr;  // NEW: ETI Explorer Details table (Tab 1)
     QTableWidget* m_subchannelTable = nullptr;  // NEW: Subchannel Organization table (Tab 1 Center Panel)
@@ -10882,6 +11317,10 @@ DABAnalyzerWindow::~DABAnalyzerWindow()
     // T25 (F5): direct `delete` may skip closeEvent(); mark teardown so stale
     // queued slots degrade gracefully / suppress dialogs.
     m_closing = true;
+
+    // W1 #2: never lose the last log entries — drain any staged-but-unflushed
+    // rows while the table widgets are still alive.
+    flushPendingLogEntries(/*drainAll=*/true);
     // T29: make sure the playback timer is not running during destruction.
     m_playbackPlaying = false;
     if (m_playbackTimer) {
@@ -10983,6 +11422,14 @@ int main(int argc, char *argv[])
     app.setOrganizationName("StreamDAB-Analyzer");
     app.setApplicationName("DABAnalyzer");
     app.setApplicationVersion("1.3.0");
+
+    // W1 #9: pin the Logger singleton to the main (GUI) thread explicitly,
+    // before the window (or any worker/CLI path) can first create it. The
+    // Logger emits logMessageAdded from its own thread via
+    // QTimer::singleShot(0, this, …); if it were first constructed on a worker
+    // thread without a running event loop, that emission would silently vanish
+    // and GUI log consumers would see nothing. See src/utils/logger.h.
+    (void)Logger::instance();
 
     DABAnalyzerWindow window;
     window.show();

@@ -169,6 +169,41 @@ TEST_F(SettingsDialogTest, WiredControlsPersistAndRoundTrip)
     EXPECT_EQ(reload.audioVolume(), 40);
 }
 
+TEST_F(SettingsDialogTest, ProcessingTabIsSelfExplanatoryAndRoundTrips)
+{
+    SettingsDialog dialog;
+
+    // Stable object names (the wiring/tests rely on them).
+    QSpinBox* updateRate = dialog.findChild<QSpinBox*>(QStringLiteral("settingsUpdateRate"));
+    QSpinBox* bufferSize = dialog.findChild<QSpinBox*>(QStringLiteral("settingsBufferSize"));
+    ASSERT_NE(updateRate, nullptr);
+    ASSERT_NE(bufferSize, nullptr);
+
+    // Unit labels present (presence, not exact prose).
+    EXPECT_FALSE(updateRate->suffix().trimmed().isEmpty());
+    EXPECT_FALSE(bufferSize->suffix().trimmed().isEmpty());
+    EXPECT_TRUE(updateRate->suffix().contains(QStringLiteral("Hz"), Qt::CaseInsensitive));
+    EXPECT_TRUE(bufferSize->suffix().contains(QStringLiteral("frame"), Qt::CaseInsensitive));
+
+    // Tooltips state the effect (non-empty) — presence, not exact prose.
+    EXPECT_FALSE(updateRate->toolTip().trimmed().isEmpty());
+    EXPECT_FALSE(bufferSize->toolTip().trimmed().isEmpty());
+
+    // Values still round-trip through the shared store.
+    updateRate->setValue(7);
+    bufferSize->setValue(2500);
+    dialog.saveSettings();
+
+    const QSettings s(streamdab::app_settings::organization(),
+                      streamdab::app_settings::application());
+    EXPECT_EQ(s.value(QStringLiteral("analysis/updateRate")).toInt(), 7);
+    EXPECT_EQ(s.value(QStringLiteral("analysis/bufferSize")).toInt(), 2500);
+
+    SettingsDialog reload;
+    EXPECT_EQ(reload.getUpdateRate(), 7);
+    EXPECT_EQ(reload.getBufferSize(), 2500);
+}
+
 TEST_F(SettingsDialogTest, RemovedControlsDoNotExistAndAreNotPersisted)
 {
     SettingsDialog dialog;
@@ -179,14 +214,15 @@ TEST_F(SettingsDialogTest, RemovedControlsDoNotExistAndAreNotPersisted)
     }
 
     // The removed TABS (Display, Network, Performance) are also gone; the kept
-    // tabs are General, Analysis, Audio, Advanced, Analyzer.
+    // tabs are General, Processing (renamed from the unclear "Analysis"),
+    // Audio, Advanced, Analyzer.
     QTabWidget* tabs = dialog.findChild<QTabWidget*>();
     ASSERT_NE(tabs, nullptr);
     QStringList labels;
     for (int i = 0; i < tabs->count(); ++i) {
         labels << tabs->tabText(i);
     }
-    EXPECT_EQ(labels, QStringList({QStringLiteral("General"), QStringLiteral("Analysis"),
+    EXPECT_EQ(labels, QStringList({QStringLiteral("General"), QStringLiteral("Processing"),
                                    QStringLiteral("Audio"), QStringLiteral("Advanced"),
                                    QStringLiteral("Analyzer")}));
 
@@ -224,4 +260,12 @@ TEST_F(SettingsDialogTest, LoggerLevelMapping)
     EXPECT_EQ(SettingsDialog::loggerLevelForIndex(1), 2);  // Warning
     EXPECT_EQ(SettingsDialog::loggerLevelForIndex(2), 1);  // Info (default)
     EXPECT_EQ(SettingsDialog::loggerLevelForIndex(3), 0);  // Debug
+    EXPECT_EQ(SettingsDialog::loggerLevelForIndex(4), 4);  // Critical
+
+    // The inverse mapping must round-trip every combo entry, so the bottom-strip
+    // Logging tab and the Settings dialog can share `advanced/logLevel`.
+    for (int i = 0; i <= 4; ++i) {
+        EXPECT_EQ(SettingsDialog::indexForLoggerLevel(SettingsDialog::loggerLevelForIndex(i)), i)
+            << "log-level mapping must be bijective at index " << i;
+    }
 }

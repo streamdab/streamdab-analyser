@@ -8,10 +8,10 @@
  *
  *   general/confirmExit        -> DABAnalyzerWindow::closeEvent confirmation
  *   general/configPath         -> read-only display path (not persisted)
- *   analysis/updateRate        -> dashboard sampler rate in Hz (1..10)
- *   analysis/bufferSize        -> network receiver frame-buffer size
+ *   analysis/updateRate        -> dashboard sampler rate in Hz (1..10) — "Processing" tab
+ *   analysis/bufferSize        -> network receiver frame-buffer size — "Processing" tab
  *   audio/device,muted,volume  -> T34 AudioPlaybackController + Audio tab
- *   advanced/logLevel          -> Logger::setLogLevel
+ *   advanced/logLevel          -> Logger::setLogLevel (shared with the Logging tab)
  *   analyzer/ (group)          -> AnalyzerSettings (already wired)
  *
  * @author C++ Qt Developer Agent (settings audit, v1.3)
@@ -132,7 +132,11 @@ void SettingsDialog::createAnalysisTab()
     m_analysisTab = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(m_analysisTab);
 
-    QGroupBox *performanceGroup = new QGroupBox(tr("Performance"), m_analysisTab);
+    // Explicit group title: the tab was previously named "Analysis" with a
+    // "Performance" group, which said nothing about WHAT the two fields do.
+    // Both fields now carry their unit (suffix) and a tooltip that states the
+    // effect AND when it applies, so the tab is self-explanatory.
+    QGroupBox *performanceGroup = new QGroupBox(tr("Sampling and buffering"), m_analysisTab);
     QFormLayout *performanceLayout = new QFormLayout(performanceGroup);
 
     m_updateRateSpin = new QSpinBox();
@@ -143,7 +147,7 @@ void SettingsDialog::createAnalysisTab()
     m_updateRateSpin->setToolTip(tr(
         "Dashboard sampler rate. Drives how often the Performance Dashboard and "
         "Real-Time Chart are refreshed with real FPS/RSS/CPU. 1 Hz (default) is "
-        "the historical 1 s cadence; applied immediately."));
+        "the historical 1 s cadence. Applies immediately."));
 
     m_bufferSizeSpin = new QSpinBox();
     m_bufferSizeSpin->setObjectName(QStringLiteral("settingsBufferSize"));
@@ -151,17 +155,17 @@ void SettingsDialog::createAnalysisTab()
     m_bufferSizeSpin->setValue(DEFAULT_BUFFER_SIZE);
     m_bufferSizeSpin->setSuffix(tr(" frames"));
     m_bufferSizeSpin->setToolTip(tr(
-        "ETI-over-IP receiver frame buffer. Applied to the live receiver at "
-        "once and to every subsequent network connection. File playback is "
+        "Network receive buffer in ETI frames. Applied to a live connection "
+        "(re-initialises it) and to every new connection. File playback is "
         "unaffected."));
 
-    performanceLayout->addRow(tr("Update rate:"), m_updateRateSpin);
-    performanceLayout->addRow(tr("Network buffer:"), m_bufferSizeSpin);
+    performanceLayout->addRow(tr("Dashboard update rate:"), m_updateRateSpin);
+    performanceLayout->addRow(tr("Network receive buffer:"), m_bufferSizeSpin);
 
     layout->addWidget(performanceGroup);
     layout->addStretch();
 
-    m_tabWidget->addTab(m_analysisTab, tr("Analysis"));
+    m_tabWidget->addTab(m_analysisTab, tr("Processing"));
 }
 
 void SettingsDialog::createAudioTab()
@@ -218,11 +222,18 @@ void SettingsDialog::createAdvancedTab()
 
     m_logLevelCombo = new QComboBox();
     m_logLevelCombo->setObjectName(QStringLiteral("settingsLogLevel"));
-    m_logLevelCombo->addItems({tr("Error"), tr("Warning"), tr("Info"), tr("Debug")});
+    // Order/indices are the canonical encoding of `advanced/logLevel`; the
+    // bottom-strip Logging tab reuses the same mapping (see indexForLoggerLevel)
+    // so the two controls can never disagree. Critical is appended so the
+    // mapping is a bijection (Debug/Info/Warning/Error/Critical are all named
+    // in the Logging tab).
+    m_logLevelCombo->addItems({tr("Error"), tr("Warning"), tr("Info"), tr("Debug"),
+                               tr("Critical")});
     m_logLevelCombo->setCurrentIndex(2); // Info
     m_logLevelCombo->setToolTip(tr(
         "Minimum severity written to the log. Applied to the singleton Logger "
-        "immediately (Console + file). Debug enables verbose output."));
+        "immediately (Console + file). Debug enables verbose output, Critical "
+        "shows only critical messages."));
 
     debugLayout->addRow(tr("Log level:"), m_logLevelCombo);
 
@@ -445,9 +456,10 @@ void SettingsDialog::loadSettings()
         m_audioVolumeSlider->setValue(
             qBound(0, m_settings->value("audio/volume", DEFAULT_AUDIO_VOLUME).toInt(), 100));
 
-        // Advanced: logger level.
+        // Advanced: logger level (0=Error, 1=Warning, 2=Info, 3=Debug,
+        // 4=Critical; see loggerLevelForIndex()).
         m_logLevelCombo->setCurrentIndex(
-            qBound(0, m_settings->value("advanced/logLevel", 2).toInt(), 3));
+            qBound(0, m_settings->value("advanced/logLevel", 2).toInt(), 4));
 
         // Load analyzer / decode settings (option-variant matrix rows 1-14)
         {
@@ -696,14 +708,28 @@ int SettingsDialog::audioVolume() const
 
 int SettingsDialog::loggerLevelForIndex(int index)
 {
-    // Combo order: 0 Error, 1 Warning, 2 Info, 3 Debug.
+    // Combo order: 0 Error, 1 Warning, 2 Info, 3 Debug, 4 Critical.
     // Logger::LogLevel: Debug=0, Info=1, Warning=2, Error=3, Critical=4.
     switch (index) {
         case 0: return 3;  // Error
         case 1: return 2;  // Warning
         case 3: return 0;  // Debug
+        case 4: return 4;  // Critical
         case 2:
         default: return 1; // Info
+    }
+}
+
+int SettingsDialog::indexForLoggerLevel(int loggerLevel)
+{
+    // Inverse of loggerLevelForIndex() (see the header for the contract).
+    switch (loggerLevel) {
+        case 0: return 3;  // Debug
+        case 2: return 1;  // Warning
+        case 3: return 0;  // Error
+        case 4: return 4;  // Critical
+        case 1:
+        default: return 2; // Info
     }
 }
 
