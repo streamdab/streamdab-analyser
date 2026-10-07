@@ -37,6 +37,18 @@ must be migrated to this helper before use.
 - **Export**: the store is plain INI (Linux) — copy the file. On Windows/macOS
   use the registry/plist export tools. There is no separate export button.
 
+## Settings dialog tabs
+
+What each tab controls, and when a change takes effect:
+
+| Tab | Controls | Effect / when it applies |
+|---|---|---|
+| **General** | Confirm before closing; read-only configuration-store path | Exit confirmation applies immediately (window X and File→Exit; headless runs never prompt). The path is display-only. |
+| **Processing** | Dashboard update rate (`Hz`); network receive buffer (`frames`) | Update rate changes the dashboard/Real-Time-Chart sampler immediately. The buffer is applied to a new ETI-over-IP connection and re-initialises an active one; file playback is unaffected. |
+| **Audio** | Output device, mute, volume | Applies immediately to the T34 audio controller; the Transport Audio tab shows the same state (no second copy). |
+| **Advanced** | Log level (Error/Warning/Info/Debug/Critical) | Applies immediately to the singleton `Logger` (console + file). Also editable from the bottom-strip **Logging** tab (same key). |
+| **Analyzer** | Decode options (charset, ETI mode, FIC/FIB handling, labels, timestamp, SId) | Persisted on OK/Apply but take full effect on the **next file load**; the CLI builds on the same defaults. |
+
 ## Key groups in use
 
 | Group | Keys | Wired to |
@@ -44,7 +56,7 @@ must be migrated to this helper before use.
 | `general/` | `confirmExit` (bool) | close confirmation in `DABAnalyzerWindow::closeEvent` (window X and File→Exit only; headless runs never prompt) |
 | `analysis/` | `updateRate` (Hz 1..10), `bufferSize` (frames 10..10000) | dashboard sampler interval (`m_perfSampleTimer`, 1 Hz default == historical 1 s); ETI-over-IP receiver frame buffer (applied to a live receiver and to every new connection) |
 | `audio/` | `device` (string), `muted` (bool), `volume` (0..100) | the T34 `AudioPlaybackController` **and** the Transport group's Audio tab — one shared state (both the tab and the Settings dialog edit/persist it) |
-| `advanced/` | `logLevel` (0=Error, 1=Warning, 2=Info, 3=Debug) | `Logger::setLogLevel` (immediate) |
+| `advanced/` | `logLevel` (0=Error, 1=Warning, 2=Info, 3=Debug, 4=Critical) | `Logger::setLogLevel` (immediate). Written/read by BOTH Settings→Advanced and the bottom-strip Logging tab (single source of truth: the `Logger`). |
 | `analyzer/` | rows 1-14 of the option-variant matrix (force charset, ETI mode, NST-1, FIC mode, FIB CRC, ECC, labels, timestamp, frame CRC, SId) | `eti::AnalyzerSettings` (honored by the FIG analyzer on the next file load; CLI flags build on the same defaults) |
 | `window/`, `docking/` | geometry, dock states, layout version | window layout persistence (Qt-ADS), not shown in the dialog |
 

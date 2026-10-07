@@ -64,6 +64,17 @@ public:
     /**
      * @brief Get singleton instance with hang-resistant implementation
      * @return Logger singleton reference
+     *
+     * @note Thread affinity (W1 #9). The returned object is affined to the
+     *       thread that first calls instance(). logInternal() emits
+     *       logMessageAdded through QTimer::singleShot(0, this, …), i.e. it
+     *       marshals to the Logger's OWN thread and needs that thread's event
+     *       loop to deliver the signal. Construct therefore MUST happen on the
+     *       main thread: the GUI main() explicitly calls Logger::instance()
+     *       right after creating QApplication (before any window/worker), and
+     *       any other entry point that consumes logMessageAdded must do the
+     *       same. A singleton created on a worker without an event loop would
+     *       silently drop every GUI log event.
      */
     static Logger& instance();
 

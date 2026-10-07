@@ -26,11 +26,11 @@
  * removed. The dialog persists to the application's explicit QSettings scope
  * (see src/utils/app_settings.hpp / docs/CONFIGURATION.md) and is the SAME
  * state the application reads:
- *   - General   : confirm-exit (closeEvent) + config-file location (read-only)
- *   - Analysis  : dashboard sampler update rate (Hz) + network receiver buffer
- *   - Audio     : output device / mute / volume (shared with the T34 Audio tab)
- *   - Advanced  : log level (Logger)
- *   - Analyzer  : analyzer/decode options (already wired, unchanged)
+ *   - General    : confirm-exit (closeEvent) + config-file location (read-only)
+ *   - Processing : dashboard sampler update rate (Hz) + network receiver buffer
+ *   - Audio      : output device / mute / volume (shared with the T34 Audio tab)
+ *   - Advanced   : log level (Logger)
+ *   - Analyzer   : analyzer/decode options (already wired, unchanged)
  *
  * Controls with no backend were deleted: theme, auto-save + interval,
  * display colours/font, real-time processing, hardware acceleration,
@@ -44,7 +44,7 @@ class SettingsDialog : public QDialog
 public:
     enum class SettingsCategory {
         General = 0,
-        Analysis,
+        Processing,   // the "Processing" tab (sampler rate + network buffer)
         Audio,
         Advanced,
         Analyzer
@@ -74,7 +74,7 @@ public:
     /** @brief True when the window should ask before closing. */
     bool isConfirmExitEnabled() const;
 
-    /** @brief Log-level combo index (0=Error, 1=Warning, 2=Info, 3=Debug). */
+    /** @brief Log-level combo index (0=Error, 1=Warning, 2=Info, 3=Debug, 4=Critical). */
     int logLevelIndex() const;
 
     /**
@@ -101,9 +101,18 @@ public:
      * @brief Map the log-level combo index to Logger::LogLevel's integer value.
      *
      * Kept as a plain int so this header does not depend on utils/logger.h.
-     * 0(Error)->3, 1(Warning)->2, 2(Info)->1, 3(Debug)->0.
+     * 0(Error)->3, 1(Warning)->2, 2(Info)->1, 3(Debug)->0, 4(Critical)->4.
      */
     static int loggerLevelForIndex(int index);
+
+    /**
+     * @brief Inverse of loggerLevelForIndex(): Logger::LogLevel int -> combo index.
+     *
+     * Used by the bottom-strip Logging tab to persist the level into the SAME
+     * `advanced/logLevel` key (single source of truth: both write/read Logger).
+     * Debug(0)->3, Info(1)->2, Warning(2)->1, Error(3)->0, Critical(4)->4.
+     */
+    static int indexForLoggerLevel(int loggerLevel);
 
 signals:
     /** @brief Emitted after settings are saved (OK or Apply). */
