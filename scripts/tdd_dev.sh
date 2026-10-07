@@ -95,12 +95,6 @@ setup_tdd() {
     # Run TDD build to ensure everything is configured
     "${SCRIPT_DIR}/build.sh" --tdd --clean
 
-    # Install git hooks for TDD
-    if [[ -f "${SCRIPT_DIR}/install_tdd_hooks.sh" ]]; then
-        print_info "Installing TDD pre-commit hooks..."
-        bash "${SCRIPT_DIR}/install_tdd_hooks.sh"
-    fi
-
     print_success "${TDD_GREEN} TDD environment setup complete!"
     print_info "You can now use: $0 red|green|refactor|cycle"
 }

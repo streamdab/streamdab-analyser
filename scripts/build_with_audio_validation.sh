@@ -23,19 +23,10 @@ echo "Project: $PROJECT_ROOT"
 echo "Build Directory: $BUILD_DIR"
 echo
 
-# Step 1: Validate DAB+ audio decoder support
-echo "Step 1: Validating DAB+ audio decoder support..."
-if [ -f "$SCRIPT_DIR/validate_dab_audio.sh" ]; then
-    if ! "$SCRIPT_DIR/validate_dab_audio.sh"; then
-        echo -e "${RED}❌ Audio decoder validation failed. Cannot proceed with build.${NC}"
-        echo "Please install required audio decoder libraries and try again."
-        exit 1
-    fi
-else
-    echo -e "${YELLOW}⚠️  Audio validation script not found, proceeding without validation${NC}"
-fi
-
-echo -e "${GREEN}✅ Audio decoder validation passed${NC}"
+# Step 1: DAB+ audio decoder support
+# Decoder availability (fdk-aac / FAAD2) is detected during CMake configuration
+# (Step 3) and reported in Step 4, so there is no separate pre-build validator.
+echo "Step 1: DAB+ audio decoder support is detected during CMake configuration."
 echo
 
 # Step 2: Create/clean build directory

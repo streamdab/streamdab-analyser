@@ -56,8 +56,9 @@ Build requirements: **zero errors / zero warnings**.
 
 ## 2. Docker build (canonical container — `docker/Dockerfile`)
 
-The **new** `docker/Dockerfile` matches the current tree (the historical
-`Dockerfile.build` predates the Qt-ADS migration and is known-broken: missing
+The **new** `docker/Dockerfile` matches the current tree. The legacy
+root-level build Dockerfile was removed: it predated the Qt-ADS migration and
+was known-broken (missing
 `libzmq3-dev`, no CMake `install()` rules, legacy binary name, no Qt-for-Windows
 toolchain — see §4). Two stages:
 
@@ -127,7 +128,7 @@ Features are optional and detected portably (no `pkg-config` required):
 backend is off by default on Windows. **Windows has no audio output backend
 yet** — DAB+ decode works, playback does not.
 
-**Route B: MinGW cross (experimental)** — the old `Dockerfile.build`'s
+**Route B: MinGW cross (experimental)** — the removed legacy build Dockerfile's
 `windows-builder` stage is **unsupported**: it sets `CC=x86_64-w64-mingw32-gcc`
 but never installs Qt-for-Windows, so `find_package(Qt6)` fails. To make it work
 you must add an aqt Qt 6.11 `win64_mingw` install + matching mingw prefix into
@@ -150,7 +151,7 @@ cmake --build build --parallel "$(bash scripts/build_jobs.sh)" && (cd build && c
 | **Reproducible container** | §2 above | ✅ canonical |
 | **Script wrapper** | `scripts/build.sh` (Linux/macOS/Git-Bash) | ✅ exists, thin wrapper |
 | **GitHub Actions CI** | `.github/workflows/tdd-ci.yml` (qt 6.5 aqt matrix ubuntu/windows/macos) | ⚠️ **stale** — predates the Qt-ADS migration / C++20 changes; update to current CMake + Qt 6.8/6.11 + `QT_QPA_PLATFORM=offscreen` before relying on it |
-| **AppImage (Linux)** | linuxdeploy + plugin-qt (see old `Dockerfile.build` `appimage` stage) | ⚠️ needs the install/CPack rules (see §6) |
+| **AppImage (Linux)** | linuxdeploy + plugin-qt (legacy build Dockerfile `appimage` stage, now removed) | ⚠️ needs the install/CPack rules (see §6) |
 | **DEB/RPM/TGZ packages** | CPack — `cmake/packaging.cmake` defines metadata | ⚠️ needs `install()` rules added to `CMakeLists.txt` first |
 | **CMake presets** | not yet provided (`CMakePresets.json`) | todo |
 

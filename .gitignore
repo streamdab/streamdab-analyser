@@ -10,6 +10,9 @@ build_*/
 out/
 dist/
 release/
+
+# Nested accidentally-committed CMake build tree
+tests/tests/
 debug/
 Release/
 Debug/
@@ -107,6 +110,10 @@ cmake-build-*/
 *.xcworkspace/
 xcuserdata/
 DerivedData/
+
+# Rope / Playwright MCP tool caches
+.ropeproject/
+.playwright-mcp/
 
 # Vim
 *.swp
@@ -218,6 +225,7 @@ _CPack_Packages/
 # Backup files
 *.bak
 *.backup
+*.backup*
 *.old
 *.tmp
 
@@ -250,6 +258,7 @@ eti/*.eti
 reports/
 exports/
 recordings/
+output.yaml
 
 # Performance profiling
 *.prof
