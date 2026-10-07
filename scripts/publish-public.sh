@@ -20,7 +20,9 @@
 #   --yes               skip the confirmation prompt
 #   -h|--help           this help
 #
-# Requirements: git; for the default route: `git-filter-repo` (pipx/pip).
+# Requirements: git; for the default route: `git-filter-repo`
+# (`pipx install git-filter-repo`, `pip install --user git-filter-repo`, or
+# drop the single script into ~/.local/bin).
 # ============================================================================
 
 set -euo pipefail
@@ -52,10 +54,11 @@ cd "$ROOT_DIR"
 [ -z "$BRANCH" ] && BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
 # Paths excluded from the public tree (keep in sync with .gitattributes).
+# NOTE: eti/bkk_20062022_141637.eti is PUBLIC (the CI parity gate + smoke
+# depend on it); the other eti/ subdirectories stay private (gitignored).
 EXCLUDES=(
     docs
     ref
-    eti
     build
     Testing
     tests/tests

@@ -2,27 +2,28 @@
 
 ## Overview
 
-This project uses large binary ETI (Ensemble Transport Interface) test files for real-world validation of the DAB stream analyser. These files are **excluded from git** to prevent repository bloat.
+This project uses binary ETI (Ensemble Transport Interface) test files for real-world validation of the DAB stream analyser. The **primary fixture `eti/bkk_20062022_141637.eti` (30 MB) is committed to the repository** — the 55/55 parity gate and the CI smoke test depend on it. The other, larger captures stay **excluded from git** to prevent repository bloat.
 
-## Current Test Files (Not in Git)
+## Current Test Files
 
-The following ETI test data directories are present locally but excluded from git:
+| **File** | **Size** | **In git?** | **Description** | **Purpose** |
+|----------|----------|-------------|-----------------|-------------|
+| `eti/bkk_20062022_141637.eti` | 30 MB | ✅ **committed** | Bangkok DAB ensemble capture - June 20, 2022 | Test Asian DAB deployment, Thai language service labels, tropical region signal conditions |
+| `eti/BayerischerRundfunk-Warntag2024-2024-09-12/` | 118 MB | ⛔ gitignored | German broadcast (Bayerischer Rundfunk) Emergency Warning System test - September 12, 2024 | Test EWS (Emergency Warning Service) FIG decoding, real-world DAB+ streams from German national warning day |
+| `eti/EWSv1_1/` | 967 MB | ⛔ gitignored | Emergency Warning System v1.1 comprehensive test suite | Complete EWS implementation validation with multiple test scenarios |
 
-| **Directory** | **Size** | **Description** | **Purpose** |
-|---------------|----------|-----------------|-------------|
-| `eti/BayerischerRundfunk-Warntag2024-2024-09-12/` | 118 MB | German broadcast (Bayerischer Rundfunk) Emergency Warning System test - September 12, 2024 | Test EWS (Emergency Warning Service) FIG decoding, real-world DAB+ streams from German national warning day |
-| `eti/EWSv1_1/` | 967 MB | Emergency Warning System v1.1 comprehensive test suite | Complete EWS implementation validation with multiple test scenarios |
-| `eti/bkk_20062022_141637.eti` | 30 MB | Bangkok DAB ensemble capture - June 20, 2022 | Test Asian DAB deployment, Thai language service labels, tropical region signal conditions |
+**Gitignored total:** ~1.1 GB
 
-**Total Size:** ~1.1 GB
+## Why are the large captures Excluded from Git?
 
-## Why Excluded from Git?
-
-1. **Repository Size**: Binary ETI files would inflate the git repository from 77 MB to over 1.2 GB
+1. **Repository Size**: The extra captures would inflate the git repository by over 1 GB
 2. **Git Performance**: Large binaries slow down clone, fetch, and pull operations significantly
-3. **Development Efficiency**: Developers who don't need test files shouldn't download them
+3. **Development Efficiency**: Developers who don't need the EWS suites shouldn't download them
 4. **Bandwidth**: Reduces bandwidth usage for remote operations
 5. **Best Practice**: Git is optimized for text source code, not large binary test data
+
+(The 30 MB Bangkok fixture is the deliberate exception: it fits GitHub's per-file
+limit, exercises Thai UTF-8 + DLS+/MOT, and keeps the public CI gate green.)
 
 ## .gitignore Configuration
 

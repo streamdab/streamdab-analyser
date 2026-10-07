@@ -12,8 +12,11 @@ docs/                    export-ignore
 # Third-party reference PDFs (ETSI standard, vendor manuals — copyright)
 ref/                     export-ignore
 
-# Test captures (large, not in git anyway; keeps archives clean)
-eti/                     export-ignore
+# Test captures: the 55/55 parity + CI fixture is PUBLIC (committed); only the
+# large extra capture subdirectories are ignored (see .gitignore).
+# eti/                     export-ignore
+eti/BayerischerRundfunk-Warntag2024-2024-09-12/ export-ignore
+eti/EWSv1_1/               export-ignore
 
 # Build/test artifacts
 build/                   export-ignore

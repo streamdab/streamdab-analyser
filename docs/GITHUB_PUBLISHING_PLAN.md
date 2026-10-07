@@ -11,8 +11,12 @@
 |---|---|
 | How to exclude `docs/`, agent/AI/IDE folders? | **Rewrite a *clone* with `git filter-repo`** (removes the paths from *every* commit) → push to the public repo. Safer than a live-repo filter (the private repo is untouched) and keeps development history. |
 | If history is not wanted / needs maximum safety | Alternative: **single-commit export** (`git archive` of the allowed paths → fresh repo → one commit). No private content can exist in any public commit; history is lost. |
-| Where do the private things live? | The **private remote stays the origin** with everything (`docs/`, `.claude`, `.opencode`, `.vscode`, `ref/` PDFs, `eti/` fixtures). The public remote receives only the curated tree. |
+| Where do the private things live? | The **private remote stays the origin** with everything (`docs/`, `.claude`, `.opencode`, `.vscode`, `ref/` PDFs, the large `eti/` subdirectories). The public remote receives only the curated tree. |
 | Day-to-day flow | Develop & push to **private origin** as today; publish with `scripts/publish-public.sh` (new) which clones → filters → pushes to the **public** remote. Run it per release (or per milestone). |
+
+> **2026 decision — the small fixture is public.** `eti/bkk_20062022_141637.eti`
+> (the 55/55 parity gate + CI smoke fixture) is **committed and published**; only
+> the other, larger capture directories stay private.
 
 ## 2. Path classification
 
@@ -92,10 +96,9 @@ cd ../streamdab-public-tree && git init && git add -A \
    AGENTS.md export-ignore
    CLAUDE.md export-ignore
    .agents-config.md export-ignore
-   eti/ export-ignore
    ```
-4. **`.gitignore`** for the public repo: keep the build/artifact ignores (`build*/`, `Testing/`, `tests/tests/`, `*.o`, `output.yaml`, `*.backup*`, `.ropeproject/`, `.playwright-mcp/`).
-5. **Fixtures**: the E2E/fixture-based suites need `eti/*.eti` (not in git, ~30 MB). For the public repo either document where to obtain captures or attach a small sample as a **release asset** (never commit the 30 MB file). CI must skip those suites when the fixture is absent (they already QSKIP/verify).
+4. **`.gitignore`** for the public repo: keep the build/artifact ignores (`build*/`, `Testing/`, `tests/tests/`, `*.o`, `output.yaml`, `*.backup*`, `.ropeproject/`, `.playwright-mcp/`) and the *large* `eti/` subdirectories (`eti/BayerischerRundfunk-Warntag2024-…/`, `eti/EWSv1_1/`).
+5. **Fixtures — public**: `eti/bkk_20062022_141637.eti` (30.7 MB) is **committed to the public repo on purpose** — the 55/55 parity gate (`dls_msgs=1114`, `mot_objects=97`) and the CI CLI smoke run against it. GitHub's 100 MB/file limit is respected. The other, larger capture directories stay gitignored (licensing/volume); developers obtain them separately.
 
 ## 5. CI / release (GitHub Actions — to build next)
 
