@@ -154,8 +154,12 @@ endif()
 # T34: audio decode/output dependencies.
 #   - libfaad2: DAB+ HE-AAC decode (no faad.pc is installed on this host, so
 #     locate the header/library directly).
-#   - ALSA: playback sink (the project deliberately avoids Qt Multimedia).
-# Both are OPTIONAL: the code degrades gracefully when either is missing.
+#   - ALSA: Linux playback backend (src/core/audio_output_sink.cpp).
+#   - Qt Multimedia (QAudioSink): Windows/macOS playback backend
+#     (src/core/qt_audio_output_sink.cpp), auto-detected when the Qt kit ships
+#     the module (aqt / brew qt@6 do; qtbase-only installs do not).
+# All are OPTIONAL and independent: the code degrades gracefully when one of
+# them is missing (HAVE_ALSA / HAVE_QMULTIMEDIA simply stay undefined).
 # ============================================================================
 find_path(FAAD2_INCLUDE_DIR neaacdec.h)
 find_library(FAAD2_LIBRARY NAMES faad)
@@ -168,6 +172,19 @@ unset(ALSA_FOUND CACHE)
 set(ALSA_FOUND FALSE)
 if(DABX_ENABLE_ALSA AND PkgConfig_FOUND)
     pkg_check_modules(ALSA alsa)
+endif()
+
+option(DABX_ENABLE_QMULTIMEDIA
+    "Enable the Qt Multimedia audio output backend (Windows/macOS)" ON)
+# Same stale-cache discipline as ALSA: a previous configure that found the
+# module must not keep HAVE_QMULTIMEDIA defined after -DDABX_ENABLE_QMULTIMEDIA=OFF.
+unset(Qt6Multimedia_FOUND CACHE)
+set(Qt6Multimedia_FOUND FALSE)
+if(DABX_ENABLE_QMULTIMEDIA)
+    # QUIET by design: this dev machine has no qt6-multimedia-dev, which is the
+    # expected compiled-out configuration here (the guarded code is exercised
+    # by the aqt/brew Qt Multimedia builds on Windows/macOS).
+    find_package(Qt6 COMPONENTS Multimedia QUIET)
 endif()
 
 set(T34_AUDIO_LIBS "")
@@ -186,10 +203,18 @@ if(ALSA_FOUND)
     list(APPEND T34_AUDIO_LIBS ${ALSA_LINK_LIBRARIES})
     list(APPEND T34_AUDIO_INCLUDES ${ALSA_INCLUDE_DIRS})
     list(APPEND T34_AUDIO_DEFINES HAVE_ALSA)
-    message(STATUS "T34 audio: ALSA found -> audio output enabled")
+    message(STATUS "T34 audio: ALSA found -> Linux audio output enabled")
 else()
-    message(STATUS "T34 audio: ALSA NOT found -> audio output disabled "
-                   "(no playback backend on Windows/macOS yet; decode still works)")
+    message(STATUS "T34 audio: ALSA NOT found -> ALSA output disabled "
+                   "(Windows/macOS use the Qt Multimedia backend below)")
+endif()
+if(Qt6Multimedia_FOUND)
+    list(APPEND T34_AUDIO_LIBS Qt6::Multimedia)
+    list(APPEND T34_AUDIO_DEFINES HAVE_QMULTIMEDIA)
+    message(STATUS "T34 audio: Qt Multimedia found -> Windows/macOS audio output enabled")
+else()
+    message(STATUS "T34 audio: Qt Multimedia NOT found -> Qt audio output compiled out "
+                   "(install qt6-multimedia-dev on Linux, or use the full aqt/brew Qt)")
 endif()
 
 # Qt-Advanced-Docking-System (Qt-ADS) via FetchContent
@@ -273,6 +298,15 @@ set(SOURCES
     src/gui/etsi_compliance_monitor.cpp
     src/gui/professional_export_manager.cpp
 )
+
+# T34 Qt Multimedia backend: the Qt Multimedia (QAudioSink) sink is only
+# compiled when the module was found at configure time. The tests subdirectory
+# mirrors this (see tests/CMakeLists.txt: it guards on the inherited
+# Qt6Multimedia_FOUND var).
+if(Qt6Multimedia_FOUND)
+    list(APPEND SOURCES src/core/qt_audio_output_sink.cpp)
+    message(STATUS "T34 audio: compiled src/core/qt_audio_output_sink.cpp into the GUI")
+endif()
 
 # EDI Protocol sources (ETSI TS 102 693)
 set(EDI_SOURCES

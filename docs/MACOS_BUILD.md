@@ -22,7 +22,10 @@ brew install cmake qt@6 faad2 fftw libzmq googletest
 Notes:
 
 - **`qt@6` is keg-only** — its binaries are not on `PATH`, so you must point
-  CMake at it explicitly (the preset does this via `QT_DIR`).
+  CMake at it explicitly (the preset does this via `QT_DIR`). It ships the
+  Qt Multimedia module, so the audio output backend (`QAudioSink`/CoreAudio)
+  is compiled in automatically; pass `-DDABX_ENABLE_QMULTIMEDIA=OFF` to build
+  without it.
 - `libzmq` (and the bundled cppzmq header, `zmq.hpp`) are optional: if brew
   cannot provide them, pass `-DDABX_ENABLE_ZMQ=OFF` to compile the ZeroMQ
   transport out. The rest of the analyser is unaffected.
@@ -57,7 +60,7 @@ detection ladder in `CMakeLists.txt` is what finds Qt/FAAD2/FFTW/libzmq.
 
 ### What the suite expects
 
-- `ctest` runs the same 55-target gate as Linux. Run the test binaries from
+- `ctest` runs the same 56-target gate as Linux. Run the test binaries from
   `build/tests/` (fixture paths are relative to that directory), or just use
   `ctest` which sets the correct working directory automatically.
 - Thai UTF-8 (DLS+/EPG/MOT labels) is a first-class feature and is validated by
@@ -77,7 +80,7 @@ CLI mode is available both as the standalone `streamdab-cli` and via
 
 | Area | Status |
 |---|---|
-| Audio output backend | **Not yet** — the ALSA backend is Linux-only and disabled outside Linux; DAB+ **decode** works, live playback does not. A cross-platform Qt Multimedia backend is planned (see `docs/CROSS_PLATFORM_BUILD_PLAN.md` B-blocks). |
+| Audio output backend | **Implemented** — the Qt Multimedia backend (`QAudioSink` → CoreAudio, `src/core/qt_audio_output_sink.cpp`) is compiled in automatically when the Qt kit ships Multimedia; Homebrew's `qt@6` does. The ALSA backend remains Linux-only. Disable with `-DDABX_ENABLE_QMULTIMEDIA=OFF`; DAB+ **decode** is independent and always works. |
 | `.app` bundle / `.dmg` | **Not yet** — `install()` rules + CPack (`BUNDLE`/`DragNDrop`) are on the roadmap; until then run the binary from `build/`. |
 | ZeroMQ transport | Optional; compiled in when `zmq.hpp` + libzmq are found (brew provides both), or disabled with `-DDABX_ENABLE_ZMQ=OFF`. The validator then rejects `zmq+tcp://` with a clear "not built in" message. |
 | Notarisation / signing | Not configured; a `release.yml` GitHub Actions job is planned (unsigned for now). |
@@ -88,7 +91,7 @@ CLI mode is available both as the standalone `streamdab-cli` and via
   Re-check `brew --prefix qt@6`; Qt 6.9+ ships `lib/cmake/Qt6/Qt6Config.cmake`.
 - **Undefined `zmq.hpp`** — brew's `libzmq` does not install the C++ header
   everywhere; `brew install cppzmq`, or disable with `-DDABX_ENABLE_ZMQ=OFF`.
-- **Slow tests on Apple Silicon** — the 55-target suite is single-threaded
+- **Slow tests on Apple Silicon** — the 56-target suite is single-threaded
   (`ctest` runs serially on purpose: several GUI/dock tests share QSettings
   stores). Expected ~2–4 min.
 - **`cmake --preset macos-brew` fails with an `$env{QT_DIR}` error** — the

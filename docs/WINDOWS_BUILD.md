@@ -9,6 +9,7 @@ configuration:
 |---|---|---|
 | `DABX_ENABLE_ZMQ` | `ON` | Build the ZeroMQ (`zmq+tcp://`) ETI transport when `libzmq` + `cppzmq` are found; otherwise it is compiled out cleanly. |
 | `DABX_ENABLE_ALSA` | `ON` | Build the ALSA audio **output** backend (Linux only; not found on Windows → no-op). Audio **decode** is unaffected. |
+| `DABX_ENABLE_QMULTIMEDIA` | `ON` | Build the Qt Multimedia audio **output** backend (QAudioSink → WASAPI) when the Qt kit ships the Multimedia module (the full `aqt` desktop Qt and the default vcpkg Qt do). If the module is absent the backend is compiled out cleanly. |
 
 > GUI and CLI binaries: **`StreamDABAnalyser.exe`** (GUI, CMake target
 > `DABAnalyser_Enhanced_FilteringBuild`) and **`streamdab-cli.exe`** (headless).
@@ -66,13 +67,20 @@ aqt install-qt windows desktop 6.11.0 win64_msvc2022_64 -O C:\Qt
 # Result: C:\Qt\6.11.0\msvc2022_64
 ```
 
-The analyser only needs the **qtbase** module (`Core`, `Widgets`, `Network`,
-and `Test` for the unit-test suites). Qt Multimedia is **not** used. To fetch
-only what is needed (smaller download):
+The analyser needs the **qtbase** module (`Core`, `Widgets`, `Network`,
+and `Test` for the unit-test suites) and, for the audio **output** backend,
+the **Qt Multimedia** module (QAudioSink/WASAPI). The full desktop Qt from
+aqt ships both; to fetch only what the build needs:
 
 ```powershell
-aqt install-qt windows desktop 6.11.0 win64_msvc2022_64 -O C:\Qt --archives qtbase
+aqt install-qt windows desktop 6.11.0 win64_msvc2022_64 -O C:\Qt --archives qtbase qtmultimedia
 ```
+
+If you install **qtbase only**, Qt Multimedia is absent, `find_package(Qt6
+COMPONENTS Multimedia QUIET)` fails, and the build still succeeds with the
+audio output backend compiled out (the Audio tab reports "no backend"; DAB+
+**decode** keeps working). To force that state explicitly when the module is
+present, pass `-DDABX_ENABLE_QMULTIMEDIA=OFF`.
 
 Either way, the prefix passed to CMake is `C:\Qt\6.11.0\msvc2022_64`.
 
@@ -227,11 +235,16 @@ and `build\tests\Release\` (test binaries).
 
 ## 8. Known gaps and limitations (honest)
 
-- **Audio output has no Windows backend yet.** Playback is implemented against
-  **ALSA only** (`HAVE_ALSA`); on Windows the Audio tab reports **no backend**
-  and `AudioOutputSink::open()` fails with *"ALSA backend not available in this
-  build"*. DAB+ **decode** (libfaad2) still works and all decode tests run.
-  A Qt Multimedia / WASAPI sink is a follow-up.
+- **Audio output now has a Windows backend when Qt Multimedia is installed.**
+  The old statement "no Windows backend" is obsolete: the build auto-detects
+  Qt Multimedia and compiles the `QAudioSink` (WASAPI) backend in
+  (`src/core/qt_audio_output_sink.cpp`, `HAVE_QMULTIMEDIA`). With a **full**
+  aqt Qt (qtbase + qtmultimedia) or the default vcpkg Qt, the Audio tab lists
+  real output devices and playback works; with a qtbase-only install the
+  backend is compiled out and `QtAudioOutputSink::open()` fails with *"Qt
+  Multimedia backend not available in this build"*. Disable explicitly with
+  `-DDABX_ENABLE_QMULTIMEDIA=OFF`. DAB+ **decode** (libfaad2) is independent
+  of both choices and always works.
 - **ZeroMQ requires the vcpkg ports.** Install `zeromq` + `cppzmq`; otherwise
   `zmq+tcp://` is refused with *"ZeroMQ support not built in"* (UDP multicast
   and TCP raw ETI are unaffected).
@@ -296,6 +309,12 @@ The script was rewritten to match reality. It:
   implementation are guarded by `#ifdef HAVE_ZMQ`; a stub keeps the
   `unique_ptr<ZmqState>` valid and the validator rejects `zmq+tcp://` with a
   clear message when the transport is absent.
+- `src/core/qt_audio_output_sink.{hpp,cpp}`: new Qt Multimedia (QAudioSink)
+  output backend with the same public API as the ALSA `AudioOutputSink` and
+  the same graceful-degradation stubs when `HAVE_QMULTIMEDIA` is unset. The
+  playback controller picks ALSA on Linux / Qt Multimedia elsewhere
+  (`preferredBackendName()`), so the Audio tab works on WASAPI out of the box
+  when the Qt kit ships Multimedia.
 - `src/main.cpp`: the ZeroMQ quick-example entry, the URL tooltip and the
   "Supported formats" dialog are conditional on `HAVE_ZMQ` (the entry is
   disabled **and** annotated when unavailable).

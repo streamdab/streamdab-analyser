@@ -5074,11 +5074,13 @@ private:
         SettingsDialog dlg(this);
 
         // Feed the dialog the SAME T34 audio state as the Transport Audio tab.
+        // Enumerate through the ACTIVE backend (ALSA on Linux, Qt Multimedia
+        // on Windows/macOS) so the device list is never the alien fallback.
         QStringList deviceNames;
         QStringList deviceIds;
-        const QList<streamdab::audio::AudioOutputSink::DeviceInfo> devices =
-            streamdab::audio::AudioOutputSink::enumerateOutputDevices();
-        for (const streamdab::audio::AudioOutputSink::DeviceInfo& info : devices) {
+        const QList<streamdab::audio::AudioPlaybackController::OutputDeviceInfo> devices =
+            streamdab::audio::AudioPlaybackController::enumerateOutputDevices();
+        for (const streamdab::audio::AudioPlaybackController::OutputDeviceInfo& info : devices) {
             deviceNames.append(info.description);
             deviceIds.append(info.name);
         }
@@ -9526,22 +9528,22 @@ private:
         layout->addWidget(infoTitle, 1, 0);
         layout->addWidget(m_audioInfoLabel, 1, 1);
 
-        // Row 2: output device (enumerated by the ALSA backend).
+        // Row 2: output device (enumerated through the ACTIVE backend).
         QLabel* deviceTitle = new QLabel(tr("Output:"));
         deviceTitle->setStyleSheet("font-weight: bold;");
         m_audioDeviceCombo = new QComboBox();
         m_audioDeviceCombo->setObjectName(QStringLiteral("audioDeviceCombo"));
         m_audioDeviceCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
         m_audioDeviceCombo->setMinimumContentsLength(10);
-        const QList<streamdab::audio::AudioOutputSink::DeviceInfo> audioDevices =
-            streamdab::audio::AudioOutputSink::enumerateOutputDevices();
-        for (const streamdab::audio::AudioOutputSink::DeviceInfo& info : audioDevices) {
+        const QList<streamdab::audio::AudioPlaybackController::OutputDeviceInfo> audioDevices =
+            streamdab::audio::AudioPlaybackController::enumerateOutputDevices();
+        for (const streamdab::audio::AudioPlaybackController::OutputDeviceInfo& info : audioDevices) {
             m_audioDeviceCombo->addItem(info.description, info.name);
         }
         // Prefer the backend's "default" device (the hint order is not
         // meaningful; the first entry is often a converter plugin).
         const int defaultDevice = m_audioDeviceCombo->findData(
-            streamdab::audio::AudioOutputSink::defaultDeviceName());
+            streamdab::audio::AudioPlaybackController::defaultOutputDevice());
         if (defaultDevice >= 0) {
             m_audioDeviceCombo->setCurrentIndex(defaultDevice);
         }

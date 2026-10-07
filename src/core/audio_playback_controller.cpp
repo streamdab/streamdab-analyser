@@ -6,6 +6,9 @@
 
 #include "audio_playback_controller.hpp"
 #include "audio_output_sink.hpp"
+#ifdef HAVE_QMULTIMEDIA
+#include "qt_audio_output_sink.hpp"
+#endif
 
 #include <QDebug>
 
@@ -15,30 +18,81 @@ namespace streamdab::audio {
 
 namespace {
 constexpr int kDabFrameMs = 24;  // DAB Mode I transmission frame (ETSI EN 300 401)
+
+// Build-time backend preference: ALSA is the Linux primary; Qt Multimedia is
+// the Windows/macOS backend; "none" only when neither is compiled in. On a
+// Linux build that also has Qt Multimedia installed ALSA still wins (kept in
+// byte-for-byte parity with the historical behaviour).
+constexpr const char* kBackendName =
+#if defined(HAVE_ALSA)
+    "alsa";
+#elif defined(HAVE_QMULTIMEDIA)
+    "qt-multimedia";
+#else
+    "none";
+#endif
+} // namespace
+
+QString AudioPlaybackController::preferredBackendName()
+{
+    return QLatin1String(kBackendName);
+}
+
+void AudioPlaybackController::onSinkLevels(float left, float right)
+{
+    m_peakLeft = left;
+    m_peakRight = right;
+    emit levelsChanged(left, right);
+}
+
+void AudioPlaybackController::onSinkPlaybackEnded()
+{
+    setStatus(QStringLiteral("Stopped"));
+    m_peakLeft = 0.0f;
+    m_peakRight = 0.0f;
+    emit levelsChanged(0.0f, 0.0f);
+    emit transportChanged();
+}
+
+void AudioPlaybackController::onSinkError(const QString& message)
+{
+    m_lastError = message;
+    setStatus(message);
 }
 
 AudioPlaybackController::AudioPlaybackController(QObject* parent)
     : QObject(parent)
-    , m_sink(new AudioOutputSink(this))
 {
+#if defined(HAVE_ALSA)
+    m_sink = new AudioOutputSink(this);
+#elif defined(HAVE_QMULTIMEDIA)
+    m_sink = new QtAudioOutputSink(this);
+#else
+    m_sink = new AudioOutputSink(this);  // graceful no-backend stub
+#endif
+    m_backendName = preferredBackendName();
+#if defined(HAVE_ALSA)
     connect(m_sink, &AudioOutputSink::levelsChanged, this,
-            [this](float left, float right) {
-                m_peakLeft = left;
-                m_peakRight = right;
-                emit levelsChanged(left, right);
-            });
-    connect(m_sink, &AudioOutputSink::playbackEnded, this, [this]() {
-        setStatus(QStringLiteral("Stopped"));
-        m_peakLeft = 0.0f;
-        m_peakRight = 0.0f;
-        emit levelsChanged(0.0f, 0.0f);
-        emit transportChanged();
-    });
+            &AudioPlaybackController::onSinkLevels);
+    connect(m_sink, &AudioOutputSink::playbackEnded, this,
+            &AudioPlaybackController::onSinkPlaybackEnded);
     connect(m_sink, &AudioOutputSink::errorOccurred, this,
-            [this](const QString& message) {
-                m_lastError = message;
-                setStatus(message);
-            });
+            &AudioPlaybackController::onSinkError);
+#elif defined(HAVE_QMULTIMEDIA)
+    connect(m_sink, &QtAudioOutputSink::levelsChanged, this,
+            &AudioPlaybackController::onSinkLevels);
+    connect(m_sink, &QtAudioOutputSink::playbackEnded, this,
+            &AudioPlaybackController::onSinkPlaybackEnded);
+    connect(m_sink, &QtAudioOutputSink::errorOccurred, this,
+            &AudioPlaybackController::onSinkError);
+#else
+    connect(m_sink, &AudioOutputSink::levelsChanged, this,
+            &AudioPlaybackController::onSinkLevels);
+    connect(m_sink, &AudioOutputSink::playbackEnded, this,
+            &AudioPlaybackController::onSinkPlaybackEnded);
+    connect(m_sink, &AudioOutputSink::errorOccurred, this,
+            &AudioPlaybackController::onSinkError);
+#endif
 }
 
 AudioPlaybackController::~AudioPlaybackController()
@@ -306,17 +360,74 @@ QString AudioPlaybackController::outputDevice() const
 QStringList AudioPlaybackController::availableOutputDevices()
 {
     QStringList names;
+#if defined(HAVE_ALSA)
     const QList<AudioOutputSink::DeviceInfo> devices =
         AudioOutputSink::enumerateOutputDevices();
     for (const AudioOutputSink::DeviceInfo& info : devices) {
         names.append(info.name);
     }
+#elif defined(HAVE_QMULTIMEDIA)
+    const QList<QtAudioOutputSink::DeviceInfo> devices =
+        QtAudioOutputSink::enumerateOutputDevices();
+    for (const QtAudioOutputSink::DeviceInfo& info : devices) {
+        names.append(info.name);
+    }
+#else
+    const QList<AudioOutputSink::DeviceInfo> devices =
+        AudioOutputSink::enumerateOutputDevices();
+    for (const AudioOutputSink::DeviceInfo& info : devices) {
+        names.append(info.name);
+    }
+#endif
     return names;
+}
+
+QList<AudioPlaybackController::OutputDeviceInfo>
+AudioPlaybackController::enumerateOutputDevices()
+{
+    QList<OutputDeviceInfo> out;
+#if defined(HAVE_ALSA)
+    const QList<AudioOutputSink::DeviceInfo> devices =
+        AudioOutputSink::enumerateOutputDevices();
+    for (const AudioOutputSink::DeviceInfo& info : devices) {
+        out.append(OutputDeviceInfo{info.name, info.description, info.isDefault});
+    }
+#elif defined(HAVE_QMULTIMEDIA)
+    const QList<QtAudioOutputSink::DeviceInfo> devices =
+        QtAudioOutputSink::enumerateOutputDevices();
+    for (const QtAudioOutputSink::DeviceInfo& info : devices) {
+        out.append(OutputDeviceInfo{info.name, info.description, info.isDefault});
+    }
+#else
+    const QList<AudioOutputSink::DeviceInfo> devices =
+        AudioOutputSink::enumerateOutputDevices();  // degraded stub
+    for (const AudioOutputSink::DeviceInfo& info : devices) {
+        out.append(OutputDeviceInfo{info.name, info.description, info.isDefault});
+    }
+#endif
+    return out;
+}
+
+QString AudioPlaybackController::defaultOutputDevice()
+{
+#if defined(HAVE_ALSA)
+    return AudioOutputSink::defaultDeviceName();
+#elif defined(HAVE_QMULTIMEDIA)
+    return QtAudioOutputSink::defaultDeviceName();
+#else
+    return AudioOutputSink::defaultDeviceName();  // degraded stub
+#endif
 }
 
 bool AudioPlaybackController::audioBackendAvailable()
 {
+#if defined(HAVE_ALSA)
     return AudioOutputSink::backendAvailable();
+#elif defined(HAVE_QMULTIMEDIA)
+    return QtAudioOutputSink::backendAvailable();
+#else
+    return false;
+#endif
 }
 
 bool AudioPlaybackController::isPlaying() const

@@ -36,6 +36,7 @@
 namespace streamdab::audio {
 
 class AudioOutputSink;
+class QtAudioOutputSink;
 
 /**
  * @brief Selected-service DAB+ audio capture + decode + playback.
@@ -78,6 +79,26 @@ public:
     static QStringList availableOutputDevices();
     static bool audioBackendAvailable();
 
+    /// Backend-agnostic output device descriptor (the active backend's shape).
+    struct OutputDeviceInfo {
+        QString name;         ///< backend device identifier (e.g. "default")
+        QString description;  ///< human-readable description
+        bool isDefault = false;
+    };
+
+    /// Enumerate output devices through the ACTIVE backend (ALSA-ladder:
+    /// ALSA when compiled in, else Qt Multimedia, else the degraded stub) so
+    /// dialogs always list the backend that actually plays audio.
+    static QList<OutputDeviceInfo> enumerateOutputDevices();
+    /// Default device id of the ACTIVE backend.
+    static QString defaultOutputDevice();
+
+    /// Name of the audio backend this build prefers. One of "alsa" (Linux),
+    /// "qt-multimedia" (Windows/macOS) or "none" (no backend compiled in).
+    static QString preferredBackendName();
+    /// The backend actually selected for this controller instance.
+    QString backendName() const { return m_backendName; }
+
     float peakLeft() const { return m_peakLeft; }
     float peakRight() const { return m_peakRight; }
     qint64 decodedTotalFrames() const { return m_pcmFrames; }
@@ -108,6 +129,12 @@ private:
     qint64 sampleForFrame(int frameIndex) const;
     void setStatus(const QString& status);
 
+    // Sink signal adapters (shared by both backend types; the connect call in
+    // the constructor picks the backend-specific signal).
+    void onSinkLevels(float left, float right);
+    void onSinkPlaybackEnded();
+    void onSinkError(const QString& message);
+
     std::map<int, std::unique_ptr<DabPlusAudioDecoder>> m_extractors;
     std::map<int, Stream> m_streams;
 
@@ -122,7 +149,19 @@ private:
     int m_pcmChannels = 0;
     qint64 m_pcmFrames = 0;
     bool m_decodeAttempted = false;
+    // Active sink, chosen by the build-time backend ladder: ALSA when compiled
+    // in (Linux primary), Qt Multimedia when compiled in (Windows/macOS),
+    // otherwise the graceful-degrading ALSA stub (AudioOutputSink without
+    // HAVE_ALSA) — so m_sink is never null and every unguarded call site keeps
+    // compiling under all three configurations.
+#if defined(HAVE_ALSA)
     AudioOutputSink* m_sink = nullptr;
+#elif defined(HAVE_QMULTIMEDIA)
+    QtAudioOutputSink* m_sink = nullptr;
+#else
+    AudioOutputSink* m_sink = nullptr;  // graceful no-backend stub
+#endif
+    QString m_backendName;
     QString m_device;
     QString m_lastError;
     float m_peakLeft = 0.0f;
