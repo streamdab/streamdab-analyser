@@ -21,7 +21,7 @@ on:
 
 env:
   QT_QPA_PLATFORM: offscreen   # BEFORE configure: registers all GUI test targets
-  CTEST_TEST: "ctest --output-on-failure"   # serial per preset; see testPresets
+  CTEST_TEST: "ctest --output-on-failure"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -65,7 +65,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev build-essential
+          sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
+            libasound2-dev libgtest-dev build-essential
 
       # -------------------------------------------------------------- Windows
       - name: Install Qt 6 (Windows, aqt; Multimedia included)
@@ -114,8 +115,8 @@ jobs:
       # PUBLIC subset only: the eti/ captures are World DAB licensed and never
       # reach the public repo (docs/TEST_SUITE_PUBLIC_PRIVATE_SPLIT.md); the
       # full suite runs on machines that have the captures.
+      # run from the repo root: ctest --preset needs CMakePresets.json here
       - name: Test (ctest ${{ matrix.test }} -L PUBLIC)
-        working-directory: build
         run: ctest --preset ${{ matrix.test }} -L PUBLIC
 
       # --------------------------------------------------------- smoke checks
