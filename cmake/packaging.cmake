@@ -55,7 +55,7 @@ set(CPACK_PACKAGE_DESCRIPTION
 and offline analysis, ETSI EN 300 799 / EN 300 401 compliance validation, DAB+ \
 audio decode, and comprehensive reporting for broadcast engineers.")
 set(CPACK_PACKAGE_CONTACT "StreamDAB Analyser Team <maintainers@streamdab-analyser>")
-set(CPACK_PACKAGE_HOMEPAGE_URL "https://git.morange.co.th/morange/streamdab-analyser")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/sekz/streamdab-analyser")
 
 # CPack artifacts always land in the build tree, no matter which directory
 # `cpack --config build/CPackConfig.cmake` is invoked from (keeps the repo

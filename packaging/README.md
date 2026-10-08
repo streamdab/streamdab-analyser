@@ -86,5 +86,5 @@ whose `.app` has no Qt frameworks).
 ./packaging/scripts/build_all_packages.sh      # full build + all CPack packages
 ```
 
-See `docs/INSTALL.md` §5/§6 and `docs/MACOS_BUILD.md` §4 for the documented
-flow and known gaps (e.g. no .icns/ICO assets, no code-signing yet).
+See `INSTALL.md` §5/§6 (repo root) for the documented flow and known gaps
+(e.g. no .icns/ICO assets, no code-signing yet).
