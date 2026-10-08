@@ -37,7 +37,6 @@ PDFs are available free of charge from ETSI:
 | ETSI TS 102 371 | Digital Audio Broadcasting — EPG | https://www.etsi.org/deliver/etsi_ts/102300_102399/102371/ |
 | ETSI TS 102 979 | Journaline | https://www.etsi.org/deliver/etsi_ts/102900_102999/102979/ |
 | ETSI TS 102 980 | Dynamic Label Plus (DLS+) | https://www.etsi.org/deliver/etsi_ts/102900_102999/102980/ |
-| ETSI TS 104 089/090 | Emergency Warning System (EWS) — planned | https://www.etsi.org/deliver/etsi_ts/104000_104099/ |
 
 ## Third-party libraries
 
