@@ -111,31 +111,27 @@ jobs:
         run: cmake --build --preset ${{ matrix.build }}
 
       # ----------------------------------------------------------------- tests
-      - name: Test (ctest ${{ matrix.test }})
+      # PUBLIC subset only: the eti/ captures are World DAB licensed and never
+      # reach the public repo (docs/TEST_SUITE_PUBLIC_PRIVATE_SPLIT.md); the
+      # full suite runs on machines that have the captures.
+      - name: Test (ctest ${{ matrix.test }} -L PUBLIC)
         working-directory: build
-        run: ctest --preset ${{ matrix.test }}
+        run: ctest --preset ${{ matrix.test }} -L PUBLIC
 
       # --------------------------------------------------------- smoke checks
-      - name: CLI smoke on the real fixture (Linux/macOS)
+      - name: CLI smoke (real fixture, Linux/macOS)
         if: runner.os != 'Windows'
         working-directory: build
         run: |
-          ./streamdab-cli --input ../eti/bkk_20062022_141637.eti --output smoke.yaml
-          grep -qE 'version: "1\.' smoke.yaml          # single-source version
-          grep -q 'service_short_label' smoke.yaml
+          ./streamdab-cli --version
+          ./streamdab-cli --help | head -5
+          # with the private captures present this also runs:
+          #   ./streamdab-cli --input ../eti/bkk_20062022_141637.eti --output smoke.yaml
 
-      - name: CLI smoke on the real fixture (Windows)
+      - name: CLI smoke (Windows)
         if: runner.os == 'Windows'
         working-directory: build
         shell: pwsh
         run: |
-          .\streamdab-cli.exe --input ..\eti\bkk_20062022_141637.eti --output smoke.yaml
-          Select-String -Path smoke.yaml -Pattern 'version: "1\.'
-
-      - name: Upload smoke log on failure (debugging)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: smoke-${{ matrix.os }}
-          path: build/smoke.yaml
-          if-no-files-found: ignore
+          .\streamdab-cli.exe --version
+          .\streamdab-cli.exe --help | Select-Object -First 5
