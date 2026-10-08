@@ -26,7 +26,7 @@ JOBS="$(bash scripts/build_jobs.sh)"          # bounded: min(nproc, RAM_GB/2, 8)
 export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"     # nested cmake/make honour this too
 cmake --build build --parallel "$JOBS"        # NEVER a bare -j (that is unbounded)
 
-# Test (all 56 targets)
+# Test (all 58 targets)
 cd build && ctest --output-on-failure
 
 # Run
@@ -250,7 +250,7 @@ reproducibility is still a follow-up.
 
 | Platform | Qt | Compiler | Status |
 |---|---|---|---|
-| Ubuntu (host reference) | **6.11** | g++ 13 | ✅ full suite (56) with the private captures · PUBLIC subset on CI |
+| Ubuntu (host reference) | **6.11** | g++ 13 | ✅ full suite (58) with the private captures · PUBLIC subset (45) on CI |
 | Docker (ubuntu:24.04) | 6.4.2 | gcc 13 | ✅ container build validated |
 | Windows (MSVC / vcpkg) | 6.8+ (6.11 rec.) | MSVC 2022 | 🚧 plan in §3A |
 | Windows (MinGW cross/Wine) | 6.11 win64_mingw | x86_64-w64-mingw32-g++ | 🚧 needs Qt toolchain added |

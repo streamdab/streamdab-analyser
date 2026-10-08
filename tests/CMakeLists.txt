@@ -28,6 +28,9 @@ set(CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/mot_pad_adapter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/epg_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/journaline_decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/tpeg_decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/data_service_store.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_file_scanner.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/dls_plus_decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_reader_thread.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/shared_eti_data.cpp
@@ -250,6 +253,36 @@ target_link_libraries(test_journaline_decoder
     Qt6::Core
 )
 add_test(NAME test_journaline_decoder COMMAND test_journaline_decoder)
+
+# ============================================================================
+# v1.4 DATA-PATH WAVE — EPG / Journaline / TPEG(-TEPG)
+# ============================================================================
+
+# TPEG framing unit tests (self-contained, no capture): marker-phase carousel
+# detection and TS 102 894-1 sync-pair scanning on synthetic streams. PUBLIC.
+add_executable(test_tpeg_framing
+    test_tpeg_framing.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/tpeg_decoder.cpp
+)
+target_link_libraries(test_tpeg_framing
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_tpeg_framing COMMAND test_tpeg_framing)
+
+# TPEG/TEPG capture-backed tests (real bytes from eti/bkk_20062022_141637.eti
+# SCId 22): framing report, marker distribution, text inventory. PRIVATE.
+add_executable(test_tpeg_decoder
+    test_tpeg_decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/tpeg_decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core/eti_file_scanner.cpp
+)
+target_link_libraries(test_tpeg_decoder
+    Qt6::Test
+    Qt6::Core
+)
+add_test(NAME test_tpeg_decoder COMMAND test_tpeg_decoder)
+set_tests_properties(test_tpeg_decoder PROPERTIES TIMEOUT 60)
 
 # ============================================================================
 # PHASE 3B TESTS - DLS+ Dynamic Label Plus (October 25, 2025)
@@ -713,8 +746,10 @@ if(CAN_RUN_GUI_TESTS)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         # Several full-fixture loads (real-data assertions, the reload/reset
         # test and the MOT Slideshow real-fixture test) need extra headroom on
-        # slow CI hosts.
-        TIMEOUT 240
+        # slow CI hosts. B-LOW5: measured 229 s on this host AFTER the Wave
+        # A/B additions (baseline was 191-217 s), so the old 240 s left under
+        # 5% margin — raised to 480 s (≈2× measured) for slow CI runners.
+        TIMEOUT 480
         # Shares the test-mode QSettings store with test_settings_dialog /
         # test_dock_interactions; serialise (see test_settings_dialog).
         RESOURCE_LOCK settings_store
@@ -814,6 +849,10 @@ target_link_libraries(test_e2e_epg_journaline
     Threads::Threads
 )
 add_test(NAME test_e2e_epg_journaline COMMAND test_e2e_epg_journaline)
+set_tests_properties(test_e2e_epg_journaline PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60
+)
 
 message(STATUS "  ✓ test_e2e_eti_to_audio (ETI → DAB+ validation)")
 message(STATUS "  ✓ test_e2e_mot_slideshow (MOT SlideShow pipeline)")
@@ -1167,6 +1206,7 @@ set(DABX_PRIVATE_TESTS
     test_cli_fig_extended
     test_cli_fig_trace
     test_dabplus_audio_decoder
+    test_e2e_epg_journaline
     test_eti_format_detection
     test_eti_frame_parser
     test_eti_li_crc_validation
@@ -1174,6 +1214,7 @@ set(DABX_PRIVATE_TESTS
     test_gui_dock_layout
     test_network_stream_validation
     test_segfault_fixes
+    test_tpeg_decoder
 )
 
 # Label every registered test: PRIVATE for the capture-dependent set, PUBLIC
@@ -1203,7 +1244,8 @@ foreach(_dabx_test_target IN ITEMS
         test_live_eti_processing test_mot_protocol test_network_stream_validation
         test_pft_reassembler test_qt_audio_output_sink test_security_fixes
         test_segfault_fixes test_service_discovery test_settings_dialog
-        test_stream_recording test_yaml_output_generator)
+        test_stream_recording test_yaml_output_generator test_tpeg_framing
+        test_tpeg_decoder)
     if(TEST "${_dabx_test_target}")   # guard: some add_test() are conditional/commented
         if(_dabx_test_target IN_LIST DABX_PRIVATE_TESTS)
             set_tests_properties("${_dabx_test_target}" PROPERTIES LABELS "PRIVATE")

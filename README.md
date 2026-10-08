@@ -10,7 +10,7 @@ carousel, service and sub-channel discovery, DAB+ audio, PAD/DLS+ "now playing"
 metadata, MOT slideshow and data services, with ETSI compliance checks.
 
 > **Status:** first public release. CI builds and tests on Linux, Windows and
-> macOS; the test suite (56 targets) and the fixture parity gate must stay green.
+> macOS; the test suite (58 targets) and the fixture parity gate must stay green.
 
 ## Features
 
@@ -29,8 +29,15 @@ metadata, MOT slideshow and data services, with ETSI compliance checks.
   libfaad2 (audio levels, format reporting).
 - **PAD/DLS+** decoding per ETSI TS 102 563 / TS 102 980 — structured
   now-playing tags (title/artist/album/…) plus plain DLS.
-- **MOT slideshow** with real image extraction, EPG and Journaline decoders for
-  data services.
+- **MOT slideshow** with real image extraction, plus **EPG, Journaline and
+  TPEG** decoders that also feed the inner data-service tabs of the Now
+  Playing panel (Slideshow | EPG | Journaline | TPEG). TPEG coverage is
+  identification-level only — TS 102 894-1-style framing + a text inventory
+  of the observed application, full TTI later. Every tab shows data only
+  when the stream actually carries it: a capture with an idle EPG service or
+  no Journaline carousel displays an explicit honest empty state ("No EPG
+  data in this stream", "No Journaline data routed in this stream") instead
+  of fabricated content.
 - **Thai UTF-8** handling is a first-class requirement (labels, DLS+, EPG) and is
   covered by tests.
 - Playback of the selected service's decoded audio: ALSA on Linux, Qt
@@ -42,7 +49,7 @@ metadata, MOT slideshow and data services, with ETSI compliance checks.
   ODR-DabMux publisher).
 
 **Tooling**
-- Qt 6 GUI with an advanced docking layout (Qt-ADS): 28 docks across transport,
+- Qt 6 GUI with an advanced docking layout (Qt-ADS): 27 docks across transport,
   FIC analyser, service tree, hex viewer, FIG tracer, constellation, spectrum,
   performance dashboard, compliance monitor and logging panels.
 - `streamdab-cli` headless analyser with YAML output (ETI stream stats, service

@@ -19,32 +19,33 @@ must be split so:
 
 | Suite | Targets | Criterion |
 |---|---|---|
-| **PRIVATE (11)** | `test_advanced_fig_analyser`, `test_cli_fig_extended`, `test_cli_fig_trace`, `test_dabplus_audio_decoder`, `test_eti_format_detection`, `test_eti_frame_parser`, `test_eti_li_crc_validation`, `test_eti_ni_parser`, `test_gui_dock_layout` (parity gate: DLS 1114 / MOT 97/97), `test_network_stream_validation`, `test_segfault_fixes` | Source references a real fixture path (`../../eti/`, `../eti/`, `eti/bkk_20062022_141637.eti`, `hr_20240912…`, `EWS*.eti`) |
-| **PUBLIC (~44-45)** | everything else (FIG unit tests, DLS+/MOT/EPG/Journaline decoders, CLI parser/settings, dock interactions, qt audio output sink, network loopback, YAML generator, …) | No real fixture path in any compiled source |
+| **PRIVATE (13)** | `test_advanced_fig_analyser`, `test_cli_fig_extended`, `test_cli_fig_trace`, `test_dabplus_audio_decoder`, `test_e2e_epg_journaline`, `test_eti_format_detection`, `test_eti_frame_parser`, `test_eti_li_crc_validation`, `test_eti_ni_parser`, `test_gui_dock_layout` (parity gate: DLS 1114 / MOT 97/97), `test_network_stream_validation`, `test_segfault_fixes`, `test_tpeg_decoder` | Source references a real fixture path (`../../eti/`, `../eti/`, `eti/bkk_20062022_141637.eti`, `hr_20240912…`, `EWS*.eti`) |
+| **PUBLIC (45)** | everything else (FIG unit tests, DLS+/MOT/EPG/Journaline decoders, CLI parser/settings, dock interactions, qt audio output sink, network loopback, YAML generator, …) | No real fixture path in any compiled source |
 
 > Note: `test_eti_frame_parser` mixes a `/tmp` synthetic *and* the real capture;
 > it is labelled PRIVATE (needs the capture present to pass its real-path cases).
 
 ## Mechanisms
 
-1. **CTest LABELS** — `tests/CMakeLists.txt` sets `LABELS "PRIVATE"` on the 11
+1. **CTest LABELS** — `tests/CMakeLists.txt` sets `LABELS "PRIVATE"` on the 13
    targets above and `LABELS "PUBLIC"` on every other registered target
    (applied in one loop at the end of the file).
 
    ```cmake
    set(DABX_PRIVATE_TESTS
        test_advanced_fig_analyser test_cli_fig_extended test_cli_fig_trace
-       test_dabplus_audio_decoder test_eti_format_detection test_eti_frame_parser
+       test_dabplus_audio_decoder test_e2e_epg_journaline
+       test_eti_format_detection test_eti_frame_parser
        test_eti_li_crc_validation test_eti_ni_parser test_gui_dock_layout
-       test_network_stream_validation test_segfault_fixes)
+       test_network_stream_validation test_segfault_fixes test_tpeg_decoder)
    # for each registered add_test target: PROPERTIES LABELS ...
    ```
 
 2. **Selection commands** (dev runbook)
    ```bash
-   ctest                           # default: EVERYTHING (56) — needs the captures
-   ctest -L PUBLIC                 # public subset — CI-safe, no captures needed
-   ctest -L PRIVATE                # only the capture-dependent tests
+   ctest                           # default: EVERYTHING (58) — needs the captures
+   ctest -L PUBLIC                 # public subset (45) — CI-safe, no captures needed
+   ctest -L PRIVATE                # only the capture-dependent tests (13)
    ```
    `ci.yml` / `release.yml` use **`ctest --preset <os> -L PUBLIC`** so GitHub
    never needs the captures.
@@ -72,16 +73,23 @@ None of these ever reach the public repository.
 
 ## Phase-1 validation work (EPG / Journaline / TPEG — before the GUI tabs)
 
-The EPG and Journaline decoders exist and pass synthetic unit tests, but have
-never been fed real ensemble data (the `test_e2e_epg_journaline` target is an
-empty shell). Phase 1 (private, uses the captures above):
+The EPG and Journaline decoders exist and pass synthetic unit tests, but had
+never been fed real ensemble data when this plan was written —
+`test_e2e_epg_journaline` was an empty shell (it now runs the real captures
+and **logs and documents** those exact figures: bkk EPG honest rejection = 0
+events, TEPG inventory = 36 unique messages / 4998 frames, HR Journaline
+clean-item count = 3 014 of 11 544 candidates, and DataServiceStore
+aggregation; what it *asserts* is bounds — 0 events, ≥ 20 items, candidates >
+items, a 5 % pass-rate floor and the message/frame floors, see
+`tests/e2e/test_e2e_epg_journaline.cpp`). Phase 1 (private, uses the
+captures above):
 
 1. Extend the MOT/FIC inventory to report content subtypes from real captures
    (EPG via FIG 5.1/5.2 + MOT; TPEG via subchannel data; Journaline via MOT
    objects) — **no fake data**.
 2. Feed `bkk` EPG/TPEG objects and the HR Journaline objects through the
    EPG/Journaline decoders; fix any spec gaps (TS 102 371, TS 102 979) and add
-   capture-backed unit/E2E tests (replace the empty e2e shell).
+   capture-backed unit/E2E tests.
 3. Only then build the GUI tabs (MOT dock → `Slideshow | EPG | Journaline`)
    and update README/ATTRIBUTIONS to the validated reality.
 4. New EWS tests (FIG 9.x EWS, TS 104 089/090) land labelled **PRIVATE**.
@@ -91,7 +99,7 @@ empty shell). Phase 1 (private, uses the captures above):
 - `README.md` Testing section: fixtures are private World DAB material; the
   table becomes "private captures (obtained separately)"; CI runs the PUBLIC
   subset.
-- `INSTALL.md` test paragraph: full 56/56 requires the private captures;
+- `INSTALL.md` test paragraph: full 58/58 requires the private captures;
   public builds run `ctest -L PUBLIC`.
 - `ATTRIBUTIONS.md` test-data section: captures not redistributed (World DAB
   licence) and required for the private suite.
@@ -104,8 +112,8 @@ empty shell). Phase 1 (private, uses the captures above):
 ## Verification for this change
 
 - Build 0/0 (recreate `build/` — it was cleaned by the environment).
-- Full `ctest` (captures present) 56/56 — unchanged public claims replaced by
-  "full = 56 with private captures".
+- Full `ctest` (captures present) 58/58 — unchanged public claims replaced by
+  "full = 58 with private captures".
 - `ctest -L PUBLIC` runs and matches the public classification count.
 - Publish `--dry-run`: `eti/` absent from the filtered tree, file count
   drops by the tracked `eti/*` entries.

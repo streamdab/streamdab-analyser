@@ -37,6 +37,7 @@ PDFs are available free of charge from ETSI:
 | ETSI TS 102 371 | Digital Audio Broadcasting — EPG | https://www.etsi.org/deliver/etsi_ts/102300_102399/102371/ |
 | ETSI TS 102 979 | Journaline | https://www.etsi.org/deliver/etsi_ts/102900_102999/102979/ |
 | ETSI TS 102 980 | Dynamic Label Plus (DLS+) | https://www.etsi.org/deliver/etsi_ts/102900_102999/102980/ |
+| ETSI TS 102 894 | TPEG (traffic/travel protocol) — framing identification + observed text inventory only; full TTI decoding not claimed | https://www.etsi.org/deliver/etsi_ts/102800_102899/102894/ |
 
 ## Third-party libraries
 

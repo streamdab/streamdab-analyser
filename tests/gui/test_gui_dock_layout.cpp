@@ -101,6 +101,10 @@ quint16 acquireFreeUdpPort()
 #include "DockWidget.h"
 #include "DockAreaWidget.h"
 
+// Wave B: bounded prefix scan of the real HR capture (SCId 8 Journaline
+// carousel) for the Journaline tab's real-data population test.
+#include "../src/core/eti_file_scanner.hpp"
+
 // Include the real application window implementation (main() excluded via
 // GUI_TEST_MODE compile definition). The class and all panels come from here.
 #include "../src/main.cpp"
@@ -156,6 +160,10 @@ private slots:
     void testMotXpadCiFlagZeroContinuation();
     void testMotSlideshowPanelAndTabs();
     void testMotSlideshowRealFixture();
+    // Wave B: inner data-service tabs (Slideshow | EPG | Journaline | TPEG)
+    void testDataServiceTabsStructure();
+    void testDataServiceTabsRealBkkCapture();
+    void testJournalineTabRealHrStream();
     // T29: Player transport controls + playback controller + default Player tab
     void testPlayerPanelTransportControls();
     // T45: live Logging tab (bottom strip) fed by the Logger singleton
@@ -3185,6 +3193,410 @@ void TestGuiDockLayout::testMotSlideshowRealFixture()
     // DLS+ side must be unchanged by the MOT wave (the parser feeds both).
     QVERIFY2(w.dlsPlusMessageCountForTest() > 0, "DLS+ labels must still decode");
     QCOMPARE(w.dlsPlusMessageCountForTest(), 1114);  // unchanged by T26
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+// ============================================================================
+// Wave B: inner data-service tabs (Slideshow | EPG | Journaline | TPEG)
+// ============================================================================
+// All claims below are backed by the REAL captures:
+//   * eti/bkk_20062022_141637.eti — EPG SCId 14 is reserved-but-idle (the tab
+//     must say so honestly), TEPG SCId 22 is a TPEG2-style carousel with the
+//     36-message text inventory, and there is NO Journaline here.
+//   * eti/…journalline/hr_20240912T105801_EWS_Start.eti — SCId 8 carries the
+//     real stream-mode Journaline carousel (bounded 4000-frame prefix scan,
+//     the same slice the headless e2e test validates; no full 153 MB parse).
+// ============================================================================
+
+void TestGuiDockLayout::testDataServiceTabsStructure()
+{
+    clearSettingsStore();
+    DABAnalyserWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // The tabs are INNER to the existing Now Playing / Slideshow dock area —
+    // no new top-level dock, so the dock registry is untouched (asserted by
+    // testDocksWithExpectedNames) and the splitter structure stays as-is.
+    QSplitter* split = w.nowPlayingSplitterForTest();
+    QVERIFY(split);
+    QCOMPARE(split->count(), 2);
+    QCOMPARE(split->widget(0)->objectName(), QStringLiteral("dlsPanel"));
+    QCOMPARE(split->widget(1)->objectName(), QStringLiteral("slideshowPanel"));
+    QVERIFY(w.findChild<QWidget*>(QStringLiteral("slideshowFrame")));
+
+    QTabWidget* tabs = w.dataServiceTabsForTest();
+    QVERIFY2(tabs, "the inner data-service QTabWidget must exist");
+    QCOMPARE(tabs->count(), 4);
+    QCOMPARE(tabs->tabText(0), QStringLiteral("Slideshow"));
+    QCOMPARE(tabs->tabText(1), QStringLiteral("EPG"));
+    QCOMPARE(tabs->tabText(2), QStringLiteral("Journaline"));
+    QCOMPARE(tabs->tabText(3), QStringLiteral("TPEG"));
+
+    // Every accessor-backed widget exists before any capture is loaded.
+    QVERIFY(w.epgDecoderForTest());
+    QVERIFY(w.journalineDecoderForTest());
+    QVERIFY(w.tpegDecoderForTest());
+    QVERIFY(w.epgServiceComboForTest());
+    QVERIFY(w.epgScheduleListForTest());
+    QVERIFY(w.epgStatusLabelForTest());
+    QVERIFY(w.journalineMenuTreeForTest());
+    QVERIFY(w.journalinePreviewForTest());
+    QVERIFY(w.journalineStatusLabelForTest());
+    QVERIFY(w.tpegInventoryTableForTest());
+    QVERIFY(w.tpegStatusLabelForTest());
+    QCOMPARE(w.epgScheduleListForTest()->count(), 0);
+    QCOMPARE(w.tpegInventoryTableForTest()->rowCount(), 0);
+    QCOMPARE(w.journalineMenuTreeForTest()->topLevelItemCount(), 0);
+
+    // Switchable: every page can become the current one.
+    for (int i = 0; i < tabs->count(); ++i) {
+        tabs->setCurrentIndex(i);
+        QCOMPARE(tabs->currentIndex(), i);
+        QVERIFY(tabs->currentWidget() == tabs->widget(i));
+    }
+    tabs->setCurrentIndex(0);
+
+    // Honest pre-load states + the fixed TPEG coverage note.
+    QVERIFY2(w.epgStatusLabelForTest()->text().contains(QStringLiteral("Waiting for capture")),
+             qPrintable(QString("EPG status: %1").arg(w.epgStatusLabelForTest()->text())));
+    QVERIFY2(w.journalineStatusLabelForTest()->text().contains(
+                 QStringLiteral("Waiting for capture")),
+             qPrintable(QString("Journaline status: %1")
+                            .arg(w.journalineStatusLabelForTest()->text())));
+    QVERIFY2(w.tpegStatusLabelForTest()->text().contains(
+                 QStringLiteral("TPEG base (framing + text inventory; full TTI later)")),
+             qPrintable(QString("TPEG status: %1").arg(w.tpegStatusLabelForTest()->text())));
+
+    // --- B-M3: FIG 1/5 label decoding — UTF-8 first, Latin-1 fallback ------
+    // FORMATTING spot-check with SYNTHETIC bytes (explicitly NOT a real-data
+    // claim): the raw 16-byte label field must round-trip Thai UTF-8 as
+    // Unicode text — Thai is first-class (no U+FFFD, no Latin-1 mojibake,
+    // one QChar per Thai character) — while legacy Latin-1-only bytes still
+    // decode via the fallback instead of degrading to U+FFFD.
+    {
+        const QByteArray thai = QString::fromUtf8("สถานี").toUtf8();  // "station"
+        QVERIFY2(thai.size() == 15,
+                 qPrintable(QString("synthetic Thai label is %1 bytes, expected 15 "
+                                    "(5 chars × 3 bytes UTF-8)")
+                                .arg(thai.size())));
+        const QByteArray field = thai + QByteArray(16 - thai.size(), ' ');
+        QCOMPARE(DABAnalyserWindow::figLabelFieldLength(field.constData()),
+                 qsizetype(16));
+        const QString decoded = DABAnalyserWindow::decodeFigLabelBytes(
+            field.constData(),
+            DABAnalyserWindow::figLabelFieldLength(field.constData()));
+        QCOMPARE(decoded.trimmed(), QString::fromUtf8("สถานี"));
+        QVERIFY2(!decoded.contains(QChar::ReplacementCharacter),
+                 "Thai UTF-8 must never degrade to U+FFFD");
+        QCOMPARE(decoded.trimmed().size(), 5);  // one QChar per Thai character
+
+        QByteArray latinField(16, ' ');
+        latinField[0] = static_cast<char>(0xE9);  // "é" in Latin-1 (invalid UTF-8)
+        const QString latin = DABAnalyserWindow::decodeFigLabelBytes(
+            latinField.constData(),
+            DABAnalyserWindow::figLabelFieldLength(latinField.constData()));
+        QCOMPARE(latin.trimmed(), QString(QChar(0x00E9)));
+    }
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+void TestGuiDockLayout::testDataServiceTabsRealBkkCapture()
+{
+    clearSettingsStore();
+    DABAnalyserWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    const QString fixture = QStringLiteral("../../eti/bkk_20062022_141637.eti");
+    QVERIFY2(QFileInfo::exists(fixture),
+             qPrintable(QString("fixture missing: %1 (cwd=%2)")
+                            .arg(fixture, QDir::currentPath())));
+    w.autoLoadFile(fixture);
+    QCoreApplication::processEvents();
+    QTRY_VERIFY_WITH_TIMEOUT(w.isFileLoaded() && w.analyserFigInstanceCount() > 0, 120000);
+
+    // --- The Wave A per-data-subchannel tap really captured both services ---
+    auto idsText = [](const QVector<int>& ids) {
+        QStringList parts;
+        for (int id : ids) {
+            parts << QString::number(id);
+        }
+        return parts.join(QLatin1Char(','));
+    };
+    const QVector<int> dataScIds = w.dataSubChannelIdsForTest();
+    QVERIFY2(dataScIds.contains(14),
+             qPrintable(QString("captured data subchannels: %1").arg(idsText(dataScIds))));
+    QVERIFY2(dataScIds.contains(22),
+             qPrintable(QString("captured data subchannels: %1").arg(idsText(dataScIds))));
+    // M9: ONLY data subchannels are tapped — the 14 DAB+ audio subchannels of
+    // this ensemble must not contribute a single byte (incl. the frames
+    // captured before FIG 0/8 classified them).
+    QVector<int> expectedDataScIds;
+    expectedDataScIds << 14 << 22;
+    QCOMPARE(dataScIds, expectedDataScIds);
+    QVERIFY2(w.dataSubChannelBytesForTest() > 100000,
+             qPrintable(QString("captured data bytes: %1")
+                            .arg(w.dataSubChannelBytesForTest())));
+
+    // --- M9: tap <-> scanner byte equivalence (real-data accounting) ------
+    // The GUI tap must capture EXACTLY the subchannel bytes the reference
+    // ETI scanner computes from the same file: no audio subchannel leaked in,
+    // no frame dropped (A-H4: frames before the DAB+ map is populated are
+    // captured too), and the global byte cap never engaged.
+    eti::EtiScanResult scan;
+    QVERIFY2(eti::scanEtiFile(fixture, scan), "bkk capture must scan for M9");
+    const eti::ScannedSubchannel* epgScan = scan.find(14);
+    const eti::ScannedSubchannel* tepgScan = scan.find(22);
+    QVERIFY2(epgScan && tepgScan, "bkk must expose SCId 14 + 22 to the scanner");
+    const QByteArray tapEpg = w.dataSubChannelStreamForTest(14);
+    const QByteArray tapTepg = w.dataSubChannelStreamForTest(22);
+    QCOMPARE(tapEpg.size(), static_cast<int>(epgScan->merged_bytes.size()));
+    QCOMPARE(tapTepg.size(), static_cast<int>(tepgScan->merged_bytes.size()));
+    QCOMPARE(tapEpg, epgScan->merged_bytes);
+    QCOMPARE(tapTepg, tepgScan->merged_bytes);
+    // Empirical sizes for this capture (EPG 32 kb/s, TPEG 8 kb/s windows).
+    QCOMPARE(epgScan->merged_bytes.size(), 479808);
+    QCOMPARE(tepgScan->merged_bytes.size(), 119952);
+    QVERIFY2(w.dataSubChannelBytesForTest() <= 4ull * 1024 * 1024,
+             qPrintable(QString("global tap byte cap breached: %1")
+                            .arg(w.dataSubChannelBytesForTest())));
+
+    // --- B-H1: routing decisions asserted on the REAL captured bytes -------
+    // The order is: bounded TPEG framing probe → FIG 1/1 / FIG 1/5 label →
+    // Journaline content probe → honest EPG fallback. Each step has a
+    // real-data anchor here (bkk's data services all carry the FIG 1/5 label
+    // "EPG", so only the framing step can separate the TPEG subchannel).
+    using Route = DABAnalyserWindow::DataServiceRoute;
+    QCOMPARE(static_cast<int>(w.routeDataServiceForTest(22, tapTepg)),
+             static_cast<int>(Route::Tpeg));   // carousel framing (prefix scan)
+    QCOMPARE(static_cast<int>(w.routeDataServiceForTest(14, tapEpg)),
+             static_cast<int>(Route::Epg));    // FIG 1/5 label "EPG"
+    // B-H1(4): a DAB+ AUDIO subchannel must never route to Journaline — its
+    // binary bytes are junk to the content probe (Phase 2: clean share 0.0052
+    // vs the 0.05 floor), so only the honest EPG fallback can take them.
+    const eti::ScannedSubchannel* audioScan = scan.find(0);
+    QVERIFY2(audioScan && audioScan->merged_bytes.size() > 100000,
+             "bkk DAB+ audio SCId 0 must be scannable for the routing check");
+    const DABAnalyserWindow::DataServiceRoute audioRoute =
+        w.routeDataServiceForTest(0, audioScan->merged_bytes);
+    QVERIFY2(audioRoute != Route::Journaline,
+             qPrintable(QString("bkk DAB+ audio SCId 0 routed to Journaline "
+                                "(route=%1) — audio junk must never reach it")
+                            .arg(static_cast<int>(audioRoute))));
+
+    // Load-time DLS+/MOT parity is untouched by the data-service feed.
+    QCOMPARE(w.dlsPlusMessageCountForTest(), 1114);
+    QCOMPARE(w.motObjectsForTest(), 97);
+    QCOMPARE(w.motImagesDecodedForTest(), 97);
+
+    QTabWidget* tabs = w.dataServiceTabsForTest();
+    QVERIFY(tabs);
+    QCOMPARE(tabs->count(), 4);
+
+    // --- TPEG tab: the REAL Bangkok TEPG carousel inventory -----------------
+    QTableWidget* table = w.tpegInventoryTableForTest();
+    QVERIFY(table);
+    auto inventoryDump = [table]() {
+        QStringList rows;
+        for (int r = 0; r < table->rowCount(); ++r) {
+            const QTableWidgetItem* cell = table->item(r, 1);
+            rows << (cell ? cell->text() : QStringLiteral("<null>"));
+        }
+        return rows.join(QStringLiteral(" | "));
+    };
+    // B-LOW6: ONE source of truth for the unique-message count — the table's
+    // own row count (the real bkk carousel inventory). The status line is
+    // derived from the same count below instead of restating "36" here.
+    const int kTpegUniqueMessages = 36;
+    QTRY_VERIFY2_WITH_TIMEOUT(
+        table->rowCount() >= kTpegUniqueMessages,
+        qPrintable(QString("TEPG unique messages in the GUI tab: %1 — %2")
+                       .arg(table->rowCount())
+                       .arg(inventoryDump())),
+        30000);
+    // Exactly the real inventory — never more (no duplicates), never less
+    // (nothing dropped: this capture is far under the 512-row decoder cap).
+    QCOMPARE(table->rowCount(), kTpegUniqueMessages);
+
+    QStringList messages;
+    QSet<QString> families;
+    for (int r = 0; r < table->rowCount(); ++r) {
+        const QTableWidgetItem* text = table->item(r, 1);
+        const QTableWidgetItem* family = table->item(r, 0);
+        QVERIFY(text && family);
+        messages << text->text();
+        families.insert(family->text());
+        // first/last-seen columns are recorded while the real stream is fed.
+        QVERIFY2(!table->item(r, 3)->text().isEmpty(),
+                 "first-seen frame column must be filled");
+        QVERIFY2(!table->item(r, 4)->text().isEmpty(),
+                 "last-seen frame column must be filled");
+    }
+    QVERIFY2(messages.contains(QStringLiteral("Mo Chit Parking")),
+             qPrintable(QString("exact message 'Mo Chit Parking' missing — %1")
+                            .arg(inventoryDump())));
+    QVERIFY2(messages.contains(QStringLiteral("TPEG TEC+TFP+PKI+E")),
+             qPrintable(QString("exact banner 'TPEG TEC+TFP+PKI+E' missing — %1")
+                            .arg(inventoryDump())));
+    // The parking text really mentions BTS: the carousel fragments it across
+    // runs ("BTS Mo Ch", "BTS Mo Che0", "Mo Chit Parking"), so the BTS run
+    // must exist as its own exact entry (never fabricated as one string).
+    QVERIFY2(messages.contains(QStringLiteral("BTS Mo chit"))
+                 || messages.contains(QStringLiteral("BTS Mo Ch")),
+             qPrintable(QString("BTS run missing — %1").arg(inventoryDump())));
+    QVERIFY2(families.contains(QStringLiteral("TEC")),
+             qPrintable(QString("families: %1").arg(families.values().join(QStringLiteral(",")))));
+    QVERIFY2(families.contains(QStringLiteral("PKI")),
+             qPrintable(QString("families: %1").arg(families.values().join(QStringLiteral(",")))));
+
+    QLabel* tpegStatus = w.tpegStatusLabelForTest();
+    QVERIFY(tpegStatus);
+    QVERIFY2(tpegStatus->text().contains(
+                 QStringLiteral("TPEG base (framing + text inventory; full TTI later)")),
+             qPrintable(QString("TPEG status: %1").arg(tpegStatus->text())));
+    QVERIFY2(tpegStatus->text().contains(
+                 QStringLiteral("%1 unique messages").arg(table->rowCount())),
+             qPrintable(QString("TPEG status: %1 — expected the row count %2")
+                            .arg(tpegStatus->text())
+                            .arg(table->rowCount())));
+
+    // --- EPG tab: honest "no data" state for bkk's idle EPG subchannel ------
+    QLabel* epgStatus = w.epgStatusLabelForTest();
+    QVERIFY(epgStatus);
+    QTRY_VERIFY2_WITH_TIMEOUT(
+        epgStatus->text().contains(QStringLiteral("No EPG data in this stream")),
+        qPrintable(QString("EPG status: %1").arg(epgStatus->text())), 15000);
+    QCOMPARE(w.epgScheduleListForTest()->count(), 0);
+    QVERIFY2(!w.epgServiceComboForTest()->isEnabled(),
+             "no EPG service is selectable when the stream carries no events");
+    // The decoder's honest rejection is surfaced in the status line (the
+    // epgDecodingError signal is delivered queued, hence QTRY).
+    QTRY_VERIFY2_WITH_TIMEOUT(
+        epgStatus->text().contains(QStringLiteral("decoder reported")),
+        qPrintable(QString("EPG status (error not surfaced): %1").arg(epgStatus->text())),
+        15000);
+
+    // --- Journaline tab: honest "no data" state (bkk has no Journaline) -----
+    // B-H1(5): nothing in this capture routes to Journaline (SCId 14 → Epg by
+    // label, SCId 22 → Tpeg by framing, audio excluded), so the status must
+    // say "not routed" — not the "routed but empty" state.
+    QLabel* journalineStatus = w.journalineStatusLabelForTest();
+    QVERIFY(journalineStatus);
+    QTRY_VERIFY2_WITH_TIMEOUT(
+        journalineStatus->text().contains(QStringLiteral("No Journaline data routed in this stream")),
+        qPrintable(QString("Journaline status: %1").arg(journalineStatus->text())), 15000);
+    QCOMPARE(w.journalineMenuTreeForTest()->topLevelItemCount(), 0);
+    QVERIFY(w.journalinePreviewForTest()->toPlainText().isEmpty());
+
+    // --- The Slideshow page is still the default tab and behaves as before --
+    QCOMPARE(tabs->currentIndex(), 0);
+    QVERIFY(w.slideshowImageForTest().width() > 0);
+
+    // --- M9: the tap state is reset by the same hook every load runs -------
+    // (a second load therefore starts from 0 and re-captures, never
+    // accumulating on top of the previous capture).
+    QVERIFY2(w.resetCaptureStateForTest(), "a loaded capture must report a reset");
+    QCOMPARE(w.dataSubChannelBytesForTest(), 0ull);
+    QVERIFY2(w.dataSubChannelIdsForTest().isEmpty(),
+             qPrintable(QString("tap not cleared: %1").arg(idsText(w.dataSubChannelIdsForTest()))));
+
+    w.close();
+    QCoreApplication::processEvents();
+}
+
+void TestGuiDockLayout::testJournalineTabRealHrStream()
+{
+    const QString hr = QStringLiteral(
+        "../../eti/HessischerRundfunk-Warntag2024-2024-09-12_journalline/"
+        "hr_20240912T105801_EWS_Start.eti");
+    if (!QFileInfo::exists(hr)) {
+        QSKIP("HR capture not present locally");
+    }
+
+    // Bounded prefix scan (4000 frames ≈ 24 MB, same slice as the headless
+    // e2e test): the real SCId 8 carousel bytes without a full 153 MB parse.
+    eti::EtiScanResult scan;
+    QVERIFY2(eti::scanEtiFile(hr, scan, 4000), "HR capture must scan");
+    const eti::ScannedSubchannel* sc = scan.find(8);
+    QVERIFY2(sc != nullptr, "HR SCId 8 (Journaline) must be present");
+    QVERIFY2(sc->merged_bytes.size() > 100000,
+             qPrintable(QString("HR SCId 8 prefix bytes: %1").arg(sc->merged_bytes.size())));
+
+    clearSettingsStore();
+    DABAnalyserWindow w;
+    w.show();
+    QCoreApplication::processEvents();
+
+    // --- B-H1/B-M2: routing decisions on the REAL HR bytes -----------------
+    // An UNBOUNDED framing scan reports TPEG carousel markers for this stream
+    // (Phase 2 probe: HR full-buffer framing = 1) — a false positive that
+    // would steal the Journaline carousel. Bounding the probe to the first 240
+    // bytes clears it (HR prefix framing = 0) and the content probe's clean
+    // share (3 014 / 11 544 = 0.2611 vs the 0.05 floor) routes the bytes to
+    // Journaline.
+    using Route = DABAnalyserWindow::DataServiceRoute;
+    QCOMPARE(static_cast<int>(w.routeDataServiceForTest(8, sc->merged_bytes)),
+             static_cast<int>(Route::Journaline));
+    QVERIFY2(w.routeDataServiceForTest(8, sc->merged_bytes) != Route::Tpeg,
+             "HR SCId 8 must NOT route to Tpeg (B-M2 bounded framing probe)");
+
+    // Drive the REAL Journaline decoder + tab wiring with the real bytes.
+    w.feedJournalineStreamForTest(sc->merged_bytes);
+
+    QTreeWidget* tree = w.journalineMenuTreeForTest();
+    QVERIFY(tree);
+    QTRY_VERIFY2_WITH_TIMEOUT(
+        tree->topLevelItemCount() >= 1,
+        qPrintable(QString("Journaline roots: %1").arg(tree->topLevelItemCount())), 15000);
+    QTreeWidgetItem* root = tree->topLevelItem(0);
+    QVERIFY(root);
+    QVERIFY2(root->text(0).contains(QStringLiteral("Display Carousel")),
+             qPrintable(QString("root text: %1").arg(root->text(0))));
+    QVERIFY2(root->text(0).contains(QStringLiteral("0x7FFF")),
+             qPrintable(QString("root text: %1").arg(root->text(0))));
+    QVERIFY2(root->childCount() >= 20,
+             qPrintable(QString("stream items in the tree: %1").arg(root->childCount())));
+
+    // Status shows the real count, NOT the absent-service empty state.
+    const QString status = w.journalineStatusLabelForTest()->text();
+    QVERIFY2(!status.contains(QStringLiteral("No Journaline data routed")),
+             qPrintable(QString("Journaline status: %1").arg(status)));
+    QVERIFY2(!status.contains(QStringLiteral("but no items decoded")),
+             qPrintable(QString("Journaline status: %1").arg(status)));
+    QVERIFY2(status.contains(QStringLiteral("stream item(s)")),
+             qPrintable(QString("Journaline status: %1").arg(status)));
+
+    // The first item is preselected and its text fills the UTF-8 preview.
+    QVERIFY2(tree->currentItem() != nullptr, "the first stream item must be selected");
+    const QString preview = w.journalinePreviewForTest()->toPlainText();
+    QVERIFY2(!preview.trimmed().isEmpty(), "the preview must show the selected item");
+
+    // Real German content round-trips through the decoder into the tab:
+    // an "hr4" item must exist and non-ASCII UTF-8 (umlauts) must survive.
+    QString all;
+    for (int i = 0; i < root->childCount(); ++i) {
+        const QTreeWidgetItem* child = root->child(i);
+        all += child->text(0) + QLatin1Char('\n')
+               + child->data(0, Qt::UserRole).toString() + QLatin1Char('\n');
+    }
+    QVERIFY2(all.contains(QStringLiteral("hr4")),
+             qPrintable(QString("hr4 missing from %1 chars").arg(all.size())));
+    bool hasNonAscii = false;
+    for (const QChar ch : all) {
+        if (ch.unicode() >= 0x00C0 && ch.unicode() <= 0x024F) {
+            hasNonAscii = true;
+            break;
+        }
+    }
+    QVERIFY2(hasNonAscii,
+             qPrintable(QString("no non-ASCII UTF-8 text in the first 4000 frames "
+                                "(%1 chars)")
+                            .arg(all.size())));
 
     w.close();
     QCoreApplication::processEvents();
