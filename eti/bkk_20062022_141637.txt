@@ -1,0 +1,44 @@
+
+Type of file: 				Country snapshot ("DAB version 1.x")
+	
+File format: 				ETI(NI) Recorded from RF
+
+Ensemble label: 			Bangkok DAB+
+
+Operator: 				TV5
+
+Services: 				DAB+, PAD dls, Thai letters in some of the stations.
+
+Date of creation:			20.6.2022
+
+Creator: 				
+
+Creator contact: 			
+
+Multiplexing equipment used/version: FactumRadioScape v.?  	
+
+Description: 
+The signal was observed 20/6-2022 and recorded from RF. 
+
+NBTCtest		64 kb/s (SBR) 		DAB+
+LTM FM 95		64 kb/s (SBR) 		DAB+
+COOLfahrenheit		64 kb/s (SBR) 		DAB+
+JS.100			64 kb/s (SBR) 		DAB+
+103,5 dab+ Radio	64 kb/s (SBR) 		DAB+
+HITZ 955		64 kb/s (SBR) 		DAB+
+GreenWave 106.5		64 kb/s (SBR) 		DAB+
+MET 107			64 kb/s (SBR)   	DAB+
+RadioThailand		64 kb/s (SBR)   	DAB+
+FM 94(TV5)		64 kb/s (SBR)   	DAB+
+Thai PBS Digital	64 kb/s (SBR)   	DAB+
+RROne FM 101		64 kb/s (SBR)   	DAB+
+KU RADIO		64 kb/s (SBR)   	DAB+
+LOOKTUNG NETWORK	64 kb/s (SBR)   	DAB+
+EPG			32 kb/s  	
+TEPG			 8 kb/s  	
+		
+
+Number of frames is 5001, and therefore not seamless loopable (bugg in the RF recording equipment) 
+
+
+See also the attached PDF files for graphic info.

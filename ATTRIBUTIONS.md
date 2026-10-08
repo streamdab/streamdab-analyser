@@ -54,14 +54,17 @@ PDFs are available free of charge from ETSI:
 
 ## Test data
 
-`eti/bkk_20062022_141637.eti` is a 2022 recording of a Bangkok (Thailand) DAB
-ensemble, bundled with the project as the end-to-end test fixture (DLS+ and PAD
-counters, MOT slideshow, Thai UTF-8 labels). It is test data, not part of the
-GPL-licensed source code, and is provided for validation purposes only.
+The end-to-end test suite is split into PUBLIC (self-contained, runs in CI) and
+PRIVATE (capture-dependent) targets. The PRIVATE tests use real broadcast
+captures — `eti/bkk_20062022_141637.eti` (a Bangkok ensemble with Thai labels,
+DLS+, MOT slideshow, EPG and TPEG), and the Hessischer Rundfunk / Bayerischer
+Rundfunk warning-day sets — which are **World DAB licensed test material**. They
+are **not** distributed with or from this repository; the PRIVATE suite runs
+where the files are available locally. They are test data, not part of the
+GPL-licensed source code.
 
-Other capture material is deliberately **not** distributed; screens and manuals
-from third-party tools that were used during development are kept out of the
-public repository for copyright reasons.
+Other third-party tools' screens and manuals used during development are kept
+out of the public repository for copyright reasons.
 
 ## Your contributions
 

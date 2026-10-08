@@ -55,11 +55,13 @@ cd "$ROOT_DIR"
 [ -z "$BRANCH" ] && BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
 # Paths excluded from the public tree (keep in sync with .gitattributes).
-# NOTE: eti/bkk_20062022_141637.eti is PUBLIC (the CI parity gate + smoke
-# depend on it); the other eti/ subdirectories stay private (gitignored).
+# eti/ is EXCLUDED entirely: the captures are World DAB licensed test
+# material and must never be published (the PRIVATE test suite uses them
+# locally; GitHub CI runs only the PUBLIC-labelled tests).
 EXCLUDES=(
     docs
     ref
+    eti
     build
     Testing
     tests/tests

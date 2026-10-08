@@ -3,11 +3,12 @@
 Build & install instructions for **StreamDAB Analyser** (Qt 6 / C++20 / CMake GUI + CLI).
 Reference runtime: **Qt 6.11 / g++ 13 / Ubuntu** — see the version matrix at the end.
 
-Test suite: **56/56 (100 %)** with `QT_QPA_PLATFORM=offscreen`. The main fixture
-`eti/bkk_20062022_141637.eti` (30 MB) is **committed** — several tests (GUI dock
-layout, CLI E2E) and the CI parity/smoke gates require it and run on GitHub too.
-The other, larger capture directories in `eti/` stay gitignored; obtain them
-separately if a test needs them.
+Test suite: the **PUBLIC subset** runs anywhere (`ctest -L PUBLIC`, which is what
+GitHub CI runs); the **full suite** additionally needs the broadcast captures
+under `eti/` — those are **World DAB licensed test material, not redistributed**
+with this repository (obtain/place them locally, e.g. by using the private
+origin). Parity gates on the Bangkok capture: DLS+ 1114, MOT 97/97, 0 CRC
+warnings.
 
 ---
 
@@ -195,7 +196,7 @@ top-level `CMakeLists.txt` is the only path.
 |---|---|---|
 | **Reproducible container** | §2 above | ✅ canonical |
 | **Script wrapper** | `scripts/build.sh` (Linux/macOS/Git-Bash) | ✅ exists, thin wrapper |
-| **GitHub Actions CI** | `.github/workflows/ci.yml` (ubuntu-24.04 / windows-2022 / macos-14, Qt 6.8, `QT_QPA_PLATFORM=offscreen`, per-OS presets) | ✅ current — builds + 56/56 suite + CLI smoke on the real fixture |
+| **GitHub Actions CI** | `.github/workflows/ci.yml` (ubuntu-24.04 / windows-2022 / macos-14, Qt 6.8, `QT_QPA_PLATFORM=offscreen`, per-OS presets) | ✅ current — builds + **PUBLIC suite** (`ctest -L PUBLIC`) + CLI version/help smoke |
 | **GitHub Releases** | `.github/workflows/release.yml` (tag `v*` → per-OS binary archives + release notes) | ✅ current — upgraded to CPack artifacts |
 | **AppImage (Linux)** | `packaging/linux/create_appimage.sh` (linuxdeploy + linuxdeploy-plugin-qt) | ✅ implemented — see §6 |
 | **DEB / TGZ (Linux)** | CPack (`cmake/packaging.cmake`) — `cmake --install build --prefix <p>` + `cpack --config build/CPackConfig.cmake -G TGZ\|DEB` | ✅ implemented — see §6 |
@@ -249,7 +250,7 @@ reproducibility is still a follow-up.
 
 | Platform | Qt | Compiler | Status |
 |---|---|---|---|
-| Ubuntu (host reference) | **6.11** | g++ 13 | ✅ full suite 56/56 |
+| Ubuntu (host reference) | **6.11** | g++ 13 | ✅ full suite (56) with the private captures · PUBLIC subset on CI |
 | Docker (ubuntu:24.04) | 6.4.2 | gcc 13 | ✅ container build validated |
 | Windows (MSVC / vcpkg) | 6.8+ (6.11 rec.) | MSVC 2022 | 🚧 plan in §3A |
 | Windows (MinGW cross/Wine) | 6.11 win64_mingw | x86_64-w64-mingw32-g++ | 🚧 needs Qt toolchain added |

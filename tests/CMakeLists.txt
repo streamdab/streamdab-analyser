@@ -1153,3 +1153,62 @@ set_tests_properties(test_qt_audio_output_sink PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     TIMEOUT 30
 )
+
+# ============================================================================
+# Suite split: PUBLIC vs PRIVATE (see docs/TEST_SUITE_PUBLIC_PRIVATE_SPLIT.md)
+#
+# The eti/ captures are World DAB licensed material and never reach the
+# public repository, so tests that load them are labelled PRIVATE and run
+# only where the captures exist (locally). Every other registered test is
+# PUBLIC — the only set GitHub CI can run (`ctest -L PUBLIC`).
+# ============================================================================
+set(DABX_PRIVATE_TESTS
+    test_advanced_fig_analyser
+    test_cli_fig_extended
+    test_cli_fig_trace
+    test_dabplus_audio_decoder
+    test_eti_format_detection
+    test_eti_frame_parser
+    test_eti_li_crc_validation
+    test_eti_ni_parser
+    test_gui_dock_layout
+    test_network_stream_validation
+    test_segfault_fixes
+)
+
+# Label every registered test: PRIVATE for the capture-dependent set, PUBLIC
+# otherwise. (A test target not listed here is left unlabelled.)
+foreach(_dabx_test_target IN ITEMS
+        test_advanced_fig_analyser test_analyser_settings test_audio_output_sink
+        test_charset_converter test_cli_argument_parser test_cli_fig_extended
+        test_cli_fig_trace test_cli_main_integration test_cli_mode_functional
+        test_dabplus_audio_decoder test_dabplus_stream_validator
+        test_dls_plus_decoder test_dock_interactions test_e2e_epg_journaline
+        test_e2e_eti_to_audio test_e2e_mot_slideshow test_edi_packet_parser
+        test_epg_decoder test_eti_format_detection test_eti_frame_parser
+        test_eti_li_crc_validation test_eti_ni_parser
+        test_etsi_registered_tables test_fig005_language test_fig007_stream_mode
+        test_fig008_service_component_global test_fig009_country_lto_table
+        test_fig010_date_time test_fig011_region_definition
+        test_fig012_mpeg2_ts test_fig014_fec_subchannel
+        test_fig015_programme_number test_fig016_programme_type_intl
+        test_fig017_programme_type test_fig018_announcement
+        test_fig019_announcement_switching test_fig020_service_component_info
+        test_fig021_frequency_information test_fig024_oe_services
+        test_fig0_processor test_fig10_ensemble_label test_fig1_processor
+        test_fig_week1_comprehensive test_fig_week2_comprehensive
+        test_gui_dock_layout test_gui_fig_type_display_panel
+        test_gui_main_window test_gui_service_discovery_panel
+        test_gui_stream_info_panel test_journaline_decoder
+        test_live_eti_processing test_mot_protocol test_network_stream_validation
+        test_pft_reassembler test_qt_audio_output_sink test_security_fixes
+        test_segfault_fixes test_service_discovery test_settings_dialog
+        test_stream_recording test_yaml_output_generator)
+    if(TEST "${_dabx_test_target}")   # guard: some add_test() are conditional/commented
+        if(_dabx_test_target IN_LIST DABX_PRIVATE_TESTS)
+            set_tests_properties("${_dabx_test_target}" PROPERTIES LABELS "PRIVATE")
+        else()
+            set_tests_properties("${_dabx_test_target}" PROPERTIES LABELS "PUBLIC")
+        endif()
+    endif()
+endforeach()

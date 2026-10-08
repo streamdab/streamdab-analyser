@@ -103,19 +103,25 @@ git tag (`DABX_VERSION`), so a tagged checkout reports its own version.
 ## Testing
 
 ```bash
-cd build && QT_QPA_PLATFORM=offscreen ctest --output-on-failure   # 56/56
+cd build && QT_QPA_PLATFORM=offscreen ctest -L PUBLIC --output-on-failure   # public suite
+# full suite (needs the private captures): ctest --output-on-failure
 ```
 
 The suite covers ETI/FIG/CRC parsing, service discovery, DLS+/MOT/EPG decoding,
 charset (Thai) handling, networking (UDP/TCP/ZeroMQ loopback), audio decode and
-output lifecycle, settings persistence and the GUI docking layout. Real broadcast
-captures drive the end-to-end gates:
+output lifecycle, settings persistence and the GUI docking layout.
 
-| Fixture | What it proves |
-|---|---|
-| `eti/bkk_20062022_141637.eti` (Bangkok, 2022) | 1114 DLS+ messages / 1114 PAD calls, 97 MOT objects / 97 images, 16 services incl. a 32-bit data SID, Thai labels, 0 CRC warnings |
+The test targets are split into two labelled suites (`ctest -L PUBLIC` /
+`ctest -L PRIVATE`):
 
-That file is committed on purpose so the same gate runs in CI.
+- **PUBLIC** — self-contained tests; this is what GitHub CI runs.
+- **PRIVATE** — end-to-end tests against real broadcast captures
+  (`eti/bkk_20062022_141637.eti` etc.). Those captures are **World DAB
+  licensed test material and are not redistributed with this repository**: the
+  private suite runs on machines that have the capture files present locally
+  (e.g. by cloning the private origin). The parity gate they drive — DLS+ 1114 /
+  PAD 1114, MOT 97 objects / 97 images, 16 services, Thai labels, 0 CRC
+  warnings on the Bangkok capture — is a local gate.
 
 ## Project layout
 
@@ -141,5 +147,6 @@ Third-party components, reference implementations and standards are credited in
 ## Contributing
 
 Issues and pull requests are welcome. Please keep the build warning-free and
-the test suite green (`ctest` 56/56, fixture parity unchanged), and follow the
+the test suite green (`ctest -L PUBLIC` on CI; the full suite locally with the
+private captures), and follow the
 existing Qt/C++20 style.

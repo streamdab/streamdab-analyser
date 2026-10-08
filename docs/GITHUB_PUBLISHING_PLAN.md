@@ -11,12 +11,14 @@
 |---|---|
 | How to exclude `docs/`, agent/AI/IDE folders? | **Rewrite a *clone* with `git filter-repo`** (removes the paths from *every* commit) → push to the public repo. Safer than a live-repo filter (the private repo is untouched) and keeps development history. |
 | If history is not wanted / needs maximum safety | Alternative: **single-commit export** (`git archive` of the allowed paths → fresh repo → one commit). No private content can exist in any public commit; history is lost. |
-| Where do the private things live? | The **private remote stays the origin** with everything (`docs/`, `.claude`, `.opencode`, `.vscode`, `ref/` PDFs, the large `eti/` subdirectories). The public remote receives only the curated tree. |
+| Where do the private things live? | The **private remote stays the origin** with everything (`docs/`, `.claude`, `.opencode`, `.vscode`, `ref/` PDFs, **all of `eti/`**). The public remote receives only the curated tree. |
 | Day-to-day flow | Develop & push to **private origin** as today; publish with `scripts/publish-public.sh` (new) which clones → filters → pushes to the **public** remote. Run it per release (or per milestone). |
 
-> **2026 decision — the small fixture is public.** `eti/bkk_20062022_141637.eti`
-> (the 55/55 parity gate + CI smoke fixture) is **committed and published**; only
-> the other, larger capture directories stay private.
+> **2026 decision (revised) — ALL `eti/` captures are private.** They are
+> World DAB licensed test material and must never be published — including the
+> 30 MB Bangkok fixture. The test suite is therefore split: PUBLIC tests run
+> in CI, PRIVATE (capture-dependent) tests run only where the files exist
+> locally (`docs/TEST_SUITE_PUBLIC_PRIVATE_SPLIT.md`).
 
 ## 2. Path classification
 
@@ -31,7 +33,7 @@
 | `docs/` | Internal notes, plans, audits, session logs, task lists, archived reports (per user decision) |
 | `.claude/`, `.opencode/`, `.vscode/`, `.agents-config.md`, `CLAUDE.md`, `AGENTS.md` | Agent/AI/IDE configuration |
 | `ref/` | **Third-party PDFs** (ETSI EN 300 401, DAB-XPlorer manuals) — copyright; must not be redistributed |
-| `eti/` | Large capture fixtures (already gitignored) |
+| `eti/` | **All captures — World DAB licensed test material, never published** (tracked ones like `bkk_…eti` serve the PRIVATE suite only) |
 | `build*/`, `Testing/`, `tests/tests/`, `*.o`, `output.yaml`, `*.backup*` | Build/test artifacts |
 | `.ropeproject/`, `.playwright-mcp/` | Editor/tool caches |
 
@@ -97,8 +99,8 @@ cd ../streamdab-public-tree && git init && git add -A \
    CLAUDE.md export-ignore
    .agents-config.md export-ignore
    ```
-4. **`.gitignore`** for the public repo: keep the build/artifact ignores (`build*/`, `Testing/`, `tests/tests/`, `*.o`, `output.yaml`, `*.backup*`, `.ropeproject/`, `.playwright-mcp/`) and the *large* `eti/` subdirectories (`eti/BayerischerRundfunk-Warntag2024-…/`, `eti/EWSv1_1/`).
-5. **Fixtures — public**: `eti/bkk_20062022_141637.eti` (30.7 MB) is **committed to the public repo on purpose** — the 55/55 parity gate (`dls_msgs=1114`, `mot_objects=97`) and the CI CLI smoke run against it. GitHub's 100 MB/file limit is respected. The other, larger capture directories stay gitignored (licensing/volume); developers obtain them separately.
+4. **`.gitignore`** for the public repo: keep the build/artifact ignores (`build*/`, `Testing/`, `tests/tests/`, `*.o`, `output.yaml`, `*.backup*`, `.ropeproject/`, `.playwright-mcp/`) and `eti/` in full.
+5. **Fixtures — private**: every `eti/` capture is World DAB licensed material and stays out of the public tree (`--path eti` in the filter; `eti/ export-ignore`). The PRIVATE test suite runs on machines that have the files (cloning the private origin provides the tracked `bkk_…eti` + description files; the larger sets are obtained separately). GitHub CI runs only `ctest -L PUBLIC`.
 
 ## 5. CI / release (GitHub Actions — to build next)
 

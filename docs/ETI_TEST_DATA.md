@@ -2,17 +2,18 @@
 
 ## Overview
 
-This project uses binary ETI (Ensemble Transport Interface) test files for real-world validation of the DAB stream analyser. The **primary fixture `eti/bkk_20062022_141637.eti` (30 MB) is committed to the repository** — the 55/55 parity gate and the CI smoke test depend on it. The other, larger captures stay **excluded from git** to prevent repository bloat.
+This project uses binary ETI (Ensemble Transport Interface) test files for real-world validation of the DAB stream analyser. The **captures are World DAB licensed material and are never published** — the test suite is split so the PRIVATE (capture-dependent) tests run only where the files exist locally, and the PUBLIC suite runs in CI (see `docs/TEST_SUITE_PUBLIC_PRIVATE_SPLIT.md`, and read the companion `.txt` files in `eti/` for the stream descriptions).
 
 ## Current Test Files
 
-| **File** | **Size** | **In git?** | **Description** | **Purpose** |
-|----------|----------|-------------|-----------------|-------------|
-| `eti/bkk_20062022_141637.eti` | 30 MB | ✅ **committed** | Bangkok DAB ensemble capture - June 20, 2022 | Test Asian DAB deployment, Thai language service labels, tropical region signal conditions |
-| `eti/BayerischerRundfunk-Warntag2024-2024-09-12/` | 118 MB | ⛔ gitignored | German broadcast (Bayerischer Rundfunk) Emergency Warning System test - September 12, 2024 | Test EWS (Emergency Warning Service) FIG decoding, real-world DAB+ streams from German national warning day |
-| `eti/EWSv1_1/` | 967 MB | ⛔ gitignored | Emergency Warning System v1.1 comprehensive test suite | Complete EWS implementation validation with multiple test scenarios |
+| **File** | **Size** | **In git?** | **Description** | **Suite** |
+|----------|----------|-------------|-----------------|-----------|
+| `eti/bkk_20062022_141637.eti` + `.txt` | 30 MB | ✅ tracked (private repo only) | Bangkok DAB ensemble capture - June 20, 2022 (EPG + TPEG carried, Thai labels, DLS+, MOT slideshow) | **PRIVATE** |
+| `eti/HessischerRundfunk-Warntag2024-2024-09-12_journalline/hr_20240912T105801_EWS_Start.eti` / `…T114211_Entwarnung.eti` + `HR_20240912.txt` | 293 MB | ⛔ gitignored | Hessischer Rundfunk warning-day: EWS start + all-clear, Journaline | **PRIVATE** (EWS/Journaline work) |
+| `eti/BayerischerRundfunk-Warntag2024-2024-09-12/` | 118 MB | ⛔ gitignored | German broadcast (Bayerischer Rundfunk) Emergency Warning System test | **PRIVATE** (EWS) |
+| `eti/EWSv1_1/` | 967 MB | ⛔ gitignored | EWS v1.1 comprehensive suite (`EWS1..9.eti`) | **PRIVATE** (EWS) |
 
-**Gitignored total:** ~1.1 GB
+**Gitignored total:** ~1.4 GB
 
 ## Why are the large captures Excluded from Git?
 

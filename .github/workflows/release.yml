@@ -91,7 +91,7 @@ jobs:
 
       - name: Test
         working-directory: build
-        run: ctest --preset test-${{ matrix.name }}
+        run: ctest --preset test-${{ matrix.name }} -L PUBLIC
 
       # ----------------------------------------------------------- package
       # CPack artifacts (INSTALL.md §6): TGZ+DEB on Linux, ZIP on Windows,
@@ -172,8 +172,9 @@ jobs:
             git log --format='- %s' "$PREV..HEAD" > RELEASE_NOTES.md
           fi
           {
-            echo "Built and tested on Linux, Windows and macOS (ctest 56/56,"
-            echo "fixture parity DLS+ 1114 / MOT 97/97)."
+            echo "Built and tested on Linux, Windows and macOS (PUBLIC suite;"
+            echo "the full suite including the private World-DAB captures runs"
+            echo "locally)."
             echo ""
             echo "Assets: CPack packages — TGZ + DEB (Linux), ZIP (Windows),"
             echo ".dmg (macOS) — each carrying the GUI (StreamDABAnalyser) and"
