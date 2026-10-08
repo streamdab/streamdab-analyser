@@ -10,6 +10,7 @@
  */
 
 #include <QtTest/QtTest>
+#include <QSet>
 #include "../src/core/journaline_decoder.hpp"
 
 using namespace eti::journaline;
@@ -93,10 +94,25 @@ private slots:
     void testEdgeCase_OverflowProtection();
     void testEdgeCase_ExtractionFailure();
 
+    // v1.4 data-path wave: capture-free stream-mode display-text extraction.
+    void testStreamData_Extraction();
+    void testStreamData_EmptyChunkDoesNotFail();
+    void testStreamData_ThaiTextPreserved();
+
+    // N1 multi-feed boundary regression: the SAME decoder fed several times
+    // must produce exactly what a single-shot feed of the concatenated bytes
+    // produces, in both feed-boundary shapes.
+    void testStreamData_MultiFeed_SplitMidRun();
+    void testStreamData_MultiFeed_EndsOnControlByte();
+
 private:
     JournalineDecoder* m_decoder = nullptr;
 
     // Helper methods
+    /// Feed `feeds` into ONE decoder and require the result to equal a
+    /// single-shot feed of the concatenated bytes (same items/texts/ids, no
+    /// duplicated text, same candidate count, coherent stats).
+    void verifyMultiFeedMatchesSingleShot(const QList<QByteArray>& feeds);
     QByteArray createTestJournalineObject(uint16_t object_id, uint8_t category,
                                          const QString& title, const QString& content,
                                          bool with_link = false, uint16_t link_target = 0);
@@ -1005,6 +1021,251 @@ void TestJournalineDecoder::testEdgeCase_ExtractionFailure() {
     QVERIFY(valid_obj.has_value());
     QVERIFY(valid_obj->is_link);
     QCOMPARE(valid_obj->link_target, static_cast<uint16_t>(200));
+}
+
+// ============================================================================
+// v1.4 data-path wave: stream-mode display-text extraction (synthetic)
+// ============================================================================
+
+void TestJournalineDecoder::testStreamData_Extraction() {
+    // Synthesise the observed Journaline carousel shape from the HR capture:
+    // 24-byte framed blocks carrying title runs and long content runs.
+    QByteArray stream;
+    auto frame24 = [&stream](const QByteArray& text) {
+        QByteArray f(24, '\0');
+        f[0] = '\x10';
+        f[1] = '\x01';
+        f[2] = '\x13';
+        QByteArray t = text.left(21);
+        f.replace(3, t.size(), t);
+        stream.append(f);
+    };
+    frame24("Station - Morning Show");
+    frame24("Station - Traffic");
+    // The article body is longer than one 24-byte frame; append it raw — the
+    // extractor scans the whole buffer for printable runs, exactly like the
+    // observed HR carousel where long articles span several frames.
+    stream.append("The full article text for the morning programme spans well "
+                  "over twenty-four characters of genuine content.");
+
+    bool result = m_decoder->processStreamData(stream);
+    QVERIFY(result);
+
+    QVERIFY(m_decoder->streamItemCount() >= 1);
+    const QVector<JournalineObject> items = m_decoder->getStreamItems();
+    QVERIFY(!items.isEmpty());
+
+    // The long content run must be extracted.
+    bool sawArticle = false;
+    for (const JournalineObject& obj : items) {
+        if (obj.text_content.contains("full article text")) {
+            sawArticle = true;
+        }
+    }
+    QVERIFY2(sawArticle, "the long content text must be extracted");
+
+    // The carousel menu must be exposed through the store.
+    auto menuOpt = m_decoder->getMenu(0x7FFF);
+    QVERIFY(menuOpt.has_value());
+    QCOMPARE(menuOpt->menu_title, QString("Display Carousel"));
+}
+
+void TestJournalineDecoder::testStreamData_EmptyChunkDoesNotFail() {
+    QVERIFY(!m_decoder->processStreamData(QByteArray()));
+    QByteArray data = createTestJournalineObject(1, 0x01, "T", "C");
+    QVERIFY(m_decoder->processMOTObject(data));  // MOT path untouched
+    QCOMPARE(m_decoder->getObject(1)->object_id, static_cast<uint16_t>(1));
+}
+
+void TestJournalineDecoder::testStreamData_ThaiTextPreserved() {
+    // Thai UTF-8 content must survive stream-mode extraction untouched.
+    QByteArray stream;
+    const QByteArray thai = QStringLiteral(
+        "ประกาศสาธิตข้อมูลจราจรกรุงเทพ 2565").toUtf8();
+    // A-LOW8: build the frame explicitly (3-byte header + full payload)
+    // instead of QByteArray::replace(3, thai.size(), thai), whose behaviour
+    // for a payload longer than the 21 remaining bytes of a 24-byte frame
+    // (clamp-or-grow) is Qt-implementation detail — the assertion must not
+    // depend on it.
+    QByteArray f(3, '\0');
+    f.append(thai);
+    stream.append(f);
+    stream.append(QByteArray(24, '\0'));
+
+    QVERIFY(m_decoder->processStreamData(stream));
+    QVector<JournalineObject> items = m_decoder->getStreamItems();
+    bool sawThai = false;
+    for (const JournalineObject& obj : items) {
+        if (obj.text_content.contains("จราจร") || obj.title.contains("จราจร")) {
+            sawThai = true;
+        }
+    }
+    QVERIFY2(sawThai, "Thai UTF-8 text must survive stream extraction");
+    QVERIFY2(m_decoder->getStatistics().thai_content_count > 0,
+             "Thai content must be counted");
+}
+
+// ============================================================================
+// N1: multi-feed boundary regression (same decoder fed several times)
+// ============================================================================
+
+namespace {
+
+/// Synthetic Journaline-style carousel stream: printable runs separated by
+/// control bytes — the exact shape scanStreamTailLocked() walks. The
+/// boundary bookkeeping lets a test cut the stream either MID-run or exactly
+/// ON a control byte (the two feed-boundary shapes a chunked feed produces).
+struct StreamFixture {
+    QByteArray bytes;
+    QList<qsizetype> runMids;   ///< strictly inside each printable run
+    QList<qsizetype> ctrlEnds;  ///< offset just AFTER each control byte
+};
+
+StreamFixture buildStreamFixture()
+{
+    StreamFixture f;
+    auto addRun = [&f](const QByteArray& run) {
+        const qsizetype start = f.bytes.size();
+        f.bytes += run;
+        f.runMids.append(start + run.size() / 2);   // strictly inside the run
+    };
+    auto addCtrl = [&f](char c) {
+        f.bytes += c;
+        f.ctrlEnds.append(f.bytes.size());
+    };
+
+    addRun("Station - Morning Show");                     // title (<= 26 chars)
+    addCtrl('\0');
+    addRun("The full article text for the morning programme spans well over "
+           "twenty-four characters of genuine content."); // body (> 26 chars)
+    addCtrl('\x01');
+    addRun("Station - Traffic Report");                   // title
+    addCtrl('\0');
+    addRun(QStringLiteral(
+               "ประกาศสาธิตข้อมูลจราจรกรุงเทพมหานคร 2565").toUtf8()); // Thai body
+    addCtrl('\0');
+    return f;
+}
+
+/// Cut `bytes` at the given offsets (cuts must be strictly inside the
+/// stream); the pieces are the successive feeds.
+QList<QByteArray> splitAt(const QByteArray& bytes, const QList<qsizetype>& cuts)
+{
+    QList<QByteArray> feeds;
+    qsizetype prev = 0;
+    for (const qsizetype cut : cuts) {
+        if (cut <= prev || cut >= bytes.size()) {
+            return {};   // caller asserts non-empty feeds below
+        }
+        feeds.append(bytes.mid(prev, cut - prev));
+        prev = cut;
+    }
+    feeds.append(bytes.mid(prev));
+    return feeds;
+}
+
+int countThaiItems(const QVector<JournalineObject>& items)
+{
+    int n = 0;
+    for (const JournalineObject& obj : items) {
+        const QString text = obj.title + obj.text_content;
+        for (const QChar c : text) {
+            if (c.unicode() >= 0x0E00 && c.unicode() <= 0x0E7F) {
+                ++n;
+                break;
+            }
+        }
+    }
+    return n;
+}
+
+} // namespace
+
+void TestJournalineDecoder::verifyMultiFeedMatchesSingleShot(
+    const QList<QByteArray>& feeds)
+{
+    QVERIFY2(feeds.size() >= 2, "the regression needs at least 2 feeds");
+    QByteArray whole;
+    for (const QByteArray& feed : feeds) {
+        QVERIFY2(!feed.isEmpty(), "no feed may be empty");
+        whole += feed;
+    }
+
+    // Reference: one single-shot feed of the concatenated bytes.
+    JournalineDecoder single;
+    QVERIFY(single.processStreamData(whole));
+    const QVector<JournalineObject> expected = single.getStreamItems();
+    QVERIFY2(expected.size() >= 3,
+             "the fixture must yield at least 3 stream items");
+
+    // The regression: the SAME decoder fed piece by piece.
+    JournalineDecoder multi;
+    for (const QByteArray& feed : feeds) {
+        multi.processStreamData(feed);
+    }
+    const QVector<JournalineObject> actual = multi.getStreamItems();
+
+    // Same count, same texts, same object ids (a re-committed run would
+    // append a DUPLICATE item with a freshly minted id).
+    QCOMPARE(actual.size(), expected.size());
+    QSet<QString> seen;
+    for (int i = 0; i < expected.size(); ++i) {
+        QCOMPARE(actual.at(i).object_id, expected.at(i).object_id);
+        QCOMPARE(actual.at(i).title, expected.at(i).title);
+        QCOMPARE(actual.at(i).text_content, expected.at(i).text_content);
+        const QString key = actual.at(i).title + QLatin1Char('\x1F')
+            + actual.at(i).text_content;
+        QVERIFY2(!seen.contains(key),
+                 qPrintable(QStringLiteral("duplicate stream item: %1").arg(key)));
+        seen.insert(key);
+    }
+
+    // Pre-gate candidate accounting must match too (it was inflated by a
+    // re-walked run before the N1 fix, which also distorted the routing
+    // clean/candidate ratio).
+    QCOMPARE(multi.streamItemCount(), single.streamItemCount());
+    QCOMPARE(multi.streamCandidateCount(), single.streamCandidateCount());
+
+    // Stats coherent: a stream-only decoder has thai_content_count ==
+    // m_streamThaiCount, i.e. exactly the Thai items present.
+    const int expectedThai = countThaiItems(expected);
+    QVERIFY2(expectedThai > 0, "the fixture must contain Thai content");
+    QCOMPARE(multi.getStatistics().thai_content_count,
+             static_cast<uint32_t>(expectedThai));
+    QCOMPARE(single.getStatistics().thai_content_count,
+             static_cast<uint32_t>(expectedThai));
+}
+
+void TestJournalineDecoder::testStreamData_MultiFeed_SplitMidRun()
+{
+    // Shape (a): the feed boundary lands INSIDE a printable run, so the run
+    // straddles two feeds and must be merged on the rescan (never committed
+    // twice, never truncated).
+    const StreamFixture f = buildStreamFixture();
+    QVERIFY(f.runMids.size() >= 4);
+
+    // 2 feeds: split in the middle of the long body run.
+    verifyMultiFeedMatchesSingleShot(splitAt(f.bytes, {f.runMids.at(1)}));
+    // 3 feeds: split inside the body run and inside the Thai run.
+    verifyMultiFeedMatchesSingleShot(
+        splitAt(f.bytes, {f.runMids.at(1), f.runMids.at(3)}));
+}
+
+void TestJournalineDecoder::testStreamData_MultiFeed_EndsOnControlByte()
+{
+    // Shape (b): the feed ends EXACTLY on a control byte. The loop closes the
+    // last run inside that call, so the state snapshot already contains it —
+    // the next call must resume at the buffer end instead of re-walking that
+    // run (which minted a duplicate item + candidate per extra feed before
+    // the N1 fix).
+    const StreamFixture f = buildStreamFixture();
+    QVERIFY(f.ctrlEnds.size() >= 2);
+
+    // 2 feeds: feed 1 ends on the control byte that closes the body run.
+    verifyMultiFeedMatchesSingleShot(splitAt(f.bytes, {f.ctrlEnds.at(1)}));
+    // 3 feeds: both feed 1 and feed 2 end on a control byte.
+    verifyMultiFeedMatchesSingleShot(
+        splitAt(f.bytes, {f.ctrlEnds.at(0), f.ctrlEnds.at(1)}));
 }
 
 // ============================================================================

@@ -133,6 +133,276 @@ bool JournalineDecoder::processMOTObject(const QByteArray& mot_data) {
 }
 
 // ============================================================================
+// Stream-mode display-text extraction (capture-backed, base coverage)
+// ============================================================================
+
+namespace {
+
+// A-H1 plausibility gate: on the real HR capture ~71 % of the ≥6-byte
+// printable runs are binary noise (`'- B~+'`, `hˀY^{')` …), so a run is only
+// accepted as a display-text item when it looks like human text.
+//
+//   (a) UTF-8: at most ONE U+FFFD replacement character (a run split at a
+//       multi-byte boundary may legitimately lose its last byte);
+//   (b) printability: ≥ kPrintableScoreNum/kPrintableScoreDen of the
+//       characters are letters, digits, space or common text punctuation —
+//       German umlauts and Thai both count as letters, so real carousel
+//       text passes and binary does not;
+//   (c) a word of at least kMinWordLetters letters exists (rejects
+//       `'- B~+'` / `hˀY^{')`, which are all "printable" but wordless).
+constexpr int kPrintableScoreNum = 7;
+constexpr int kPrintableScoreDen = 10;
+constexpr int kMinWordLetters = 4;
+constexpr int kMaxReplacementChars = 1;
+
+bool isPlausibleStreamText(const QString& text)
+{
+    if (text.size() < JournalineDecoder::kStreamMinRunBytes) {
+        return false;
+    }
+    // Characters allowed inside a plausible text run. Kept deliberately
+    // conservative: symbols that dominate binary payloads (^ { } ~ | \ < >)
+    // are NOT allowed, while the punctuation of real prose is.
+    static const QString allowedPunct =
+        QStringLiteral(".,:;!?\"'()[]/-\u2013\u2014&%+#\u2026");
+    int replacement = 0;
+    int printable = 0;
+    int letterRun = 0;
+    int longestLetterRun = 0;
+    for (const QChar c : text) {
+        if (c.unicode() == 0xFFFD) {
+            if (++replacement > kMaxReplacementChars) {
+                return false;
+            }
+        }
+        if (c.isLetter()) {
+            if (++letterRun > longestLetterRun) {
+                longestLetterRun = letterRun;
+            }
+        } else {
+            letterRun = 0;
+        }
+        if (c.isLetterOrNumber() || c.isSpace() || allowedPunct.contains(c)) {
+            ++printable;
+        }
+    }
+    if (longestLetterRun < kMinWordLetters) {
+        return false;
+    }
+    return printable * kPrintableScoreDen >= text.size() * kPrintableScoreNum;
+}
+
+} // namespace
+
+bool JournalineDecoder::processStreamData(const QByteArray& stream_chunk)
+{
+    if (stream_chunk.isEmpty()) {
+        return false;
+    }
+    bool changed = false;
+    {
+        QMutexLocker locker(&m_mutex);
+
+        const int generationBefore = m_streamItemGeneration;
+        const int candidatesBefore = m_streamCandidateCount;
+
+        const qsizetype sizeBefore = m_streamBuffer.size();
+        m_streamBuffer.append(stream_chunk);
+
+        // A-H2: hard cap on the raw buffer. Drop-oldest keeps the most recent
+        // window; offsets shift, so the tail scan restarts from byte 0.
+        if (m_streamBuffer.size() > kStreamBufferCap) {
+            const qsizetype overflow = m_streamBuffer.size() - kStreamBufferCap;
+            m_streamBuffer.remove(0, overflow);
+            if (!m_streamBufferTrimWarned) {
+                m_streamBufferTrimWarned = true;
+                qWarning() << "[JournalineDecoder] stream buffer cap"
+                           << kStreamBufferCap << "bytes reached — dropping the"
+                           << "oldest bytes (one-shot warning)";
+            }
+            m_streamScanOffset = 0;
+            m_streamSnapshot = StreamScanSnapshot{};
+            m_streamItems.clear();
+            m_streamCandidateCount = 0;
+            // Every other stream stat is rebased here, and this one must be
+            // too: thai_content_count = m_motThaiCount + m_streamThaiCount
+            // (see scanStreamTailLocked()) would stay inflated after a trim
+            // otherwise.
+            m_streamThaiCount = 0;
+            m_streamScanned = false;
+        }
+        Q_UNUSED(sizeBefore);
+
+        // A-H2: rescan gate. The very first pass runs on ANY data (the
+        // extraction has to start somewhere); afterwards the rescan is only
+        // skipped while the buffer holds fewer than 24 bytes —
+        // (size - size%24) > 0 is simply size >= 24 ("at least one whole
+        // 24-byte unit is buffered"). It is NOT a cadence guarantee: the walk
+        // below is an incremental tail rescan from m_streamScanOffset, it is
+        // not aligned to 24-byte boundaries and does not depend on the buffer
+        // size being a multiple of 24.
+        const bool gate = m_streamScanned
+            ? (m_streamBuffer.size() - m_streamBuffer.size() % 24) > 0
+            : m_streamBuffer.size() > 0;
+        if (gate) {
+            m_streamScanned = true;
+            scanStreamTailLocked();
+            changed = (m_streamItemGeneration != generationBefore)
+                || (m_streamCandidateCount != candidatesBefore);
+        }
+    }
+    return changed;
+}
+
+void JournalineDecoder::scanStreamTailLocked()
+{
+    // Invariant (enforced by the offset update at the end of this function):
+    // already-committed bytes are NEVER re-walked, while a run that is still
+    // pending when the fed chunk ends IS re-walked on the next call — so a
+    // run split across two fed chunks merges exactly like a single-shot feed.
+    //
+    // Concretely, two feed-boundary shapes must be told apart:
+    //  - the feed ends MID-run: the trailing run has not been committed yet
+    //    (the snapshot below is taken before committing it), so the offset is
+    //    left on the run's first byte and the next call re-walks + extends it;
+    //  - the feed ends ON a control byte: the loop already committed that last
+    //    run, so it is part of the snapshot below and the offset must jump to
+    //    the buffer end — leaving it on the run's first byte (the old
+    //    behaviour) made the next call re-walk and RE-COMMIT it, minting a
+    //    duplicate item with a fresh object id and inflating the candidate
+    //    count (and with it the routing ratio).
+    QString pendingTitle;
+    uint16_t objectId = kStreamObjectIdBase;
+    if (m_streamSnapshot.valid) {
+        m_streamItems.resize(static_cast<int>(m_streamSnapshot.items));
+        m_streamCandidateCount = m_streamSnapshot.candidates;
+        m_streamThaiCount = m_streamSnapshot.thai;
+        pendingTitle = m_streamSnapshot.pendingTitle;
+        objectId = m_streamSnapshot.nextObjectId;
+    } else {
+        m_streamItems.clear();
+        m_streamCandidateCount = 0;
+    }
+
+    QByteArray rawRun;
+    qsizetype runStart = m_streamScanOffset;
+
+    // Real flush (kept separate so `text` stays in scope for readability).
+    auto commit = [&](const QString& text) {
+        if (text.size() < kStreamMinRunBytes) {
+            return;
+        }
+        ++m_streamCandidateCount;               // pre-gate candidate
+        if (!isPlausibleStreamText(text)) {     // A-H1 plausibility gate
+            return;
+        }
+        if (m_streamItems.size() >= kMaxStreamItems) {  // bounded inventory
+            return;
+        }
+        // Heuristic based on the observed HR carousel: short "teaser/title"
+        // runs ("hr4 - Britta am Vormittag", "ARD - Hitnacht") vs long
+        // article bodies ("Die ARD-Hitnacht ist …").
+        JournalineObject obj;
+        obj.object_id = objectId;
+        obj.category = 0; // stream mode carries no per-item category here
+        if (text.size() <= 26) {
+            obj.title = text;
+            pendingTitle = text;   // attach to a following body if any
+            obj.text_content = QString();
+        } else {
+            obj.title = pendingTitle;
+            obj.text_content = text;
+            pendingTitle.clear();
+        }
+        if (containsThaiText(obj.title) || containsThaiText(obj.text_content)) {
+            ++m_streamThaiCount;
+        }
+        m_streamItems.append(obj);
+        ++objectId;
+    };
+
+    for (qsizetype i = m_streamScanOffset; i < m_streamBuffer.size(); ++i) {
+        const uchar c = static_cast<uchar>(m_streamBuffer.at(i));
+        // Collect printable ASCII plus UTF-8 continuation-capable high bytes
+        // (Thai text is first-class). Control bytes split the runs.
+        if ((c >= 0x20 && c != 0x7F)) {
+            if (rawRun.isEmpty()) {
+                runStart = i;
+            }
+            rawRun.append(static_cast<char>(c));
+        } else if (!rawRun.isEmpty()) {
+            commit(QString::fromUtf8(rawRun).trimmed());
+            rawRun.clear();
+        }
+    }
+
+    // Snapshot BEFORE the trailing run is committed: it captures everything
+    // that is committed at this point (including runs the loop closed on a
+    // control byte), while the still-pending trailing run — if the buffer
+    // ends mid-run — is deliberately excluded so the next call can restore
+    // this state and re-walk that run from its first byte.
+    m_streamSnapshot.valid = true;
+    m_streamSnapshot.items = m_streamItems.size();
+    m_streamSnapshot.candidates = m_streamCandidateCount;
+    m_streamSnapshot.thai = m_streamThaiCount;
+    m_streamSnapshot.pendingTitle = pendingTitle;
+    m_streamSnapshot.nextObjectId = objectId;
+    if (!rawRun.isEmpty()) {
+        commit(QString::fromUtf8(rawRun).trimmed());
+        rawRun.clear();
+        // Feed ended MID-run: the snapshot above excludes this run, so point
+        // the offset at its first byte and let the next call re-walk it.
+        m_streamScanOffset = runStart;
+    } else {
+        // Feed ended ON a control byte (or with no printable byte): every
+        // walkable byte is already committed AND included in the snapshot
+        // above, so the next call must start at the buffer end. Pointing at
+        // runStart here would re-walk the last committed run and commit it a
+        // second time (duplicate item / inflated candidate count).
+        m_streamScanOffset = m_streamBuffer.size();
+    }
+
+    m_streamItemGeneration = m_streamItems.size();
+
+    // A-M3: recomputed from scratch (assign, never ++) — a rescan runs once
+    // per fed chunk, so accumulating multiplied the same items per call.
+    m_statistics.thai_content_count = m_motThaiCount + m_streamThaiCount;
+
+    // Expose the items through the same object store so the GUI data model
+    // can consume them uniformly; ids are disjoint from MOT-decoded objects.
+    // A single "Display Carousel" menu holds the titles.
+    m_streamMenuId = 0x7FFF;
+    if (!m_streamItems.isEmpty()) {
+        JournalineMenu carousel;
+        carousel.menu_id = m_streamMenuId;
+        carousel.parent_menu_id = 0;
+        carousel.menu_title = QStringLiteral("Display Carousel");
+        carousel.items = m_streamItems;
+        m_menus[m_streamMenuId] = carousel;
+    } else {
+        m_menus.remove(m_streamMenuId);
+    }
+}
+
+int JournalineDecoder::streamItemCount() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_streamItems.size();
+}
+
+int JournalineDecoder::streamCandidateCount() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_streamCandidateCount;
+}
+
+QVector<JournalineObject> JournalineDecoder::getStreamItems() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_streamItems;
+}
+
+// ============================================================================
 // ETSI TS 102 979 Parsing Methods
 // ============================================================================
 
@@ -265,9 +535,11 @@ bool JournalineDecoder::parseJournalineObjectInternal(const QByteArray& data,
         }
     }
 
-    // Detect Thai content
+    // Detect Thai content (counted against the MOT source base; the stream
+    // rescans recompute their own contribution — see scanStreamTailLocked).
     if (containsThaiText(object.title) || containsThaiText(object.text_content)) {
-        m_statistics.thai_content_count++;
+        ++m_motThaiCount;
+        m_statistics.thai_content_count = m_motThaiCount + m_streamThaiCount;
         qDebug() << "[JournalineDecoder] Thai content detected in object" << object.object_id;
     }
 
@@ -503,11 +775,26 @@ JournalineDecoder::Statistics JournalineDecoder::getStatistics() const {
 }
 
 void JournalineDecoder::clearAll() {
-    QMutexLocker locker(&m_mutex);
+    {
+        QMutexLocker locker(&m_mutex);
 
-    m_objects.clear();
-    m_menus.clear();
-    m_statistics = Statistics();
+        m_objects.clear();
+        m_menus.clear();
+        m_streamItems.clear();
+        m_streamBuffer.clear();
+        m_streamScanned = false;
+        m_streamItemGeneration = 0;
+        m_streamCandidateCount = 0;
+        m_streamScanOffset = 0;
+        m_streamSnapshot = StreamScanSnapshot{};
+        m_streamBufferTrimWarned = false;
+        m_motThaiCount = 0;
+        m_streamThaiCount = 0;
+        m_statistics = Statistics();
+        // BUG-001 invariant ("emit signals OUTSIDE the mutex lock"): the lock
+        // is released at the end of this scope; the emits below run unlocked,
+        // mirroring TpegDecoder::clearAll().
+    }
 
     emit objectCountChanged();
     emit menuCountChanged();
@@ -516,11 +803,19 @@ void JournalineDecoder::clearAll() {
 }
 
 void JournalineDecoder::clearObject(uint16_t object_id) {
-    QMutexLocker locker(&m_mutex);
+    bool removed = false;
+    {
+        QMutexLocker locker(&m_mutex);
 
-    auto it = m_objects.find(object_id);
-    if (it != m_objects.end()) {
-        m_objects.erase(it);
+        auto it = m_objects.find(object_id);
+        if (it != m_objects.end()) {
+            m_objects.erase(it);
+            removed = true;
+        }
+    }
+
+    // BUG-001: emit and log after the lock is released.
+    if (removed) {
         emit objectCountChanged();
 
         qDebug() << "[JournalineDecoder] Cleared object" << object_id;
@@ -528,11 +823,19 @@ void JournalineDecoder::clearObject(uint16_t object_id) {
 }
 
 void JournalineDecoder::clearMenu(uint16_t menu_id) {
-    QMutexLocker locker(&m_mutex);
+    bool removed = false;
+    {
+        QMutexLocker locker(&m_mutex);
 
-    auto it = m_menus.find(menu_id);
-    if (it != m_menus.end()) {
-        m_menus.erase(it);
+        auto it = m_menus.find(menu_id);
+        if (it != m_menus.end()) {
+            m_menus.erase(it);
+            removed = true;
+        }
+    }
+
+    // BUG-001: emit and log after the lock is released.
+    if (removed) {
         emit menuCountChanged();
 
         qDebug() << "[JournalineDecoder] Cleared menu" << menu_id;
@@ -707,7 +1010,6 @@ void JournalineDecoder::buildMenuHierarchyInternal(QVector<uint16_t>& out_update
     uint16_t menu_id_counter = 10; // Start category menus at ID 10
 
     for (auto it = category_groups.begin(); it != category_groups.end(); ++it) {
-        uint8_t category = it.key();
         const QVector<JournalineObject>& objects = it.value();
 
         if (objects.isEmpty()) {
@@ -724,6 +1026,18 @@ void JournalineDecoder::buildMenuHierarchyInternal(QVector<uint16_t>& out_update
         out_updated_menu_ids.append(category_menu.menu_id);
 
         qDebug() << "[JournalineDecoder] Created menu:" << category_menu.toString();
+    }
+
+    // A-M1: m_menus.clear() above also dropped the stream-mode "Display
+    // Carousel" menu (it is not derived from m_objects), so re-insert it
+    // whenever stream items exist.
+    if (!m_streamItems.isEmpty()) {
+        JournalineMenu carousel;
+        carousel.menu_id = m_streamMenuId;
+        carousel.parent_menu_id = 0;
+        carousel.menu_title = QStringLiteral("Display Carousel");
+        carousel.items = m_streamItems;
+        m_menus[m_streamMenuId] = carousel;
     }
 
     m_statistics.menus_processed = m_menus.size();

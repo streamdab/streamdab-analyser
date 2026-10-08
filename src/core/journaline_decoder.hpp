@@ -241,6 +241,74 @@ public:
      */
     bool processMOTObject(const QByteArray& mot_data);
 
+    /**
+     * @brief Process raw data-subchannel stream bytes (stream-mode Journaline).
+     * @param stream_chunk Raw bytes of the data subchannel (concatenated
+     *                     per-frame subchannel slices).
+     * @return true when THIS call changed the extracted item set (item count
+     *         or candidate count differ from the previous scan). A repeat of
+     *         an unchanged buffer therefore returns false; feed the whole
+     *         stream and check streamItemCount() for "did we decode anything".
+     *
+     * Capture-backed stream-mode path: the Hessischen Rundfunk Warntag 2024
+     * capture (hr_20240912T105801_EWS_Start.eti, SCId 8) carries a Journaline
+     * display-text carousel directly in the data subchannel (not wrapped in
+     * MOT). This method extracts the human-visible title/content runs and
+     * stores them as JournalineObject entries. It does NOT alter the MOT path
+     * or the existing processMOTObject() contract.
+     *
+     * Bounds (never unbounded on a live stream):
+     *  - the raw buffer is capped at kStreamBufferCap bytes (drop-oldest,
+     *    one-shot qWarning);
+     *  - the extracted inventory is capped at kMaxStreamItems entries;
+     *  - work per call is O(new bytes) — only the tail that has not been
+     *    scanned yet (plus the run still in progress) is re-walked.
+     *
+     * Plausibility gate (A-H1): a candidate run is only accepted when it
+     * decodes as UTF-8 (≤1 U+FFFD), is mostly printable text (German
+     * umlauts and Thai pass, binary does not) and contains a ≥4-letter
+     * word — so binary traffic no longer floods the inventory with junk.
+     *
+     * Coverage note: this is a display-text extraction (base coverage) — the
+     * full TS 102 979 Object-Element bit parsing (LevelId/Object headers,
+     * category links) is deferred; see docs/EPG_JOURNALINE_TPEG_VALIDATION.md.
+     */
+    bool processStreamData(const QByteArray& stream_chunk);
+
+    /**
+     * @brief Number of display-text items that PASSED the plausibility gate.
+     */
+    int streamItemCount() const;
+
+    /**
+     * @brief Number of ≥6-character candidate runs seen in the LAST scan
+     *        (before the plausibility gate). streamItemCount() /
+     *        streamCandidateCount() is the clean ratio the data-service
+     *        router uses to tell a real carousel from binary traffic.
+     */
+    int streamCandidateCount() const;
+
+    /**
+     * @brief Items extracted from stream data (titles/texts).
+     */
+    QVector<JournalineObject> getStreamItems() const;
+
+    // ========================================================================
+    // Stream-mode bounds (documented in the class contract, see
+    // processStreamData()). Public so tests / the calibration probe can
+    // reference the same numbers.
+    // ========================================================================
+
+    /// Raw stream buffer cap (drop-oldest, one-shot qWarning on first trim).
+    static constexpr qsizetype kStreamBufferCap = 4 * 1024 * 1024;
+    /// Extracted inventory cap (bounded even for a pathological stream).
+    static constexpr int kMaxStreamItems = 4096;
+    /// Minimum raw run length (bytes) considered a text candidate.
+    static constexpr int kStreamMinRunBytes = 6;
+    /// Stream items use an object-id base disjoint from the MOT id space so a
+    /// stream item can never collide with a MOT-decoded object id.
+    static constexpr uint16_t kStreamObjectIdBase = 0x8000;
+
     // ========================================================================
     // Object Retrieval
     // ========================================================================
@@ -381,6 +449,21 @@ private:
     // ========================================================================
     // ETSI TS 102 979 Parsing Methods
     // ========================================================================
+
+    /**
+     * @brief Scan the not-yet-scanned tail of m_streamBuffer and (re)build the
+     *        stream-mode display-text inventory (capture-backed, base
+     *        coverage). Caller must hold m_mutex.
+     *
+     * Invariant: already-committed bytes are never re-walked. A run still in
+     * progress when the previous call ended is re-walked from its first byte
+     * (and re-committed only once it is finally closed), so a run split
+     * across two fed chunks merges exactly like a single-shot feed; a run
+     * that was closed by a control byte inside the previous chunk is
+     * committed, so the scan resumes at the buffer end instead of walking it
+     * again.
+     */
+    void scanStreamTailLocked();
 
     /**
      * @brief Parse Journaline object from raw data (internal, no signal emission)
@@ -587,6 +670,36 @@ private:
 
     // Journaline menus indexed by menu ID
     QMap<uint16_t, JournalineMenu> m_menus;
+
+    // Stream-mode display-text items (capture-backed carousel extraction).
+    QVector<JournalineObject> m_streamItems;
+    QByteArray m_streamBuffer;
+    bool m_streamScanned = false;          ///< first scan has run (rescan gate)
+    int m_streamItemGeneration = 0;        ///< == m_streamItems.size() after a scan
+    uint16_t m_streamMenuId = 0x7FFF;
+    /// ≥6-byte candidate runs seen in the last scan (pre-gate).
+    int m_streamCandidateCount = 0;
+    /// Tail-scan bookkeeping: bytes of m_streamBuffer already committed.
+    qsizetype m_streamScanOffset = 0;
+    /// Scan state as of the end of the previous scan: everything committed up
+    /// to that point (item count / candidates / Thai count / pending title /
+    /// next object id), taken BEFORE the trailing run — if the buffer ended
+    /// mid-run — is committed, so restoring it and re-walking that run from
+    /// m_streamScanOffset merges the split run exactly once.
+    struct StreamScanSnapshot {
+        bool valid = false;
+        qsizetype items = 0;                ///< m_streamItems.size() to restore
+        int candidates = 0;
+        uint32_t thai = 0;
+        QString pendingTitle;
+        uint16_t nextObjectId = kStreamObjectIdBase;
+    };
+    StreamScanSnapshot m_streamSnapshot;
+    bool m_streamBufferTrimWarned = false;  ///< one-shot drop-oldest warning
+    /// Thai-content counters split by source so a stream rescan can recompute
+    /// its own contribution without wiping the MOT path's (A-M3).
+    uint32_t m_motThaiCount = 0;
+    uint32_t m_streamThaiCount = 0;
 
     // Statistics
     Statistics m_statistics;

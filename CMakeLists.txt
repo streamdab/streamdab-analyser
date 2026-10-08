@@ -266,6 +266,12 @@ set(SOURCES
     src/core/mot_pad_adapter.cpp
     src/core/epg_decoder.cpp
     src/core/journaline_decoder.cpp
+    # v1.4 data-path wave: TPEG/TEPG base/partial decoder, per-service data
+    # model, and the synchronous ETI scanner used by capture-backed tests and
+    # the upcoming GUI data wave.
+    src/core/tpeg_decoder.cpp
+    src/core/data_service_store.cpp
+    src/core/eti_file_scanner.cpp
     src/core/dls_plus_decoder.cpp
     # T34: DAB+ audio decode (libfaad2) + ALSA output + selected-service playback.
     src/core/dabplus_audio_decoder.cpp

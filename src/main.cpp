@@ -82,6 +82,14 @@
 #include "core/dls_plus_decoder.hpp"  // Phase 3B: DLS+ decoder integration
 #include "core/mot_protocol.hpp"      // MOT SlideShow decoder (option A)
 #include "core/mot_pad_adapter.hpp"   // X-PAD CI 12/13 -> MOTProtocol adapter
+// v1.4 data-path wave — EPG (TS 102 371) / Journaline (TS 102 979) / TPEG
+// (TS 102 894 base/partial) decoders + the per-service data model. The GUI
+// tabs are fed from these after a capture load completes (load-time counters
+// stay untouched; see the clean tap in onFrameProcessed()).
+#include "core/epg_decoder.hpp"
+#include "core/journaline_decoder.hpp"
+#include "core/tpeg_decoder.hpp"
+#include "core/data_service_store.hpp"
 // T34: selected-service DAB+ audio decode (libfaad2) + ALSA output.
 #include "core/dabplus_audio_decoder.hpp"
 #include "core/audio_output_sink.hpp"
@@ -832,11 +840,24 @@ public:
         m_sharedData = new streamdab::core::SharedETIData(this);
         m_readerThread = new ETIReaderThread(this);
 
+        // Wave B: the data-service decoders + per-service data store behind
+        // the inner Slideshow|EPG|Journaline|TPEG tabs. Created BEFORE
+        // setupUI() (Qt parent-child ownership frees them with the window) so
+        // the tab construction and the signal wiring below can rely on them.
+        m_epgDecoder = new eti::epg::EPGDecoder(this);
+        m_journalineDecoder = new eti::journaline::JournalineDecoder(this);
+        m_tpegDecoder = new eti::tpeg::TpegDecoder(this);
+        m_dataServiceStore = new eti::data::DataServiceStore(this);
+
         setupUI();
         setupMenuBar();
         setupSignalConnections();
         setupWorkerThread();  // Phase A: Worker thread signal connections
         setupStatusBar();
+
+        // Wave B: decoder/store -> inner-tab wiring (queued to this GUI
+        // thread) once the widgets from setupUI() exist.
+        initDataServicePanels();
 
         // T29: playback controller over the retained frame cache.
         initPlayback();
@@ -1108,6 +1129,99 @@ public:
     {
         rebuildDabPlusServiceMapIfNeeded();
         return m_serviceBySubChannel.value(subChannelId, qMakePair(0u, QString())).second;
+    }
+    // v1.4 data-path wave — test accessors for the raw data-subchannel capture.
+    QVector<int> dataSubChannelIdsForTest()
+    {
+        QVector<int> ids;
+        ids.reserve(m_dataSubChannelStreams.size());
+        for (auto it = m_dataSubChannelStreams.cbegin();
+             it != m_dataSubChannelStreams.cend(); ++it) {
+            ids.append(it.key());
+        }
+        return ids;
+    }
+    QByteArray dataSubChannelStreamForTest(int subChannelId)
+    {
+        return m_dataSubChannelStreams.value(subChannelId);
+    }
+    quint64 dataSubChannelBytesForTest() const { return m_dataSubChannelBytes; }
+    // M9 test hook: run the exact reset every load performs, so a test can
+    // prove the tap starts from zero instead of accumulating across loads.
+    bool resetCaptureStateForTest() { return resetCaptureState(); }
+    // Wave B — GUI data-service (Slideshow | EPG | Journaline | TPEG) inner
+    // tabs + decoders: accessors for the PRIVATE dock-layout tests.
+    QTabWidget* dataServiceTabsForTest() const { return m_dataServiceTabs; }
+    eti::epg::EPGDecoder* epgDecoderForTest() const { return m_epgDecoder; }
+    eti::journaline::JournalineDecoder* journalineDecoderForTest() const
+    {
+        return m_journalineDecoder;
+    }
+    eti::tpeg::TpegDecoder* tpegDecoderForTest() const { return m_tpegDecoder; }
+    QComboBox* epgServiceComboForTest() const { return m_epgServiceCombo; }
+    QListWidget* epgScheduleListForTest() const { return m_epgScheduleList; }
+    QLabel* epgStatusLabelForTest() const { return m_epgStatusLabel; }
+    QTreeWidget* journalineMenuTreeForTest() const { return m_journalineMenuTree; }
+    QTextEdit* journalinePreviewForTest() const { return m_journalinePreview; }
+    QLabel* journalineStatusLabelForTest() const { return m_journalineStatusLabel; }
+    QTableWidget* tpegInventoryTableForTest() const { return m_tpegInventoryTable; }
+    QLabel* tpegStatusLabelForTest() const { return m_tpegStatusLabel; }
+    // --- B-H1: routing is asserted directly by the PRIVATE GUI test --------
+    // The decision enum lives here (public) so the test can compare the exact
+    // route: HR SCId 8 → Journaline, bkk SCId 22 → Tpeg (framing), bkk SCId 14
+    // → Epg (label), bkk DAB+ audio → NOT Journaline, HR → NOT Tpeg.
+    enum class DataServiceRoute { Epg, Journaline, Tpeg };
+    DataServiceRoute routeDataServiceForTest(int subChannelId,
+                                             const QByteArray& bytes) const
+    {
+        return routeDataService(subChannelId, bytes);
+    }
+    // --- B-M3: FIG label decoding (UTF-8 first, Latin-1 fallback) ----------
+    // Raw 16-byte FIG 1/5 `char label[16]` bytes → QString. Thai labels are
+    // UTF-8 (3 bytes/char) in real ensembles, legacy ones are Latin-1; decode
+    // as UTF-8 first (mirrors the extended-label path in
+    // advanced_fig_analyser.cpp:2816/2845/2876) and fall back to Latin-1 when
+    // the bytes are not valid UTF-8, so a valid Latin-1 label never degrades
+    // to U+FFFD. Public (static) so the label-formatting spot-check can drive
+    // it with synthetic bytes — a FORMATTING test, not a real-data claim.
+    static QString decodeFigLabelBytes(const char* raw, qsizetype rawLen)
+    {
+        if (!raw || rawLen <= 0) {
+            return QString();
+        }
+        const QByteArray bytes(raw, static_cast<int>(rawLen));
+        const QString asUtf8 = QString::fromUtf8(bytes);
+        // U+FFFD means "invalid UTF-8" only when the input did not itself
+        // carry the replacement character's own byte sequence (EF BF BD).
+        if (!asUtf8.contains(QChar::ReplacementCharacter)
+            || bytes.contains(QByteArrayLiteral("\xEF\xBF\xBD"))) {
+            return asUtf8;
+        }
+        return QString::fromLatin1(bytes);
+    }
+    /// Length of a FIG 1/5 label field (spec: 16 bytes, NUL-padded by the
+    /// parser) — never reads past the field.
+    static qsizetype figLabelFieldLength(const char* label)
+    {
+        qsizetype len = 0;
+        while (len < 16 && label && label[len] != '\0') {
+            ++len;
+        }
+        return len;
+    }
+    // Drive the REAL Journaline decoder + tab wiring with a raw data-subchannel
+    // byte stream (used by the PRIVATE GUI test with the real HR capture's
+    // SCId 8 bytes — no synthetic data, no full ETI load needed).
+    void feedJournalineStreamForTest(const QByteArray& bytes)
+    {
+        if (!m_journalineDecoder) {
+            return;
+        }
+        // B-H1(5): count as routed — the status line must distinguish
+        // "routed but empty" from "nothing was routed to Journaline here".
+        m_journalineRouted = true;
+        m_journalineDecoder->processStreamData(bytes);
+        refreshJournalineTab();
     }
     // Feed a decoded DLS label as if it arrived on `subChannelId`, using the
     // cached service identity, so the test can observe the Now Playing panel
@@ -1401,8 +1515,17 @@ private slots:
         m_retainedSlideSequence = 0;
         m_timelineRecordFrame = -1;
         m_dabPlusSubChannels.clear();
+        m_audioSubChannels.clear();
         m_serviceBySubChannel.clear();
         m_audioSubChannelByService.clear();
+        // v1.4 data-path wave: reset the per-data-subchannel stream capture.
+        m_dataSubChannelStreams.clear();
+        m_dataSubChannelBytes = 0;
+        m_dataTapSlotCapWarned = false;
+        m_dataTapByteCapWarned = false;
+        // Wave B: reset the EPG / Journaline / TPEG decoders + the inner
+        // data-service tabs for the new capture (next load re-feeds them).
+        resetDataServicePanels();
         // T34: reset the audio capture + panel for the new capture.
         if (m_audioController) {
             m_audioController->beginCapture();
@@ -1593,9 +1716,16 @@ private slots:
 
     void onFrameProcessed(ProcessedFrame frame)  // Pass by value for Qt::QueuedConnection safety
     {
-        // NOTE: This is only called every 100 frames (see enhanced_eti_processor_qt.cpp)
+        // NOTE: emitted for EVERY valid frame (enhanced_eti_processor_qt.cpp
+        // "Emit frameProcessed() for EVERY valid frame"); the 100-frame batch
+        // there only throttles the processing timer, not this callback.
         
         // CRITICAL FIX: Minimal updates only - no formatToString() calls
+        // A-LOW10: both guards also gate the data tap below. frame_number <= 0
+        // means the processor produced no trustworthy MSC slice (unknown frame
+        // identity), and a null frame list means headless/teardown mode where
+        // no capture is being presented — so the tap is deliberately skipped
+        // there rather than silently capturing an unattributable stream.
         if (frame.frame_number <= 0) return;
         if (!m_frameList) return;
         
@@ -1675,6 +1805,15 @@ private slots:
             }
         }
         
+        // === v1.4 data-path wave: clean data-subchannel tap (A-H4) ===
+        // Captures the raw bytes of every non-audio sub-channel for the
+        // EPG/TEPG/Journaline decoders. It runs BEFORE processDlsPlusFromFrame()
+        // so a data-only ensemble (empty DAB+ audio set -> early return there)
+        // and the frames before FIG 0/8 classifies anything are captured too,
+        // and OUTSIDE the dlsTimer window so the measured DLS+ pipeline time
+        // and the CLI/GUI parity counters stay untouched (A-LOW5).
+        tapDataSubchannelsFromFrame(frame);
+
         // === Manual-test finding 3: feed the GUI DLS+ decoder ===
         // (was constructed but never fed, so Now Playing stayed empty)
         // T32: the frame index is published so feedDlsPlusPad()/onMotObject-
@@ -1705,6 +1844,19 @@ private slots:
     // service/component/label revision (Finding 2) in addition to the
     // count/dirty guards. Kept as its own method so the cache can be exercised
     // directly by tests without fabricating a full ProcessedFrame.
+
+    /// A-M5a/B-M1: is this FIG component an AUDIO transport (TMId 0 = MSC
+    /// stream audio, ASCTy 0x00 MPEG / 0x3F DAB+ — the same rule the analyser
+    /// uses to decide "Audio service")? Shared by the data tap's
+    /// classification, the feed-stage exclusion and the FIG 1/5 label lookup
+    /// (an audio component must never be labelled or fed as a data service).
+    static bool isAudioServiceComponent(const ServiceComponent& comp)
+    {
+        return comp.transport_mode == 0
+               && (comp.service_component_type == 0x00
+                   || comp.service_component_type == 0x3F);
+    }
+
     void rebuildDabPlusServiceMapIfNeeded()
     {
         const int svcCount = m_figAnalyser ? m_figAnalyser->getServiceCount() : 0;
@@ -1716,11 +1868,20 @@ private slots:
             return;  // cache still valid
         }
         m_dabPlusSubChannels.clear();
+        m_audioSubChannels.clear();
         m_serviceBySubChannel.clear();
         m_audioSubChannelByService.clear();
         if (m_figAnalyser) {
             for (const DABService& svc : m_figAnalyser->getDABServices()) {
                 for (const ServiceComponent& comp : svc.components) {
+                    // A-M5a: audio-component classification used by the data
+                    // tap and (B-M1) the feed stage / FIG 1/5 label lookup —
+                    // see isAudioServiceComponent(). Everything else (TMId 1
+                    // = data/packet, or an audio sub-channel not classified
+                    // yet) is a data candidate and may be tapped.
+                    if (isAudioServiceComponent(comp)) {
+                        m_audioSubChannels.insert(comp.sub_channel_id);
+                    }
                     if (!comp.isDabPlus()) {
                         continue;
                     }
@@ -1818,6 +1979,92 @@ private slots:
             const QPair<quint32, QString> svc =
                 m_serviceBySubChannel.value(sc.sub_channel_id, qMakePair(0u, QString()));
             feedDlsAssembly(assembly, svc.first, svc.second);
+        }
+
+        // v1.4 data-path wave — the raw data-subchannel tap moved to
+        // tapDataSubchannelsFromFrame() (A-H4): it must run for every frame —
+        // including data-only ensembles where the DAB+ audio set below is
+        // empty and the early return would skip it — and outside the dlsTimer
+        // window so the measured DLS+ pipeline time stays honest.
+    }
+
+    // ========================================================================
+    // v1.4 data-path wave — clean data-subchannel tap (A-H4 / A-M5)
+    // ========================================================================
+    // Captures the raw bytes of every sub-channel that is NOT an audio
+    // component (DAB+ ASCTy 0x3F or MPEG ASCTy 0x00 on TMId 0 — see
+    // m_audioSubChannels) so the EPG/TEPG/Journaline decoders can be driven
+    // from the real stream without decoding anything here.
+    //
+    // Classification is the FIG-derived heuristic: a sub-channel with no
+    // decoded component yet is tapped (fail-open — we would rather keep bytes
+    // a decoder can reject than lose them), which is what makes the frames
+    // before FIG 0/8 decodes capturable.
+    //
+    // Purely additive: no decoder runs in this GUI path, the store is
+    // byte-capped (kMaxDataSubChannelBytes) and the map is slot-capped
+    // (kMaxDataSubChannelSlots). Both cap hits are reported ONCE per capture
+    // instead of silently dropping bytes (A-M5c).
+    void tapDataSubchannelsFromFrame(const ProcessedFrame& frame)
+    {
+        if (!frame.hasSubChannels()) {
+            return;  // ETI processor produced no MSC slices for this frame
+        }
+        // Same cache rebuild the DLS+ path uses, so this frame's FIC has
+        // already been analysed (the caller feeds the FIG analyser first) and
+        // the classification is current.
+        rebuildDabPlusServiceMapIfNeeded();
+
+        for (const ProcessedFrame::SubChannelSlice& sc : frame.subChannels()) {
+            if (m_dabPlusSubChannels.contains(sc.sub_channel_id)
+                || m_audioSubChannels.contains(sc.sub_channel_id)) {
+                // A-H4/A-M5a: frames captured BEFORE FIG 0/8 classified this
+                // sub-channel are already in the map — drop them the moment we
+                // KNOW the sub-channel is audio, so audio junk can never reach
+                // the EPG/Journaline/TPEG feed (defence in depth next to the
+                // feed-stage exclusion in feedDataServiceSubchannels()).
+                const auto leaked = m_dataSubChannelStreams.find(sc.sub_channel_id);
+                if (leaked != m_dataSubChannelStreams.end()) {
+                    m_dataSubChannelBytes -=
+                        static_cast<quint64>(leaked.value().size());
+                    m_dataSubChannelStreams.erase(leaked);
+                }
+                continue;  // audio component — not a data sub-channel
+            }
+            // A-M5b: probe the slot budget BEFORE creating the map entry, so a
+            // rejected sub-channel does not burn one of the 32 slots with an
+            // empty QByteArray.
+            const int scId = sc.sub_channel_id;
+            if (!m_dataSubChannelStreams.contains(scId)
+                && m_dataSubChannelStreams.size() >= kMaxDataSubChannelSlots) {
+                if (!m_dataTapSlotCapWarned) {
+                    m_dataTapSlotCapWarned = true;
+                    qWarning() << "[DataTap] per-sub-channel slot cap reached ("
+                               << kMaxDataSubChannelSlots
+                               << ") — sub-channel" << scId
+                               << "not captured; further slot-cap hits are silent";
+                }
+                continue;
+            }
+            if (m_dataSubChannelBytes >= kMaxDataSubChannelBytes) {
+                if (!m_dataTapByteCapWarned) {
+                    m_dataTapByteCapWarned = true;
+                    qWarning() << "[DataTap] global byte cap reached ("
+                               << kMaxDataSubChannelBytes
+                               << " bytes) — remaining frames are not captured;"
+                                  " further byte-cap hits are silent";
+                }
+                continue;  // global byte cap
+            }
+            QByteArray& sink = m_dataSubChannelStreams[scId];
+            const quint64 room = kMaxDataSubChannelBytes - m_dataSubChannelBytes;
+            const int take = static_cast<int>(qMin<quint64>(
+                room, static_cast<quint64>(sc.data.size())));
+            if (take <= 0) {
+                continue;
+            }
+            sink.append(sc.data.constData(), take);
+            m_dataSubChannelBytes += static_cast<quint64>(take);
         }
     }
 
@@ -2461,6 +2708,21 @@ private slots:
                 m_slideshowImage->setText(tr("No slideshow in this stream"));
             }
         }
+
+        // Wave B — data services: feed the RAW captured data-subchannel bytes
+        // into the EPG / Journaline / TPEG decoders (per subchannel, routed by
+        // framing → label → content probe; same-route subchannels ACCUMULATE
+        // into the one panel — a later subchannel never displaces an earlier
+        // one) and refresh the Slideshow|EPG|Journaline|TPEG inner tabs.
+        // N2: accumulation also covers the TPEG lifecycle — the shared
+        // TpegDecoder is finished exactly ONCE after the whole feed loop
+        // (finish() closes it), and every TPEG row in the store carries that
+        // subchannel's own counter delta rather than an earlier subchannel's
+        // cumulative totals.
+        // Purely additive: load-time counters (DLS+ 1114 / MOT 97 / 97) are
+        // untouched, so the CLI/GUI parity gates stay fixed.
+        feedDataServiceSubchannels();
+        refreshDataServiceTabs();
     }
 
     void onProcessingError(const QString& error)
@@ -9141,10 +9403,25 @@ private:
 
         m_nowPlayingSplitter->addWidget(dlsPanel);
 
-        // --- Slideshow panel: 4:3 image frame + status + info --------------
+        // --- Slideshow / data-service panel: INNER tabs ---------------------
+        // Wave B: the existing slideshow/MOT area now hosts an inner
+        // QTabWidget "Slideshow | EPG | Journaline | TPEG". Deliberately an
+        // INNER tab widget (not a new top-level dock), so the dock registry
+        // and DOCKING_LAYOUT_VERSION stay untouched and the Slideshow page
+        // keeps its widgets, object names and behaviour exactly as before.
         QWidget* slidePanel = new QWidget();
         slidePanel->setObjectName(QStringLiteral("slideshowPanel"));
-        QVBoxLayout* slideLayout = new QVBoxLayout(slidePanel);
+        QVBoxLayout* panelLayout = new QVBoxLayout(slidePanel);
+        panelLayout->setContentsMargins(2, 2, 2, 2);
+        panelLayout->setSpacing(4);
+
+        m_dataServiceTabs = new QTabWidget();
+        m_dataServiceTabs->setObjectName(QStringLiteral("dataServiceTabs"));
+        m_dataServiceTabs->setDocumentMode(true);
+
+        QWidget* slideshowPage = new QWidget();
+        slideshowPage->setObjectName(QStringLiteral("slideshowPage"));
+        QVBoxLayout* slideLayout = new QVBoxLayout(slideshowPage);
         slideLayout->setContentsMargins(2, 2, 2, 2);
         slideLayout->setSpacing(4);
 
@@ -9170,12 +9447,26 @@ private:
         m_slideshowInfo->setWordWrap(true);
         slideLayout->addWidget(m_slideshowInfo);
 
+        // Wave B: register the four inner pages (Slideshow content above is
+        // unchanged — only reparented one level deeper into tab page 0).
+        m_dataServiceTabs->addTab(slideshowPage, tr("Slideshow"));
+        m_dataServiceTabs->addTab(createEpgDataServiceTab(), tr("EPG"));
+        m_dataServiceTabs->addTab(createJournalineDataServiceTab(), tr("Journaline"));
+        m_dataServiceTabs->addTab(createTpegDataServiceTab(), tr("TPEG"));
+        panelLayout->addWidget(m_dataServiceTabs);
+
         m_nowPlayingSplitter->addWidget(slidePanel);
         // T30.4: default DLS+ : Slideshow = 2/3 : 1/3 (text gets the room; the
         // 4:3 letterbox still shows at this width). Draggable and
         // non-collapsible (set above).
         m_nowPlayingSplitter->setStretchFactor(0, 2);
         m_nowPlayingSplitter->setStretchFactor(1, 1);
+        // Restored to the documented {667, 333}: the Wave B inner-tab change
+        // had left {500, 500} here, which (a) contradicted the T30.4 comment
+        // directly above and (b) made testMotSlideshowPanelAndTabs' 2/3 check
+        // depend on whether a post-show resize ever redistributed the equal
+        // split by the stretch factors — i.e. flaky. {667, 333} is the 2/3
+        // default by construction (deterministic).
         m_nowPlayingSplitter->setSizes({667, 333});
         outerLayout->addWidget(m_nowPlayingSplitter);
 
@@ -9219,6 +9510,940 @@ private:
         if (m_lastUpdatedLabel) {
             m_lastUpdatedLabel->setText(tr("No metadata received"));
         }
+    }
+
+    // ========================================================================
+    // Wave B: inner data-service tabs (Slideshow | EPG | Journaline | TPEG)
+    // ========================================================================
+    // The tabs live INSIDE the existing Now Playing / Slideshow dock area (see
+    // createNowPlayingPanel) — no new top-level dock, so the dock registry and
+    // DOCKING_LAYOUT_VERSION stay untouched.
+    //
+    // Content comes ONLY from the raw data-subchannel bytes the clean tap
+    // captures during the load (processDlsPlusFromFrame) and feeds to the
+    // decoders once at load completion (feedDataServiceSubchannels). Nothing
+    // is fabricated: a capture whose decoder yields no content shows an
+    // explicit honest empty state ("No … data in this stream"), and the EPG
+    // decoder's epgDecodingError text is surfaced in the EPG status line.
+    //
+    // Routing (B-LOW4 — ACCUMULATION, not "most recently decoded wins"):
+    // every data subchannel is routed independently and all subchannels that
+    // resolve to the same decoder MERGE into that one panel (the decoders own
+    // the buffers, the store keeps one snapshot per subchannel) — a later
+    // subchannel never displaces an earlier one. Order: the observed TPEG
+    // carousel framing first, then the FIG 1/1 / FIG 1/5 service label, then
+    // a Journaline content probe, else the EPG decoder gets the last word
+    // (it rejects non-EPG bytes honestly).
+    // ========================================================================
+
+    /// Brief coverage note shown on the TPEG status line (user decision:
+    /// TS 102 894-1-style framing identification + text inventory only; full
+    /// TS 102 894-2 TTI / de-framing is deferred, never claimed as done).
+    QString tpegCoverageNote() const
+    {
+        return tr("TPEG base (framing + text inventory; full TTI later)");
+    }
+
+    QString withTpegCoverageNote(const QString& state) const
+    {
+        return state.isEmpty() ? tpegCoverageNote()
+                               : state + QStringLiteral(" · ") + tpegCoverageNote();
+    }
+
+    /// Journaline content-probe acceptance for an UNLABELLED data subchannel
+    /// (step 3 of the routing, after the framing and label steps). The
+    /// stream-mode decoder extracts *something* out of almost any binary
+    /// traffic, so a bare item count is not discriminative — DAB+ audio bytes
+    /// yield thousands of junk candidates too. Only the share of CLEAN items
+    /// (the A-H1 plausibility gate: streamItemCount() / streamCandidateCount())
+    /// separates. Recalibrated on the Phase 2 probe over the real fixtures with
+    /// the gate in place (clean/candidates):
+    ///   input                                   bytes  cand  clean  ratio
+    ///   HR SCId 8 (real Journaline carousel)   384000 11544  3014  0.2611
+    ///   BR SCId 19 (real Journaline carousel)  192000  7852  1301  0.1657
+    ///   bkk SCId 22 (TPEG — routed earlier)    119952  3245  1786  0.5504
+    ///   bkk SCId 0 (DAB+ audio — junk)         959616  9796    51  0.0052
+    ///   EWS all-subchannel slice (junk)       6528000 210279 1725  0.0082
+    ///   bkk SCId 14 (EPG subchannel)          479808     0     0        —
+    ///   early-tap prefixes (96/240/480/2048 B)   ≤2048     0..21  0    —
+    ///     (only HR@2048 B has clean items: 34/55 = 0.6182)
+    /// Accept only when BOTH floors clear: the tightest real capture (BR) sits
+    /// 3.3× ABOVE the 0.05 ratio floor (HR 5.2×), while the worst junk input
+    /// (EWS) sits 6.1× BELOW it and bkk audio 9.6× below. Short windows are
+    /// saved by the absolute floor: every junk prefix has 0 clean items, so it
+    /// can never reach ratio-based acceptance (the old "≈5×" claim was wrong
+    /// and is replaced by these measured margins). Anything else falls through
+    /// to the EPG decoder, which rejects it honestly.
+    static constexpr int kJournalineProbeMinCleanItems = 8;
+    static constexpr double kJournalineProbeMinCleanRatio = 0.05;
+
+    /// Wire the decoders + the per-service store to the inner tabs. All
+    /// connections are QUEUED to this GUI thread (mirrors the Logger wiring),
+    /// so a decoder driven from any thread can never touch a widget; signal
+    /// bursts are coalesced by a singleshot timer into ONE tab rebuild.
+    void initDataServicePanels()
+    {
+        if (!m_dataServiceRefreshTimer) {
+            m_dataServiceRefreshTimer = new QTimer(this);
+            m_dataServiceRefreshTimer->setSingleShot(true);
+            m_dataServiceRefreshTimer->setInterval(150);
+            connect(m_dataServiceRefreshTimer, &QTimer::timeout, this,
+                    [this]() { refreshDataServiceTabs(); });
+        }
+        if (m_epgDecoder) {
+            connect(m_epgDecoder, &eti::epg::EPGDecoder::epgDecodingError, this,
+                    [this](const QString& error) {
+                        m_lastEpgError = error;
+                        scheduleDataServiceRefresh();
+                    },
+                    Qt::QueuedConnection);
+            connect(m_epgDecoder, &eti::epg::EPGDecoder::epgScheduleUpdated, this,
+                    [this](uint32_t) { scheduleDataServiceRefresh(); },
+                    Qt::QueuedConnection);
+            connect(m_epgDecoder, &eti::epg::EPGDecoder::epgEventDiscovered, this,
+                    [this](uint32_t, const eti::epg::EPGEvent&) {
+                        scheduleDataServiceRefresh();
+                    },
+                    Qt::QueuedConnection);
+        }
+        if (m_journalineDecoder) {
+            connect(m_journalineDecoder,
+                    &eti::journaline::JournalineDecoder::journalineMenuUpdated, this,
+                    [this](uint16_t) { scheduleDataServiceRefresh(); },
+                    Qt::QueuedConnection);
+            connect(m_journalineDecoder,
+                    &eti::journaline::JournalineDecoder::objectCountChanged, this,
+                    [this]() { scheduleDataServiceRefresh(); },
+                    Qt::QueuedConnection);
+            connect(m_journalineDecoder,
+                    &eti::journaline::JournalineDecoder::journalineDecodingError, this,
+                    [this](const QString& error) {
+                        m_lastJournalineError = error;
+                        scheduleDataServiceRefresh();
+                    },
+                    Qt::QueuedConnection);
+        }
+        if (m_tpegDecoder) {
+            connect(m_tpegDecoder, &eti::tpeg::TpegDecoder::messageCountChanged, this,
+                    [this]() { scheduleDataServiceRefresh(); },
+                    Qt::QueuedConnection);
+            connect(m_tpegDecoder, &eti::tpeg::TpegDecoder::tpegFramingDetected, this,
+                    [this](const QString&) { scheduleDataServiceRefresh(); },
+                    Qt::QueuedConnection);
+        }
+        if (m_dataServiceStore) {
+            connect(m_dataServiceStore, &eti::data::DataServiceStore::serviceUpdated,
+                    this, [this](uint32_t) { scheduleDataServiceRefresh(); },
+                    Qt::QueuedConnection);
+            // A-M6: an explicit store clear() must refresh the tabs too —
+            // without it a stale row would survive until the next decoder
+            // signal (resetDataServicePanels() stops the timer again, so the
+            // reset path does not schedule a spurious rebuild).
+            connect(m_dataServiceStore, &eti::data::DataServiceStore::servicesCleared,
+                    this, [this]() { scheduleDataServiceRefresh(); },
+                    Qt::QueuedConnection);
+        }
+    }
+
+    /// Coalesce decoder signal bursts into one tab rebuild (a real EPG can
+    /// emit thousands of event signals in a single load).
+    void scheduleDataServiceRefresh()
+    {
+        if (m_dataServiceRefreshTimer && !m_dataServiceRefreshTimer->isActive()) {
+            m_dataServiceRefreshTimer->start();
+        }
+    }
+
+    // --- Tab page builders (called once from createNowPlayingPanel) --------
+
+    QWidget* createEpgDataServiceTab()
+    {
+        QWidget* page = new QWidget();
+        page->setObjectName(QStringLiteral("epgDataServiceTab"));
+        QVBoxLayout* lay = new QVBoxLayout(page);
+        lay->setContentsMargins(4, 4, 4, 4);
+        lay->setSpacing(4);
+
+        QHBoxLayout* selectorRow = new QHBoxLayout();
+        QLabel* caption = new QLabel(tr("Service:"));
+        m_epgServiceCombo = new QComboBox();
+        m_epgServiceCombo->setObjectName(QStringLiteral("epgServiceCombo"));
+        m_epgServiceCombo->setEnabled(false);
+        selectorRow->addWidget(caption);
+        selectorRow->addWidget(m_epgServiceCombo, 1);
+        lay->addLayout(selectorRow);
+
+        m_epgStatusLabel = new QLabel(tr("Waiting for capture…"));
+        m_epgStatusLabel->setObjectName(QStringLiteral("epgStatusLabel"));
+        m_epgStatusLabel->setWordWrap(true);
+        m_epgStatusLabel->setStyleSheet(
+            QStringLiteral("font-size: 10px; color: #999; font-style: italic;"));
+        lay->addWidget(m_epgStatusLabel);
+
+        m_epgScheduleList = new QListWidget();
+        m_epgScheduleList->setObjectName(QStringLiteral("epgScheduleList"));
+        m_epgScheduleList->setAlternatingRowColors(true);
+        lay->addWidget(m_epgScheduleList, 1);
+
+        connect(m_epgServiceCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+                this, [this](int index) {
+                    populateEpgScheduleList(index >= 0
+                                                 ? m_epgServiceCombo->itemData(index).toUInt()
+                                                 : 0u);
+                });
+        return page;
+    }
+
+    QWidget* createJournalineDataServiceTab()
+    {
+        QWidget* page = new QWidget();
+        page->setObjectName(QStringLiteral("journalineDataServiceTab"));
+        QVBoxLayout* lay = new QVBoxLayout(page);
+        lay->setContentsMargins(4, 4, 4, 4);
+        lay->setSpacing(4);
+
+        m_journalineMenuTree = new QTreeWidget();
+        m_journalineMenuTree->setObjectName(QStringLiteral("journalineMenuTree"));
+        m_journalineMenuTree->setColumnCount(1);
+        m_journalineMenuTree->setHeaderLabels({tr("Carousel / Menu")});
+        m_journalineMenuTree->setRootIsDecorated(true);
+        m_journalineMenuTree->setUniformRowHeights(true);
+        lay->addWidget(m_journalineMenuTree, 3);
+
+        m_journalinePreview = new QTextEdit();
+        m_journalinePreview->setObjectName(QStringLiteral("journalinePreview"));
+        m_journalinePreview->setReadOnly(true);
+        m_journalinePreview->setPlaceholderText(tr("Select an item to preview its text."));
+        lay->addWidget(m_journalinePreview, 2);
+
+        m_journalineStatusLabel = new QLabel(tr("Waiting for capture…"));
+        m_journalineStatusLabel->setObjectName(QStringLiteral("journalineStatusLabel"));
+        m_journalineStatusLabel->setWordWrap(true);
+        m_journalineStatusLabel->setStyleSheet(
+            QStringLiteral("font-size: 10px; color: #999; font-style: italic;"));
+        lay->addWidget(m_journalineStatusLabel);
+
+        connect(m_journalineMenuTree, &QTreeWidget::currentItemChanged, this,
+                [this]() { updateJournalinePreview(); });
+        return page;
+    }
+
+    QWidget* createTpegDataServiceTab()
+    {
+        QWidget* page = new QWidget();
+        page->setObjectName(QStringLiteral("tpegDataServiceTab"));
+        QVBoxLayout* lay = new QVBoxLayout(page);
+        lay->setContentsMargins(4, 4, 4, 4);
+        lay->setSpacing(4);
+
+        m_tpegInventoryTable = new QTableWidget();
+        m_tpegInventoryTable->setObjectName(QStringLiteral("tpegInventoryTable"));
+        m_tpegInventoryTable->setColumnCount(5);
+        m_tpegInventoryTable->setHorizontalHeaderLabels(
+            {tr("Family"), tr("Message"), tr("Count"),
+             tr("First seen (frame)"), tr("Last seen (frame)")});
+        m_tpegInventoryTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+        m_tpegInventoryTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        m_tpegInventoryTable->verticalHeader()->setVisible(false);
+        m_tpegInventoryTable->setAlternatingRowColors(true);
+        m_tpegInventoryTable->setColumnWidth(0, 80);
+        m_tpegInventoryTable->setColumnWidth(1, 460);
+        m_tpegInventoryTable->setColumnWidth(2, 70);
+        m_tpegInventoryTable->setColumnWidth(3, 130);
+        m_tpegInventoryTable->horizontalHeader()->setStretchLastSection(true);
+        lay->addWidget(m_tpegInventoryTable, 1);
+
+        m_tpegStatusLabel = new QLabel(withTpegCoverageNote(tr("Waiting for capture…")));
+        m_tpegStatusLabel->setObjectName(QStringLiteral("tpegStatusLabel"));
+        m_tpegStatusLabel->setWordWrap(true);
+        m_tpegStatusLabel->setStyleSheet(
+            QStringLiteral("font-size: 10px; color: #999; font-style: italic;"));
+        lay->addWidget(m_tpegStatusLabel);
+        return page;
+    }
+
+    // --- Per-capture reset -------------------------------------------------
+
+    /// Drop the previous capture's decoded data-service state and return the
+    /// inner tabs to their waiting state. Called from resetCaptureState()
+    /// BEFORE a new capture is fed; safe to call before the tabs exist.
+    void resetDataServicePanels()
+    {
+        if (m_epgDecoder) {
+            m_epgDecoder->clearAll();
+        }
+        if (m_journalineDecoder) {
+            m_journalineDecoder->clearAll();
+        }
+        if (m_tpegDecoder) {
+            m_tpegDecoder->clearAll();
+        }
+        if (m_dataServiceStore) {
+            m_dataServiceStore->clear();
+        }
+        m_lastEpgError.clear();
+        m_lastJournalineError.clear();
+        m_journalineRouted = false;          // B-H1(5): nothing routed yet
+        m_tpegFirstSeenFrames.clear();
+        m_tpegLastSeenFrames.clear();
+        m_tpegSeenCounts.clear();
+        m_tpegInventorySignature.clear();     // B cross-dep 3: force rebuild
+        m_journalineTreeItemCount = -1;
+        m_journalineTreeRootCount = -1;
+        if (m_dataServiceRefreshTimer) {
+            m_dataServiceRefreshTimer->stop();
+        }
+
+        if (m_epgServiceCombo) {
+            m_epgServiceCombo->clear();
+            m_epgServiceCombo->setEnabled(false);
+        }
+        if (m_epgScheduleList) {
+            m_epgScheduleList->clear();
+        }
+        if (m_epgStatusLabel) {
+            m_epgStatusLabel->setText(tr("Waiting for capture…"));
+        }
+        if (m_journalineMenuTree) {
+            m_journalineMenuTree->clear();
+        }
+        if (m_journalinePreview) {
+            m_journalinePreview->clear();
+        }
+        if (m_journalineStatusLabel) {
+            m_journalineStatusLabel->setText(tr("Waiting for capture…"));
+        }
+        if (m_tpegInventoryTable) {
+            m_tpegInventoryTable->setRowCount(0);
+        }
+        if (m_tpegStatusLabel) {
+            m_tpegStatusLabel->setText(withTpegCoverageNote(tr("Waiting for capture…")));
+        }
+    }
+
+    // --- Routing + feeding -------------------------------------------------
+
+    /// Human label for a data subchannel: the FIG 1/1 service label when the
+    /// owning service carries one, else the FIG 1/5 data-service label of the
+    /// (32-bit) data service whose component references this subchannel.
+    QString dataServiceLabelForSubChannel(int subChannelId) const
+    {
+        if (!m_figAnalyser) {
+            return QString();
+        }
+        const std::vector<FIG1_5_DataServiceLabel> dataLabels =
+            m_figAnalyser->getDataServiceLabels();
+        for (const DABService& svc : m_figAnalyser->getDABServices()) {
+            for (const ServiceComponent& comp : svc.components) {
+                if (comp.sub_channel_id != static_cast<uint8_t>(subChannelId)) {
+                    continue;
+                }
+                if (isAudioServiceComponent(comp)) {
+                    // B-M1: an audio component is never a data service — its
+                    // FIG 1/1 label ("Cool Radio" …) must not be used to route
+                    // or label data bytes. Keep looking: another component may
+                    // still reference this sub-channel as data.
+                    continue;
+                }
+                const QString fig11 = svc.service_label.trimmed();
+                if (!fig11.isEmpty()) {
+                    return fig11;
+                }
+                for (const FIG1_5_DataServiceLabel& dl : dataLabels) {
+                    if (dl.service_id == svc.service_id) {
+                        // B-M3: decode the raw 16-byte field as UTF-8 with a
+                        // Latin-1 fallback (Thai labels are UTF-8) instead of
+                        // blind fromLatin1.
+                        const QString label =
+                            decodeFigLabelBytes(dl.label, figLabelFieldLength(dl.label))
+                                .trimmed();
+                        if (!label.isEmpty()) {
+                            return label;
+                        }
+                    }
+                }
+                return QString();
+            }
+        }
+        return QString();
+    }
+
+    /// Display label for a decoded EPG service id (FIG 1/1, then FIG 1/5).
+    QString serviceLabelForId(quint32 serviceId) const
+    {
+        if (m_figAnalyser) {
+            for (const DABService& svc : m_figAnalyser->getDABServices()) {
+                if (svc.service_id == serviceId && !svc.service_label.trimmed().isEmpty()) {
+                    return svc.service_label.trimmed();
+                }
+            }
+            for (const FIG1_5_DataServiceLabel& dl : m_figAnalyser->getDataServiceLabels()) {
+                if (dl.service_id == serviceId) {
+                    // B-M3: UTF-8 with Latin-1 fallback (was fromLatin1) —
+                    // matches the data-subchannel label path above.
+                    const QString label =
+                        decodeFigLabelBytes(dl.label, figLabelFieldLength(dl.label))
+                            .trimmed();
+                    if (!label.isEmpty()) {
+                        return label;
+                    }
+                }
+            }
+        }
+        return QString();
+    }
+
+    /// B-M2: only the first bytes of a subchannel stream are examined for TPEG
+    /// carousel framing. The marker phase repeats from the very start of the
+    /// carousel (Phase 2 probe: bkk SCId 22 is detected already inside its
+    /// first 96 bytes), while scanning a whole 4 MB buffer of unrelated
+    /// traffic for marker pairs is a real false-positive risk (HR/BR full
+    /// streams both "detect" framing that way). 240 B ≈ 10 carousel frames of
+    /// margin over that 96 B observation.
+    static constexpr int kCarouselProbePrefixBytes = 240;
+
+    /// Decide which decoder a captured data subchannel belongs to (see the
+    /// block comment above).
+    DataServiceRoute routeDataService(int subChannelId, const QByteArray& bytes) const
+    {
+        // 1) The observed TPEG carousel framing wins first: bkk's data
+        //    services share one FIG 1/5 label ("EPG" for SId 0xf320), so a
+        //    label alone would misroute the TEPG subchannel. B-M2: bounded to
+        //    the prefix (see kCarouselProbePrefixBytes); a `containsSyncPair`
+        //    requirement was REJECTED on Phase 2 evidence — the real bkk
+        //    carousel shows 0 sync pairs while the false positives do not.
+        if (eti::tpeg::TpegDecoder::detectsCarouselFraming(
+                bytes.left(kCarouselProbePrefixBytes))) {
+            return DataServiceRoute::Tpeg;
+        }
+        const QString label = dataServiceLabelForSubChannel(subChannelId).toLower();
+        if (label.contains(QLatin1String("tepg")) || label.contains(QLatin1String("tpeg"))) {
+            return DataServiceRoute::Tpeg;
+        }
+        if (label.contains(QLatin1String("epg"))) {
+            return DataServiceRoute::Epg;
+        }
+        if (label.contains(QLatin1String("journ"))) {
+            return DataServiceRoute::Journaline;
+        }
+        // 3) Content probe for unlabelled subchannels: a real stream-mode
+        //    Journaline carousel yields many items that survive the A-H1
+        //    plausibility gate — the clean share is the discriminative signal
+        //    (see the Phase 2 calibration table on the two constants above).
+        //    The counters come straight from the decoder: streamItemCount() =
+        //    post-gate "clean", streamCandidateCount() = pre-gate runs.
+        eti::journaline::JournalineDecoder probe;
+        probe.processStreamData(bytes);
+        const int candidates = probe.streamCandidateCount();
+        const int clean = probe.streamItemCount();
+        // clean > candidates is impossible (the gate only accepts candidates),
+        // and clean >= 8 implies candidates >= 8 — so the ratio below is
+        // always well-defined; the explicit guard keeps it obvious.
+        if (candidates > 0 && clean >= kJournalineProbeMinCleanItems
+            && static_cast<double>(clean) / static_cast<double>(candidates)
+                   >= kJournalineProbeMinCleanRatio) {
+            return DataServiceRoute::Journaline;
+        }
+        // 4) Last word goes to the EPG decoder — it rejects non-EPG bytes
+        //    honestly (no fabricated schedules).
+        return DataServiceRoute::Epg;
+    }
+
+    /// Per-subchannel TPEG attribution (N2): what THIS subchannel's bytes
+    /// produced on the single shared TpegDecoder. The decoder's counters are
+    /// cumulative over every subchannel fed so far, so a raw read would
+    /// publish sub-channel 1's totals against sub-channel 2 — hence deltas.
+    struct TpegFeedTotals {
+        int messagesDelta = 0;    ///< unique texts ADDED to the shared inventory
+        quint64 framesDelta = 0;  ///< whole 24-byte stream frames added
+    };
+
+    /// Feed one TPEG-classified subchannel to the TpegDecoder in bounded
+    /// chunks, then record the stream-frame number at which each unique
+    /// message was first seen and last re-seen (the inventory table's
+    /// first/last-seen columns; frames are the decoder's 24-byte stream
+    /// frames). B cross-dep 3: messages() is copied ONCE per feed — it used
+    /// to be re-read after every 4 KB chunk (O(chunks × messages)) — and the
+    /// decoder's own first_frame/last_frame fields are authoritative, so the
+    /// bookkeeping maps stay bounded by the decoder's kMaxUniqueMessages cap
+    /// (only texts that survive in its inventory are ever inserted here).
+    ///
+    /// N2: finish() is deliberately NOT called here. This helper runs once
+    /// per TPEG-routed subchannel, and finish() CLOSES the decoder — calling
+    /// it per subchannel sent every later same-route subchannel down the
+    /// post-finish drop path (bytes discarded + one-shot warning) and made its
+    /// snapshot inherit the earlier subchannel's counters. The shared decoder
+    /// is finished exactly once, after the whole feed loop
+    /// (feedDataServiceSubchannels()). To keep a usable per-feed view in the
+    /// meantime, refreshInventory() materialises the inventory WITHOUT
+    /// closing it; it scans the same bytes finish() would, so the final
+    /// inventory is identical.
+    TpegFeedTotals feedTpegStreamChunked(const QByteArray& bytes)
+    {
+        TpegFeedTotals totals;
+        if (!m_tpegDecoder) {
+            return totals;
+        }
+        const int messagesBefore = m_tpegDecoder->messageCount();
+        const quint64 framesBefore = m_tpegDecoder->frameCount();
+        constexpr int kChunkBytes = 4096;
+        for (int offset = 0; offset < bytes.size(); offset += kChunkBytes) {
+            const int len = qMin(kChunkBytes, bytes.size() - offset);
+            m_tpegDecoder->processStreamData(bytes.mid(offset, len));
+        }
+        // Materialise the inventory for THIS subchannel's snapshot (does not
+        // finish the decoder), then take the delta its bytes produced.
+        totals.messagesDelta = m_tpegDecoder->refreshInventory() - messagesBefore;
+        totals.framesDelta = m_tpegDecoder->frameCount() - framesBefore;
+        const QVector<eti::tpeg::TpegMessage> messages = m_tpegDecoder->messages();
+        for (const eti::tpeg::TpegMessage& m : messages) {
+            // Defensive mirror of the decoder's inventory cap: never grow the
+            // GUI-side maps past kMaxUniqueMessages unique texts.
+            if (!m_tpegFirstSeenFrames.contains(m.text)
+                && m_tpegFirstSeenFrames.size() >= eti::tpeg::TpegDecoder::kMaxUniqueMessages) {
+                break;
+            }
+            m_tpegFirstSeenFrames.insert(m.text, m.first_frame);
+            m_tpegLastSeenFrames.insert(m.text, m.last_frame);
+            m_tpegSeenCounts.insert(m.text, m.repeat_count);
+        }
+        return totals;
+    }
+
+    /// Run the EPG / Journaline / TPEG decoders over the raw bytes captured
+    /// by the clean per-data-subchannel tap (processDlsPlusFromFrame) and
+    /// publish per-service snapshots in the store. Called once per completed
+    /// load, on the GUI thread; load-time DLS+/MOT counters are untouched.
+    void feedDataServiceSubchannels()
+    {
+        if (!m_epgDecoder || !m_journalineDecoder || !m_tpegDecoder) {
+            return;
+        }
+        m_tpegFirstSeenFrames.clear();
+        m_tpegLastSeenFrames.clear();
+        m_tpegSeenCounts.clear();
+        m_tpegInventorySignature.clear();  // B cross-dep 3: force a rebuild
+
+        // B-M1: classify with the CURRENT FIC before feeding, so the same
+        // audio exclusion the tap applies at capture time also applies here
+        // (defence in depth — a pre-FIG entry that slipped into the map must
+        // never reach a data decoder).
+        rebuildDabPlusServiceMapIfNeeded();
+
+        // N2: snapshots are BUILT inside the loop but FLUSHED to the store
+        // after the one-shot TPEG finish() below, so the TPEG rows carry the
+        // final framing verdict instead of a mid-feed state (the counters are
+        // already per-subchannel deltas taken at feed time).
+        struct PendingSnapshot {
+            eti::data::ServiceDataSnapshot snapshot;
+            DataServiceRoute route;
+        };
+        QVector<PendingSnapshot> pending;
+        bool fedTpeg = false;   // at least one TPEG subchannel was fed
+
+        for (auto it = m_dataSubChannelStreams.cbegin();
+             it != m_dataSubChannelStreams.cend(); ++it) {
+            const QByteArray& bytes = it.value();
+            if (bytes.isEmpty()) {
+                continue;
+            }
+            const int subChannelId = it.key();
+            if (m_dabPlusSubChannels.contains(subChannelId)
+                || m_audioSubChannels.contains(subChannelId)) {
+                // B-M1: audio bytes are not a data service — skip them the
+                // same way tapDataSubchannelsFromFrame() does.
+                continue;
+            }
+            const DataServiceRoute route = routeDataService(subChannelId, bytes);
+            if (route == DataServiceRoute::Journaline) {
+                m_journalineRouted = true;  // B-H1(5): routed, even if empty
+            }
+
+            eti::data::ServiceDataSnapshot snapshot;
+            snapshot.sub_channel_id = static_cast<uint32_t>(subChannelId);
+            snapshot.service_label = dataServiceLabelForSubChannel(subChannelId);
+            snapshot.stream_bytes = static_cast<quint64>(bytes.size());
+
+            switch (route) {
+            case DataServiceRoute::Tpeg: {
+                // N2 attribution: these counters are the DELTA this
+                // subchannel's bytes produced on the shared decoder
+                // (messageCount()/frameCount() are cumulative over every fed
+                // subchannel, so a raw read would publish sub-channel 1's
+                // totals against sub-channel 2). The framing fields are NOT
+                // counters — they are shared-decoder attributes of the TPEG
+                // stream as a whole and are stamped after the single finish()
+                // below (identical on every TPEG row by construction).
+                const TpegFeedTotals tpeg = feedTpegStreamChunked(bytes);
+                snapshot.tpeg_messages = tpeg.messagesDelta;
+                snapshot.stream_frames = tpeg.framesDelta;
+                fedTpeg = true;
+                break;
+            }
+            case DataServiceRoute::Journaline:
+                m_journalineDecoder->processStreamData(bytes);
+                snapshot.journaline_objects = m_journalineDecoder->objectCount();
+                snapshot.journaline_stream_items = m_journalineDecoder->streamItemCount();
+                if (!m_journalineDecoder->getStreamItems().isEmpty()) {
+                    snapshot.journaline_sample_title =
+                        m_journalineDecoder->getStreamItems().constFirst().title;
+                }
+                break;
+            case DataServiceRoute::Epg: {
+                const bool accepted = m_epgDecoder->processMOTObject(bytes);
+                const int events = m_epgDecoder->eventCount();
+                if (accepted && events > 0) {
+                    m_lastEpgError.clear();
+                }
+                snapshot.epg_schedules = m_epgDecoder->serviceCount();
+                snapshot.epg_events = events;
+                break;
+            }
+            }
+
+            pending.append(PendingSnapshot{snapshot, route});
+        }
+
+        if (fedTpeg) {
+            // N2: ONE finish() for the single shared TpegDecoder, AFTER every
+            // TPEG-routed subchannel has been fed. finish() closes the
+            // decoder (later bytes are dropped with a one-shot warning), so
+            // it must never run inside the per-subchannel loop.
+            m_tpegDecoder->finish();
+            for (PendingSnapshot& entry : pending) {
+                if (entry.route == DataServiceRoute::Tpeg) {
+                    entry.snapshot.tpeg_framing = m_tpegDecoder->framingDescription();
+                    entry.snapshot.tpeg_sync_0a46 = m_tpegDecoder->sawSyncBytes();
+                }
+            }
+        }
+
+        if (m_dataServiceStore) {
+            for (const PendingSnapshot& entry : pending) {
+                m_dataServiceStore->updateService(entry.snapshot);
+            }
+        }
+    }
+
+    // --- Tab refreshers ----------------------------------------------------
+
+    void refreshDataServiceTabs()
+    {
+        refreshEpgTab();
+        refreshJournalineTab();
+        refreshTpegTab();
+    }
+
+    /// EPG tab: service selector + status line + Now/Next + schedule rows.
+    /// Honest empty state: a capture whose EPG subchannel carries no decodable
+    /// TS 102 371 schedule (e.g. bkk SCId 14, reserved-but-idle) reports
+    /// "No EPG data in this stream" and lists the decoder's rejection.
+    void refreshEpgTab()
+    {
+        if (!m_epgDecoder || !m_epgServiceCombo || !m_epgStatusLabel) {
+            return;
+        }
+
+        // Only services that actually carry events are offered: a schedule
+        // header that parsed with zero events is NOT content.
+        QVector<uint32_t> withEvents;
+        int totalEvents = 0;
+        for (uint32_t sid : m_epgDecoder->getServiceIds()) {
+            const int n = m_epgDecoder->getEvents(sid).size();
+            if (n > 0) {
+                withEvents.append(sid);
+                totalEvents += n;
+            }
+        }
+
+        const quint32 previous =
+            (m_epgServiceCombo->currentIndex() >= 0)
+                ? m_epgServiceCombo->itemData(m_epgServiceCombo->currentIndex()).toUInt()
+                : 0u;
+        int restoreRow = 0;
+        {
+            QSignalBlocker blocker(m_epgServiceCombo);
+            m_epgServiceCombo->clear();
+            if (withEvents.isEmpty()) {
+                m_epgServiceCombo->addItem(tr("— no EPG service in this stream —"), 0u);
+            } else {
+                int row = 0;
+                for (uint32_t sid : withEvents) {
+                    const QString label = serviceLabelForId(sid);
+                    m_epgServiceCombo->addItem(
+                        label.isEmpty()
+                            ? tr("SId %1").arg(serviceSidHex(sid))
+                            : QString("%1 (%2)").arg(label, serviceSidHex(sid)),
+                        sid);
+                    if (sid == previous) {
+                        restoreRow = row;
+                    }
+                    ++row;
+                }
+            }
+            m_epgServiceCombo->setCurrentIndex(restoreRow);
+            m_epgServiceCombo->setEnabled(!withEvents.isEmpty());
+        }
+
+        const quint32 selected =
+            (withEvents.isEmpty() || m_epgServiceCombo->currentIndex() < 0)
+                ? 0u
+                : m_epgServiceCombo->itemData(m_epgServiceCombo->currentIndex()).toUInt();
+        populateEpgScheduleList(selected);
+
+        if (totalEvents == 0) {
+            QString status = tr("No EPG data in this stream");
+            if (!m_lastEpgError.isEmpty()) {
+                status += tr(" — decoder reported: %1").arg(m_lastEpgError);
+            }
+            m_epgStatusLabel->setText(status);
+        } else {
+            m_epgStatusLabel->setText(
+                tr("%1 service(s) · %2 event(s) decoded")
+                    .arg(withEvents.size())
+                    .arg(totalEvents));
+        }
+    }
+
+    void populateEpgScheduleList(quint32 serviceId)
+    {
+        if (!m_epgScheduleList || !m_epgDecoder) {
+            return;
+        }
+        m_epgScheduleList->clear();
+        if (serviceId == 0) {
+            return;
+        }
+        const QVector<eti::epg::EPGEvent> events = m_epgDecoder->getEvents(serviceId);
+        if (events.isEmpty()) {
+            return;
+        }
+
+        auto timeRange = [](const eti::epg::EPGEvent& e) {
+            if (!e.start_time.isValid() || !e.end_time.isValid()) {
+                return QStringLiteral("--:--–--:--");
+            }
+            return QStringLiteral("%1–%2")
+                .arg(e.start_time.toString(QStringLiteral("HH:mm")),
+                     e.end_time.toString(QStringLiteral("HH:mm")));
+        };
+        auto appendRow = [this, &timeRange](const QString& text,
+                                            const eti::epg::EPGEvent& e) {
+            auto* item = new QListWidgetItem(text);
+            QString tip = e.description.trimmed();
+            if (!e.genre.isEmpty()) {
+                tip = tip.isEmpty() ? e.genre : (e.genre + QStringLiteral(" — ") + tip);
+            }
+            if (!tip.isEmpty()) {
+                item->setToolTip(tip);
+            }
+            m_epgScheduleList->addItem(item);
+        };
+
+        if (std::optional<eti::epg::EPGEvent> now =
+                m_epgDecoder->getCurrentEvent(serviceId)) {
+            appendRow(tr("Now: %1 (%2)").arg(now->program_name, timeRange(*now)), *now);
+        }
+        if (std::optional<eti::epg::EPGEvent> next =
+                m_epgDecoder->getNextEvent(serviceId)) {
+            appendRow(tr("Next: %1 (%2)").arg(next->program_name, timeRange(*next)), *next);
+        }
+        for (const eti::epg::EPGEvent& e : events) {
+            appendRow(tr("%1  %2").arg(timeRange(e), e.program_name), e);
+        }
+    }
+
+    /// Journaline tab: menu tree (incl. the stream-mode "Display Carousel"
+    /// 0x7FFF root) + text preview + status line. UTF-8 (German umlauts,
+    /// Thai) is shown verbatim from the decoder's item model.
+    void refreshJournalineTab()
+    {
+        if (!m_journalineDecoder || !m_journalineMenuTree || !m_journalinePreview
+            || !m_journalineStatusLabel) {
+            return;
+        }
+
+        const QVector<eti::journaline::JournalineMenu> roots =
+            m_journalineDecoder->getRootMenus();
+        int totalItems = 0;
+        for (const eti::journaline::JournalineMenu& menu : roots) {
+            totalItems += menu.items.size();
+        }
+
+        // Rebuild only when the model actually changed — queued decoder
+        // signals must not re-create a >10k-item tree needlessly.
+        if (totalItems != m_journalineTreeItemCount
+            || roots.size() != m_journalineTreeRootCount) {
+            QTreeWidgetItem* previous = m_journalineMenuTree->currentItem();
+            const QString previousText = previous ? previous->text(0) : QString();
+
+            m_journalineMenuTree->clear();
+            for (const eti::journaline::JournalineMenu& menu : roots) {
+                auto* menuNode = new QTreeWidgetItem(m_journalineMenuTree);
+                menuNode->setText(0, tr("%1 (0x%2)")
+                                        .arg(menu.menu_title)
+                                        .arg(QString::number(menu.menu_id, 16)
+                                                 .toUpper()));
+                for (const eti::journaline::JournalineObject& object : menu.items) {
+                    auto* child = new QTreeWidgetItem(menuNode);
+                    const QString title = object.title.trimmed();
+                    child->setText(0, title.isEmpty() ? object.text_content.left(80)
+                                                      : title);
+                    child->setData(0, Qt::UserRole, object.text_content);
+                    if (!object.text_content.isEmpty()) {
+                        child->setToolTip(0, object.text_content.left(200));
+                    }
+                }
+                menuNode->setExpanded(true);
+            }
+            m_journalineTreeItemCount = totalItems;
+            m_journalineTreeRootCount = roots.size();
+
+            // Restore the previous selection by text, else preselect the
+            // first item so the preview shows real content immediately.
+            QTreeWidgetItem* restore = nullptr;
+            if (!previousText.isEmpty()) {
+                const QList<QTreeWidgetItem*> matches =
+                    m_journalineMenuTree->findItems(previousText, Qt::MatchExactly, 0);
+                if (!matches.isEmpty()) {
+                    restore = matches.constFirst();
+                }
+            }
+            if (!restore && m_journalineMenuTree->topLevelItemCount() > 0) {
+                QTreeWidgetItem* root = m_journalineMenuTree->topLevelItem(0);
+                restore = root->childCount() > 0 ? root->child(0) : root;
+            }
+            if (restore) {
+                m_journalineMenuTree->setCurrentItem(restore);
+            }
+            updateJournalinePreview();
+        }
+
+        // B-H1(5): honest false-reject reporting — "nothing was routed to
+        // Journaline in this capture" and "it was routed but the decoder
+        // produced no items" are different states and must not share a line
+        // (README: data only when the stream carries it).
+        QString status;
+        if (totalItems == 0) {
+            status = m_journalineRouted
+                         ? tr("Journaline data routed in this stream, but no items decoded")
+                         : tr("No Journaline data routed in this stream");
+            if (!m_lastJournalineError.isEmpty()) {
+                status += tr(" — decoder reported: %1").arg(m_lastJournalineError);
+            }
+        } else {
+            status = tr("%1 stream item(s) · %2 menu(s)").arg(totalItems).arg(roots.size());
+        }
+        m_journalineStatusLabel->setText(status);
+    }
+
+    void updateJournalinePreview()
+    {
+        if (!m_journalinePreview) {
+            return;
+        }
+        QTreeWidgetItem* item =
+            m_journalineMenuTree ? m_journalineMenuTree->currentItem() : nullptr;
+        if (!item) {
+            m_journalinePreview->clear();
+            return;
+        }
+        const QString body = item->data(0, Qt::UserRole).toString();
+        if (body.isEmpty()) {
+            m_journalinePreview->setPlainText(item->text(0));
+            return;
+        }
+        m_journalinePreview->setPlainText(
+            item->text(0) + QStringLiteral("\n\n") + body);
+    }
+
+    /// TPEG tab: message inventory (family badge, text, repeat count, the
+    /// stream frame where the text was first / last re-seen) + the honest
+    /// status line carrying the coverage note.
+    void refreshTpegTab()
+    {
+        if (!m_tpegDecoder || !m_tpegInventoryTable || !m_tpegStatusLabel) {
+            return;
+        }
+        const QVector<eti::tpeg::TpegMessage>& messages = m_tpegDecoder->messages();
+
+        // B cross-dep 3: skip the full rebuild while nothing observable
+        // changed. The table + status line show exactly these four facts
+        // (unique count, stream frames, dropped-text count, framing verdict),
+        // and this method only ever runs from the 150 ms coalesced timer —
+        // so a no-op refresh is O(1) instead of O(rows).
+        const QString signature =
+            QStringLiteral("%1/%2/%3/%4")
+                .arg(messages.size())
+                .arg(m_tpegDecoder->frameCount())
+                .arg(m_tpegDecoder->getStatistics().dropped_messages)
+                .arg(m_tpegDecoder->framingDescription());
+        if (signature == m_tpegInventorySignature) {
+            return;
+        }
+        m_tpegInventorySignature = signature;
+
+        m_tpegInventoryTable->setRowCount(0);
+        m_tpegInventoryTable->setRowCount(messages.size());
+        for (int row = 0; row < messages.size(); ++row) {
+            const eti::tpeg::TpegMessage& message = messages.at(row);
+
+            auto* family = new QTableWidgetItem(message.category);
+            const QString category = message.category.toLower();
+            QColor familyColour(0x75, 0x75, 0x75);  // neutral for banner/version
+            if (category == QLatin1String("tec")) {
+                familyColour = QColor(0x1b, 0x5e, 0x20);
+            } else if (category == QLatin1String("tfp")) {
+                familyColour = QColor(0x0d, 0x47, 0xa1);
+            } else if (category == QLatin1String("pki")) {
+                familyColour = QColor(0x4a, 0x14, 0x8c);
+            } else if (category == QLatin1String("emi")) {
+                familyColour = QColor(0xb7, 0x1c, 0x1c);
+            }
+            QFont familyFont = family->font();
+            familyFont.setBold(true);
+            family->setFont(familyFont);
+            family->setForeground(familyColour);
+            family->setToolTip(tr("Observed application family (text-inventory "
+                                  "level; full TPEG2-TTI decoding is deferred)"));
+
+            auto* text = new QTableWidgetItem(message.text);
+            auto* count = new QTableWidgetItem(QString::number(message.repeat_count));
+            auto* first = new QTableWidgetItem(
+                m_tpegFirstSeenFrames.contains(message.text)
+                    ? QString::number(m_tpegFirstSeenFrames.value(message.text))
+                    : QStringLiteral("—"));
+            auto* last = new QTableWidgetItem(
+                m_tpegLastSeenFrames.contains(message.text)
+                    ? QString::number(m_tpegLastSeenFrames.value(message.text))
+                    : QStringLiteral("—"));
+            for (int col = 0; col < 5; ++col) {
+                QTableWidgetItem* cell =
+                    col == 0 ? family
+                             : col == 1 ? text
+                                        : col == 2 ? count : col == 3 ? first : last;
+                cell->setFlags(cell->flags() & ~Qt::ItemIsEditable);
+            }
+            m_tpegInventoryTable->setItem(row, 0, family);
+            m_tpegInventoryTable->setItem(row, 1, text);
+            m_tpegInventoryTable->setItem(row, 2, count);
+            m_tpegInventoryTable->setItem(row, 3, first);
+            m_tpegInventoryTable->setItem(row, 4, last);
+        }
+
+        QString state;
+        if (messages.isEmpty()) {
+            state = tr("No TPEG data in this stream");
+        } else {
+            state = tr("%1 unique messages · %2 stream frames")
+                        .arg(messages.size())
+                        .arg(m_tpegDecoder->frameCount());
+            const QString framing = m_tpegDecoder->framingDescription();
+            if (!framing.isEmpty()) {
+                state += QStringLiteral(" · ") + framing;
+            }
+        }
+        m_tpegStatusLabel->setText(withTpegCoverageNote(state));
     }
 
     // ========================================================================
@@ -11157,7 +12382,66 @@ private:
     // only re-read when a service/subchannel count changes or a discovery
     // invalidates the cache.
     QSet<int> m_dabPlusSubChannels;
+    // A-M5a: every audio sub-channel known from FIG 0/2 (TMId 0 + ASCTy
+    // 0x00 MPEG / 0x3F DAB+) — superset of m_dabPlusSubChannels, used by the
+    // data tap so MPEG-audio sub-channels are not captured as "data".
+    QSet<int> m_audioSubChannels;
     QHash<int, QPair<quint32, QString>> m_serviceBySubChannel;
+    // v1.4 data-path wave — clean tap: raw per-data-subchannel byte streams
+    // (EPG/TEPG/Journaline), accumulated during load. Byte-capped; the
+    // decoders are not run per-frame here — they are fed once the capture
+    // completes (feedDataServiceSubchannels), so the CLI/GUI parity gates are
+    // unaffected. Slot- and byte-cap hits are reported once per capture.
+    QMap<int, QByteArray> m_dataSubChannelStreams;
+    quint64 m_dataSubChannelBytes = 0;
+    static constexpr quint64 kMaxDataSubChannelBytes = 4 * 1024 * 1024;
+    static constexpr int kMaxDataSubChannelSlots = 32;
+    bool m_dataTapSlotCapWarned = false;
+    bool m_dataTapByteCapWarned = false;
+    // === Wave B: inner data-service tabs (Slideshow | EPG | Journaline |
+    // TPEG), inside the Now Playing / Slideshow dock area (no new dock) =====
+    QTabWidget* m_dataServiceTabs = nullptr;
+    // Decoders + per-service data store (Qt parent-child ownership).
+    eti::epg::EPGDecoder* m_epgDecoder = nullptr;
+    eti::journaline::JournalineDecoder* m_journalineDecoder = nullptr;
+    eti::tpeg::TpegDecoder* m_tpegDecoder = nullptr;
+    eti::data::DataServiceStore* m_dataServiceStore = nullptr;
+    // EPG tab
+    QComboBox* m_epgServiceCombo = nullptr;
+    QListWidget* m_epgScheduleList = nullptr;
+    QLabel* m_epgStatusLabel = nullptr;
+    // Journaline tab
+    QTreeWidget* m_journalineMenuTree = nullptr;
+    QTextEdit* m_journalinePreview = nullptr;
+    QLabel* m_journalineStatusLabel = nullptr;
+    // TPEG tab
+    QTableWidget* m_tpegInventoryTable = nullptr;
+    QLabel* m_tpegStatusLabel = nullptr;
+    // Coalesced decoder-signal -> tab rebuild (see scheduleDataServiceRefresh).
+    QTimer* m_dataServiceRefreshTimer = nullptr;
+    // Honest per-capture bookkeeping (surfaced in the status lines).
+    QString m_lastEpgError;
+    QString m_lastJournalineError;
+    // B-H1(5): did the router actually send any subchannel to the Journaline
+    // decoder this capture? Distinguishes "no Journaline routed in this
+    // stream" from "routed, but the decoder yielded no items" on the status
+    // line (README: data shown only when the stream carries it).
+    bool m_journalineRouted = false;
+    // TPEG inventory first/last-seen (24-byte stream frame numbers) + the
+    // repeat counts they were derived from, per unique message text. Bounded
+    // by the decoder's own kMaxUniqueMessages cap (only texts that survive in
+    // the decoder's inventory are ever inserted here).
+    QMap<QString, quint64> m_tpegFirstSeenFrames;
+    QMap<QString, quint64> m_tpegLastSeenFrames;
+    QMap<QString, uint32_t> m_tpegSeenCounts;
+    // B cross-dep 3: signature of the built inventory table (unique count /
+    // frame count / framing description) — refreshTpegTab() skips the full
+    // rebuild while the signature is unchanged, so the coalesced 150 ms
+    // refresh stays cheap when no new TPEG data arrived.
+    QString m_tpegInventorySignature;
+    // Journaline tree rebuild guard (item/root counts of the built tree).
+    int m_journalineTreeItemCount = -1;
+    int m_journalineTreeRootCount = -1;
     // T34: service id -> its primary DAB+ audio sub-channel (audio selection).
     QHash<quint32, int> m_audioSubChannelByService;
     // T34: selected-service audio playback controller + Audio-tab widgets.
