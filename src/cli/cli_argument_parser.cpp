@@ -439,7 +439,7 @@ void CLIArgumentParser::printUsage() {
     out << "  - Thai UTF-8 support throughout\n";
     out << "  - Frame-by-frame FIG decoding (--verbose-frames)\n\n";
 
-    out << "For more information, visit: https://github.com/sekz/streamdab-analyser\n";
+    out << "For more information, visit: https://github.com/streamdab/streamdab-analyser\n";
     out.flush();
 }
 

@@ -147,5 +147,5 @@ private:
     static constexpr const char* APP_VERSION = DABX_VERSION;
     static constexpr const char* APP_BUILD = "Open Source Edition (GPL-3.0+)";
     static constexpr const char* APP_COPYRIGHT = "Copyright © 2026 StreamDAB Analyser contributors";
-    static constexpr const char* APP_WEBSITE = "https://github.com/sekz/streamdab-analyser";
+    static constexpr const char* APP_WEBSITE = "https://github.com/streamdab/streamdab-analyser";
 };

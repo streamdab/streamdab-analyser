@@ -9,7 +9,7 @@
 # See docs/GITHUB_PUBLISHING_PLAN.md for the strategy and safeguards.
 #
 # Usage:
-#   scripts/publish-public.sh --remote git@github.com:sekz/streamdab-analyser.git \
+#   scripts/publish-public.sh --remote git@github.com:streamdab/streamdab-analyser.git \
 #       --single-commit --yes
 #
 # Options:

@@ -478,7 +478,7 @@ Stream_B,DR_P1,8,6,580,250.3
 
 **Placeholder for user-requested features**
 
-Submit feature requests at: https://github.com/sekz/streamdab-analyser.git/issues
+Submit feature requests at: https://github.com/streamdab/streamdab-analyser/issues
 
 ### Most Requested (Placeholder)
 

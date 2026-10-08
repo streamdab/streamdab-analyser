@@ -69,7 +69,7 @@ git filter-repo --force \
   --path output.yaml
 
 # 3) Add the public remote and push
-git remote add public git@github.com:sekz/streamdab-analyser.git
+git remote add public git@github.com:streamdab/streamdab-analyser.git
 git push public main --tags
 ```
 
