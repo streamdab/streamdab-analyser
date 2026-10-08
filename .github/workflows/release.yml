@@ -39,7 +39,7 @@ jobs:
             os: macos-14
             configure: macos-brew
             build: build-macos
-            archive: macos-arm64.tar.gz   # macos-14 runners are Apple Silicon
+            archive: macos-arm64.dmg   # macos-14 runners are Apple Silicon
 
     steps:
       - name: Checkout (with tags)
@@ -52,7 +52,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev build-essential
+          sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
+            libasound2-dev libgtest-dev build-essential
 
       - name: Install Qt 6 (Windows)
         if: runner.os == 'Windows'
@@ -90,8 +91,7 @@ jobs:
         run: cmake --build --preset ${{ matrix.build }}
 
       - name: Test
-        working-directory: build
-        run: ctest --preset test-${{ matrix.name }} -L PUBLIC
+        run: ctest --preset test-${{ matrix.name }} -L PUBLIC   # from repo root (preset file)
 
       # ----------------------------------------------------------- package
       # CPack artifacts (INSTALL.md §6): TGZ+DEB on Linux, ZIP on Windows,
@@ -114,21 +114,29 @@ jobs:
         if: runner.os == 'macOS'
         run: bash scripts/bundle-macos.sh
 
-      - name: Normalize artifact file names (Linux/macOS)
-        if: runner.os != 'Windows'
+      # ----------------------------------------------------------- normalize
+      - name: "Normalize artifact (Linux: TGZ)"
+        if: runner.os == 'Linux'
         working-directory: build
         run: |
-          # Rename the newest CPack/sript artifact to the matrix asset name.
-          latest="$(ls -t streamdab-analyser*.tar.gz *.deb *.dmg 2>/dev/null | head -1)"
-          [ -n "$latest" ] && cp "$latest" ${{ matrix.archive }}
+          # The TGZ is the canonical Linux asset; never rename the .deb as .tar.gz.
+          cp streamdab-analyser-*-Linux.tar.gz ${{ matrix.archive }}
 
-      - name: Normalize artifact file name (Windows)
+      - name: "Normalize artifact (macOS: .dmg)"
+        if: runner.os == 'macOS'
+        working-directory: build
+        run: |
+          cp "$(ls *.dmg | head -1)" ${{ matrix.archive }}
+
+      - name: "Normalize artifact (Windows: ZIP)"
         if: runner.os == 'Windows'
         working-directory: build
         shell: pwsh
         run: |
           $latest = Get-ChildItem streamdab-analyser*.zip | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if ($latest) { Copy-Item $latest.FullName -Destination ${{ matrix.archive }} }
+        # If any normalize step finds nothing, cp fails and the job fails loudly
+        # (GITHUB defaults to bash/pwsh -e).
 
       - name: Upload archive
         uses: actions/upload-artifact@v4
@@ -158,6 +166,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: "*.zip"
+          path: assets
+          merge-multiple: true
+
+      - name: Download macOS archive
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*.dmg"
           path: assets
           merge-multiple: true
 
