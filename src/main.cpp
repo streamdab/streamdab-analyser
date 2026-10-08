@@ -31,6 +31,7 @@
 #include <QSlider>
 #include <QStyle>               // T44: style media icons for the transport buttons
 #include <QSignalBlocker>
+#include <QPointer>
 #include <QFrame>
 #include <QDateTime>
 #include <QRadioButton>
@@ -999,6 +1000,11 @@ public:
     // Drives the frame-selection handler exactly like a user click in the
     // navigator, without touching the (possibly disabled) list widget.
     void selectFrameForTest(int row) { handleFrameSelection(row); }
+
+    // Dock titles keyed by objectName — for tests to verify Window menu action
+    // texts without calling dock->windowTitle() (which crashes in Qt-ADS
+    // accessibility code paths when the internal widget is not fully initialized).
+    const QMap<QString, QString>& dockTitlesForTest() const { return m_dockTitles; }
 
     // Manual-test finding 3: feed a synthetic PAD payload through the same
     // decoder path the ETI frame pipeline uses, then observe the Now Playing
@@ -5643,6 +5649,12 @@ private:
     ads::CDockManager* m_tab3DockManager = nullptr;
     ads::CDockManager* m_bottomDockManager = nullptr;
 
+    // Dock titles keyed by objectName — populated during dock registration so
+    // setupWindowMenu() can use them without calling dock->windowTitle() (which
+    // crashes in Qt-ADS accessibility code paths when the internal widget is
+    // not fully initialized).
+    QMap<QString, QString> m_dockTitles;
+
     // A named section produced by the refactored Tab-1 column helpers. Each
     // section becomes one dock widget (objectName is REQUIRED for save/restore).
     struct DockSection {
@@ -7561,6 +7573,9 @@ private:
         auto* dock = manager->createDockWidget(title);
         dock->setObjectName(objectName);
         dock->setWidget(widget ? widget : new QWidget());
+        // Store the title for later use in setupWindowMenu() — avoids calling
+        // dock->windowTitle() which crashes in Qt-ADS accessibility code paths.
+        m_dockTitles.insert(objectName, title);
         return dock;
     }
 
@@ -9456,18 +9471,23 @@ private:
         panelLayout->addWidget(m_dataServiceTabs);
 
         m_nowPlayingSplitter->addWidget(slidePanel);
-        // T30.4: default DLS+ : Slideshow = 2/3 : 1/3 (text gets the room; the
-        // 4:3 letterbox still shows at this width). Draggable and
-        // non-collapsible (set above).
-        m_nowPlayingSplitter->setStretchFactor(0, 2);
+        // Wave C (user decision): default DLS+ : data-service = 50 : 50.
+        // WHY it is 50/50 now: the right pane is no longer the MOT slideshow
+        // alone — since Wave B it hosts FOUR inner tabs (Slideshow | EPG |
+        // Journaline | TPEG) of comparable weight, so an even split is the
+        // sensible default. The historical 2/3 : 1/3 (T30.4) applied when the
+        // right pane held only the 4:3 letterbox and the text side needed the
+        // room. Draggable and non-collapsible (set above), so the user can
+        // still drag it anywhere.
+        m_nowPlayingSplitter->setStretchFactor(0, 1);
         m_nowPlayingSplitter->setStretchFactor(1, 1);
-        // Restored to the documented {667, 333}: the Wave B inner-tab change
-        // had left {500, 500} here, which (a) contradicted the T30.4 comment
-        // directly above and (b) made testMotSlideshowPanelAndTabs' 2/3 check
-        // depend on whether a post-show resize ever redistributed the equal
-        // split by the stretch factors — i.e. flaky. {667, 333} is the 2/3
-        // default by construction (deterministic).
-        m_nowPlayingSplitter->setSizes({667, 333});
+        // Equal sizes + equal 1:1 stretch => the 50/50 default is
+        // deterministic (a later resize stays proportional instead of being
+        // pulled back to a 2:1 bias), and QSplitter honours each pane's
+        // minimumSizeHint on top of it. {500, 500} documents the intended
+        // ratio directly; testMotSlideshowPanelAndTabs pins ~0.5 (tolerance
+        // 0.40–0.60) so a silent restore of the old 2:1 gets caught.
+        m_nowPlayingSplitter->setSizes({500, 500});
         outerLayout->addWidget(m_nowPlayingSplitter);
 
         return groupBox;
@@ -11240,6 +11260,139 @@ private:
         return errorDetectionTab;
     }
 
+    // ========================================================================
+    // Wave C: Window > Docking Dialog — GIMP-style re-open of closed docks
+    // ========================================================================
+
+    // The four CDockManagers in a FIXED order (tab1, tab2, tab3, bottom) —
+    // the same source of truth testDocksWithExpectedNames checks against for
+    // the 27-dock registry (15 + 3 + 2 + 7).
+    QList<ads::CDockManager*> windowDockManagers() const
+    {
+        return {m_tab1DockManager, m_tab2DockManager, m_tab3DockManager,
+                m_bottomDockManager};
+    }
+
+    // Every dock registered with the four managers, keyed by the dock's
+    // objectName (the stable registry id), in windowDockManagers() order and
+    // alphabetical inside each manager (QMap) — a deterministic menu order.
+    QMap<QString, ads::CDockWidget*> registeredDocks() const
+    {
+        QMap<QString, ads::CDockWidget*> docks;
+        for (const ads::CDockManager* manager : windowDockManagers()) {
+            if (!manager) {
+                continue;
+            }
+            const QMap<QString, ads::CDockWidget*> map = manager->dockWidgetsMap();
+            for (auto it = map.cbegin(); it != map.cend(); ++it) {
+                docks.insert(it.key(), it.value());
+            }
+        }
+        return docks;
+    }
+
+    // MECHANISM CHOICE — manual QAction per dock (NOT toggleViewAction()).
+    // toggleViewAction() from Qt-ADS crashes in accessibility code paths when
+    // the action's text() is accessed or when the dock's windowTitle() is read
+    // during menu construction (QWidget::accessibleName() -> SEGV in
+    // QWidgetPrivate::setVisible). We therefore create our own checkable actions
+    // and sync them via visibilityChanged() + manual show/raise on trigger.
+    // CHECKED SEMANTICS (as requested: "ดู status ว่ายังอยู่หรือไม่ ไม่ได้ปิด"):
+    // checked == this dock is still open (its tab exists and is not closed).
+    // A tabified dock that is open but is not the front tab of its group
+    // STAYS CHECKED — the box answers "ยังอยู่ไหม", not "เด่นอยู่ไหม".
+    void setupWindowMenu(QMenuBar* menuBar)
+    {
+        QMenu* windowMenu = menuBar->addMenu(QStringLiteral("Window"));
+        windowMenu->setObjectName(QStringLiteral("windowMenu"));
+
+        // "Show All Docks" is the FIRST item of the Window menu (GIMP lists
+        // it at the dialog-list level, above the individual dialogs); the
+        // per-dock checklist lives in the submenu below it.
+        m_showAllDocksAction =
+            windowMenu->addAction(QStringLiteral("Show All Docks"));
+        m_showAllDocksAction->setObjectName(QStringLiteral("showAllDocksAction"));
+        connect(m_showAllDocksAction, &QAction::triggered,
+                this, &DABAnalyserWindow::showAllDocks);
+
+        windowMenu->addSeparator();
+
+        QMenu* dockingMenu =
+            windowMenu->addMenu(QStringLiteral("Docking Dialog"));
+        dockingMenu->setObjectName(QStringLiteral("dockingDialogMenu"));
+
+        // All 27 docks come from the registry (registeredDocks()), so the
+        // menu cannot drift from the layout the registry test pins. Adding an
+        // action to a menu does NOT touch the docking layout, so
+        // DOCKING_LAYOUT_VERSION stays 8.
+        const QMap<QString, ads::CDockWidget*> docks = registeredDocks();
+        for (auto it = docks.cbegin(); it != docks.cend(); ++it) {
+            ads::CDockWidget* dock = it.value();
+            // Create our own checkable action — avoids Qt-ADS toggleViewAction()
+            // accessibility crash. Use stored title from m_dockTitles instead of
+            // dock->windowTitle() which crashes when the internal widget is not
+            // fully initialized.
+            const QString title = m_dockTitles.value(it.key(), dock->windowTitle());
+            QAction* action = new QAction(title, dockingMenu);
+            action->setObjectName(it.key());
+            action->setCheckable(true);
+            action->setChecked(!dock->isClosed());
+
+            // Sync: when dock closed/opened via UI (tab-bar X), update checkbox.
+            // The correct Qt-ADS signal for open/close state changes is viewToggled(bool),
+            // not visibilityChanged (which fires for tab-switching within a group).
+            // Use QPointer to guard against use-after-free during teardown.
+            QPointer<QAction> actionGuard = action;
+            QPointer<ads::CDockWidget> dockGuard = dock;
+            connect(dock, &ads::CDockWidget::viewToggled, this,
+                    [actionGuard, dockGuard](bool open) {
+                        if (!actionGuard || !dockGuard) {
+                            return;  // Objects already destroyed during teardown
+                        }
+                        actionGuard->blockSignals(true);
+                        actionGuard->setChecked(open);
+                        actionGuard->blockSignals(false);
+                    });
+
+            // Trigger: user clicks menu item -> reopen closed dock + raise to front.
+            QPointer<ads::CDockWidget> dockTriggerGuard = dock;
+            connect(action, &QAction::triggered, this,
+                    [dockTriggerGuard](bool checked) {
+                        if (!dockTriggerGuard) {
+                            return;
+                        }
+                        if (checked) {
+                            if (dockTriggerGuard->isClosed() || dockTriggerGuard->isAutoHide()) {
+                                dockTriggerGuard->toggleView(true);  // show + raise to front
+                            } else {
+                                dockTriggerGuard->raise();           // already open: bring forward
+                            }
+                        } else {
+                            dockTriggerGuard->toggleView(false);     // close the dock
+                        }
+                    });
+
+            dockingMenu->addAction(action);
+        }
+    }
+
+    // "Show All Docks": reopen every closed (or auto-hidden/pinned) dock and
+    // bring every already-open dock to the front of its tab group. Only dock
+    // visibility is changed here — no layout is written, so the persisted
+    // state and DOCKING_LAYOUT_VERSION (8) are untouched.
+    void showAllDocks()
+    {
+        const QMap<QString, ads::CDockWidget*> docks = registeredDocks();
+        for (auto it = docks.cbegin(); it != docks.cend(); ++it) {
+            ads::CDockWidget* dock = it.value();
+            if (dock->isClosed() || dock->isAutoHide()) {
+                dock->toggleView(true);  // show + raise to front of the group
+            } else {
+                dock->raise();           // open already: bring it forward
+            }
+        }
+    }
+
     void setupMenuBar()
     {
         QMenuBar* menuBar = this->menuBar();
@@ -11269,12 +11422,20 @@ private:
         // the File/Network radios + Connect/Disconnect/Record in the input
         // toolbar, and the unique menu item (UDP Streaming Settings…) now lives
         // behind the ⚙ button appended to the toolbar's network row. The menu
-        // bar is intentionally File / View / Help only.
+        // bar is intentionally File / View / Window / Help: the Window menu
+        // added by Wave C (dock re-open) does not own any INPUT mode, so it
+        // does not reintroduce the Input-menu problem T23 removed.
         
         // View menu
         QMenu* viewMenu = menuBar->addMenu("View");
         viewMenu->addAction("Refresh Analysis");
-        
+
+        // Wave C: Window menu (GIMP-style dock re-open), between View and
+        // Help. It is built AFTER setupUI() (the constructor calls setupUI();
+        // then setupMenuBar()), i.e. after all four CDockManagers and their
+        // 27 docks exist, so the submenu is filled from the live registry.
+        setupWindowMenu(menuBar);
+
         // Help menu — Wave B replaces the inline QMessageBox::about() with the
         // adopted AboutDialog (only one About path remains).
         QMenu* helpMenu = menuBar->addMenu("Help");
@@ -12305,6 +12466,9 @@ private:
     ProfessionalExportManager* m_exportManager = nullptr;
     QAction* m_settingsAction = nullptr;
     QAction* m_exportAction = nullptr;
+    // Wave C: Window > Docking Dialog dock re-open menu (the per-dock actions
+    // are the docks' own toggleViewAction()s, so only this one is retained).
+    QAction* m_showAllDocksAction = nullptr;
     QTimer* m_perfSampleTimer = nullptr;
     QElapsedTimer m_perfTimer;
     quint64 m_perfLastFrames = 0;
