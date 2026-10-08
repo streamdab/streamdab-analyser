@@ -478,7 +478,7 @@ Stream_B,DR_P1,8,6,580,250.3
 
 **Placeholder for user-requested features**
 
-Submit feature requests at: https://git.morange.co.th/morange/streamdab-analyser.git/issues
+Submit feature requests at: https://github.com/sekz/streamdab-analyser.git/issues
 
 ### Most Requested (Placeholder)
 

@@ -50,15 +50,20 @@ else
     print_check "Test file exists" "FAIL"
 fi
 
-# Check documentation files
-for doc in "docs/fig/FIG014_QUICKSTART.md" "docs/archive/FIG014_CODE_PATCHES.txt" "docs/fig/FIG014_IMPLEMENTATION_GUIDE.md" \
-           "docs/agents/AGENT21_FIG014_IMPLEMENTATION_COMPLETE.md" "docs/agents/AGENT21_FINAL_REPORT.md" "docs/agents/AGENT21_DELIVERY_SUMMARY.txt"; do
-    if [ -f "$doc" ]; then
-        print_check "Documentation: $doc" "PASS"
-    else
-        print_check "Documentation: $doc" "FAIL"
-    fi
-done
+# Check documentation files (skipped when the private documentation set is not
+# part of the checkout, e.g. the public tree — only the source/tests matter there)
+if [ -d docs ]; then
+    for doc in "docs/fig/FIG014_QUICKSTART.md" "docs/archive/FIG014_CODE_PATCHES.txt" "docs/fig/FIG014_IMPLEMENTATION_GUIDE.md" \
+               "docs/agents/AGENT21_FIG014_IMPLEMENTATION_COMPLETE.md" "docs/agents/AGENT21_FINAL_REPORT.md" "docs/agents/AGENT21_DELIVERY_SUMMARY.txt"; do
+        if [ -f "$doc" ]; then
+            print_check "Documentation: $doc" "PASS"
+        else
+            print_check "Documentation: $doc" "FAIL"
+        fi
+    done
+else
+    echo "  (documentation checks skipped: no docs/ directory in this checkout)"
+fi
 
 echo ""
 echo "Checking source file integration..."

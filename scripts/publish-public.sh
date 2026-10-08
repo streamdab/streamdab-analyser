@@ -9,7 +9,8 @@
 # See docs/GITHUB_PUBLISHING_PLAN.md for the strategy and safeguards.
 #
 # Usage:
-#   scripts/publish-public.sh --remote git@github.com:<org>/<repo>.git [options]
+#   scripts/publish-public.sh --remote git@github.com:sekz/streamdab-analyser.git \
+#       --single-commit --yes
 #
 # Options:
 #   --remote URL|NAME   required: the public remote URL (or an existing remote name)
@@ -71,11 +72,13 @@ EXCLUDES=(
     CLAUDE.md
     .agents-config.md
     output.yaml
+    # Internal tooling: documents the private layout, of no use to the public.
+    scripts/publish-public.sh
 )
 # Paths that stay in the public tree (informational).
 KEEPS=(src tests include cmake docker packaging resources scripts \
        CMakeLists.txt CMakePresets.json .github .gitignore .gitattributes \
-       README.md LICENSE INSTALL.md)
+       README.md LICENSE ATTRIBUTIONS.md INSTALL.md)
 
 echo "== StreamDAB-Analyser public publish =="
 echo "  source repo : $ROOT_DIR (branch $BRANCH)"
@@ -110,17 +113,29 @@ else
     # single-commit: build a clean tree from HEAD, fresh history.
     git checkout --quiet --orphan public
     git add -A
-    for p in "${EXCLUDES[@]}"; do git rm -r --quiet --ignore-unmatch --cached "$p" >/dev/null 2>&1 || true; done
+    for p in "${EXCLUDES[@]}"; do
+        # `-f` is required: after `git add -A` the files are staged as new, and
+        # a plain `git rm` refuses with "changes staged in the index" (silently
+        # swallowed by || true) — which would have published the private paths.
+        # Remove from the index AND the working tree.
+        git rm -rf --quiet --ignore-unmatch --cached -- "$p" >/dev/null 2>&1 || true
+        rm -rf -- "$p"
+    done
     git commit --quiet -m "StreamDAB-Analyser: public release snapshot"
 fi
 
-# 2) Pre-flight: nothing that must stay private may remain tracked.
+# 2) Pre-flight: nothing that must stay private may remain — in the INDEX
+#    (what will be pushed) nor on disk (what a squashed export would copy).
 echo "-> verifying the filtered tree"
 leaks=0
 for p in "${EXCLUDES[@]}"; do
-    if git ls-files --error-unmatch "$p" >/dev/null 2>&1 || [ -e "$p" ]; then
-        # allow files that legitimately remain tracked under a partially kept dir
-        if [ -e "$p" ]; then echo "   !! still present: $p"; leaks=1; fi
+    if [ -n "$(git ls-files -- "$p" | head -1)" ]; then
+        echo "   !! still tracked: $p"
+        leaks=1
+    fi
+    if [ -e "$p" ]; then
+        echo "   !! still present: $p"
+        leaks=1
     fi
 done
 [ "$leaks" -eq 0 ] || { echo "error: excluded paths are still present" >&2; exit 1; }

@@ -96,9 +96,25 @@ Notes:
 
 ## 3. Windows
 
-**→ Full guide: [`docs/WINDOWS_BUILD.md`](docs/WINDOWS_BUILD.md)** (Windows
-10/11 x64, Visual Studio 2022 Build Tools, aqtinstall Qt 6.11 MSVC, vcpkg,
-tests, running, known gaps and troubleshooting).
+Windows 10/11 x64 with **Visual Studio 2022 Build Tools**, **aqtinstall** Qt 6
+(MSVC kit, incl. the `qtmultimedia` module) and **vcpkg** for the small native
+deps. Build with the `windows-msvc` preset (needs `VCPKG_ROOT`):
+
+```powershell
+# PowerShell
+aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 --modules qtmultimedia
+$env:VCPKG_ROOT = "C:\dev\vcpkg"    # vcpkg install faad2 fftw3 zeromq cppzmq gtest
+$env:QT_QPA_PLATFORM = "offscreen"  # before configure: registers the GUI tests
+cmake --preset windows-msvc
+cmake --build --preset build-windows
+ctest --preset test-windows
+.\build\StreamDABAnalyser.exe              # GUI
+.\build\streamdab-cli.exe --input eti\bkk_20062022_141637.eti --output out.yaml
+```
+
+Never mix a `win64_mingw` Qt kit with the MSVC toolchain. The optional
+components are detected portably; `-DDABX_ENABLE_ZMQ=OFF` drops the ZeroMQ
+transport and `-DDABX_ENABLE_QMULTIMEDIA=OFF` the Qt Multimedia audio backend.
 
 **Route A (recommended): MSVC + Qt with aqtinstall + vcpkg** — short version:
 
@@ -143,7 +159,7 @@ yet** — DAB+ decode works, playback does not.
 | Build preset (8 jobs) | `build-linux` | `build-windows` | `build-macos` |
 | Test preset (serial) | `test-linux` | `test-windows` | `test-macos` |
 | Env vars | — | `VCPKG_ROOT` (vcpkg checkout) | `QT_DIR` (`brew --prefix qt@6`) |
-| Docs | this file | `docs/WINDOWS_BUILD.md` | `docs/MACOS_BUILD.md` |
+| Docs | this file | §3 (Windows) | §4 (macOS) |
 | Audio output | ALSA (default) | Qt Multimedia (QAudioSink) | Qt Multimedia (QAudioSink) |
 | Packaging | **implemented** — TGZ/DEB via CPack + AppImage script (§5) | **implemented** — NSIS/ZIP via CPack (§5) | **implemented** — `.app`/`.dmg` via `scripts/bundle-macos.sh` (§5) |
 
@@ -157,8 +173,6 @@ that stage first. Never mix a `win64_mingw` Qt kit with the MSVC toolchain.
 
 ## 4. macOS
 
-See the dedicated guide: **[`docs/MACOS_BUILD.md`](docs/MACOS_BUILD.md)**.
-
 ```bash
 brew install cmake qt@6 faad2 fftw libzmq googletest
 export QT_QPA_PLATFORM=offscreen     # before configure, else GUI tests are not registered
@@ -171,9 +185,9 @@ ctest --preset test-macos
 Gaps: no audio output backend on macOS yet when the Qt kit lacks Multimedia
 (ALSA is Linux-only; DAB+ decode works), and no code-signing/notarization yet.
 `.app`/`.dmg` packaging is implemented — see §5. The legacy
-`cmake/{Linux,MacOS,Windows}Config.cmake` files are deleted (they were never
-included; the portable detection ladder in `CMakeLists.txt` is the only path —
-`docs/CROSS_PLATFORM_BUILD_PLAN.md` B8 resolved).
+`cmake/{Linux,MacOS,Windows}Config.cmake` files were dead (never included by
+`CMakeLists.txt`) and have been removed; the portable detection ladder in the
+top-level `CMakeLists.txt` is the only path.
 
 ## 5. Alternatives / other build routes
 

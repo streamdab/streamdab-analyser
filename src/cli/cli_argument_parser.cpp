@@ -388,7 +388,7 @@ void CLIArgumentParser::printUsage() {
     out << "  --max-frames <n>        Process first N frames only (default: all)\n";
     out << "  --cli                   Explicitly enable CLI mode (auto-detected)\n\n";
 
-    out << "ANALYSER OPTIONS (decode decision points, see docs/fixes/OPTION_VARIANT_MATRIX.md):\n";
+    out << "ANALYSER OPTIONS (analyser decode decision points):\n";
     out << "  --force-charset N       Force label charset: 0 (EBU Latin), 3 (UTF-8),\n";
     out << "                          6 (TIS-620); default: follow the stream flag\n";
     out << "  --charset-fallback M    Unknown-charset policy: raw (default), utf8, skip\n";
@@ -439,7 +439,7 @@ void CLIArgumentParser::printUsage() {
     out << "  - Thai UTF-8 support throughout\n";
     out << "  - Frame-by-frame FIG decoding (--verbose-frames)\n\n";
 
-    out << "For more information, visit: https://git.morange.co.th/morange/streamdab-analyser.git\n";
+    out << "For more information, visit: https://github.com/sekz/streamdab-analyser\n";
     out.flush();
 }
 
