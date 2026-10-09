@@ -263,8 +263,22 @@ if(WIN32)
 else()
     find_program(CONVERT_EXECUTABLE NAMES magick convert DOC "ImageMagick for icon generation")
 endif()
+if(CONVERT_EXECUTABLE)
+    # A converter without a working SVG delegate (e.g. no rsvg-convert) would
+    # fail the whole build at icon-generation time; probe once at configure time.
+    execute_process(
+        COMMAND ${CONVERT_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-stream-analyser.svg"
+                -resize 16x16 -background none "${CMAKE_CURRENT_BINARY_DIR}/icon_probe.png"
+        RESULT_VARIABLE _icon_probe_rc
+        OUTPUT_QUIET ERROR_QUIET)
+    if(NOT _icon_probe_rc EQUAL 0 OR NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/icon_probe.png")
+        message(WARNING "ImageMagick at ${CONVERT_EXECUTABLE} cannot render SVG - platform icons will not be generated")
+        unset(CONVERT_EXECUTABLE CACHE)
+        set(CONVERT_EXECUTABLE "")
+    endif()
+endif()
 if(NOT CONVERT_EXECUTABLE)
-    message(WARNING "ImageMagick ('magick' or 'convert') not found - platform icons will not be generated")
+    message(WARNING "ImageMagick ('magick' or 'convert') not usable - platform icons will not be generated")
 endif()
 
 # Platform-specific icon sizes
