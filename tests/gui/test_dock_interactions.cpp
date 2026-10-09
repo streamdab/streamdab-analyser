@@ -48,6 +48,14 @@
 // GUI_TEST_MODE compile definition). DABAnalyserWindow + all panels come here.
 #include "../src/main.cpp"
 
+// Headless platform detection (copied from main.cpp)
+static bool isHeadlessPlatform()
+{
+    const QString platform = QApplication::platformName();
+    return platform == QLatin1String("offscreen") ||
+           platform == QLatin1String("minimal");
+}
+
 class TestDockInteractions : public QObject
 {
     Q_OBJECT
@@ -201,6 +209,11 @@ void TestDockInteractions::cleanup()
 // ============================================================================
 void TestDockInteractions::testFloatAndRedockTab1()
 {
+    if (isHeadlessPlatform()) {
+        QSKIP("Floating docks not supported in headless/offscreen mode");
+        return;
+    }
+
     DABAnalyserWindow w;
     w.show();
     pump();
@@ -246,6 +259,11 @@ void TestDockInteractions::testFloatAndRedockTab1()
 
 void TestDockInteractions::testFloatAndRedockBottom()
 {
+    if (isHeadlessPlatform()) {
+        QSKIP("Floating docks not supported in headless/offscreen mode");
+        return;
+    }
+
     DABAnalyserWindow w;
     w.show();
     pump();
