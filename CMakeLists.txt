@@ -366,13 +366,14 @@ endif()
 
 # Custom target to build all icons
 if(CONVERT_EXECUTABLE)
-    add_custom_target(generate_icons DEPENDS ${GENERATED_PNG_ICONS})
+    set(GENERATED_ICON_OUTPUTS ${GENERATED_PNG_ICONS})
     if(WIN32 AND GENERATED_ICO_ICON)
-        add_dependencies(generate_icons ${GENERATED_ICO_ICON})
+        list(APPEND GENERATED_ICON_OUTPUTS "${GENERATED_ICO_ICON}")
     endif()
     if(APPLE AND GENERATED_ICNS_ICON)
-        add_dependencies(generate_icons ${GENERATED_ICNS_ICON})
+        list(APPEND GENERATED_ICON_OUTPUTS "${GENERATED_ICNS_ICON}")
     endif()
+    add_custom_target(generate_icons DEPENDS ${GENERATED_ICON_OUTPUTS})
     # Make main target depend on icon generation (added after target creation)
 endif()
 
