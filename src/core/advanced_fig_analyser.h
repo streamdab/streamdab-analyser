@@ -556,6 +556,11 @@ public:
     QString getServiceExtendedLabel(uint32_t service_id);
     QString getComponentExtendedLabel(uint32_t service_id, uint8_t component_id);
 
+    // FIG Type 2 extended label map accessors (Phase 2C - GUI)
+    const std::map<uint16_t, FIG2_0_EnsembleExtLabel>& getEnsembleExtendedLabelsMap() const;
+    const std::map<uint32_t, FIG2_1_ServiceExtLabel>& getServiceExtendedLabelsMap() const;
+    const std::map<uint64_t, FIG2_4_ComponentExtLabel>& getComponentExtendedLabelsMap() const;
+
     // Analysis results
     int getTotalFIGsProcessed() const { return m_totalFIGsProcessed; }
     int getValidFIGsCount() const { return m_validFIGsCount; }

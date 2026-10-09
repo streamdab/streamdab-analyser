@@ -75,8 +75,8 @@ private slots:
     void testAllDocksReachableAfterInteractionsAndRestart();
 
 private:
-    // The full expected dock inventory (30). Kept in sync with
-    // test_gui_dock_layout.cpp::testDocksWithExpectedNames. Phase 2A added 3 data-service docks.
+    // The full expected dock inventory (31). Kept in sync with
+    // test_gui_dock_layout.cpp::testDocksWithExpectedNames. Phase 2A added 3 data-service docks; Phase 2C added tab2_AdvancedFig.
     static QStringList expectedDockNames()
     {
         return {
@@ -92,9 +92,9 @@ private:
             QStringLiteral("tab1_ErrorCounter"), QStringLiteral("tab1_StreamStats"),
             QStringLiteral("tab1_EPG"), QStringLiteral("tab1_Journaline"),
             QStringLiteral("tab1_TPEG"),
-            // Tab 2 (3)
+            // Tab 2 (4; Phase 2C: +1 Advanced FIG Analyser dock)
             QStringLiteral("tab2_Left"), QStringLiteral("tab2_Center"),
-            QStringLiteral("tab2_Right"),
+            QStringLiteral("tab2_Right"), QStringLiteral("tab2_AdvancedFig"),
             // Tab 3 (2)
             QStringLiteral("tab3_Left"), QStringLiteral("tab3_Right"),
             // Shared bottom (7; T41 removed the redundant legacy Messages tab)
@@ -558,7 +558,7 @@ void TestDockInteractions::testPersistenceAfterInteractions()
 
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 8);
+        QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 10);
         QVERIFY(!s.value(QStringLiteral("docking/bottom")).isNull());
     }
 
@@ -603,7 +603,7 @@ void TestDockInteractions::testPersistenceAfterInteractions()
 void TestDockInteractions::testAllDocksReachableAfterInteractionsAndRestart()
 {
     const QStringList expected = expectedDockNames();
-    QCOMPARE(expected.size(), 30);  // Phase 2A: +3 data-service docks
+    QCOMPARE(expected.size(), 31);  // Phase 2A: +3 data-service docks; Phase 2C: +1 Advanced FIG Analyser dock
 
     // Window 1: shake the layout with one of each interaction.
     {
@@ -634,7 +634,7 @@ void TestDockInteractions::testAllDocksReachableAfterInteractionsAndRestart()
         pump();
 
         // No dock was lost while interacting.
-        QCOMPARE(totalDockCount(w), 30);  // Phase 2A: +3 data-service docks
+        QCOMPARE(totalDockCount(w), 31);  // Phase 2A: +3 data-service docks; Phase 2C: +1 Advanced FIG Analyser dock
         QSet<QString> live = dockNames(m1) + dockNames(mBottom)
                            + dockNames(w.findChild<ads::CDockManager*>("tab2DockManager"))
                            + dockNames(w.findChild<ads::CDockManager*>("tab3DockManager"));
@@ -688,8 +688,8 @@ void TestDockInteractions::testAllDocksReachableAfterInteractionsAndRestart()
             QVERIFY2(!d->isClosed(), qPrintable(QString("toggleView(true) failed: %1").arg(name)));
         }
 
-        // Still 27 docks; none silently dropped.
-        QCOMPARE(totalDockCount(w2), 30);  // Phase 2A: +3 data-service docks
+        // Still 31 docks; none silently dropped.
+        QCOMPARE(totalDockCount(w2), 31);  // Phase 2A: +3 data-service docks; Phase 2C: +1 Advanced FIG Analyser dock
 
         w2.close();
         pump();

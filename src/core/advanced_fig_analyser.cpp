@@ -2892,6 +2892,22 @@ std::vector<FIG1_5_DataServiceLabel> AdvancedFIGAnalyser::getDataServiceLabels()
     return labels;
 }
 
+// FIG Type 2 extended label map accessors (Phase 2C - GUI)
+const std::map<uint16_t, FIG2_0_EnsembleExtLabel>& AdvancedFIGAnalyser::getEnsembleExtendedLabelsMap() const
+{
+    return m_ensemble_extended_labels;
+}
+
+const std::map<uint32_t, FIG2_1_ServiceExtLabel>& AdvancedFIGAnalyser::getServiceExtendedLabelsMap() const
+{
+    return m_service_extended_labels;
+}
+
+const std::map<uint64_t, FIG2_4_ComponentExtLabel>& AdvancedFIGAnalyser::getComponentExtendedLabelsMap() const
+{
+    return m_component_extended_labels;
+}
+
 // ============================================================================
 // Control methods
 // ============================================================================
