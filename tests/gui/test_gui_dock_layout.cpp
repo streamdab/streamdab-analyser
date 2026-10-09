@@ -16,8 +16,8 @@
  *   d) the Input Source toolbar sits at the TOP of the Tab-1 page with an
  *      expandable network row (visible only in Network Stream mode)
  *   e) QSettings persistence round-trip (closed dock stays closed; restored
- *      group structure matches the default layout) incl. layout_version=10
- *   f) stale v1/v2/v3/v4/v5/v6/v7/v8/v9 layout state (layout_version != 10) is
+ *      group structure matches the default layout) incl. layout_version=11
+ *   f) stale v1/v2/v3/v4/v5/v6/v7/v8/v9/v10 layout state (layout_version != 11) is
  *      discarded once so the first run after the upgrade shows the new default
  *   g) auto-hide (pin) config sanity
  *   h) floating round-trip safety (float a dock, re-dock it, no crash)
@@ -561,12 +561,13 @@ void TestGuiDockLayout::testDefaultGroupedPlacement()
     QCOMPARE(columnIndexOf(root, systemArea), 0);
     QVERIFY(systemArea != transportArea);
 
-    // CENTER column (1): T30.5 top->bottom Now Playing / Slideshow,
-    // Signal Analysis (3 tabs), Frame Analysis (2 tabs).
+    // CENTER column (1): T30.5 top->bottom Now Playing / Slideshow (with EPG,
+    // Journaline, TPEG tabbed), Signal Analysis (3 tabs), Frame Analysis (2 tabs).
     ads::CDockAreaWidget* nowPlayingArea =
         m1->findDockWidget(QStringLiteral("tab1_NowPlaying"))->dockAreaWidget();
     QVERIFY(nowPlayingArea);
-    QCOMPARE(nowPlayingArea->dockWidgetsCount(), 1);
+    // Now Playing area now contains 4 docks: Now Playing / Slideshow, EPG, Journaline, TPEG
+    QCOMPARE(nowPlayingArea->dockWidgetsCount(), 4);
     QCOMPARE(columnIndexOf(root, nowPlayingArea), 1);
 
     verifyTabbedGroup(m1, root,
@@ -1008,7 +1009,7 @@ void TestGuiDockLayout::testPersistenceRoundTrip()
     }
 
     const QSettings check(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 10);
+    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 11);
     QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab2")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab3")).isNull());
@@ -1122,7 +1123,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
     }
     {
         const QSettings check(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(check.value(versionKey).toInt(), 10);
+        QCOMPARE(check.value(versionKey).toInt(), 11);
         QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     }
 
@@ -1188,10 +1189,10 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QCoreApplication::processEvents();
     }
 
-    // 4) Version is 10 again; a third launch restores normally (v10 round-trip).
+    // 4) Version is 11 again; a third launch restores normally (v11 round-trip).
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(s.value(versionKey).toInt(), 10);
+        QCOMPARE(s.value(versionKey).toInt(), 11);
     }
     {
         DABAnalyserWindow w3;
@@ -1223,14 +1224,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(np);
         np->toggleView(false);
         QCoreApplication::processEvents();
-        w.close();  // writes layout_version 10 with Now Playing hidden
+        w.close();  // writes layout_version 11 with Now Playing hidden
         QCoreApplication::processEvents();
     }
     {
         QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(s.value(versionKey).toInt(), 10);
+        QCOMPARE(s.value(versionKey).toInt(), 11);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
-        s.setValue(versionKey, 5);  // simulate the v5 -> v10 migration
+        s.setValue(versionKey, 5);  // simulate the v5 -> v11 migration
         s.sync();
     }
     {
@@ -1244,12 +1245,12 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY2(!np->isClosed() && np->isVisible(),
                  "stale v5 layout must be discarded: Now Playing visible in "
                  "the default redesign layout");
-        w4.close();  // re-saves layout_version 10
+        w4.close();  // re-saves layout_version 11
         QCoreApplication::processEvents();
     }
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(s.value(versionKey).toInt(), 10);
+        QCOMPARE(s.value(versionKey).toInt(), 11);
     }
 
     clearSettingsStore();
@@ -1304,7 +1305,7 @@ void TestGuiDockLayout::testReloadResetsAnalyserState()
     QCoreApplication::processEvents();
 
     // cwd for ctest GUI tests is <build>/tests -> fixture lives two levels up
-    const QString fixture = QStringLiteral("../eti/bkk_20062022_141637.eti");
+    const QString fixture = QString(ETI_TEST_FILES_DIR) + QStringLiteral("/bkk_20062022_141637.eti");
     QVERIFY2(QFileInfo::exists(fixture),
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
@@ -1378,7 +1379,7 @@ void TestGuiDockLayout::testEnsembleTreeRealFixture()
     QCoreApplication::processEvents();
 
     // cwd for ctest GUI tests is <build>/tests -> fixture lives two levels up
-    const QString fixture = QStringLiteral("../eti/bkk_20062022_141637.eti");
+    const QString fixture = QString(ETI_TEST_FILES_DIR) + QStringLiteral("/bkk_20062022_141637.eti");
     QVERIFY2(QFileInfo::exists(fixture),
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
@@ -3214,7 +3215,7 @@ void TestGuiDockLayout::testMotSlideshowPanelAndTabs()
     QCOMPARE(split->count(), 2);
     QCOMPARE(split->widget(0)->objectName(), QStringLiteral("dlsPanel"));
     QCOMPARE(split->widget(1)->objectName(), QStringLiteral("slideshowPanel"));
-    QWidget* slideFrame = w.findChild<QWidget*>(QStringLiteral("slideshowFrame"));
+    QWidget* slideFrame = split->widget(1)->findChild<QWidget*>(QStringLiteral("slideshowFrame"));
     QVERIFY2(slideFrame, "T27: the 4:3 slideshow frame must exist");
     QVERIFY(slideFrame->minimumHeight() > 0);
 
@@ -3326,7 +3327,7 @@ void TestGuiDockLayout::testMotSlideshowRealFixture()
     w.show();
     QCoreApplication::processEvents();
 
-    const QString fixture = QStringLiteral("../eti/bkk_20062022_141637.eti");
+    const QString fixture = QString(ETI_TEST_FILES_DIR) + QStringLiteral("/bkk_20062022_141637.eti");
     QVERIFY2(QFileInfo::exists(fixture),
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
@@ -3413,13 +3414,13 @@ void TestGuiDockLayout::testDataServiceTabsStructure()
     QCOMPARE(split->count(), 2);
     QCOMPARE(split->widget(0)->objectName(), QStringLiteral("dlsPanel"));
     QCOMPARE(split->widget(1)->objectName(), QStringLiteral("slideshowPanel"));
-    QVERIFY(w.findChild<QWidget*>(QStringLiteral("slideshowFrame")));
+    QVERIFY(split->widget(1)->findChild<QWidget*>(QStringLiteral("slideshowFrame")));
 
     // Verify the inner QTabWidget no longer exists in the slideshow panel.
     QTabWidget* innerTabs = split->widget(1)->findChild<QTabWidget*>(QStringLiteral("dataServiceTabs"));
     QVERIFY2(!innerTabs, "inner data-service QTabWidget should have been removed (Phase 2A)");
 
-    // Verify the three new top-level docks exist and are in the Right column.
+    // Verify the three new top-level docks exist and are tabbed with Now Playing / Slideshow.
     const QMap<QString, ads::CDockWidget*> docks = w.registeredDocksForTest();
     QVERIFY(docks.contains("tab1_EPG"));
     QVERIFY(docks.contains("tab1_Journaline"));
@@ -3430,26 +3431,38 @@ void TestGuiDockLayout::testDataServiceTabsStructure()
     QVERIFY(w.journalineDecoderForTest());
     QVERIFY(w.tpegDecoderForTest());
     QVERIFY(w.epgServiceComboForTest());
-    QVERIFY(w.epgScheduleListForTest());
+    QVERIFY(w.epgScheduleTableForTest());
     QVERIFY(w.epgStatusLabelForTest());
     QVERIFY(w.journalineMenuTreeForTest());
     QVERIFY(w.journalinePreviewForTest());
     QVERIFY(w.journalineStatusLabelForTest());
     QVERIFY(w.tpegInventoryTableForTest());
     QVERIFY(w.tpegStatusLabelForTest());
-    QCOMPARE(w.epgScheduleListForTest()->count(), 0);
+    QCOMPARE(w.epgScheduleTableForTest()->rowCount(), 0);
     QCOMPARE(w.tpegInventoryTableForTest()->rowCount(), 0);
     QCOMPARE(w.journalineMenuTreeForTest()->topLevelItemCount(), 0);
 
-    // Verify the new docks are tabbed together (share a dock area).
+    // Verify the new docks are tabbed together with Now Playing / Slideshow
+    // (share a dock area). Tab order: Now Playing / Slideshow > EPG > Journaline > TPEG
+    ads::CDockWidget* nowPlayingDock = docks.value("tab1_NowPlaying");
     ads::CDockWidget* epgDock = docks.value("tab1_EPG");
     ads::CDockWidget* journalineDock = docks.value("tab1_Journaline");
     ads::CDockWidget* tpegDock = docks.value("tab1_TPEG");
-    QVERIFY(epgDock && epgDock->dockAreaWidget() == journalineDock->dockAreaWidget());
-    QVERIFY(epgDock && epgDock->dockAreaWidget() == tpegDock->dockAreaWidget());
+    QVERIFY(nowPlayingDock && epgDock && journalineDock && tpegDock);
+    QVERIFY(nowPlayingDock->dockAreaWidget() == epgDock->dockAreaWidget());
+    QVERIFY(nowPlayingDock->dockAreaWidget() == journalineDock->dockAreaWidget());
+    QVERIFY(nowPlayingDock->dockAreaWidget() == tpegDock->dockAreaWidget());
 
-    // Default active tab in the Data Services group is EPG.
-    QCOMPARE(epgDock->dockAreaWidget()->currentDockWidget(), epgDock);
+    // Default active tab in the Now Playing group is Now Playing / Slideshow.
+    QCOMPARE(nowPlayingDock->dockAreaWidget()->currentDockWidget(), nowPlayingDock);
+
+    // Verify tab order in the dock area widget.
+    ads::CDockAreaWidget* area = nowPlayingDock->dockAreaWidget();
+    QCOMPARE(area->dockWidgetsCount(), 4);
+    QCOMPARE(area->dockWidget(0), nowPlayingDock);   // Now Playing / Slideshow
+    QCOMPARE(area->dockWidget(1), epgDock);          // EPG
+    QCOMPARE(area->dockWidget(2), journalineDock);   // Journaline
+    QCOMPARE(area->dockWidget(3), tpegDock);         // TPEG
 
     // Honest pre-load states + the fixed TPEG coverage note.
     QVERIFY2(w.epgStatusLabelForTest()->text().contains(QStringLiteral("Waiting for capture")),
@@ -3504,7 +3517,7 @@ void TestGuiDockLayout::testDataServiceTabsRealBkkCapture()
     w.show();
     QCoreApplication::processEvents();
 
-    const QString fixture = QStringLiteral("../eti/bkk_20062022_141637.eti");
+    const QString fixture = QString(ETI_TEST_FILES_DIR) + QStringLiteral("/bkk_20062022_141637.eti");
     QVERIFY2(QFileInfo::exists(fixture),
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
@@ -3591,12 +3604,23 @@ void TestGuiDockLayout::testDataServiceTabsRealBkkCapture()
     QVERIFY(docks.contains("tab1_EPG"));
     QVERIFY(docks.contains("tab1_Journaline"));
     QVERIFY(docks.contains("tab1_TPEG"));
-    // The three docks should be tabbed together.
+    // The three docks should be tabbed together with Now Playing / Slideshow.
+    ads::CDockWidget* nowPlayingDock = docks.value("tab1_NowPlaying");
     ads::CDockWidget* epgDock = docks.value("tab1_EPG");
     ads::CDockWidget* journalineDock = docks.value("tab1_Journaline");
     ads::CDockWidget* tpegDock = docks.value("tab1_TPEG");
-    QVERIFY(epgDock && epgDock->dockAreaWidget() == journalineDock->dockAreaWidget());
-    QVERIFY(epgDock && epgDock->dockAreaWidget() == tpegDock->dockAreaWidget());
+    QVERIFY(nowPlayingDock && epgDock && journalineDock && tpegDock);
+    QVERIFY(nowPlayingDock->dockAreaWidget() == epgDock->dockAreaWidget());
+    QVERIFY(nowPlayingDock->dockAreaWidget() == journalineDock->dockAreaWidget());
+    QVERIFY(nowPlayingDock->dockAreaWidget() == tpegDock->dockAreaWidget());
+
+    // Verify tab order: Now Playing / Slideshow > EPG > Journaline > TPEG
+    ads::CDockAreaWidget* area = nowPlayingDock->dockAreaWidget();
+    QCOMPARE(area->dockWidgetsCount(), 4);
+    QCOMPARE(area->dockWidget(0), nowPlayingDock);   // Now Playing / Slideshow
+    QCOMPARE(area->dockWidget(1), epgDock);          // EPG
+    QCOMPARE(area->dockWidget(2), journalineDock);   // Journaline
+    QCOMPARE(area->dockWidget(3), tpegDock);         // TPEG
 
     // --- TPEG tab: the REAL Bangkok TEPG carousel inventory -----------------
     QTableWidget* table = w.tpegInventoryTableForTest();
@@ -3671,7 +3695,7 @@ void TestGuiDockLayout::testDataServiceTabsRealBkkCapture()
     QTRY_VERIFY2_WITH_TIMEOUT(
         epgStatus->text().contains(QStringLiteral("No EPG data in this stream")),
         qPrintable(QString("EPG status: %1").arg(epgStatus->text())), 15000);
-    QCOMPARE(w.epgScheduleListForTest()->count(), 0);
+    QCOMPARE(w.epgScheduleTableForTest()->rowCount(), 0);
     QVERIFY2(!w.epgServiceComboForTest()->isEnabled(),
              "no EPG service is selectable when the stream carries no events");
     // The decoder's honest rejection is surfaced in the status line (the
@@ -4327,7 +4351,7 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
     }
     {
         QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(s.value(versionKey).toInt(), 10);
+        QCOMPARE(s.value(versionKey).toInt(), 11);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
         s.setValue(versionKey, 5);  // simulate a stale v5 store
         s.sync();
@@ -4369,12 +4393,12 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
         QCOMPARE(frameAnalysisArea->currentDockWidget()->objectName(),
                  QStringLiteral("tab1_FrameNavigator"));
 
-        w.close();  // re-saves version 10
+        w.close();  // re-saves version 11
         QCoreApplication::processEvents();
     }
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(s.value(versionKey).toInt(), 10);
+        QCOMPARE(s.value(versionKey).toInt(), 11);
     }
 
     clearSettingsStore();
@@ -4404,7 +4428,7 @@ void TestGuiDockLayout::testPlayerServiceSelector()
     QCOMPARE(w.motObjectsForTest(), 0);
 
     // --- Load the real fixture. ---
-    const QString fixture = QStringLiteral("../eti/bkk_20062022_141637.eti");
+    const QString fixture = QString(ETI_TEST_FILES_DIR) + QStringLiteral("/bkk_20062022_141637.eti");
     QVERIFY2(QFileInfo::exists(fixture),
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
@@ -4850,7 +4874,7 @@ void TestGuiDockLayout::testAdoptedWidgetsAndExportRealFixture()
     QCOMPARE(exportAction, w.exportActionForTest());
 
     // --- Load the real Bangkok fixture ---
-    const QString fixture = QStringLiteral("../eti/bkk_20062022_141637.eti");
+    const QString fixture = QString(ETI_TEST_FILES_DIR) + QStringLiteral("/bkk_20062022_141637.eti");
     QVERIFY2(QFileInfo::exists(fixture),
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
@@ -5153,11 +5177,11 @@ void TestGuiDockLayout::testMessagesTabRemoved()
     QVERIFY2(sys, "System Messages must remain the live bottom log");
     QCOMPARE(sys->dockAreaWidget()->dockWidgetsCount(), 7);
 
-    // Saving persists the new layout version (10), so existing users reset once.
+    // Saving persists the new layout version (11), so existing users reset once.
     w.close();
     QCoreApplication::processEvents();
     const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-    QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 10);
+    QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 11);
     clearSettingsStore();
 }
 
@@ -5218,7 +5242,7 @@ void TestGuiDockLayout::testTab3HexViewer()
     QVERIFY2(w.tab3HexViewerTextForTest().isEmpty(),
              "hex viewer must start empty before any capture is loaded");
 
-    const QString fixture = QStringLiteral("../eti/bkk_20062022_141637.eti");
+    const QString fixture = QString(ETI_TEST_FILES_DIR) + QStringLiteral("/bkk_20062022_141637.eti");
     QVERIFY2(QFileInfo::exists(fixture),
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
@@ -5329,7 +5353,7 @@ void TestGuiDockLayout::testTab3HexViewer()
 void TestGuiDockLayout::testNetworkLiveFramePathNoCrash()
 {
     clearSettingsStore();
-    const QString fixture = QStringLiteral("../eti/bkk_20062022_141637.eti");
+    const QString fixture = QString(ETI_TEST_FILES_DIR) + QStringLiteral("/bkk_20062022_141637.eti");
     QVERIFY2(QFileInfo::exists(fixture),
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
@@ -5381,7 +5405,7 @@ void TestGuiDockLayout::testNetworkLiveFramePathNoCrash()
 void TestGuiDockLayout::testNetworkLiveReceptionRealSocket()
 {
     clearSettingsStore();
-    const QString fixture = QStringLiteral("../eti/bkk_20062022_141637.eti");
+    const QString fixture = QString(ETI_TEST_FILES_DIR) + QStringLiteral("/bkk_20062022_141637.eti");
     QVERIFY2(QFileInfo::exists(fixture),
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
@@ -5541,7 +5565,7 @@ void TestGuiDockLayout::testNetworkStreamButtonStates()
 void TestGuiDockLayout::testNetworkLiveAfterFileLoadNoStaleFileState()
 {
     clearSettingsStore();
-    const QString fixture = QStringLiteral("../eti/bkk_20062022_141637.eti");
+    const QString fixture = QString(ETI_TEST_FILES_DIR) + QStringLiteral("/bkk_20062022_141637.eti");
     QVERIFY2(QFileInfo::exists(fixture),
              qPrintable(QString("fixture missing: %1 (cwd=%2)")
                             .arg(fixture, QDir::currentPath())));
