@@ -1168,7 +1168,7 @@ public:
     }
     eti::tpeg::TpegDecoder* tpegDecoderForTest() const { return m_tpegDecoder; }
     QComboBox* epgServiceComboForTest() const { return m_epgServiceCombo; }
-    QListWidget* epgScheduleListForTest() const { return m_epgScheduleList; }
+    QTableWidget* epgScheduleTableForTest() const { return m_epgScheduleTable; }
     QLabel* epgStatusLabelForTest() const { return m_epgStatusLabel; }
     QTreeWidget* journalineMenuTreeForTest() const { return m_journalineMenuTree; }
     QTextEdit* journalinePreviewForTest() const { return m_journalinePreview; }
@@ -6623,13 +6623,52 @@ private:
         int row = 0;
         for (const DABService& service : services) {
             const ServiceComponent primary = service.getPrimaryComponent();
+            
+            // Detect DAB+ (transport_mode=0, service_component_type=0x3F)
+            bool isDABPlus = false;
+            for (const auto& comp : service.components) {
+                if (comp.transport_mode == 0 && comp.service_component_type == 0x3F) {
+                    isDABPlus = true;
+                    break;
+                }
+            }
+            
+            // Programme Type string
+            static const char* ptyNames[] = {
+                "None", "News", "Current Affairs", "Information", "Sport", "Education",
+                "Drama", "Culture", "Science", "Varied", "Pop Music", "Rock Music",
+                "Easy Listening", "Light Classical", "Serious Classical", "Other Music",
+                "Weather", "Finance", "Children", "Social Affairs", "Religion",
+                "Phone In", "Travel", "Leisure", "Jazz Music", "Country Music",
+                "National Music", "Oldies Music", "Folk Music", "Documentary",
+                "Alarm Test", "Alarm"
+            };
+            QString ptyStr = (service.programme_type <= 31) ? ptyNames[service.programme_type] : QString("PTy %1").arg(service.programme_type);
+            
+            // Language string
+            QString langStr = service.language ? FIGParsingUtils::languageCodeToString(service.language) : "-";
+            
+            // Type string
+            QString typeStr = (service.service_type == 0) ? "Audio" : "Data";
+            if (isDABPlus) typeStr += " (DAB+)";
+            else typeStr += " (DAB)";
+            
+            // CA Flag
+            QString caFlagStr = service.ca_flag ? "Yes" : "No";
+            
+            // Primary Subchannel ID
+            QString primarySC = QString::number(primary.sub_channel_id);
+            
             QVector<QString> cells = {
                 QString("0x%1").arg(service.service_id, 4, 16, QChar('0')).toUpper(),  // SId
-                service.service_label.isEmpty()
-                    ? getServiceTypeDisplay(service.service_id, primary.sub_channel_id)
-                    : service.service_label,                                            // Service Label
-                service.short_label.isEmpty() ? "-" : service.short_label,              // Short Label
-                QStringLiteral("-")                                                     // CAID
+                service.service_label.isEmpty() ? "-" : service.service_label,           // Service Label
+                service.short_label.isEmpty() ? "-" : service.short_label,               // Short Label
+                typeStr,                                                                 // Type
+                ptyStr,                                                                  // Programme Type
+                langStr,                                                                 // Language
+                caFlagStr,                                                               // CA Flag
+                QString::number(service.components.size()),                              // Comp. Count
+                primarySC                                                                // Primary SC
             };
             for (int col = 0; col < colCount && col < cells.size(); ++col) {
                 auto* item = new QTableWidgetItem(cells.at(col));
@@ -7878,7 +7917,16 @@ private:
 
         m_tab1DockManager->addDockWidget(ads::CenterDockWidgetArea, D("tab1_NowPlaying"), nullptr);
 
-        // === RIGHT column: Signal Info group + Error & Statistics group + Data Services group ===
+        // === Now Playing / Slideshow tab group: EPG, Journaline, TPEG ===
+        // Phase 2A/2B: Data Services docks are now tabbed with Now Playing / Slideshow
+        // in the exact order: Now Playing / Slideshow > EPG > Journaline > TPEG
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_EPG"), D("tab1_NowPlaying")->dockAreaWidget());
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Journaline"), D("tab1_NowPlaying")->dockAreaWidget());
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_TPEG"), D("tab1_NowPlaying")->dockAreaWidget());
+        // Default active tab: Now Playing / Slideshow (first dock in the area).
+        D("tab1_NowPlaying")->dockAreaWidget()->setCurrentDockWidget(D("tab1_NowPlaying"));
+
+        // === RIGHT column: Signal Info group + Error & Statistics group ===
         ads::CDockWidget* signalInfoFirst = D("tab1_ETIOverview");
         m_tab1DockManager->addDockWidget(ads::RightDockWidgetArea, signalInfoFirst, nullptr);
         m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Status"), signalInfoFirst->dockAreaWidget());
@@ -7891,15 +7939,6 @@ private:
         m_tab1DockManager->addDockWidgetTabToArea(D("tab1_StreamStats"), errorStatsFirst->dockAreaWidget());
         // Default active tab: the first dock of the Error & Statistics group.
         errorStatsFirst->dockAreaWidget()->setCurrentDockWidget(errorStatsFirst);
-
-        // Phase 2A: Data Services group (EPG | Journaline | TPEG) — new top-level docks
-        // These replace the inner tabs that were previously in the slideshow panel.
-        // The docks are now registered via createTab1_RightPanel() and accessed via D().
-        m_tab1DockManager->addDockWidget(ads::RightDockWidgetArea, D("tab1_EPG"), nullptr);
-        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Journaline"), D("tab1_EPG")->dockAreaWidget());
-        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_TPEG"), D("tab1_EPG")->dockAreaWidget());
-        // Default active tab: EPG.
-        D("tab1_EPG")->dockAreaWidget()->setCurrentDockWidget(D("tab1_EPG"));
 
         // Locate the top-level splitter of this manager's container.
         QSplitter* root = nullptr;
@@ -7974,8 +8013,7 @@ private:
         moved.clear();
         const QList<ads::CDockWidget*> rightDocks = {
             D("tab1_ETIOverview"), D("tab1_Status"), D("tab1_Timing"),
-            D("tab1_ErrorCounter"), D("tab1_StreamStats"),
-            D("tab1_EPG"), D("tab1_Journaline"), D("tab1_TPEG")};
+            D("tab1_ErrorCounter"), D("tab1_StreamStats")};
         for (ads::CDockWidget* d : rightDocks) {
             if (ads::CDockAreaWidget* a = d->dockAreaWidget()) {
                 if (!moved.contains(a)) {
@@ -8331,12 +8369,24 @@ private:
         if (!m_ensembleTree) {
             m_ensembleTree = new QTreeWidget();
         }
-        m_ensembleTree->setHeaderLabels({"Service", "Label", "Type"});
+        // Priority 1: 11 columns for Ensemble Tree
+        m_ensembleTree->setHeaderLabels({
+            "Service", "Label", "Short Label", "Type", "Programme Type",
+            "Language", "CA Flag", "Comp. Count", "EID", "Country", "Last Updated"
+        });
         m_ensembleTree->setAlternatingRowColors(true);
         m_ensembleTree->header()->setStretchLastSection(false);
         m_ensembleTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
         m_ensembleTree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
         m_ensembleTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+        m_ensembleTree->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+        m_ensembleTree->header()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+        m_ensembleTree->header()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+        m_ensembleTree->header()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
+        m_ensembleTree->header()->setSectionResizeMode(7, QHeaderView::ResizeToContents);
+        m_ensembleTree->header()->setSectionResizeMode(8, QHeaderView::ResizeToContents);
+        m_ensembleTree->header()->setSectionResizeMode(9, QHeaderView::ResizeToContents);
+        m_ensembleTree->header()->setSectionResizeMode(10, QHeaderView::ResizeToContents);
         ensembleLayout->addWidget(m_ensembleTree);
         
         sections.append({QStringLiteral("tab1_EnsembleExplorer"), QStringLiteral("DAB Ensemble Explorer"), ensembleGroup});
@@ -8418,6 +8468,24 @@ private:
         QGroupBox* nowPlayingPanel = createNowPlayingPanel();
         if (nowPlayingPanel) {
             sections.append({QStringLiteral("tab1_NowPlaying"), QStringLiteral("Now Playing / Slideshow"), nowPlayingPanel});
+        }
+
+        // 7. EPG (Phase 2A) - tabbed with Now Playing / Slideshow
+        QWidget* epgContent = createEpgDockContent();
+        if (epgContent) {
+            sections.append({QStringLiteral("tab1_EPG"), QStringLiteral("EPG"), epgContent});
+        }
+
+        // 8. Journaline (Phase 2A) - tabbed with Now Playing / Slideshow
+        QWidget* journalineContent = createJournalineDockContent();
+        if (journalineContent) {
+            sections.append({QStringLiteral("tab1_Journaline"), QStringLiteral("Journaline"), journalineContent});
+        }
+
+        // 9. TPEG (Phase 2A) - tabbed with Now Playing / Slideshow
+        QWidget* tpegContent = createTpegDockContent();
+        if (tpegContent) {
+            sections.append({QStringLiteral("tab1_TPEG"), QStringLiteral("TPEG"), tpegContent});
         }
 
         return sections;
@@ -8505,22 +8573,6 @@ private:
         QGroupBox* streamStatsPanel = createStreamStatisticsPanel();
         if (streamStatsPanel) {
             sections.append({QStringLiteral("tab1_StreamStats"), QStringLiteral("DAB Stream Statistics"), streamStatsPanel});
-        }
-
-        // 6. Data Services group (Phase 2A) — EPG, Journaline, TPEG
-        // These are created as standalone widgets (not GroupBoxes) and will be
-        // tabbed together in registerTab1Docks().
-        QWidget* epgContent = createEpgDockContent();
-        if (epgContent) {
-            sections.append({QStringLiteral("tab1_EPG"), QStringLiteral("EPG"), epgContent});
-        }
-        QWidget* journalineContent = createJournalineDockContent();
-        if (journalineContent) {
-            sections.append({QStringLiteral("tab1_Journaline"), QStringLiteral("Journaline"), journalineContent});
-        }
-        QWidget* tpegContent = createTpegDockContent();
-        if (tpegContent) {
-            sections.append({QStringLiteral("tab1_TPEG"), QStringLiteral("TPEG"), tpegContent});
         }
 
         return sections;
@@ -8638,9 +8690,10 @@ private:
         
         if (!m_tab2_serviceTable) {
             m_tab2_serviceTable = new QTableWidget();
-            m_tab2_serviceTable->setColumnCount(4);
+            m_tab2_serviceTable->setColumnCount(9);
             m_tab2_serviceTable->setHorizontalHeaderLabels({
-                "SId", "Service Label", "Short Label", "CAID"
+                "SId", "Service Label", "Short Label", "Type",
+                "Programme Type", "Language", "CA Flag", "Comp. Count", "Primary SC"
             });
             m_tab2_serviceTable->setAlternatingRowColors(true);
             m_tab2_serviceTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -9962,14 +10015,31 @@ private:
             QStringLiteral("font-size: 10px; color: #999; font-style: italic;"));
         lay->addWidget(m_epgStatusLabel);
 
-        m_epgScheduleList = new QListWidget();
-        m_epgScheduleList->setObjectName(QStringLiteral("epgScheduleList"));
-        m_epgScheduleList->setAlternatingRowColors(true);
-        lay->addWidget(m_epgScheduleList, 1);
+        m_epgScheduleTable = new QTableWidget();
+        m_epgScheduleTable->setObjectName(QStringLiteral("epgScheduleTable"));
+        m_epgScheduleTable->setColumnCount(8);
+        m_epgScheduleTable->setHorizontalHeaderLabels(
+            {tr("Status"), tr("Start"), tr("End"), tr("Duration"),
+             tr("Program"), tr("Genre"), tr("Rating"), tr("Flags")});
+        m_epgScheduleTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+        m_epgScheduleTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        m_epgScheduleTable->verticalHeader()->setVisible(false);
+        m_epgScheduleTable->setAlternatingRowColors(true);
+        m_epgScheduleTable->setSortingEnabled(true);
+        m_epgScheduleTable->horizontalHeader()->setStretchLastSection(true);
+        m_epgScheduleTable->setColumnWidth(0, 60);   // Status
+        m_epgScheduleTable->setColumnWidth(1, 60);   // Start
+        m_epgScheduleTable->setColumnWidth(2, 60);   // End
+        m_epgScheduleTable->setColumnWidth(3, 80);   // Duration
+        m_epgScheduleTable->setColumnWidth(4, 200);  // Program
+        m_epgScheduleTable->setColumnWidth(5, 120);  // Genre
+        m_epgScheduleTable->setColumnWidth(6, 60);   // Rating
+        m_epgScheduleTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
+        lay->addWidget(m_epgScheduleTable, 1);
 
         connect(m_epgServiceCombo, qOverload<int>(&QComboBox::currentIndexChanged),
                 this, [this](int index) {
-                    populateEpgScheduleList(index >= 0
+                    populateEpgScheduleTable(index >= 0
                                              ? m_epgServiceCombo->itemData(index).toUInt()
                                              : 0u);
                 });
@@ -9986,10 +10056,18 @@ private:
 
         m_journalineMenuTree = new QTreeWidget();
         m_journalineMenuTree->setObjectName(QStringLiteral("journalineMenuTree"));
-        m_journalineMenuTree->setColumnCount(1);
-        m_journalineMenuTree->setHeaderLabels({tr("Carousel / Menu")});
+        m_journalineMenuTree->setColumnCount(5);
+        m_journalineMenuTree->setHeaderLabels(
+            {tr("Title"), tr("Category"), tr("Timestamp"), tr("Object ID"), tr("Link Target")});
         m_journalineMenuTree->setRootIsDecorated(true);
         m_journalineMenuTree->setUniformRowHeights(true);
+        m_journalineMenuTree->setColumnWidth(0, 250);  // Title
+        m_journalineMenuTree->setColumnWidth(1, 100);  // Category
+        m_journalineMenuTree->setColumnWidth(2, 100);  // Timestamp
+        m_journalineMenuTree->setColumnWidth(3, 80);   // Object ID
+        m_journalineMenuTree->setColumnWidth(4, 100);  // Link Target
+        m_journalineMenuTree->header()->setStretchLastSection(false);
+        m_journalineMenuTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
         lay->addWidget(m_journalineMenuTree, 3);
 
         m_journalinePreview = new QTextEdit();
@@ -10080,8 +10158,8 @@ private:
             m_epgServiceCombo->clear();
             m_epgServiceCombo->setEnabled(false);
         }
-        if (m_epgScheduleList) {
-            m_epgScheduleList->clear();
+        if (m_epgScheduleTable) {
+            m_epgScheduleTable->setRowCount(0);
         }
         if (m_epgStatusLabel) {
             m_epgStatusLabel->setText(tr("Waiting for capture…"));
@@ -10471,7 +10549,7 @@ private:
             (withEvents.isEmpty() || m_epgServiceCombo->currentIndex() < 0)
                 ? 0u
                 : m_epgServiceCombo->itemData(m_epgServiceCombo->currentIndex()).toUInt();
-        populateEpgScheduleList(selected);
+        populateEpgScheduleTable(selected);
 
         if (totalEvents == 0) {
             QString status = tr("No EPG data in this stream");
@@ -10487,12 +10565,31 @@ private:
         }
     }
 
-    void populateEpgScheduleList(quint32 serviceId)
+    /// Build flags string for an EPG event (Live / Subtitles / AudioDesc / —)
+    QString buildEpgEventFlags(const eti::epg::EPGEvent* event) const
     {
-        if (!m_epgScheduleList || !m_epgDecoder) {
+        if (!event) {
+            return QStringLiteral("—");
+        }
+        QStringList flags;
+        if (event->is_live) {
+            flags << tr("Live");
+        }
+        if (event->has_subtitles) {
+            flags << tr("Subtitles");
+        }
+        if (event->has_audio_description) {
+            flags << tr("AudioDesc");
+        }
+        return flags.isEmpty() ? QStringLiteral("—") : flags.join(QStringLiteral(" / "));
+    }
+
+    void populateEpgScheduleTable(quint32 serviceId)
+    {
+        if (!m_epgScheduleTable || !m_epgDecoder) {
             return;
         }
-        m_epgScheduleList->clear();
+        m_epgScheduleTable->setRowCount(0);
         if (serviceId == 0) {
             return;
         }
@@ -10509,29 +10606,78 @@ private:
                 .arg(e.start_time.toString(QStringLiteral("HH:mm")),
                      e.end_time.toString(QStringLiteral("HH:mm")));
         };
-        auto appendRow = [this, &timeRange](const QString& text,
-                                            const eti::epg::EPGEvent& e) {
-            auto* item = new QListWidgetItem(text);
-            QString tip = e.description.trimmed();
-            if (!e.genre.isEmpty()) {
-                tip = tip.isEmpty() ? e.genre : (e.genre + QStringLiteral(" — ") + tip);
-            }
-            if (!tip.isEmpty()) {
-                item->setToolTip(tip);
-            }
-            m_epgScheduleList->addItem(item);
+        auto appendRow = [this, &timeRange](const QString& status,
+                                            const QString& start,
+                                            const QString& end,
+                                            const QString& duration,
+                                            const QString& program,
+                                            const QString& genre,
+                                            const QString& rating,
+                                            const QString& flags) {
+            int row = m_epgScheduleTable->rowCount();
+            m_epgScheduleTable->insertRow(row);
+            m_epgScheduleTable->setItem(row, 0, new QTableWidgetItem(status));
+            m_epgScheduleTable->setItem(row, 1, new QTableWidgetItem(start));
+            m_epgScheduleTable->setItem(row, 2, new QTableWidgetItem(end));
+            m_epgScheduleTable->setItem(row, 3, new QTableWidgetItem(duration));
+            m_epgScheduleTable->setItem(row, 4, new QTableWidgetItem(program));
+            m_epgScheduleTable->setItem(row, 5, new QTableWidgetItem(genre));
+            m_epgScheduleTable->setItem(row, 6, new QTableWidgetItem(rating));
+            m_epgScheduleTable->setItem(row, 7, new QTableWidgetItem(flags));
         };
 
         if (std::optional<eti::epg::EPGEvent> now =
                 m_epgDecoder->getCurrentEvent(serviceId)) {
-            appendRow(tr("Now: %1 (%2)").arg(now->program_name, timeRange(*now)), *now);
+            QString duration = "--:--";
+            if (now->start_time.isValid() && now->end_time.isValid()) {
+                int secs = now->start_time.secsTo(now->end_time);
+                duration = QString("%1:%2")
+                    .arg(secs / 60, 2, 10, QChar('0'))
+                    .arg(secs % 60, 2, 10, QChar('0'));
+            }
+            appendRow("Now",
+                      now->start_time.toString("HH:mm"),
+                      now->end_time.toString("HH:mm"),
+                      duration,
+                      now->program_name,
+                      now->genre,
+                      QString::number(now->parental_rating),
+                      buildEpgEventFlags(&*now));
         }
         if (std::optional<eti::epg::EPGEvent> next =
                 m_epgDecoder->getNextEvent(serviceId)) {
-            appendRow(tr("Next: %1 (%2)").arg(next->program_name, timeRange(*next)), *next);
+            QString duration = "--:--";
+            if (next->start_time.isValid() && next->end_time.isValid()) {
+                int secs = next->start_time.secsTo(next->end_time);
+                duration = QString("%1:%2")
+                    .arg(secs / 60, 2, 10, QChar('0'))
+                    .arg(secs % 60, 2, 10, QChar('0'));
+            }
+            appendRow("Next",
+                      next->start_time.toString("HH:mm"),
+                      next->end_time.toString("HH:mm"),
+                      duration,
+                      next->program_name,
+                      next->genre,
+                      QString::number(next->parental_rating),
+                      buildEpgEventFlags(&*next));
         }
         for (const eti::epg::EPGEvent& e : events) {
-            appendRow(tr("%1  %2").arg(timeRange(e), e.program_name), e);
+            QString duration = "--:--";
+            if (e.start_time.isValid() && e.end_time.isValid()) {
+                int secs = e.start_time.secsTo(e.end_time);
+                duration = QString("%1:%2")
+                    .arg(secs / 60, 2, 10, QChar('0'))
+                    .arg(secs % 60, 2, 10, QChar('0'));
+            }
+            appendRow("",
+                      e.start_time.toString("HH:mm"),
+                      e.end_time.toString("HH:mm"),
+                      duration,
+                      e.program_name,
+                      e.genre,
+                      QString::number(e.parental_rating),
+                      buildEpgEventFlags(&e));
         }
     }
 
@@ -10562,15 +10708,42 @@ private:
             m_journalineMenuTree->clear();
             for (const eti::journaline::JournalineMenu& menu : roots) {
                 auto* menuNode = new QTreeWidgetItem(m_journalineMenuTree);
-                menuNode->setText(0, tr("%1 (0x%2)")
-                                        .arg(menu.menu_title)
-                                        .arg(QString::number(menu.menu_id, 16)
-                                                 .toUpper()));
+                const QString menuTitle = tr("%1 (0x%2)")
+                    .arg(menu.menu_title)
+                    .arg(QString::number(menu.menu_id, 16).toUpper());
+                menuNode->setText(0, menuTitle);
+                // Column 1: Category
+                menuNode->setText(1, tr("Carousel"));
+                // Column 2: Timestamp (use first item's timestamp or placeholder)
+                QString menuTimestamp = QStringLiteral("--:--:--");
+                if (!menu.items.isEmpty() && menu.items.first().timestamp.isValid()) {
+                    menuTimestamp = menu.items.first().timestamp.toString(QStringLiteral("HH:mm:ss"));
+                }
+                menuNode->setText(2, menuTimestamp);
+                // Column 3: Object ID (menu ID in hex)
+                menuNode->setText(3, QString::number(menu.menu_id, 16).toUpper());
+                // Column 4: Link Target (not applicable for menu nodes)
+                menuNode->setText(4, QStringLiteral("—"));
+
                 for (const eti::journaline::JournalineObject& object : menu.items) {
                     auto* child = new QTreeWidgetItem(menuNode);
                     const QString title = object.title.trimmed();
                     child->setText(0, title.isEmpty() ? object.text_content.left(80)
                                                       : title);
+                    // Column 1: Category
+                    child->setText(1, object.getCategoryString());
+                    // Column 2: Timestamp
+                    QString objTimestamp = QStringLiteral("--:--:--");
+                    if (object.timestamp.isValid()) {
+                        objTimestamp = object.timestamp.toString(QStringLiteral("HH:mm:ss"));
+                    }
+                    child->setText(2, objTimestamp);
+                    // Column 3: Object ID (hex)
+                    child->setText(3, QString::number(object.object_id, 16).toUpper());
+                    // Column 4: Link Target
+                    child->setText(4, object.is_link
+                                   ? QString::number(object.link_target, 16).toUpper()
+                                   : QStringLiteral("—"));
                     child->setData(0, Qt::UserRole, object.text_content);
                     if (!object.text_content.isEmpty()) {
                         child->setToolTip(0, object.text_content.left(200));
@@ -12219,8 +12392,19 @@ private:
                                   .arg(ensembleLabel)
                                   .arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper();
 
-        ensembleItem->setText(0, ensembleDisplay);
-        ensembleItem->setText(1, QString::number(services.size()) + " services");
+        // Populate ensemble root row with 11 columns
+        ensembleItem->setText(0, ensembleDisplay);  // Service/Ensemble
+        ensembleItem->setText(1, ensembleLabel);     // Label
+        ensembleItem->setText(2, ensemble.shortLabel); // Short Label
+        ensembleItem->setText(3, "Ensemble");        // Type
+        ensembleItem->setText(4, "-");               // Programme Type
+        ensembleItem->setText(5, "-");               // Language
+        ensembleItem->setText(6, "-");               // CA Flag
+        ensembleItem->setText(7, QString::number(services.size())); // Comp. Count (services)
+        ensembleItem->setText(8, QString("0x%1").arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper()); // EID
+        QString countryStr = QString("%1 (0x%2)").arg(ensemble.countryCode).arg(ensemble.extendedCountryCode, 2, 16, QChar('0')).toUpper();
+        ensembleItem->setText(9, countryStr);        // Country
+        ensembleItem->setText(10, ensemble.lastUpdated.isValid() ? ensemble.lastUpdated.toString("yyyy-MM-dd HH:mm:ss") : "-"); // Last Updated
 
         // Make ensemble bold
         QFont ensembleFont = ensembleItem->font(0);
@@ -12268,8 +12452,50 @@ private:
             displayText += " (DAB+)";
         }
 
-        serviceItem->setText(0, displayText);
-        serviceItem->setText(1, QString::number(service.components.size()) + " component(s)");
+        // Populate all 11 columns for service row
+        serviceItem->setText(0, displayText);  // Service
+        serviceItem->setText(1, serviceLabel); // Label
+        serviceItem->setText(2, service.short_label.isEmpty() ? "-" : service.short_label); // Short Label
+        
+        // Type: Audio/Data + DAB/DAB+
+        QString typeStr = (service.service_type == 0) ? "Audio" : "Data";
+        if (isDABPlus) typeStr += " (DAB+)";
+        else typeStr += " (DAB)";
+        serviceItem->setText(3, typeStr); // Type
+        
+        // Programme Type (PTy)
+        static const char* ptyNames[] = {
+            "None", "News", "Current Affairs", "Information", "Sport", "Education",
+            "Drama", "Culture", "Science", "Varied", "Pop Music", "Rock Music",
+            "Easy Listening", "Light Classical", "Serious Classical", "Other Music",
+            "Weather", "Finance", "Children", "Social Affairs", "Religion",
+            "Phone In", "Travel", "Leisure", "Jazz Music", "Country Music",
+            "National Music", "Oldies Music", "Folk Music", "Documentary",
+            "Alarm Test", "Alarm"
+        };
+        QString ptyStr = (service.programme_type <= 31) ? ptyNames[service.programme_type] : QString("PTy %1").arg(service.programme_type);
+        serviceItem->setText(4, ptyStr); // Programme Type
+        
+        // Language
+        serviceItem->setText(5, service.language ? FIGParsingUtils::languageCodeToString(service.language) : "-"); // Language
+        
+        // CA Flag
+        serviceItem->setText(6, service.ca_flag ? "Yes" : "No"); // CA Flag
+        
+        // Component Count
+        serviceItem->setText(7, QString::number(service.components.size())); // Comp. Count
+        
+        // EID (from ensemble - pass through parent or store globally)
+        // For now, use the ensemble ID from the analyser
+        EnsembleInfo ensemble = m_figAnalyser->getCurrentEnsemble();
+        serviceItem->setText(8, QString("0x%1").arg(ensemble.ensembleId, 4, 16, QChar('0')).toUpper()); // EID
+        
+        // Country
+        QString countryStr = QString("%1 (0x%2)").arg(ensemble.countryCode).arg(ensemble.extendedCountryCode, 2, 16, QChar('0')).toUpper();
+        serviceItem->setText(9, countryStr); // Country
+        
+        // Last Updated
+        serviceItem->setText(10, ensemble.lastUpdated.isValid() ? ensemble.lastUpdated.toString("yyyy-MM-dd HH:mm:ss") : "-"); // Last Updated
 
         // Highlight DAB+ in bold blue
         if (isDABPlus) {
@@ -12306,12 +12532,19 @@ private:
             typeDesc = QString("TM %1").arg(component.transport_mode);
         }
 
-        QString displayText = QString("%1 [SubChId: %2, %3]")
-                              .arg(componentLabel)
-                              .arg(component.sub_channel_id)
-                              .arg(typeDesc);
+        // Populate all 11 columns for component row
+        compItem->setText(0, componentLabel);  // Service/Component
+        compItem->setText(1, "-");             // Label
+        compItem->setText(2, "-");             // Short Label
+        compItem->setText(3, typeDesc);        // Type
+        compItem->setText(4, "-");             // Programme Type
+        compItem->setText(5, "-");             // Language
+        compItem->setText(6, component.ca_flag ? "Yes" : "No"); // CA Flag
+        compItem->setText(7, "-");             // Comp. Count (N/A for component)
+        compItem->setText(8, "-");             // EID
+        compItem->setText(9, "-");             // Country
+        compItem->setText(10, "-");            // Last Updated
 
-        compItem->setText(0, displayText);
         compItem->setForeground(0, QColor(100, 100, 100));
     }
 
@@ -13068,7 +13301,7 @@ private:
     eti::data::DataServiceStore* m_dataServiceStore = nullptr;
     // EPG dock
     QComboBox* m_epgServiceCombo = nullptr;
-    QListWidget* m_epgScheduleList = nullptr;
+    QTableWidget* m_epgScheduleTable = nullptr;
     QLabel* m_epgStatusLabel = nullptr;
     // Journaline dock
     QTreeWidget* m_journalineMenuTree = nullptr;
@@ -13282,7 +13515,9 @@ private:
     // state would restore the old right column without the Data Services group.
     // Bumped 9 -> 10 (Phase 2C): new dock "tab2_AdvancedFig" added to Tab-2 Right
     // area (tabbed with "FIG Content") for FIG2 Extended Labels display.
-    static constexpr int DOCKING_LAYOUT_VERSION = 10;
+    // Bumped 10 -> 11: EPG/Journaline/TPEG docks moved from Right column to be
+    // tabbed with Now Playing / Slideshow in the Center column.
+    static constexpr int DOCKING_LAYOUT_VERSION = 11;
     
     // Phase 1: Processing counters
     int m_processedFrames{0};
@@ -13408,6 +13643,23 @@ int main(int argc, char *argv[])
     app.setApplicationName("DABAnalyser");
     app.setApplicationVersion(DABX_VERSION);
 
+    // Set application icon (uses SVG on Linux/macOS, PNG fallbacks, .ico on Windows, .icns on macOS)
+    QIcon appIcon(":/icons/eti-stream-analyser.svg");
+    // Add PNG fallbacks for platforms where SVG rendering may not be available
+    appIcon.addFile(":/icons/eti-stream-analyser_16.png");
+    appIcon.addFile(":/icons/eti-stream-analyser_24.png");
+    appIcon.addFile(":/icons/eti-stream-analyser_32.png");
+    appIcon.addFile(":/icons/eti-stream-analyser_48.png");
+    appIcon.addFile(":/icons/eti-stream-analyser_64.png");
+    appIcon.addFile(":/icons/eti-stream-analyser_128.png");
+    appIcon.addFile(":/icons/eti-stream-analyser_256.png");
+    app.setWindowIcon(appIcon);
+    
+    // Linux desktop integration
+    #if defined(Q_OS_LINUX)
+    app.setDesktopFileName("eti-stream-analyser");
+    #endif
+
     // v1.3 rename: fold the pre-rename (American-spelling) QSettings scope
     // into the new "StreamDAB-Analyser" / "DABAnalyser" store once, before any
     // component reads or writes preferences. See src/utils/app_settings.hpp.
@@ -13422,6 +13674,7 @@ int main(int argc, char *argv[])
     (void)Logger::instance();
 
     DABAnalyserWindow window;
+    window.setWindowIcon(appIcon);
     window.show();
 
     // Auto-load file from command line if provided (for testing)
