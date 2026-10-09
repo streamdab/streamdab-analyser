@@ -360,6 +360,9 @@ void TestGuiDockLayout::testDocksWithExpectedNames()
         QStringLiteral("tab1_ETIOverview"), QStringLiteral("tab1_Status"),
         QStringLiteral("tab1_Timing"),
         QStringLiteral("tab1_ErrorCounter"), QStringLiteral("tab1_StreamStats"),
+        // Phase 2A: Data Services group (+3 docks)
+        QStringLiteral("tab1_EPG"), QStringLiteral("tab1_Journaline"),
+        QStringLiteral("tab1_TPEG"),
         // Tab 2 (3)
         QStringLiteral("tab2_Left"), QStringLiteral("tab2_Center"),
         QStringLiteral("tab2_Right"),
@@ -374,7 +377,7 @@ void TestGuiDockLayout::testDocksWithExpectedNames()
         QStringLiteral("bottom_Constellation"),
     };
 
-    QCOMPARE(all.size(), expected.size());  // 27 docks (T41 dropped bottom_Messages)
+    QCOMPARE(all.size(), expected.size());  // 30 docks (T41 dropped bottom_Messages; Phase 2A added EPG/Journaline/TPEG)
     QCOMPARE(all, expected);
 
     w.close();
@@ -486,7 +489,7 @@ void TestGuiDockLayout::testShowAllDocksRestoresEveryDock()
 
     QMenu* docking = w.findChild<QMenu*>(QStringLiteral("dockingDialogMenu"));
     QVERIFY(docking);
-    QCOMPARE(docking->actions().size(), 27);
+    QCOMPARE(docking->actions().size(), 30);
     QAction* showAll = w.findChild<QAction*>(QStringLiteral("showAllDocksAction"));
     QVERIFY(showAll);
 
@@ -510,7 +513,7 @@ void TestGuiDockLayout::testShowAllDocksRestoresEveryDock()
     // QCoreApplication::processEvents();
     
     // MANUAL CHECK: just verify the actions exist
-    QVERIFY2(docking->actions().size() == 27, "expected 27 dock actions");
+    QVERIFY2(docking->actions().size() == 30, "expected 30 dock actions (Phase 2A: +3 data-service docks)");
     
 
     w.close();
@@ -3379,9 +3382,8 @@ void TestGuiDockLayout::testDataServiceTabsStructure()
     w.show();
     QCoreApplication::processEvents();
 
-    // The tabs are INNER to the existing Now Playing / Slideshow dock area —
-    // no new top-level dock, so the dock registry is untouched (asserted by
-    // testDocksWithExpectedNames) and the splitter structure stays as-is.
+    // Phase 2A: EPG/Journaline/TPEG are now TOP-LEVEL docks in the Right column.
+    // The inner tabs in the slideshow panel have been removed.
     QSplitter* split = w.nowPlayingSplitterForTest();
     QVERIFY(split);
     QCOMPARE(split->count(), 2);
@@ -3389,13 +3391,15 @@ void TestGuiDockLayout::testDataServiceTabsStructure()
     QCOMPARE(split->widget(1)->objectName(), QStringLiteral("slideshowPanel"));
     QVERIFY(w.findChild<QWidget*>(QStringLiteral("slideshowFrame")));
 
-    QTabWidget* tabs = w.dataServiceTabsForTest();
-    QVERIFY2(tabs, "the inner data-service QTabWidget must exist");
-    QCOMPARE(tabs->count(), 4);
-    QCOMPARE(tabs->tabText(0), QStringLiteral("Slideshow"));
-    QCOMPARE(tabs->tabText(1), QStringLiteral("EPG"));
-    QCOMPARE(tabs->tabText(2), QStringLiteral("Journaline"));
-    QCOMPARE(tabs->tabText(3), QStringLiteral("TPEG"));
+    // Verify the inner QTabWidget no longer exists in the slideshow panel.
+    QTabWidget* innerTabs = split->widget(1)->findChild<QTabWidget*>(QStringLiteral("dataServiceTabs"));
+    QVERIFY2(!innerTabs, "inner data-service QTabWidget should have been removed (Phase 2A)");
+
+    // Verify the three new top-level docks exist and are in the Right column.
+    const QMap<QString, ads::CDockWidget*> docks = w.registeredDocksForTest();
+    QVERIFY(docks.contains("tab1_EPG"));
+    QVERIFY(docks.contains("tab1_Journaline"));
+    QVERIFY(docks.contains("tab1_TPEG"));
 
     // Every accessor-backed widget exists before any capture is loaded.
     QVERIFY(w.epgDecoderForTest());
@@ -3413,13 +3417,15 @@ void TestGuiDockLayout::testDataServiceTabsStructure()
     QCOMPARE(w.tpegInventoryTableForTest()->rowCount(), 0);
     QCOMPARE(w.journalineMenuTreeForTest()->topLevelItemCount(), 0);
 
-    // Switchable: every page can become the current one.
-    for (int i = 0; i < tabs->count(); ++i) {
-        tabs->setCurrentIndex(i);
-        QCOMPARE(tabs->currentIndex(), i);
-        QVERIFY(tabs->currentWidget() == tabs->widget(i));
-    }
-    tabs->setCurrentIndex(0);
+    // Verify the new docks are tabbed together (share a dock area).
+    ads::CDockWidget* epgDock = docks.value("tab1_EPG");
+    ads::CDockWidget* journalineDock = docks.value("tab1_Journaline");
+    ads::CDockWidget* tpegDock = docks.value("tab1_TPEG");
+    QVERIFY(epgDock && epgDock->dockAreaWidget() == journalineDock->dockAreaWidget());
+    QVERIFY(epgDock && epgDock->dockAreaWidget() == tpegDock->dockAreaWidget());
+
+    // Default active tab in the Data Services group is EPG.
+    QCOMPARE(epgDock->dockAreaWidget()->currentDockWidget(), epgDock);
 
     // Honest pre-load states + the fixed TPEG coverage note.
     QVERIFY2(w.epgStatusLabelForTest()->text().contains(QStringLiteral("Waiting for capture")),
@@ -3556,9 +3562,17 @@ void TestGuiDockLayout::testDataServiceTabsRealBkkCapture()
     QCOMPARE(w.motObjectsForTest(), 97);
     QCOMPARE(w.motImagesDecodedForTest(), 97);
 
-    QTabWidget* tabs = w.dataServiceTabsForTest();
-    QVERIFY(tabs);
-    QCOMPARE(tabs->count(), 4);
+    // Phase 2A: inner tabs removed; verify the three top-level docks exist.
+    const QMap<QString, ads::CDockWidget*> docks = w.registeredDocksForTest();
+    QVERIFY(docks.contains("tab1_EPG"));
+    QVERIFY(docks.contains("tab1_Journaline"));
+    QVERIFY(docks.contains("tab1_TPEG"));
+    // The three docks should be tabbed together.
+    ads::CDockWidget* epgDock = docks.value("tab1_EPG");
+    ads::CDockWidget* journalineDock = docks.value("tab1_Journaline");
+    ads::CDockWidget* tpegDock = docks.value("tab1_TPEG");
+    QVERIFY(epgDock && epgDock->dockAreaWidget() == journalineDock->dockAreaWidget());
+    QVERIFY(epgDock && epgDock->dockAreaWidget() == tpegDock->dockAreaWidget());
 
     // --- TPEG tab: the REAL Bangkok TEPG carousel inventory -----------------
     QTableWidget* table = w.tpegInventoryTableForTest();
@@ -3655,8 +3669,12 @@ void TestGuiDockLayout::testDataServiceTabsRealBkkCapture()
     QCOMPARE(w.journalineMenuTreeForTest()->topLevelItemCount(), 0);
     QVERIFY(w.journalinePreviewForTest()->toPlainText().isEmpty());
 
-    // --- The Slideshow page is still the default tab and behaves as before --
-    QCOMPARE(tabs->currentIndex(), 0);
+    // --- The Slideshow page is directly in the slideshow panel (no inner tabs) --
+    // Phase 2A: inner tabs removed; slideshow is the only content in the right splitter pane.
+    QWidget* slidePanel = w.findChild<QWidget*>(QStringLiteral("slideshowPanel"));
+    QVERIFY(slidePanel);
+    QVERIFY(!slidePanel->findChild<QTabWidget*>());
+    QVERIFY(!w.slideshowImageForTest().isNull());
     QVERIFY(w.slideshowImageForTest().width() > 0);
 
     // --- M9: the tap state is reset by the same hook every load runs -------

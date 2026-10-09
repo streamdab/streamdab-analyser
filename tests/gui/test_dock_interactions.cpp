@@ -75,12 +75,12 @@ private slots:
     void testAllDocksReachableAfterInteractionsAndRestart();
 
 private:
-    // The full expected dock inventory (27). Kept in sync with
-    // test_gui_dock_layout.cpp::testDocksWithExpectedNames.
+    // The full expected dock inventory (30). Kept in sync with
+    // test_gui_dock_layout.cpp::testDocksWithExpectedNames. Phase 2A added 3 data-service docks.
     static QStringList expectedDockNames()
     {
         return {
-            // Tab 1 (15)
+            // Tab 1 (18; Phase 2A: +3 data-service docks)
             QStringLiteral("tab1_Player"), QStringLiteral("tab1_Decoder"),
             QStringLiteral("tab1_Audio"), QStringLiteral("tab1_System"),
             QStringLiteral("tab1_EnsembleExplorer"), QStringLiteral("tab1_SubchannelOrg"),
@@ -90,6 +90,8 @@ private:
             QStringLiteral("tab1_ETIOverview"), QStringLiteral("tab1_Status"),
             QStringLiteral("tab1_Timing"),
             QStringLiteral("tab1_ErrorCounter"), QStringLiteral("tab1_StreamStats"),
+            QStringLiteral("tab1_EPG"), QStringLiteral("tab1_Journaline"),
+            QStringLiteral("tab1_TPEG"),
             // Tab 2 (3)
             QStringLiteral("tab2_Left"), QStringLiteral("tab2_Center"),
             QStringLiteral("tab2_Right"),
@@ -103,7 +105,6 @@ private:
             QStringLiteral("bottom_Constellation"),
         };
     }
-
     // Removes every DABAnalyserWindow QSettings key so each window-based test
     // starts from a CLEARED store (window.close() saves dock state; without
     // this the next window would restore the previous layout).
@@ -602,7 +603,7 @@ void TestDockInteractions::testPersistenceAfterInteractions()
 void TestDockInteractions::testAllDocksReachableAfterInteractionsAndRestart()
 {
     const QStringList expected = expectedDockNames();
-    QCOMPARE(expected.size(), 27);
+    QCOMPARE(expected.size(), 30);  // Phase 2A: +3 data-service docks
 
     // Window 1: shake the layout with one of each interaction.
     {
@@ -633,7 +634,7 @@ void TestDockInteractions::testAllDocksReachableAfterInteractionsAndRestart()
         pump();
 
         // No dock was lost while interacting.
-        QCOMPARE(totalDockCount(w), 27);
+        QCOMPARE(totalDockCount(w), 30);  // Phase 2A: +3 data-service docks
         QSet<QString> live = dockNames(m1) + dockNames(mBottom)
                            + dockNames(w.findChild<ads::CDockManager*>("tab2DockManager"))
                            + dockNames(w.findChild<ads::CDockManager*>("tab3DockManager"));
@@ -688,7 +689,7 @@ void TestDockInteractions::testAllDocksReachableAfterInteractionsAndRestart()
         }
 
         // Still 27 docks; none silently dropped.
-        QCOMPARE(totalDockCount(w2), 27);
+        QCOMPARE(totalDockCount(w2), 30);  // Phase 2A: +3 data-service docks
 
         w2.close();
         pump();
