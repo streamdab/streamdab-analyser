@@ -35,6 +35,7 @@
 // Core includes
 #include "../../src/core/eti_types.hpp"
 #include "../../src/core/fig_parser.hpp"
+#include "../../src/utils/logger.h"
 
 // Bring types into scope
 using eti::EtiFicField;
@@ -463,6 +464,14 @@ private slots:
     }
 
     void test_fig10_performance_benchmark() {
+        // The benchmark measures parsing, not per-call logging: keep the
+        // logger quiet for the timed section (restored on scope exit).
+        struct LogLevelGuard {
+            Logger::LogLevel saved = Logger::instance().getLogLevel();
+            LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+            ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+        } logGuard;
+
         const int iterations = 1000;
         PerformanceMetrics metrics;
         QByteArray fig_data = createValidFig10(0x3333, "Perf Test");
@@ -579,6 +588,14 @@ private slots:
     }
 
     void test_fig018_performance_benchmark() {
+        // The benchmark measures parsing, not per-call logging: keep the
+        // logger quiet for the timed section (restored on scope exit).
+        struct LogLevelGuard {
+            Logger::LogLevel saved = Logger::instance().getLogLevel();
+            LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+            ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+        } logGuard;
+
         const int iterations = 1000;
         PerformanceMetrics metrics;
         QByteArray fig_data = createValidFig018(0xAAAA, 0x0100, 0x06);
@@ -1260,6 +1277,14 @@ private slots:
      * Validates parsing speed has not degraded
      */
     void test_regression_performance_baseline() {
+        // The benchmark measures parsing, not per-call logging: keep the
+        // logger quiet for the timed section (restored on scope exit).
+        struct LogLevelGuard {
+            Logger::LogLevel saved = Logger::instance().getLogLevel();
+            LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+            ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+        } logGuard;
+
         qDebug() << "\n[Week 3 Test 52] Regression: Performance Baseline";
         
         const int iterations = 100;
@@ -1294,6 +1319,14 @@ private slots:
      * Target: < 10 µs per FIG 0/18 parse
      */
     void test_performance_fig018_parsing_speed() {
+        // The benchmark measures parsing, not per-call logging: keep the
+        // logger quiet for the timed section (restored on scope exit).
+        struct LogLevelGuard {
+            Logger::LogLevel saved = Logger::instance().getLogLevel();
+            LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+            ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+        } logGuard;
+
         qDebug() << "\n[Week 3 Test 53] Performance: FIG 0/18 Parsing Speed";
         
         const int iterations = 1000;
@@ -1326,6 +1359,14 @@ private slots:
      * Target: < 5 µs per FIG 0/19 parse (simpler than 0/18)
      */
     void test_performance_fig019_parsing_speed() {
+        // The benchmark measures parsing, not per-call logging: keep the
+        // logger quiet for the timed section (restored on scope exit).
+        struct LogLevelGuard {
+            Logger::LogLevel saved = Logger::instance().getLogLevel();
+            LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+            ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+        } logGuard;
+
         qDebug() << "\n[Week 3 Test 54] Performance: FIG 0/19 Parsing Speed";
         
         const int iterations = 1000;
@@ -1360,6 +1401,14 @@ private slots:
      * Target: < 5 µs per FIG 0/10 parse
      */
     void test_performance_fig010_parsing_speed() {
+        // The benchmark measures parsing, not per-call logging: keep the
+        // logger quiet for the timed section (restored on scope exit).
+        struct LogLevelGuard {
+            Logger::LogLevel saved = Logger::instance().getLogLevel();
+            LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+            ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+        } logGuard;
+
         qDebug() << "\n[Week 3 Test 55] Performance: FIG 0/10 Parsing Speed";
         
         const int iterations = 1000;

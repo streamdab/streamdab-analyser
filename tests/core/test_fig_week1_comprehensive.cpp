@@ -33,6 +33,7 @@
 // Core includes
 #include "../../src/core/eti_types.hpp"
 #include "../../src/core/fig_parser.hpp"
+#include "../../src/utils/logger.h"
 
 // Bring types into scope
 using eti::EtiFicField;
@@ -401,6 +402,14 @@ private slots:
      * Target: <50 microseconds per FIG
      */
     void test_fig10_performance_benchmark() {
+        // The benchmark measures parsing, not per-call logging: keep the
+        // logger quiet for the timed section (restored on scope exit).
+        struct LogLevelGuard {
+            Logger::LogLevel saved = Logger::instance().getLogLevel();
+            LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+            ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+        } logGuard;
+
         // Arrange
         const int iterations = 1000;
         PerformanceMetrics metrics;
@@ -612,6 +621,14 @@ private slots:
      * Target: <100 microseconds per FIG
      */
     void test_fig018_performance_benchmark() {
+        // The benchmark measures parsing, not per-call logging: keep the
+        // logger quiet for the timed section (restored on scope exit).
+        struct LogLevelGuard {
+            Logger::LogLevel saved = Logger::instance().getLogLevel();
+            LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+            ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+        } logGuard;
+
         // Arrange
         const int iterations = 1000;
         PerformanceMetrics metrics;
