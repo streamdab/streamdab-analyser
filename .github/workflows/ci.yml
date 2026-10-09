@@ -95,7 +95,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install cmake qt@6 faad2 fftw libzmq googletest
+          brew install cmake qt@6 faad2 fftw zeromq cppzmq googletest
           echo "QT_DIR=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
 
       # ------------------------------------------------------------ configure

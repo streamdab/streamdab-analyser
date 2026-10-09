@@ -62,7 +62,7 @@ metadata, MOT slideshow and data services, with ETSI compliance checks.
 | | Linux | Windows | macOS |
 |---|---|---|---|
 | Toolchain | gcc/clang + system Qt 6 | MSVC 2022 + aqt Qt 6 + vcpkg | Apple clang + Homebrew Qt 6 |
-| Speed-up libs | libfaad2, libfftw3, libzmq | vcpkg: faad2, fftw3, zeromq, cppzmq | brew: faad2, fftw, libzmq |
+| Speed-up libs | libfaad2, libfftw3, libzmq | vcpkg: faad2, fftw3, zeromq, cppzmq | brew: faad2, fftw, zeromq, cppzmq |
 | Audio out | ALSA | Qt Multimedia | Qt Multimedia |
 
 All optional dependencies are detected portably and degrade gracefully: build
