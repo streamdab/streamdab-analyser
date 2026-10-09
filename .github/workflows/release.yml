@@ -117,7 +117,7 @@ jobs:
         if: runner.os == 'Windows'
         working-directory: build
         shell: pwsh
-        run: cpack --config CPackConfig.cmake -G ZIP
+        run: cpack --config CPackConfig.cmake -C Release -G ZIP
 
       - name: "Package (macOS: .app + .dmg)"
         if: runner.os == 'macOS'

@@ -143,5 +143,6 @@ jobs:
         working-directory: build
         shell: pwsh
         run: |
-          .\streamdab-cli.exe --version
-          .\streamdab-cli.exe --help | Select-Object -First 5
+          # Visual Studio is multi-config: binaries land in build\Release
+          .\Release\streamdab-cli.exe --version
+          .\Release\streamdab-cli.exe --help | Select-Object -First 5

@@ -82,6 +82,7 @@
       "displayName": "Build (Windows) - 8 jobs, RAM-safe",
       "description": "MSBuild parallel limit. Override with --parallel N.",
       "configurePreset": "windows-msvc",
+      "configuration": "Release",
       "jobs": 8
     },
     {
@@ -127,6 +128,7 @@
       "name": "test-windows",
       "displayName": "Test (Windows) - serial offscreen",
       "configurePreset": "windows-msvc",
+      "configuration": "Release",
       "output": {
         "outputOnFailure": true
       },
