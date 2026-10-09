@@ -174,7 +174,7 @@ private slots:
         frame[5] = 0xC8;  // nst_lower=12 (bits 7-4), mid=2 (bits 3-2), fp=0
 
         // Actually 25 requires nst_lower=25 (0x19 in bits 7-4 = 0x190)
-        frame[5] = (25 << 4) | (0 << 2) | 0;  // nst_lower=25, mid=0, fp=0
+        frame[5] = static_cast<uint8_t>((25 << 4) | (0 << 2) | 0);  // nst_lower=25, mid=0, fp=0
 
         ProcessingConfig config;
         config.enable_threading = false;

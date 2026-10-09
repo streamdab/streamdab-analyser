@@ -113,9 +113,9 @@ public:
     PFTReassembler(const PFTReassembler&) = delete;
     PFTReassembler& operator=(const PFTReassembler&) = delete;
 
-    // Enable move
-    PFTReassembler(PFTReassembler&&) noexcept = default;
-    PFTReassembler& operator=(PFTReassembler&&) noexcept = default;
+    // Disable move (contains mutex, so a defaulted move would be deleted anyway)
+    PFTReassembler(PFTReassembler&&) = delete;
+    PFTReassembler& operator=(PFTReassembler&&) = delete;
 
     /**
      * @brief Add a PFT fragment for reassembly

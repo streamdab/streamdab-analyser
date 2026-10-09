@@ -11,11 +11,11 @@
  * - Component labels from FIG 1/4
  * - EEP protection level decoding (1-A to 5-B)
  * - Service-to-subchannel mapping
- * - Extended label support (FIG 2/*)
+ * - Extended label support (FIG 2/x)
  *
  * VERBOSE MODE (2025-11-08): Frame-by-frame detailed output
  * - Complete ETI header, FIC, FIG decoding
- * - ALL 22 FIG 0/* types decoded with field extraction
+ * - ALL 22 FIG 0/x types decoded with field extraction
  * - More detailed than etisnoop
  */
 

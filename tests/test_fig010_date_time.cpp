@@ -18,11 +18,25 @@
  */
 
 #include <QtTest/QtTest>
+#include <QTimeZone>
 #include "../src/core/fig_parser.hpp"
 #include <chrono>
 #include <vector>
 
 using namespace eti::fig;
+
+namespace {
+// QDateTime(date, time, Qt::TimeSpec) is deprecated from Qt 6.5 (QTimeZone
+// replaces it); keep older Qt 6 (e.g. Ubuntu 24.04's 6.4) compiling too.
+QDateTime utcDateTime(const QDate& date, const QTime& time)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    return QDateTime(date, time, QTimeZone::UTC);
+#else
+    return QDateTime(date, time, Qt::UTC);
+#endif
+}
+} // namespace
 
 class TestFig010DateTime : public QObject {
     Q_OBJECT
@@ -312,7 +326,7 @@ void TestFig010DateTime::test_mjd_to_datetime_y2020() {
 void TestFig010DateTime::test_datetime_to_mjd_round_trip() {
     qDebug() << "TEST: DateTime to MJD round-trip";
 
-    QDateTime test_dt(QDate(2000, 6, 15), QTime(14, 30, 0), Qt::UTC);
+    QDateTime test_dt = utcDateTime(QDate(2000, 6, 15), QTime(14, 30, 0));
     uint32_t mjd = DateAndTime::dateTimeToMjd(test_dt);
     QDateTime result = DateAndTime::mjdToDateTime(mjd, 14, 30, 0);
 
@@ -363,7 +377,7 @@ void TestFig010DateTime::test_leap_year_date() {
 
     // MJD for Feb 29, 2000
     uint32_t mjd_feb29_2000 = DateAndTime::dateTimeToMjd(
-        QDateTime(QDate(2000, 2, 29), QTime(0, 0), Qt::UTC));
+        utcDateTime(QDate(2000, 2, 29), QTime(0, 0)));
 
     auto fig_data = createFig010Data(mjd_feb29_2000, 12, 0);
     auto dt = parser_->parseFig010_DateAndTime(fig_data);
