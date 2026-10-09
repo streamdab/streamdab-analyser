@@ -262,6 +262,14 @@ private slots:
      * Validates parsing performance <15µs target
      */
     void test12_PerformanceBenchmark() {
+        // The benchmark measures parsing, not per-call debug logging: keep the
+        // logger quiet for the timed section (restored on scope exit).
+        struct LogLevelGuard {
+            Logger::LogLevel saved = Logger::instance().getLogLevel();
+            LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+            ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+        } logGuard;
+
         std::vector<uint8_t> fig_data = {
             0x14, 0x88, 0x88, 0x88, 0x80,
             0x04,

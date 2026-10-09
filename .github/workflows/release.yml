@@ -67,6 +67,14 @@ jobs:
           modules: 'qtmultimedia'
           cache: true
 
+      - name: Install ImageMagick (Windows, icon generation via magick)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install imagemagick.app -y --no-progress
+          $dir = (Get-ChildItem 'C:\Program Files\ImageMagick-*' -Directory | Select-Object -First 1).FullName
+          Add-Content $env:GITHUB_PATH $dir
+
       - name: Bootstrap vcpkg deps (Windows)
         if: runner.os == 'Windows'
         shell: pwsh

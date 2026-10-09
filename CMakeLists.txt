@@ -226,6 +226,11 @@ FetchContent_Declare(
     QtAdvancedDockingSystem
     GIT_REPOSITORY https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git
     GIT_TAG 87cffe5d40307c61141c88b88c10c5e7d181d880 # 4.5.0
+    # Qt-ADS's Versioning.cmake runs `git describe --tags` in OUR source dir;
+    # with no tags it yields an empty version and the Windows .rc fails to
+    # compile (RC2127). Fall back to the pinned version.
+    PATCH_COMMAND ${CMAKE_COMMAND} -DADS_PINNED_VERSION=4.5.0
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_ads_versioning.cmake
 )
 # Qt-ADS ships examples + a Qt6Quick demo app; we only need the library and
 # Qt6Quick is not installed. Force-disable them before MakeAvailable.
@@ -251,9 +256,15 @@ set(CMAKE_BUILD_TYPE Release)
 # Application Icon Generation (cross-platform)
 # ============================================================================
 # Generate PNG fallbacks, .ico (Windows), .icns (macOS) from the source SVG
-find_program(CONVERT_EXECUTABLE convert DOC "ImageMagick convert for icon generation")
+# Windows ships C:\Windows\System32\convert.exe (a disk-format tool, not
+# ImageMagick), so on Windows only the ImageMagick 7 `magick` driver is valid.
+if(WIN32)
+    find_program(CONVERT_EXECUTABLE NAMES magick DOC "ImageMagick for icon generation")
+else()
+    find_program(CONVERT_EXECUTABLE NAMES magick convert DOC "ImageMagick for icon generation")
+endif()
 if(NOT CONVERT_EXECUTABLE)
-    message(WARNING "ImageMagick 'convert' not found - platform icons will not be generated")
+    message(WARNING "ImageMagick ('magick' or 'convert') not found - platform icons will not be generated")
 endif()
 
 # Platform-specific icon sizes
