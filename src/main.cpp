@@ -9611,23 +9611,17 @@ private:
         panelLayout->addWidget(m_slideshowInfo);
 
         m_nowPlayingSplitter->addWidget(slidePanel);
-        // Wave C (user decision): default DLS+ : data-service = 50 : 50.
-        // WHY it is 50/50 now: the right pane is no longer the MOT slideshow
-        // alone — since Wave B it hosts FOUR inner tabs (Slideshow | EPG |
-        // Journaline | TPEG) of comparable weight, so an even split is the
-        // sensible default. The historical 2/3 : 1/3 (T30.4) applied when the
-        // right pane held only the 4:3 letterbox and the text side needed the
-        // room. Draggable and non-collapsible (set above), so the user can
-        // still drag it anywhere.
-        m_nowPlayingSplitter->setStretchFactor(0, 1);
-        m_nowPlayingSplitter->setStretchFactor(1, 1);
-        // Equal sizes + equal 1:1 stretch => the 50/50 default is
-        // deterministic (a later resize stays proportional instead of being
-        // pulled back to a 2:1 bias), and QSplitter honours each pane's
-        // minimumSizeHint on top of it. {500, 500} documents the intended
-        // ratio directly; testMotSlideshowPanelAndTabs pins ~0.5 (tolerance
-        // 0.40–0.60) so a silent restore of the old 2:1 gets caught.
-        m_nowPlayingSplitter->setSizes({500, 500});
+        // Phase 2B: Historical T30.4 ratio restored (67:33, stretch 2:1).
+        // Phase 2A moved EPG/Journaline/TPEG to separate top-level docks.
+        // The right pane (slideshowPanel) now contains ONLY the MOT slideshow
+        // (4:3 letterbox + status). The DLS+ text pane benefits from the extra
+        // width for long track/artist/album strings, matching the original T30.4
+        // design intent. Draggable and non-collapsible (set above).
+        m_nowPlayingSplitter->setStretchFactor(0, 2);  // left (DLS+) gets 2/3
+        m_nowPlayingSplitter->setStretchFactor(1, 1);  // right (slideshow) gets 1/3
+        // Explicit 67/33 split; testMotSlideshowPanelAndTabs pins ~0.667
+        // (tolerance 0.58–0.76) so a silent drift back to 50/50 gets caught.
+        m_nowPlayingSplitter->setSizes({667, 333});
         outerLayout->addWidget(m_nowPlayingSplitter);
 
         return groupBox;
