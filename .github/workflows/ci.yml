@@ -65,7 +65,9 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
+          sudo apt-get install -y cmake qt6-base-dev qt6-base-private-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev \
+            libfaad-dev libfftw3-dev libzmq3-dev \
             libasound2-dev libgtest-dev build-essential
 
       # -------------------------------------------------------------- Windows
