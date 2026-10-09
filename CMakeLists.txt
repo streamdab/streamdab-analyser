@@ -1,18 +1,24 @@
 cmake_minimum_required(VERSION 3.16)
 # PROJECT_VERSION is the fallback used when no git metadata is available (e.g. a
 # source tarball). Tagged checkouts build with the tag they are on.
-project(DABAnalyser_Enhanced VERSION 1.6.0 LANGUAGES CXX)
+project(DABAnalyser_Enhanced VERSION 1.0.0 LANGUAGES CXX)
 
 # ============================================================================
 # Product version -- single source of truth for the GUI, the CLI banner, the
 # About dialog and the YAML header. Resolution order:
 #   1. -DDABX_VERSION=x.y.z on the command line (release/CI override)
-#   2. the most recent reachable git tag (leading "v" stripped)
-#   3. PROJECT_VERSION from the project() line above
+#   2. PROJECT_VERSION from the project() line above (public release = 1.0.0)
+#   3. the most recent reachable git tag (leading "v" stripped) -- ONLY if
+#      explicitly enabled via -DDABX_USE_GIT_VERSION=ON (not for public release)
 # The value is exported to every target as the DABX_VERSION compile definition
 # (see src/core/product_version.hpp for the include-time fallback).
 # ============================================================================
+# Default to PROJECT_VERSION for the public release (1.0.0).
+# Git-tag resolution is opt-in via -DDABX_USE_GIT_VERSION=ON.
 if(NOT DABX_VERSION)
+    set(DABX_VERSION "${PROJECT_VERSION}")
+endif()
+if(DABX_USE_GIT_VERSION AND NOT DABX_VERSION)
     find_package(Git QUIET)
     if(GIT_FOUND)
         execute_process(
@@ -27,9 +33,6 @@ if(NOT DABX_VERSION)
             string(REGEX REPLACE "^v" "" DABX_VERSION "${_dabx_git_tag}")
         endif()
     endif()
-endif()
-if(NOT DABX_VERSION)
-    set(DABX_VERSION "${PROJECT_VERSION}")
 endif()
 message(STATUS "Product version (DABX_VERSION): ${DABX_VERSION}")
 add_compile_definitions(DABX_VERSION="${DABX_VERSION}")
