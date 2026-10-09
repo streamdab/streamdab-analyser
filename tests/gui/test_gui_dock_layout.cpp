@@ -41,6 +41,7 @@
  */
 
 #include <QtTest/QtTest>
+#include <QAccessible>
 #include <QStandardPaths>
 #include <QSettings>
 #include "utils/logger.h"  // Advanced settings tab drives Logger level
@@ -305,6 +306,17 @@ private:
 
 void TestGuiDockLayout::initTestCase()
 {
+    // These tests build several top-level DABAnalyserWindow objects one after
+    // another. With Qt accessibility active (a UI Automation client on the
+    // Windows CI runner), QWidget::setWindowTitle() in the NEXT window's
+    // constructor can hit a stale accessible-interface cache entry left by a
+    // destroyed window at the same address (QAccessibleWidget::text() ->
+    // QWidget::accessibleName() with a null widget -> access violation). No
+    // assistive technology is needed here, so keep accessibility off.
+    if (QAccessible::isActive()) {
+        qInfo() << "QAccessible was active at test start; deactivating";
+        QAccessible::setActive(false);
+    }
     // Every window in this test reads/writes DABAnalyserWindow's QSettings
     // store ("StreamDAB-Analyser","DABAnalyser"). Redirect it to Qt's test-mode
     // location so the real user config is never touched, and start empty.
