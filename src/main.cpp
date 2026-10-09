@@ -9847,7 +9847,7 @@ private:
     // ========================================================================
     // These are now TOP-LEVEL docks in the Tab-1 Right column (see registerTab1Docks),
     // replacing the inner tabs that were previously in the slideshow panel.
-    // The dock registry and DOCKING_LAYOUT_VERSION (10) are updated accordingly.
+    // The dock registry and DOCKING_LAYOUT_VERSION (11) are updated accordingly.
     //
     // Content comes ONLY from the raw data-subchannel bytes the clean tap
     // captures during the load (processDlsPlusFromFrame) and feeds to the
@@ -11759,7 +11759,7 @@ private:
         // All 31 docks come from the registry (registeredDocks()), so the
         // menu cannot drift from the layout the registry test pins. Adding an
         // action to a menu does NOT touch the docking layout, so
-        // DOCKING_LAYOUT_VERSION stays 10.
+        // DOCKING_LAYOUT_VERSION stays 11.
         const QMap<QString, ads::CDockWidget*> docks = registeredDocks();
         for (auto it = docks.cbegin(); it != docks.cend(); ++it) {
             ads::CDockWidget* dock = it.value();
@@ -11814,7 +11814,7 @@ private:
     // "Show All Docks": reopen every closed (or auto-hidden/pinned) dock and
     // bring every already-open dock to the front of its tab group. Only dock
     // visibility is changed here — no layout is written, so the persisted
-    // state and DOCKING_LAYOUT_VERSION (10) are untouched.
+    // state and DOCKING_LAYOUT_VERSION (11) are untouched.
     void showAllDocks()
     {
         const QMap<QString, ads::CDockWidget*> docks = registeredDocks();
