@@ -1181,6 +1181,11 @@ public:
     {
         return routeDataService(subChannelId, bytes);
     }
+    // Test accessor for the registered docks map (Phase 2A: new data-service docks).
+    QMap<QString, ads::CDockWidget*> registeredDocksForTest() const
+    {
+        return registeredDocks();
+    }
     // --- B-M3: FIG label decoding (UTF-8 first, Latin-1 fallback) ----------
     // Raw 16-byte FIG 1/5 `char label[16]` bytes → QString. Thai labels are
     // UTF-8 (3 bytes/char) in real ensembles, legacy ones are Latin-1; decode
@@ -7801,13 +7806,14 @@ private:
 
         // UI redesign (Steps B/C): the Input Source dock is gone (now the
         // toolbar above the page) and Messages moved to the shared bottom
-        // strip; the remaining 14 panels are grouped into tabbed dock areas:
+        // strip; the remaining panels are grouped into tabbed dock areas:
         //   LEFT  : Transport (Player | Decoder | Audio), System
         //   CENTER: Now Playing, Signal Analysis (Ensemble Explorer |
         //           Subchannel Org | CU Usage), Frame Analysis
         //           (ETI Frame Navigator | Hex/ETSI Compliance)
         //   RIGHT : Signal Info (ETI Overview | Status | Timing),
-        //           Error & Statistics (DAB Error Counter | Stream Stats)
+        //           Error & Statistics (DAB Error Counter | Stream Stats),
+        //           Data Services (EPG | Journaline | TPEG) — Phase 2A
         // Each panel keeps its OWN CDockWidget (float/auto-hide/close-one-tab
         // intact); addDockWidgetTabToArea() only groups them. Registration
         // order defines the tab order; the first dock of each group is the
@@ -7884,17 +7890,12 @@ private:
 
         // Phase 2A: Data Services group (EPG | Journaline | TPEG) — new top-level docks
         // These replace the inner tabs that were previously in the slideshow panel.
-        ads::CDockWidget* epgDock = makeDock(m_tab1DockManager, QStringLiteral("tab1_EPG"),
-                                             QStringLiteral("EPG"), createEpgDockContent());
-        m_tab1DockManager->addDockWidget(ads::RightDockWidgetArea, epgDock, nullptr);
-        ads::CDockWidget* journalineDock = makeDock(m_tab1DockManager, QStringLiteral("tab1_Journaline"),
-                                                    QStringLiteral("Journaline"), createJournalineDockContent());
-        m_tab1DockManager->addDockWidgetTabToArea(journalineDock, epgDock->dockAreaWidget());
-        ads::CDockWidget* tpegDock = makeDock(m_tab1DockManager, QStringLiteral("tab1_TPEG"),
-                                              QStringLiteral("TPEG"), createTpegDockContent());
-        m_tab1DockManager->addDockWidgetTabToArea(tpegDock, epgDock->dockAreaWidget());
+        // The docks are now registered via createTab1_RightPanel() and accessed via D().
+        m_tab1DockManager->addDockWidget(ads::RightDockWidgetArea, D("tab1_EPG"), nullptr);
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Journaline"), D("tab1_EPG")->dockAreaWidget());
+        m_tab1DockManager->addDockWidgetTabToArea(D("tab1_TPEG"), D("tab1_EPG")->dockAreaWidget());
         // Default active tab: EPG.
-        epgDock->dockAreaWidget()->setCurrentDockWidget(epgDock);
+        D("tab1_EPG")->dockAreaWidget()->setCurrentDockWidget(D("tab1_EPG"));
 
         // Locate the top-level splitter of this manager's container.
         QSplitter* root = nullptr;
@@ -8500,6 +8501,22 @@ private:
         QGroupBox* streamStatsPanel = createStreamStatisticsPanel();
         if (streamStatsPanel) {
             sections.append({QStringLiteral("tab1_StreamStats"), QStringLiteral("DAB Stream Statistics"), streamStatsPanel});
+        }
+
+        // 6. Data Services group (Phase 2A) — EPG, Journaline, TPEG
+        // These are created as standalone widgets (not GroupBoxes) and will be
+        // tabbed together in registerTab1Docks().
+        QWidget* epgContent = createEpgDockContent();
+        if (epgContent) {
+            sections.append({QStringLiteral("tab1_EPG"), QStringLiteral("EPG"), epgContent});
+        }
+        QWidget* journalineContent = createJournalineDockContent();
+        if (journalineContent) {
+            sections.append({QStringLiteral("tab1_Journaline"), QStringLiteral("Journaline"), journalineContent});
+        }
+        QWidget* tpegContent = createTpegDockContent();
+        if (tpegContent) {
+            sections.append({QStringLiteral("tab1_TPEG"), QStringLiteral("TPEG"), tpegContent});
         }
 
         return sections;
@@ -9656,11 +9673,11 @@ private:
     }
 
     // ========================================================================
-    // Wave B: inner data-service tabs (Slideshow | EPG | Journaline | TPEG)
+    // Phase 2A: top-level data-service docks (EPG | Journaline | TPEG)
     // ========================================================================
-    // The tabs live INSIDE the existing Now Playing / Slideshow dock area (see
-    // createNowPlayingPanel) — no new top-level dock, so the dock registry and
-    // DOCKING_LAYOUT_VERSION stay untouched.
+    // These are now TOP-LEVEL docks in the Tab-1 Right column (see registerTab1Docks),
+    // replacing the inner tabs that were previously in the slideshow panel.
+    // The dock registry and DOCKING_LAYOUT_VERSION (9) are updated accordingly.
     //
     // Content comes ONLY from the raw data-subchannel bytes the clean tap
     // captures during the load (processDlsPlusFromFrame) and feeds to the
@@ -9913,8 +9930,8 @@ private:
     // --- Per-capture reset -------------------------------------------------
 
     /// Drop the previous capture's decoded data-service state and return the
-    /// inner tabs to their waiting state. Called from resetCaptureState()
-    /// BEFORE a new capture is fed; safe to call before the tabs exist.
+    /// dock widgets to their waiting state. Called from resetCaptureState()
+    /// BEFORE a new capture is fed; safe to call before the docks exist.
     void resetDataServicePanels()
     {
         if (m_epgDecoder) {
@@ -11449,10 +11466,10 @@ private:
             windowMenu->addMenu(QStringLiteral("Docking Dialog"));
         dockingMenu->setObjectName(QStringLiteral("dockingDialogMenu"));
 
-        // All 27 docks come from the registry (registeredDocks()), so the
+        // All 30 docks come from the registry (registeredDocks()), so the
         // menu cannot drift from the layout the registry test pins. Adding an
         // action to a menu does NOT touch the docking layout, so
-        // DOCKING_LAYOUT_VERSION stays 8.
+        // DOCKING_LAYOUT_VERSION stays 9.
         const QMap<QString, ads::CDockWidget*> docks = registeredDocks();
         for (auto it = docks.cbegin(); it != docks.cend(); ++it) {
             ads::CDockWidget* dock = it.value();
@@ -11507,7 +11524,7 @@ private:
     // "Show All Docks": reopen every closed (or auto-hidden/pinned) dock and
     // bring every already-open dock to the front of its tab group. Only dock
     // visibility is changed here — no layout is written, so the persisted
-    // state and DOCKING_LAYOUT_VERSION (8) are untouched.
+    // state and DOCKING_LAYOUT_VERSION (9) are untouched.
     void showAllDocks()
     {
         const QMap<QString, ads::CDockWidget*> docks = registeredDocks();
