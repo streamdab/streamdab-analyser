@@ -718,6 +718,11 @@ if(CAN_RUN_GUI_TESTS)
             list(APPEND APP_UNDER_TEST_SOURCES ${CMAKE_SOURCE_DIR}/${src})
         endif()
     endforeach()
+    # AUTOMOC puts the app target's .moc files in <autogen>/include on
+    # single-config generators but <autogen>/include_<CONFIG> on multi-config
+    # ones (Visual Studio), so the tests that include src/main.cpp need both.
+    set(APP_AUTOGEN_INCLUDE_DIR
+        "${CMAKE_BINARY_DIR}/DABAnalyser_Enhanced_FilteringBuild_autogen/include$<$<BOOL:${CMAKE_CONFIGURATION_TYPES}>:_$<CONFIG>>")
     add_executable(test_gui_dock_layout
         gui/test_gui_dock_layout.cpp
         ${APP_UNDER_TEST_SOURCES})
@@ -739,7 +744,7 @@ if(CAN_RUN_GUI_TESTS)
     # expose its autogen include directory.
     add_dependencies(test_gui_dock_layout DABAnalyser_Enhanced_FilteringBuild)
     target_include_directories(test_gui_dock_layout PRIVATE
-        ${CMAKE_BINARY_DIR}/DABAnalyser_Enhanced_FilteringBuild_autogen/include)
+        ${APP_AUTOGEN_INCLUDE_DIR})
     add_test(NAME test_gui_dock_layout
              COMMAND test_gui_dock_layout)
     set_tests_properties(test_gui_dock_layout PROPERTIES
@@ -779,7 +784,7 @@ if(CAN_RUN_GUI_TESTS)
     # Same main.moc contract as test_gui_dock_layout (see above).
     add_dependencies(test_dock_interactions DABAnalyser_Enhanced_FilteringBuild)
     target_include_directories(test_dock_interactions PRIVATE
-        ${CMAKE_BINARY_DIR}/DABAnalyser_Enhanced_FilteringBuild_autogen/include)
+        ${APP_AUTOGEN_INCLUDE_DIR})
     add_test(NAME test_dock_interactions
              COMMAND test_dock_interactions)
     set_tests_properties(test_dock_interactions PROPERTIES
