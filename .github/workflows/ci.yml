@@ -128,6 +128,29 @@ jobs:
       - name: Test (ctest ${{ matrix.test }} -L PUBLIC)
         run: ctest --preset ${{ matrix.test }} -L PUBLIC
 
+      # QtTest output is lost when a Windows test crashes (stdout is not
+      # flushed), so re-run each failed test directly with a verbose file log.
+      - name: Diagnose failed tests (Windows, verbose rerun)
+        if: failure() && runner.os == 'Windows'
+        shell: pwsh
+        working-directory: build
+        run: |
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          $list = 'Testing/Temporary/LastTestsFailed.log'
+          if (Test-Path $list) {
+            foreach ($line in Get-Content $list) {
+              $name = ($line -split ':', 2)[1]
+              if (-not $name) { continue }
+              Write-Host "=== $name"
+              $exe = Get-ChildItem -Path . -Recurse -Filter "$name.exe" | Select-Object -First 1
+              if (-not $exe) { Write-Host 'executable not found'; continue }
+              & $exe.FullName -v2 -o "$name.log,txt"
+              Write-Host "exit code: $LASTEXITCODE"
+              if (Test-Path "$name.log") { Get-Content "$name.log" -Tail 150 }
+            }
+          }
+          exit 0
+
       # --------------------------------------------------------- smoke checks
       - name: CLI smoke (real fixture, Linux/macOS)
         if: runner.os != 'Windows'
