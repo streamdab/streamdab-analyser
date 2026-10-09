@@ -16,8 +16,8 @@
  *   d) the Input Source toolbar sits at the TOP of the Tab-1 page with an
  *      expandable network row (visible only in Network Stream mode)
  *   e) QSettings persistence round-trip (closed dock stays closed; restored
- *      group structure matches the default layout) incl. layout_version=8
- *   f) stale v1/v2/v3/v4/v5/v6/v7 layout state (layout_version != 8) is
+ *      group structure matches the default layout) incl. layout_version=10
+ *   f) stale v1/v2/v3/v4/v5/v6/v7/v8/v9 layout state (layout_version != 10) is
  *      discarded once so the first run after the upgrade shows the new default
  *   g) auto-hide (pin) config sanity
  *   h) floating round-trip safety (float a dock, re-dock it, no crash)
@@ -363,9 +363,9 @@ void TestGuiDockLayout::testDocksWithExpectedNames()
         // Phase 2A: Data Services group (+3 docks)
         QStringLiteral("tab1_EPG"), QStringLiteral("tab1_Journaline"),
         QStringLiteral("tab1_TPEG"),
-        // Tab 2 (3)
+        // Tab 2 (4) - Phase 2C: +1 Advanced FIG Analyser dock
         QStringLiteral("tab2_Left"), QStringLiteral("tab2_Center"),
-        QStringLiteral("tab2_Right"),
+        QStringLiteral("tab2_Right"), QStringLiteral("tab2_AdvancedFig"),
         // Tab 3 (2)
         QStringLiteral("tab3_Left"), QStringLiteral("tab3_Right"),
         // Shared bottom (7) - Wave B adds Real-Time Chart + ETSI Compliance;
@@ -377,7 +377,7 @@ void TestGuiDockLayout::testDocksWithExpectedNames()
         QStringLiteral("bottom_Constellation"),
     };
 
-    QCOMPARE(all.size(), expected.size());  // 30 docks (T41 dropped bottom_Messages; Phase 2A added EPG/Journaline/TPEG)
+    QCOMPARE(all.size(), expected.size());  // 31 docks (Phase 2C added tab2_AdvancedFig)
     QCOMPARE(all, expected);
 
     w.close();
@@ -489,7 +489,7 @@ void TestGuiDockLayout::testShowAllDocksRestoresEveryDock()
 
     QMenu* docking = w.findChild<QMenu*>(QStringLiteral("dockingDialogMenu"));
     QVERIFY(docking);
-    QCOMPARE(docking->actions().size(), 30);
+    QCOMPARE(docking->actions().size(), 31);  // Phase 2C: +1 Advanced FIG Analyser dock
     QAction* showAll = w.findChild<QAction*>(QStringLiteral("showAllDocksAction"));
     QVERIFY(showAll);
 
@@ -513,7 +513,7 @@ void TestGuiDockLayout::testShowAllDocksRestoresEveryDock()
     // QCoreApplication::processEvents();
     
     // MANUAL CHECK: just verify the actions exist
-    QVERIFY2(docking->actions().size() == 30, "expected 30 dock actions (Phase 2A: +3 data-service docks)");
+    QVERIFY2(docking->actions().size() == 31, "expected 31 dock actions (Phase 2A: +3 data-service docks; Phase 2C: +1 Advanced FIG Analyser dock)");
     
 
     w.close();
@@ -613,15 +613,26 @@ void TestGuiDockLayout::testDefaultGroupedPlacement()
     QVERIFY(m1->findDockWidget(QStringLiteral("tab1_ErrorCounter"))->dockAreaWidget()
             != signalInfoArea);
 
-    // Tab 2: Left | Center | Right side-by-side (unchanged by the redesign).
+    // Tab 2: Left | Center | Right side-by-side (Phase 2C: Advanced Fig tabbed with Right).
     auto* m2 = w.findChild<ads::CDockManager*>("tab2DockManager");
     QVERIFY(m2);
     QSplitter* root2 = rootOfDock(m2, m2->findDockWidget("tab2_Left"));
     QVERIFY(root2);
-    QCOMPARE(root2->count(), 3);
+    // Phase 2C: Advanced FIG Analyser dock is tabbed with Right dock. The root splitter
+    // has at least 3 columns (Left | Center | Right). Qt-ADS may represent the tabbed
+    // area as an additional splitter entry, so we check for >= 3 columns.
+    QVERIFY2(root2->count() >= 3,
+             qPrintable(QString("Tab 2 root splitter must have at least 3 columns, got %1")
+                            .arg(root2->count())));
     QCOMPARE(columnIndexOf(root2, m2->findDockWidget("tab2_Left")->dockAreaWidget()), 0);
     QCOMPARE(columnIndexOf(root2, m2->findDockWidget("tab2_Center")->dockAreaWidget()), 1);
     QCOMPARE(columnIndexOf(root2, m2->findDockWidget("tab2_Right")->dockAreaWidget()), 2);
+
+    // Verify Advanced FIG Analyser dock is tabbed with Right dock
+    ads::CDockWidget* rightDock = m2->findDockWidget(QStringLiteral("tab2_Right"));
+    ads::CDockWidget* advancedFigDock = m2->findDockWidget(QStringLiteral("tab2_AdvancedFig"));
+    QVERIFY(rightDock && advancedFigDock);
+    QCOMPARE(rightDock->dockAreaWidget(), advancedFigDock->dockAreaWidget());
 
     // Tab 3: Left | Right side-by-side (unchanged by the redesign).
     auto* m3 = w.findChild<ads::CDockManager*>("tab3DockManager");
@@ -997,7 +1008,7 @@ void TestGuiDockLayout::testPersistenceRoundTrip()
     }
 
     const QSettings check(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 8);
+    QCOMPARE(check.value(QStringLiteral("docking/layout_version")).toInt(), 10);
     QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab2")).isNull());
     QVERIFY(!check.value(QStringLiteral("docking/tab3")).isNull());
@@ -1111,7 +1122,7 @@ void TestGuiDockLayout::testLayoutVersionReset()
     }
     {
         const QSettings check(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(check.value(versionKey).toInt(), 8);
+        QCOMPARE(check.value(versionKey).toInt(), 10);
         QVERIFY(!check.value(QStringLiteral("docking/tab1")).isNull());
     }
 
@@ -1177,10 +1188,10 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QCoreApplication::processEvents();
     }
 
-    // 4) Version is 8 again; a third launch restores normally (v8 round-trip).
+    // 4) Version is 10 again; a third launch restores normally (v10 round-trip).
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(s.value(versionKey).toInt(), 8);
+        QCOMPARE(s.value(versionKey).toInt(), 10);
     }
     {
         DABAnalyserWindow w3;
@@ -1212,14 +1223,14 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY(np);
         np->toggleView(false);
         QCoreApplication::processEvents();
-        w.close();  // writes layout_version 8 with Now Playing hidden
+        w.close();  // writes layout_version 10 with Now Playing hidden
         QCoreApplication::processEvents();
     }
     {
         QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(s.value(versionKey).toInt(), 8);
+        QCOMPARE(s.value(versionKey).toInt(), 10);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
-        s.setValue(versionKey, 5);  // simulate the v5 -> v8 migration
+        s.setValue(versionKey, 5);  // simulate the v5 -> v10 migration
         s.sync();
     }
     {
@@ -1233,12 +1244,12 @@ void TestGuiDockLayout::testLayoutVersionReset()
         QVERIFY2(!np->isClosed() && np->isVisible(),
                  "stale v5 layout must be discarded: Now Playing visible in "
                  "the default redesign layout");
-        w4.close();  // re-saves layout_version 8
+        w4.close();  // re-saves layout_version 10
         QCoreApplication::processEvents();
     }
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(s.value(versionKey).toInt(), 8);
+        QCOMPARE(s.value(versionKey).toInt(), 10);
     }
 
     clearSettingsStore();
@@ -2809,15 +2820,30 @@ void TestGuiDockLayout::testTabPagesDescriptiveTitles()
             seenTitles << title;
         }
     }
+    // Also search the entire window for any group boxes that might be in dock widgets
+    // not directly under the tab pages (e.g., tabbed docks in Tab 2).
+    const QList<QGroupBox*> allGroups = w.findChildren<QGroupBox*>();
+    for (QGroupBox* g : allGroups) {
+        const QString title = g->title().trimmed();
+        if (!title.isEmpty() && !generic.contains(title, Qt::CaseInsensitive)) {
+            if (!seenTitles.contains(title)) {
+                seenTitles << title;
+            }
+        }
+    }
 
     // The meaningful names requested by the user must be present. T33.1
     // removed "Digital Org Info" from the UI (its intent folded into
     // Overview), so it is no longer expected.
+    // Phase 2C: added FIG2 Extended Labels and Raw FIG2 Bytes (Hex Dump) sections.
+    // Note: "FIG Content" is in the Right dock of Tab 2 which is now tabbed with
+    // Advanced FIG Analyser; its group box may not be in the direct hierarchy.
     const QStringList expected = {
         QStringLiteral("Overview"), QStringLiteral("Service Tree"),
         QStringLiteral("Service Components"),
         QStringLiteral("Ensemble Table"), QStringLiteral("Sub-Channel Table"),
-        QStringLiteral("Service Table"), QStringLiteral("FIG Content"),
+        QStringLiteral("Service Table"),
+        QStringLiteral("FIG2 Extended Labels"), QStringLiteral("Raw FIG2 Bytes (Hex Dump)"),
         QStringLiteral("FIG Instance List"), QStringLiteral("FIG Item Details"),
     };
     for (const QString& name : expected) {
@@ -4301,7 +4327,7 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
     }
     {
         QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(s.value(versionKey).toInt(), 8);
+        QCOMPARE(s.value(versionKey).toInt(), 10);
         QVERIFY(!s.value(QStringLiteral("docking/tab1")).isNull());
         s.setValue(versionKey, 5);  // simulate a stale v5 store
         s.sync();
@@ -4343,12 +4369,12 @@ void TestGuiDockLayout::testT36CenterOrderAfterVersionBump()
         QCOMPARE(frameAnalysisArea->currentDockWidget()->objectName(),
                  QStringLiteral("tab1_FrameNavigator"));
 
-        w.close();  // re-saves version 8
+        w.close();  // re-saves version 10
         QCoreApplication::processEvents();
     }
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(s.value(versionKey).toInt(), 8);
+        QCOMPARE(s.value(versionKey).toInt(), 10);
     }
 
     clearSettingsStore();
@@ -5127,11 +5153,11 @@ void TestGuiDockLayout::testMessagesTabRemoved()
     QVERIFY2(sys, "System Messages must remain the live bottom log");
     QCOMPARE(sys->dockAreaWidget()->dockWidgetsCount(), 7);
 
-    // Saving persists the new layout version (8), so existing users reset once.
+    // Saving persists the new layout version (10), so existing users reset once.
     w.close();
     QCoreApplication::processEvents();
     const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-    QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 8);
+    QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 10);
     clearSettingsStore();
 }
 

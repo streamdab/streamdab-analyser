@@ -918,6 +918,10 @@ public:
     QLabel* tab2DigitalServicesLabelForTest() const { return m_tab2_digitalServices; }
     QTreeWidget* tab2ServiceComponentsForTest() const { return m_tab2_serviceComponents; }
     QTableWidget* tab2ServiceTable() const { return m_tab2_serviceTable; }
+    // Phase 2C: Advanced FIG Analyser dock (FIG2 Extended Labels)
+    QTreeWidget* advancedFigTreeForTest() const { return m_advancedFigTree; }
+    QTextEdit* advancedFigHexViewerForTest() const { return m_advancedFigHexViewer; }
+    QComboBox* advancedFigFilterForTest() const { return m_advancedFigFilter; }
     QTreeWidget* tab3FigInstanceTree() const { return m_tab3_figInstanceTree; }
     QTreeWidget* tab3FigItemDetailsTree() const { return m_tab3_figItemDetailsTree; }
     // T28: Tab-3 left dock inner tabs + Frame List.
@@ -8689,6 +8693,111 @@ private:
         return panel;
     }
 
+    // ========================================================================
+    // Phase 2C: Advanced FIG Analyser Dock - FIG2 Extended Labels Display
+    // ========================================================================
+    QWidget* createAdvancedFigAnalyserDockContent()
+    {
+        QWidget* panel = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(panel);
+        layout->setContentsMargins(2, 2, 2, 2);
+        layout->setSpacing(4);
+
+        // Toolbar with filter combo
+        QHBoxLayout* toolbarLayout = new QHBoxLayout();
+        toolbarLayout->setContentsMargins(0, 0, 0, 0);
+        
+        QLabel* filterLabel = new QLabel("Filter:");
+        filterLabel->setToolTip("Filter FIG2 extended labels by entity type");
+        toolbarLayout->addWidget(filterLabel);
+        
+        m_advancedFigFilter = new QComboBox();
+        m_advancedFigFilter->setObjectName(QStringLiteral("advancedFigFilter"));
+        m_advancedFigFilter->addItem("All FIG2 Types", QVariant::fromValue<int>(-1));
+        m_advancedFigFilter->addItem("FIG 2/0 - Ensemble Extended Labels", QVariant::fromValue<int>(0));
+        m_advancedFigFilter->addItem("FIG 2/1 - Service Extended Labels", QVariant::fromValue<int>(1));
+        m_advancedFigFilter->addItem("FIG 2/4 - Component Extended Labels", QVariant::fromValue<int>(4));
+        m_advancedFigFilter->addItem("FIG 2/5 - Data Service Extended Labels", QVariant::fromValue<int>(5));
+        m_advancedFigFilter->setToolTip("Select which FIG2 type to display");
+        toolbarLayout->addWidget(m_advancedFigFilter);
+        
+        toolbarLayout->addStretch();
+        
+        QPushButton* refreshBtn = new QPushButton("Refresh");
+        refreshBtn->setToolTip("Refresh the display from current analyser state");
+        connect(refreshBtn, &QPushButton::clicked, this, &DABAnalyserWindow::refreshAdvancedFigDisplay);
+        toolbarLayout->addWidget(refreshBtn);
+        
+        layout->addLayout(toolbarLayout);
+
+        // Main content: vertical splitter between tree/table and hex viewer
+        QSplitter* mainSplitter = new QSplitter(Qt::Vertical);
+        mainSplitter->setObjectName(QStringLiteral("advancedFigMainSplitter"));
+        mainSplitter->setChildrenCollapsible(false);
+
+        // Top: Tree/Table showing FIG2 extended labels
+        QGroupBox* fig2Group = new QGroupBox("FIG2 Extended Labels");
+        QVBoxLayout* fig2Layout = new QVBoxLayout(fig2Group);
+        fig2Layout->setContentsMargins(4, 4, 4, 4);
+        
+        m_advancedFigTree = new QTreeWidget();
+        m_advancedFigTree->setObjectName(QStringLiteral("advancedFigTree"));
+        m_advancedFigTree->setHeaderLabels({
+            "FIG2 Type", "Entity ID", "Label", "Charset", "Segments", "Toggle", "Last Updated"
+        });
+        m_advancedFigTree->setAlternatingRowColors(true);
+        m_advancedFigTree->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        m_advancedFigTree->setUniformRowHeights(true);
+        m_advancedFigTree->setRootIsDecorated(false);
+        m_advancedFigTree->setSortingEnabled(true);
+        m_advancedFigTree->sortByColumn(0, Qt::AscendingOrder);
+        
+        // Set column widths
+        m_advancedFigTree->setColumnWidth(0, 120);  // FIG2 Type
+        m_advancedFigTree->setColumnWidth(1, 100);  // Entity ID
+        m_advancedFigTree->setColumnWidth(2, 300);  // Label
+        m_advancedFigTree->setColumnWidth(3, 80);   // Charset
+        m_advancedFigTree->setColumnWidth(4, 80);   // Segments
+        m_advancedFigTree->setColumnWidth(5, 60);   // Toggle
+        m_advancedFigTree->setColumnWidth(6, 140);  // Last Updated
+        
+        // Use monospace font for ID column
+        QFont monoFont("Consolas", 9);
+        m_advancedFigTree->setFont(monoFont);
+        
+        fig2Layout->addWidget(m_advancedFigTree);
+        mainSplitter->addWidget(fig2Group);
+
+        // Bottom: Raw FIG2 bytes viewer (hex dump) for selected entity
+        QGroupBox* hexGroup = new QGroupBox("Raw FIG2 Bytes (Hex Dump)");
+        QVBoxLayout* hexLayout = new QVBoxLayout(hexGroup);
+        hexLayout->setContentsMargins(4, 4, 4, 4);
+        
+        m_advancedFigHexViewer = new QTextEdit();
+        m_advancedFigHexViewer->setObjectName(QStringLiteral("advancedFigHexViewer"));
+        m_advancedFigHexViewer->setReadOnly(true);
+        m_advancedFigHexViewer->setLineWrapMode(QTextEdit::NoWrap);
+        m_advancedFigHexViewer->setFont(QFont("Consolas", 8));
+        m_advancedFigHexViewer->setPlaceholderText("Select a FIG2 entry above to view its raw bytes...");
+        hexLayout->addWidget(m_advancedFigHexViewer);
+        mainSplitter->addWidget(hexGroup);
+
+        // Set initial splitter sizes (70% tree, 30% hex)
+        mainSplitter->setSizes({500, 200});
+        
+        layout->addWidget(mainSplitter, 1);
+
+        // Connect tree selection to hex viewer
+        connect(m_advancedFigTree, &QTreeWidget::itemSelectionChanged,
+                this, &DABAnalyserWindow::onAdvancedFigTreeSelectionChanged);
+        
+        // Connect filter combo to refresh display
+        connect(m_advancedFigFilter, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this, &DABAnalyserWindow::refreshAdvancedFigDisplay);
+
+        return panel;
+    }
+
     QWidget* createTab2_FICAnalyser()
     {
         QWidget* mainPanel = new QWidget();
@@ -8723,12 +8832,26 @@ private:
         ads::CDockWidget* rightDock = makeDock(m_tab2DockManager,
             QStringLiteral("tab2_Right"), QStringLiteral("FIG Content"),
             createTab2_RightPanel());
+        
+        // Phase 2C: Advanced FIG Analyser dock - tabbed with FIG Content in Right area
+        ads::CDockWidget* advancedFigDock = makeDock(m_tab2DockManager,
+            QStringLiteral("tab2_AdvancedFig"), QStringLiteral("Advanced FIG Analyser"),
+            createAdvancedFigAnalyserDockContent());
 
         // Center FIRST (establishes the root splitter), then left/right append
         // side-by-side -> Left | Center | Right (empirically verified).
         m_tab2DockManager->addDockWidget(ads::CenterDockWidgetArea, centerDock, nullptr);
         m_tab2DockManager->addDockWidget(ads::LeftDockWidgetArea, leftDock, nullptr);
         m_tab2DockManager->addDockWidget(ads::RightDockWidgetArea, rightDock, nullptr);
+        // Add Advanced FIG Analyser dock to Right area (will be tabbed with FIG Content)
+        // Use addDockWidgetTabToArea to ensure it's tabbed with the Right dock
+        ads::CDockAreaWidget* rightArea = rightDock->dockAreaWidget();
+        if (rightArea) {
+            m_tab2DockManager->addDockWidgetTabToArea(advancedFigDock, rightArea);
+        } else {
+            // Fallback: add to Right area, Qt-ADS will create a new area if needed
+            m_tab2DockManager->addDockWidget(ads::RightDockWidgetArea, advancedFigDock, nullptr);
+        }
 
         QSplitter* root = nullptr;
         const auto splitters = m_tab2DockManager->findChildren<QSplitter*>();
@@ -9671,7 +9794,7 @@ private:
     // ========================================================================
     // These are now TOP-LEVEL docks in the Tab-1 Right column (see registerTab1Docks),
     // replacing the inner tabs that were previously in the slideshow panel.
-    // The dock registry and DOCKING_LAYOUT_VERSION (9) are updated accordingly.
+    // The dock registry and DOCKING_LAYOUT_VERSION (10) are updated accordingly.
     //
     // Content comes ONLY from the raw data-subchannel bytes the clean tap
     // captures during the load (processDlsPlusFromFrame) and feeds to the
@@ -11460,10 +11583,10 @@ private:
             windowMenu->addMenu(QStringLiteral("Docking Dialog"));
         dockingMenu->setObjectName(QStringLiteral("dockingDialogMenu"));
 
-        // All 30 docks come from the registry (registeredDocks()), so the
+        // All 31 docks come from the registry (registeredDocks()), so the
         // menu cannot drift from the layout the registry test pins. Adding an
         // action to a menu does NOT touch the docking layout, so
-        // DOCKING_LAYOUT_VERSION stays 9.
+        // DOCKING_LAYOUT_VERSION stays 10.
         const QMap<QString, ads::CDockWidget*> docks = registeredDocks();
         for (auto it = docks.cbegin(); it != docks.cend(); ++it) {
             ads::CDockWidget* dock = it.value();
@@ -11518,7 +11641,7 @@ private:
     // "Show All Docks": reopen every closed (or auto-hidden/pinned) dock and
     // bring every already-open dock to the front of its tab group. Only dock
     // visibility is changed here — no layout is written, so the persisted
-    // state and DOCKING_LAYOUT_VERSION (9) are untouched.
+    // state and DOCKING_LAYOUT_VERSION (10) are untouched.
     void showAllDocks()
     {
         const QMap<QString, ads::CDockWidget*> docks = registeredDocks();
@@ -11666,6 +11789,21 @@ private:
                 Qt::QueuedConnection);
 
         qDebug() << "[PHASE 2] Tab 1 data widget connections established";
+
+        // === Phase 2C: Advanced FIG Analyser - Extended Label Updates ===
+        connect(m_figAnalyser.get(), &AdvancedFIGAnalyser::extendedLabelUpdated,
+                this, &DABAnalyserWindow::onExtendedLabelUpdated,
+                Qt::QueuedConnection);
+
+        // Populate Advanced FIG Analyser dock on initial load
+        connect(m_figAnalyser.get(), &AdvancedFIGAnalyser::servicesUpdated,
+                this, [this]() {
+                    if (m_advancedFigTree) {
+                        refreshAdvancedFigDisplay();
+                    }
+                }, Qt::QueuedConnection);
+
+        qDebug() << "[PHASE 2C] Advanced FIG Analyser connections established";
 
         // === PHASE 3 AGENT 4: Frame Navigation Signal Connections ===
         // Note: Slider and spinbox widgets will be created by Agent 1
@@ -12400,6 +12538,221 @@ private:
         updateCUUsage();
     }
 
+    // Phase 2C: Advanced FIG Analyser slots
+    void refreshAdvancedFigDisplay()
+    {
+        if (!m_figAnalyser || !m_advancedFigTree) {
+            return;
+        }
+        
+        // Store current selection to restore if possible
+        QString selectedEntityId;
+        if (auto* item = m_advancedFigTree->currentItem()) {
+            selectedEntityId = item->data(1, Qt::UserRole).toString();
+        }
+        
+        m_advancedFigTree->clear();
+        
+        int filterType = -1;
+        if (m_advancedFigFilter) {
+            filterType = m_advancedFigFilter->currentData().toInt();
+        }
+        
+        // Helper lambda to format entity ID as hex
+        auto formatEntityId = [](uint32_t id, bool is16bit) -> QString {
+            return QString("0x%1").arg(id, is16bit ? 4 : 8, 16, QChar('0')).toUpper();
+        };
+        
+        // Helper lambda to format timestamp
+        auto formatTimestamp = [](const QDateTime& dt) -> QString {
+            if (!dt.isValid()) return QString();
+            return dt.toString("yyyy-MM-dd HH:mm:ss.zzz");
+        };
+        
+        // Current time for "last updated" (in real implementation, we'd store this per-label)
+        QDateTime now = QDateTime::currentDateTime();
+        
+        // FIG 2/0 - Ensemble Extended Labels
+        if (filterType == -1 || filterType == 0) {
+            const auto& ensembleLabels = m_figAnalyser->getEnsembleExtendedLabelsMap();
+            for (const auto& pair : ensembleLabels) {
+                uint16_t ensembleId = pair.first;
+                const auto& labelInfo = pair.second;
+                
+                QString fullLabel;
+                int segmentCount = 0;
+                uint8_t lastToggle = 0;
+                
+                for (int i = 0; i < 8; ++i) {
+                    auto segIt = labelInfo.segments.find(i);
+                    if (segIt != labelInfo.segments.end()) {
+                        const auto& segment = segIt->second;
+                        segmentCount++;
+                        lastToggle = segment.toggle_flag;
+                        for (uint8_t byte : segment.text_segment) {
+                            fullLabel.append(static_cast<char>(byte));
+                        }
+                    }
+                }
+                
+                if (fullLabel.isEmpty()) continue;
+                
+                QString utf8Label = QString::fromUtf8(fullLabel.toUtf8());
+                
+                auto* item = new QTreeWidgetItem(m_advancedFigTree);
+                item->setText(0, "FIG 2/0 (Ensemble)");
+                item->setText(1, formatEntityId(ensembleId, true));
+                item->setText(2, utf8Label);
+                item->setText(3, "UTF-8");
+                item->setText(4, QString::number(segmentCount) + "/8");
+                item->setText(5, QString::number(lastToggle));
+                item->setText(6, formatTimestamp(now));
+                item->setData(1, Qt::UserRole, QString("ensemble_%1").arg(ensembleId));
+                item->setData(0, Qt::UserRole, QVariant::fromValue<int>(0)); // FIG2 type
+                item->setData(2, Qt::UserRole, fullLabel.toUtf8()); // raw bytes
+                item->setFont(1, QFont("Consolas", 9));
+            }
+        }
+        
+        // FIG 2/1 - Service Extended Labels (includes FIG 2/5 data services)
+        if (filterType == -1 || filterType == 1) {
+            const auto& serviceLabels = m_figAnalyser->getServiceExtendedLabelsMap();
+            for (const auto& pair : serviceLabels) {
+                uint32_t serviceId = pair.first;
+                const auto& labelInfo = pair.second;
+                
+                QString fullLabel;
+                int segmentCount = 0;
+                uint8_t lastToggle = 0;
+                
+                for (int i = 0; i < 8; ++i) {
+                    auto segIt = labelInfo.segments.find(i);
+                    if (segIt != labelInfo.segments.end()) {
+                        const auto& segment = segIt->second;
+                        segmentCount++;
+                        lastToggle = segment.toggle_flag;
+                        for (uint8_t byte : segment.text_segment) {
+                            fullLabel.append(static_cast<char>(byte));
+                        }
+                    }
+                }
+                
+                if (fullLabel.isEmpty()) continue;
+                
+                QString utf8Label = QString::fromUtf8(fullLabel.toUtf8());
+                
+                auto* item = new QTreeWidgetItem(m_advancedFigTree);
+                item->setText(0, "FIG 2/1 (Service)");
+                item->setText(1, formatEntityId(serviceId, false));
+                item->setText(2, utf8Label);
+                item->setText(3, "UTF-8");
+                item->setText(4, QString::number(segmentCount) + "/8");
+                item->setText(5, QString::number(lastToggle));
+                item->setText(6, formatTimestamp(now));
+                item->setData(1, Qt::UserRole, QString("service_%1").arg(serviceId));
+                item->setData(0, Qt::UserRole, QVariant::fromValue<int>(1));
+                item->setData(2, Qt::UserRole, fullLabel.toUtf8());
+                item->setFont(1, QFont("Consolas", 9));
+            }
+        }
+        
+        // FIG 2/4 - Component Extended Labels
+        if (filterType == -1 || filterType == 4) {
+            const auto& componentLabels = m_figAnalyser->getComponentExtendedLabelsMap();
+            for (const auto& pair : componentLabels) {
+                uint64_t key = pair.first;
+                const auto& labelInfo = pair.second;
+                uint32_t serviceId = static_cast<uint32_t>(key >> 8);
+                uint8_t componentId = static_cast<uint8_t>(key & 0xFF);
+                
+                QString fullLabel;
+                int segmentCount = 0;
+                uint8_t lastToggle = 0;
+                
+                for (int i = 0; i < 8; ++i) {
+                    auto segIt = labelInfo.segments.find(i);
+                    if (segIt != labelInfo.segments.end()) {
+                        const auto& segment = segIt->second;
+                        segmentCount++;
+                        lastToggle = segment.toggle_flag;
+                        for (uint8_t byte : segment.text_segment) {
+                            fullLabel.append(static_cast<char>(byte));
+                        }
+                    }
+                }
+                
+                if (fullLabel.isEmpty()) continue;
+                
+                QString utf8Label = QString::fromUtf8(fullLabel.toUtf8());
+                
+                auto* item = new QTreeWidgetItem(m_advancedFigTree);
+                item->setText(0, "FIG 2/4 (Component)");
+                item->setText(1, QString("0x%1:%2").arg(serviceId, 8, 16, QChar('0')).toUpper().arg(componentId));
+                item->setText(2, utf8Label);
+                item->setText(3, "UTF-8");
+                item->setText(4, QString::number(segmentCount) + "/8");
+                item->setText(5, QString::number(lastToggle));
+                item->setText(6, formatTimestamp(now));
+                item->setData(1, Qt::UserRole, QString("component_%1_%2").arg(serviceId).arg(componentId));
+                item->setData(0, Qt::UserRole, QVariant::fromValue<int>(4));
+                item->setData(2, Qt::UserRole, fullLabel.toUtf8());
+                item->setFont(1, QFont("Consolas", 9));
+            }
+        }
+        
+        // Restore selection if possible
+        if (!selectedEntityId.isEmpty()) {
+            for (int i = 0; i < m_advancedFigTree->topLevelItemCount(); ++i) {
+                auto* item = m_advancedFigTree->topLevelItem(i);
+                if (item->data(1, Qt::UserRole).toString() == selectedEntityId) {
+                    m_advancedFigTree->setCurrentItem(item);
+                    break;
+                }
+            }
+        }
+    }
+    
+    void onAdvancedFigTreeSelectionChanged()
+    {
+        if (!m_advancedFigHexViewer || !m_advancedFigTree) {
+            return;
+        }
+        
+        auto* item = m_advancedFigTree->currentItem();
+        if (!item) {
+            m_advancedFigHexViewer->clear();
+            m_advancedFigHexViewer->setPlaceholderText("Select a FIG2 entry above to view its raw bytes...");
+            return;
+        }
+        
+        QByteArray rawData = item->data(2, Qt::UserRole).toByteArray();
+        if (rawData.isEmpty()) {
+            m_advancedFigHexViewer->clear();
+            m_advancedFigHexViewer->setPlaceholderText("No raw data available for this entry");
+            return;
+        }
+        
+        // Format as hex dump
+        QString hexDump;
+        hexDump.reserve(rawData.size() * 3);
+        for (int i = 0; i < rawData.size(); ++i) {
+            if (i % 16 == 0) {
+                if (i > 0) hexDump += "\n";
+                hexDump += QString("%1: ").arg(i, 4, 16, QChar('0')).toUpper();
+            }
+            hexDump += QString("%1 ").arg(static_cast<uint8_t>(rawData[i]), 2, 16, QChar('0')).toUpper();
+        }
+        
+        m_advancedFigHexViewer->setPlainText(hexDump);
+    }
+    
+    void onExtendedLabelUpdated(uint32_t entity_id, const QString& label)
+    {
+        // Refresh the display when a new extended label arrives
+        // This slot is connected to m_figAnalyser->extendedLabelUpdated
+        refreshAdvancedFigDisplay();
+    }
+
 private:
     // Core components
     std::unique_ptr<EnhancedETIProcessorQt> m_etiProcessor;
@@ -12564,6 +12917,11 @@ private:
     
     // RIGHT Panel widgets
     QTableWidget* m_tab2_figContentTable = nullptr;  // 4 columns
+    
+    // Advanced FIG Analyser (Phase 2C) - FIG2 Extended Labels
+    QTreeWidget* m_advancedFigTree = nullptr;
+    QTextEdit* m_advancedFigHexViewer = nullptr;
+    QComboBox* m_advancedFigFilter = nullptr;
     
     // Tab 3: FIC-Extractor widgets (2-panel layout per DATA_AVAILABILITY_MATRIX.md)
     // LEFT Panel widgets
@@ -12922,7 +13280,9 @@ private:
     // column (EPG, Journaline, TPEG) replacing the inner tabs in the slideshow
     // panel; the right column vertical splitter gains a third group. A saved v8
     // state would restore the old right column without the Data Services group.
-    static constexpr int DOCKING_LAYOUT_VERSION = 9;
+    // Bumped 9 -> 10 (Phase 2C): new dock "tab2_AdvancedFig" added to Tab-2 Right
+    // area (tabbed with "FIG Content") for FIG2 Extended Labels display.
+    static constexpr int DOCKING_LAYOUT_VERSION = 10;
     
     // Phase 1: Processing counters
     int m_processedFrames{0};
