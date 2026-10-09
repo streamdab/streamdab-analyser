@@ -6,6 +6,164 @@
 
 ---
 
+## Phase 4: CLI Extract Features
+
+**Status:** ⏳ Planned (not implemented)  
+**Priority:** Medium (high-value for broadcast engineers)  
+**Estimated Timeline:** 3-4 weeks  
+**Target Release:** v1.1 or v1.2
+
+### Goal
+
+Extract decoded content from ETI streams to standard file formats for post-processing and archive.
+
+### Planned Extract Commands
+
+```bash
+# Extract DAB+ audio from service(s)
+streamdab-analyser --input stream.eti --extract audio \
+  --service 0xC201 --output audio.aac
+
+# Extract slideshow images (MOT)
+streamdab-analyser --input stream.eti --extract slideshow \
+  --service 0xC201 --output-dir ./slides/
+
+# Extract EPG (EIT) to XMLTV
+streamdab-analyser --input stream.eti --extract epg \
+  --output epg.xmltv
+
+# Extract Journaline content
+streamdab-analyser --input stream.eti --extract journaline \
+  --output-dir ./journaline/
+
+# Extract raw MSC data per subchannel
+streamdab-analyser --input stream.eti --extract msc \
+  --subchannel 10 --output msc_sc10.bin
+
+# Extract TPEG messages
+streamdab-analyser --input stream.eti --extract tpeg \
+  --output tpeg.json
+
+# Batch extract all services
+streamdab-analyser --input stream.eti --extract all \
+  --output-dir ./extracted/
+```
+
+### Supported Extract Types
+
+| Type | Standard | Output Format | Status |
+|------|----------|---------------|--------|
+| **DAB+ Audio** | ETSI TS 102 563 | AAC/ADTS, MP4, WAV | ⏳ Planned |
+| **Slideshow (MOT)** | ETSI TS 101 756 | JPEG/PNG + metadata JSON | ⏳ Planned |
+| **EPG (EIT)** | ETSI TS 102 371 | XMLTV, JSON | ⏳ Planned |
+| **Journaline** | ETSI TS 102 979 | HTML, JSON, plain text | ⏳ Planned |
+| **TPEG** | ETSI TS 102 894 | JSON, binary | ⏳ Planned |
+| **Raw MSC** | ETSI EN 300 401 | Binary per subchannel | ⏳ Planned |
+| **PAD/XPAD** | ETSI TS 102 563 | Binary + analysis | ⏳ Planned |
+
+### Architecture
+
+```cpp
+namespace cli {
+
+enum class ExtractType {
+    Audio,      // DAB+ superframes → AAC
+    Slideshow,  // MOT objects → images
+    EPG,        // EIT → XMLTV
+    Journaline, // Journaline objects → HTML/JSON
+    TPEG,       // TPEG messages → JSON
+    MSC,        // Raw subchannel data
+    PAD         // PAD/XPAD data
+};
+
+class ExtractManager : public QObject
+{
+    Q_OBJECT
+    
+public:
+    struct ExtractOptions {
+        ExtractType type;
+        QString input_file;
+        QString output_path;      // file or directory
+        quint32 service_id = 0;   // 0 = all services
+        int subchannel_id = -1;   // -1 = all
+        QStringList filters;      // Additional filters
+    };
+    
+    // Main extraction entry point
+    bool extract(const ExtractOptions& options);
+    
+    // Progress tracking
+    int progress() const;
+    QString currentOperation() const;
+    
+signals:
+    void progressChanged(int percent);
+    void operationStarted(const QString& operation);
+    void operationFinished(bool success, const QString& message);
+    
+private:
+    // Per-type extractors
+    std::unique_ptr<AudioExtractor> m_audioExtractor;
+    std::unique_ptr<SlideshowExtractor> m_slideshowExtractor;
+    std::unique_ptr<EPGExtractor> m_epgExtractor;
+    std::unique_ptr<JournalineExtractor> m_journalineExtractor;
+    std::unique_ptr<TPEGExtractor> m_tpegExtractor;
+    std::unique_ptr<MSCExtractor> m_mscExtractor;
+};
+
+}
+```
+
+### Dependencies
+
+**Required (existing):**
+- ✅ ETI frame parsing (modern_eti_frame_parser.cpp)
+- ✅ FIG decoding (fig_parser.cpp)
+- ✅ Service discovery (service_manager.cpp)
+- ✅ MOT decoder (mot_protocol.cpp)
+- ✅ EPG decoder (epg_decoder.cpp)
+- ✅ Journaline decoder (journaline_decoder.cpp)
+- ✅ TPEG decoder (tpeg_decoder.cpp)
+
+**New (to implement):**
+- AudioExtractor: AAC frame assembly, ADTS/MP4 muxing (libfaad, libfdk-aac)
+- SlideshowExtractor: MOT object reassembly, image decoding (libjpeg, libpng)
+- EPGExtractor: EIT table parsing, XMLTV generation
+- JournalineExtractor: Journaline object tree, HTML/JSON export
+- TPEGExtractor: TPEG message parsing, JSON export
+- MSCExtractor: Raw subchannel data with framing
+
+### Testing Strategy
+
+**Unit Tests:**
+- Each extractor with synthetic ETI data
+- Output format validation (XMLTV schema, MP4 validity)
+
+**Integration Tests:**
+- Real Bangkok ETI fixture (bkk_20062022_141637.eti)
+- Verify extracted audio plays correctly
+- Verify slideshow images render correctly
+- Verify XMLTV validates against schema
+
+**Reference Implementations:**
+- etisnoop (ETI analysis reference)
+- fdk-aac (AAC encoding)
+- xmltv-util (XMLTV validation)
+- mot-utils (MOT extraction)
+
+### Performance Targets
+
+| Extract Type | Speed Target | Notes |
+|--------------|--------------|-------|
+| Audio (5001 frames) | <10 seconds | ~500x realtime |
+| Slideshow (100 images) | <5 seconds | Including decode |
+| EPG (full schedule) | <3 seconds | |
+| Journaline | <2 seconds | |
+| Raw MSC | <1 second | Minimal processing |
+
+---
+
 ## Phase 5: Multi-stream Comparative Analysis
 
 **Status:** ⏳ Planned (not implemented)  
