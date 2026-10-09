@@ -150,8 +150,11 @@ jobs:
               if (-not $exe) { Write-Host 'executable not found'; continue }
               & $exe.FullName -v1 -o "$name.log,txt"
               Write-Host "whole-suite exit code: $LASTEXITCODE"
+              if (Test-Path "$name.log") {
+                Select-String -Path "$name.log" -Pattern 'QAccessible|a11y' | Select-Object -First 12 | ForEach-Object { $_.Line }
+              }
               # each test function alone
-              $funcs = (& $exe.FullName -functions) | ForEach-Object { if ($_ -match '::(test\w+)\(\)') { $Matches[1] } }
+              $funcs = (& $exe.FullName -functions) | ForEach-Object { if ($_ -match '^(test\w+)\(\)') { $Matches[1] } }
               foreach ($f in $funcs) {
                 & $exe.FullName $f -o "$name-$f.log,txt" | Out-Null
                 Write-Host "alone: $f -> exit $LASTEXITCODE"

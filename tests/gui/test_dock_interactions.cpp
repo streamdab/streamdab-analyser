@@ -206,6 +206,7 @@ void TestDockInteractions::cleanupTestCase()
 
 void TestDockInteractions::init()
 {
+    qInfo() << "[a11y] QAccessible::isActive() =" << QAccessible::isActive();
     // Per-test isolation: each interactive scenario starts from a fresh default
     // layout (no state leaking from a previous interaction test).
     clearSettingsStore();
