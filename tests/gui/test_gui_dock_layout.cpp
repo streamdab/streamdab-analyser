@@ -3192,35 +3192,33 @@ void TestGuiDockLayout::testMotSlideshowPanelAndTabs()
     QVERIFY2(slideFrame, "T27: the 4:3 slideshow frame must exist");
     QVERIFY(slideFrame->minimumHeight() > 0);
 
-    // Wave C (USER DECISION): the default split is DLS+ : data-service =
-    // 50 : 50 (within tolerance) and remains user-draggable / non-collapsible.
-    // The right pane now hosts FOUR inner tabs (Slideshow | EPG | Journaline |
-    // TPEG), so it gets the same room as the DLS+ side. This assertion used
-    // to pin the old T30.4 2/3 : 1/3 ratio (0.58–0.76 around ~0.667) — that
-    // pin is what made an earlier accidental move to {500, 500} get reverted.
-    // 50/50 is now deliberate: do NOT "restore" 2:1 here; the tolerance below
-    // is ±0.10 around 0.5 so a real drift (or a re-introduced 2:1 stretch
-    // bias, which would push this to ~0.667) still fails loudly.
+    // Phase 2B (historical T30.4): the default split is DLS+ : slideshow =
+    // 67 : 33 (stretch 2:1). Phase 2A moved EPG/Journaline/TPEG to separate
+    // top-level docks, so the right pane now holds ONLY the MOT slideshow
+    // (4:3 letterbox + status). The DLS+ text pane benefits from the extra
+    // width for long track/artist/album strings. The tolerance below is
+    // ±0.09 around ~0.667 so a silent drift back to 50/50 (or any other ratio)
+    // fails loudly.
     QVERIFY2(!split->childrenCollapsible(),
              "T30.4: the Now Playing splitter must stay non-collapsible");
     // NOTE: Qt 6 removed QSplitter::stretchFactor(int) const (getter).
-    // The 1:1 stretch is implicitly validated by the sizes check below —
-    // unequal stretch would bias the sizes away from 50/50 on resize.
+    // The 2:1 stretch is implicitly validated by the sizes check below —
+    // unequal stretch would bias the sizes away from 67/33 on resize.
     const QList<int> splitSizes = split->sizes();
     QCOMPARE(splitSizes.size(), 2);
     const int splitExtent = splitSizes[0] + splitSizes[1];
     QVERIFY2(splitExtent > 0, "splitter must have a positive extent");
     const double leftFraction = double(splitSizes[0]) / double(splitExtent);
-    QVERIFY2(leftFraction >= 0.40 && leftFraction <= 0.60,
-             qPrintable(QString("Wave C splitter left fraction must be ~0.5 "
-                                "(50/50 user decision), got %1")
-                            .arg(leftFraction)));
-    // Both panes must be genuinely usable: each at least 40% of the width.
-    QVERIFY2(double(splitSizes[0]) / double(splitExtent) >= 0.40
-                 && double(splitSizes[1]) / double(splitExtent) >= 0.40,
-             qPrintable(QString("both splitter panes must be >=40%, got %1/%2")
-                            .arg(double(splitSizes[0]) / double(splitExtent))
-                            .arg(double(splitSizes[1]) / double(splitExtent))));
+    QVERIFY2(leftFraction >= 0.58 && leftFraction <= 0.76,
+             qPrintable(QString("Phase 2B splitter left fraction must be ~0.667 "
+                                 "(67/33 historical T30.4), got %1")
+                             .arg(leftFraction)));
+    // Both panes must be genuinely usable: left at least 50%, right at least 25%.
+    QVERIFY2(double(splitSizes[0]) / double(splitExtent) >= 0.50
+                 && double(splitSizes[1]) / double(splitExtent) >= 0.25,
+             qPrintable(QString("both splitter panes must be usable, got %1/%2")
+                             .arg(double(splitSizes[0]) / double(splitExtent))
+                             .arg(double(splitSizes[1]) / double(splitExtent))));
 
     // T30.3: dark-theme-readable DLS label colours. Track is the brand accent
     // (bold/prominent); artist uses palette(text); album is dimmer
