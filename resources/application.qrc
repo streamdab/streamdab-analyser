@@ -1,9 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <RCC>
     <qresource prefix="/icons">
-        <!-- Application icons will be added here -->
-        <!-- <file>app_icon.png</file> -->
-        <!-- <file>toolbar_icons.png</file> -->
+        <!-- Main application icon (SVG - works natively on Linux/macOS with Qt) -->
+        <file>icons/eti-stream-analyser.svg</file>
+        <!-- PNG fallbacks for platforms where SVG rendering may not be available -->
+        <file>icons/eti-stream-analyser_16.png</file>
+        <file>icons/eti-stream-analyser_24.png</file>
+        <file>icons/eti-stream-analyser_32.png</file>
+        <file>icons/eti-stream-analyser_48.png</file>
+        <file>icons/eti-stream-analyser_64.png</file>
+        <file>icons/eti-stream-analyser_128.png</file>
+        <file>icons/eti-stream-analyser_256.png</file>
     </qresource>
     <qresource prefix="/images">
         <!-- Images and graphics will be added here -->
