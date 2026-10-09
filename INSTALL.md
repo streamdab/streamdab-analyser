@@ -17,6 +17,7 @@ warnings.
 ```bash
 # Debian/Ubuntu prerequisites
 sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
+    qt6-base-private-dev libxkbcommon-dev libxkbcommon-x11-dev \
     libgtest-dev build-essential ninja-build
 
 # Configure — MUST export offscreen BEFORE configure so GUI tests register

@@ -27,6 +27,7 @@
 #pragma once
 
 #include <array>
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>

@@ -78,7 +78,8 @@ are in **[INSTALL.md](INSTALL.md)**. The short version:
 
 ```bash
 # Linux
-sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev build-essential
+sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
+  qt6-base-private-dev libxkbcommon-dev libxkbcommon-x11-dev build-essential
 export QT_QPA_PLATFORM=offscreen          # before configure: registers the GUI tests
 cmake --preset linux-gcc
 cmake --build --preset build-linux        # RAM-safe job cap (never a bare -j)

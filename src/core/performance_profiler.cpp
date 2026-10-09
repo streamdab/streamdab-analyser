@@ -476,32 +476,32 @@ double performance_profiler::calculate_performance_score(const PerformanceReport
     double score = 10.0; // Start with perfect score
     
     // Deduct for high error rates (max -2.0 points)
-    score -= std::min(2.0, report.overall_error_rate * 20.0);
+    score -= (std::min)(2.0, report.overall_error_rate * 20.0);
     
     // Deduct for high memory usage (max -2.0 points)
     const double memory_mb = report.memory_usage_bytes / (1024.0 * 1024.0);
     if (memory_mb > TARGET_MEMORY_LIMIT_MB) {
-        score -= std::min(2.0, (memory_mb - TARGET_MEMORY_LIMIT_MB) / TARGET_MEMORY_LIMIT_MB * 2.0);
+        score -= (std::min)(2.0, (memory_mb - TARGET_MEMORY_LIMIT_MB) / TARGET_MEMORY_LIMIT_MB * 2.0);
     }
     
     // Deduct for high CPU usage (max -2.0 points)
     if (report.cpu_usage_percent > TARGET_CPU_LIMIT_PERCENT) {
-        score -= std::min(2.0, (report.cpu_usage_percent - TARGET_CPU_LIMIT_PERCENT) / 50.0 * 2.0);
+        score -= (std::min)(2.0, (report.cpu_usage_percent - TARGET_CPU_LIMIT_PERCENT) / 50.0 * 2.0);
     }
     
     // Deduct for low throughput (max -2.0 points)
     if (target_fps_ > 0.0 && report.peak_throughput_fps < target_fps_) {
         const double throughput_ratio = report.peak_throughput_fps / target_fps_;
-        score -= std::min(2.0, (1.0 - throughput_ratio) * 2.0);
+        score -= (std::min)(2.0, (1.0 - throughput_ratio) * 2.0);
     }
     
     // Deduct for high latency (max -2.0 points)
     const double latency_ms = report.worst_latency.count() / 1000000.0; // Convert ns to ms
     if (latency_ms > TARGET_LATENCY_LIMIT_MS) {
-        score -= std::min(2.0, (latency_ms - TARGET_LATENCY_LIMIT_MS) / TARGET_LATENCY_LIMIT_MS * 2.0);
+        score -= (std::min)(2.0, (latency_ms - TARGET_LATENCY_LIMIT_MS) / TARGET_LATENCY_LIMIT_MS * 2.0);
     }
     
-    return std::max(0.0, score);
+    return (std::max)(0.0, score);
 }
 
 bool performance_profiler::meets_performance_targets() const
