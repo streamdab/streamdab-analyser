@@ -799,6 +799,11 @@ if(CAN_RUN_GUI_TESTS)
     # (STATUS_DLL_NOT_FOUND) before main().
     if(WIN32)
         foreach(_ads_test test_gui_dock_layout test_dock_interactions)
+            if(MSVC)
+                # Optimised build with symbols so a crash can be symbolised in CI.
+                target_compile_options(${_ads_test} PRIVATE /Zi)
+                target_link_options(${_ads_test} PRIVATE /DEBUG /OPT:REF /OPT:ICF)
+            endif()
             add_custom_command(TARGET ${_ads_test} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                         $<TARGET_FILE:qtadvanceddocking-qt6>

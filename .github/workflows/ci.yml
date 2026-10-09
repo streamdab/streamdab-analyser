@@ -130,12 +130,16 @@ jobs:
 
       # QtTest output is lost when a Windows test crashes (stdout is not
       # flushed), so re-run each failed test directly with a verbose file log.
+      # Also run every test function in its own process (order dependence) and,
+      # when the Windows debugger is installed, print a stack trace of the crash.
       - name: Diagnose failed tests (Windows, verbose rerun)
         if: failure() && runner.os == 'Windows'
         shell: pwsh
         working-directory: build
         run: |
           $env:QT_QPA_PLATFORM = 'offscreen'
+          $cdb = "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe"
+          Write-Host "cdb available: $(Test-Path $cdb)"
           $list = 'Testing/Temporary/LastTestsFailed.log'
           if (Test-Path $list) {
             foreach ($line in Get-Content $list) {
@@ -144,9 +148,18 @@ jobs:
               Write-Host "=== $name"
               $exe = Get-ChildItem -Path . -Recurse -Filter "$name.exe" | Select-Object -First 1
               if (-not $exe) { Write-Host 'executable not found'; continue }
-              & $exe.FullName -v2 -o "$name.log,txt"
-              Write-Host "exit code: $LASTEXITCODE"
-              if (Test-Path "$name.log") { Get-Content "$name.log" -Tail 150 }
+              & $exe.FullName -v1 -o "$name.log,txt"
+              Write-Host "whole-suite exit code: $LASTEXITCODE"
+              # each test function alone
+              $funcs = (& $exe.FullName -functions) | ForEach-Object { if ($_ -match '::(test\w+)\(\)') { $Matches[1] } }
+              foreach ($f in $funcs) {
+                & $exe.FullName $f -o "$name-$f.log,txt" | Out-Null
+                Write-Host "alone: $f -> exit $LASTEXITCODE"
+              }
+              if (Test-Path $cdb) {
+                Write-Host "--- stack of the crash (cdb)"
+                & $cdb -G -g -c "g;kP 40;q" $exe.FullName 2>&1 | Select-Object -Last 90
+              }
             }
           }
           exit 0
