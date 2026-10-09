@@ -8,6 +8,7 @@
 
 #include <QtTest/QtTest>
 #include "../src/core/fig_parser.hpp"
+#include "../src/utils/logger.h"
 
 using namespace eti::fig;
 
@@ -365,6 +366,14 @@ private slots:
 
     // Test 19: Performance benchmark
     void test_parsing_performance() {
+        // The benchmark measures parsing, not per-call logging: keep the
+        // logger quiet for the timed section (restored on scope exit).
+        struct LogLevelGuard {
+            Logger::LogLevel saved = Logger::instance().getLogLevel();
+            LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+            ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+        } logGuard;
+
         qDebug() << "TEST: Parsing performance benchmark";
 
         std::vector<uint8_t> fig_data = {

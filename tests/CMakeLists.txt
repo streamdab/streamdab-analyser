@@ -794,6 +794,19 @@ if(CAN_RUN_GUI_TESTS)
         RESOURCE_LOCK settings_store
     )
 
+    # Qt-ADS is a shared library; on Windows there is no rpath, so its DLL must
+    # sit next to the test executables or they die with 0xc0000135
+    # (STATUS_DLL_NOT_FOUND) before main().
+    if(WIN32)
+        foreach(_ads_test test_gui_dock_layout test_dock_interactions)
+            add_custom_command(TARGET ${_ads_test} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        $<TARGET_FILE:qtadvanceddocking-qt6>
+                        $<TARGET_FILE_DIR:${_ads_test}>
+                VERBATIM)
+        endforeach()
+    endif()
+
     message(STATUS "  ✓ test_gui_stream_info_panel (10 widget tests)")
     message(STATUS "  ✓ test_gui_service_discovery_panel (13 widget tests)")
     message(STATUS "  ✓ test_gui_fig_type_display_panel (15 widget tests)")
