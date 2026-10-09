@@ -731,7 +731,7 @@ if(CAN_RUN_GUI_TESTS)
         ${T34_AUDIO_LIBS}
         Threads::Threads
     )
-    target_compile_definitions(test_gui_dock_layout PRIVATE GUI_TEST_MODE ${T34_AUDIO_DEFINES} ${ZMQ_DEFINES})
+    target_compile_definitions(test_gui_dock_layout PRIVATE GUI_TEST_MODE ${T34_AUDIO_DEFINES} ${ZMQ_DEFINES} ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../eti")
     target_include_directories(test_gui_dock_layout PRIVATE ${T34_AUDIO_INCLUDES})
     # test_gui_dock_layout.cpp includes ../src/main.cpp, whose trailing
     # `#include "main.moc"` needs the moc output that AUTOMOC generates for the
@@ -774,7 +774,7 @@ if(CAN_RUN_GUI_TESTS)
         ${T34_AUDIO_LIBS}
         Threads::Threads
     )
-    target_compile_definitions(test_dock_interactions PRIVATE GUI_TEST_MODE ${T34_AUDIO_DEFINES} ${ZMQ_DEFINES})
+    target_compile_definitions(test_dock_interactions PRIVATE GUI_TEST_MODE ${T34_AUDIO_DEFINES} ${ZMQ_DEFINES} ETI_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../eti")
     target_include_directories(test_dock_interactions PRIVATE ${T34_AUDIO_INCLUDES})
     # Same main.moc contract as test_gui_dock_layout (see above).
     add_dependencies(test_dock_interactions DABAnalyser_Enhanced_FilteringBuild)

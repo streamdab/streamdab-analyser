@@ -477,9 +477,11 @@ void TestDockInteractions::testTabifyAndUntabify()
     QVERIFY(systemArea && npArea);
     QVERIFY2(systemArea != npArea, "precondition: the two docks start in separate areas");
     QCOMPARE(systemArea->dockWidgetsCount(), 1);
-    QCOMPARE(npArea->dockWidgetsCount(), 1);
+    // Now Playing area now contains 4 docks: Now Playing / Slideshow, EPG, Journaline, TPEG
+    QCOMPARE(npArea->dockWidgetsCount(), 4);
 
     // Tabify: merge Now Playing into the System area.
+    // Only the Now Playing dock moves; EPG/Journaline/TPEG stay in the original area.
     m1->addDockWidgetTabToArea(nowPlaying, systemArea);
     pump();
     QCOMPARE(nowPlaying->dockAreaWidget(), systemArea);
@@ -487,6 +489,8 @@ void TestDockInteractions::testTabifyAndUntabify()
     QCOMPARE(systemArea->dockWidgetsCount(), 2);
     QVERIFY(systemArea->dockWidgets().contains(system));
     QVERIFY(systemArea->dockWidgets().contains(nowPlaying));
+    // The original Now Playing area still has EPG, Journaline, TPEG (3 docks).
+    QCOMPARE(npArea->dockWidgetsCount(), 3);
 
     // Untabify: move Now Playing back out into its own area.
     m1->addDockWidget(ads::CenterDockWidgetArea, nowPlaying, nullptr);
@@ -494,6 +498,7 @@ void TestDockInteractions::testTabifyAndUntabify()
     QVERIFY2(nowPlaying->dockAreaWidget() != systemArea,
              "moving a tab out must create a separate area again");
     QCOMPARE(system->dockAreaWidget()->dockWidgetsCount(), 1);
+    // Now Playing is now in a new standalone area (1 dock).
     QCOMPARE(nowPlaying->dockAreaWidget()->dockWidgetsCount(), 1);
     QVERIFY(!nowPlaying->isClosed());
     QVERIFY(!system->isClosed());
@@ -558,7 +563,7 @@ void TestDockInteractions::testPersistenceAfterInteractions()
 
     {
         const QSettings s(QStringLiteral("StreamDAB-Analyser"), QStringLiteral("DABAnalyser"));
-        QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 10);
+        QCOMPARE(s.value(QStringLiteral("docking/layout_version")).toInt(), 11);
         QVERIFY(!s.value(QStringLiteral("docking/bottom")).isNull());
     }
 
