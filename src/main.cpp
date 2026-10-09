@@ -1155,9 +1155,8 @@ public:
     // M9 test hook: run the exact reset every load performs, so a test can
     // prove the tap starts from zero instead of accumulating across loads.
     bool resetCaptureStateForTest() { return resetCaptureState(); }
-    // Wave B — GUI data-service (Slideshow | EPG | Journaline | TPEG) inner
-    // tabs + decoders: accessors for the PRIVATE dock-layout tests.
-    QTabWidget* dataServiceTabsForTest() const { return m_dataServiceTabs; }
+    // Phase 2A — GUI data-service docks (EPG | Journaline | TPEG) + decoders:
+    // accessors for the PRIVATE dock-layout tests.
     eti::epg::EPGDecoder* epgDecoderForTest() const { return m_epgDecoder; }
     eti::journaline::JournalineDecoder* journalineDecoderForTest() const
     {
@@ -2728,7 +2727,7 @@ private slots:
         // Purely additive: load-time counters (DLS+ 1114 / MOT 97 / 97) are
         // untouched, so the CLI/GUI parity gates stay fixed.
         feedDataServiceSubchannels();
-        refreshDataServiceTabs();
+        refreshDataServiceDocks();
     }
 
     void onProcessingError(const QString& error)
@@ -3235,6 +3234,109 @@ private:
         return false;
     }
 
+    // ========================================================================
+    // Wave D Phase 1: Service type display for unnamed services
+    // Returns a descriptive type string like "[EPG]", "[DAB+]", "[TPEG]", etc.
+    // based on FIG data, sub-channel mapping, and data service store routing.
+    // ========================================================================
+    QString getServiceTypeDisplay(quint32 serviceId, quint16 subChannelId) const
+    {
+        if (!m_figAnalyser) {
+            return QString("[SId:%1]").arg(serviceSidHex(serviceId));
+        }
+
+        // 1. Check if this is a DAB+ audio service (via sub-channel mapping)
+        if (subChannelId != 0 && m_dabPlusSubChannels.contains(subChannelId)) {
+            return QStringLiteral("[DAB+]");
+        }
+
+        // 2. Check data service store for decoded content type (EPG/Journaline/TPEG)
+        if (subChannelId != 0 && m_dataServiceStore) {
+            eti::data::ServiceDataSnapshot snapshot;
+            if (m_dataServiceStore->getService(subChannelId, snapshot)) {
+                if (snapshot.epg_events > 0 || snapshot.epg_schedules > 0) {
+                    return QStringLiteral("[EPG]");
+                }
+                if (snapshot.journaline_objects > 0 || snapshot.journaline_stream_items > 0) {
+                    return QStringLiteral("[Journaline]");
+                }
+                if (snapshot.tpeg_messages > 0) {
+                    return QStringLiteral("[TPEG]");
+                }
+                if (snapshot.hasContent()) {
+                    return QStringLiteral("[MOT]");
+                }
+            }
+        }
+
+        // 3. Find the service and check its components for type information
+        const std::vector<DABService> services = m_figAnalyser->getDABServices();
+        for (const DABService& svc : services) {
+            if (svc.service_id != serviceId) continue;
+
+            // Audio service (programme type)
+            if (svc.service_type == 0) {
+                if (svc.is_dab_plus || serviceHasDabPlusAudio(svc)) {
+                    return QStringLiteral("[DAB+]");
+                }
+                return QStringLiteral("[DAB]");
+            }
+
+            // Data service - check components for DSCTy (FIG 0/3, 0/8)
+            for (const ServiceComponent& comp : svc.components) {
+                // DSCTy values from ETSI EN 300 401 / fig_parser.hpp
+                switch (comp.service_component_type) {
+                    case 0x01: return QStringLiteral("[TMC]");       // Traffic Message Channel
+                    case 0x05: return QStringLiteral("[TPEG]");      // TPEG
+                    case 0x18: return QStringLiteral("[MOT]");       // MOT (24 decimal = 0x18)
+                    case 0x2C: return QStringLiteral("[Journaline]"); // Journaline (44 decimal = 0x2C)
+                    case 0x3C: return QStringLiteral("[EWS]");       // EWS (60 decimal)
+                    case 0x3D: return QStringLiteral("[IP]");        // IP (61 decimal)
+                    default: break;
+                }
+            }
+
+            // 4. Check FIG 0/13 User Applications for service type hints
+            const std::vector<FIG0_13_UserApp> userApps = m_figAnalyser->getUserApplications();
+            for (const FIG0_13_UserApp& app : userApps) {
+                if (app.service_id == serviceId) {
+                    switch (app.user_app_type) {
+                        case 0x001: return QStringLiteral("[SPI]");      // Service Programme Information
+                        case 0x002: return QStringLiteral("[MOT]");      // MOT Slideshow
+                        case 0x003: return QStringLiteral("[MOT BWS]");  // MOT Broadcast Web Site
+                        case 0x004: return QStringLiteral("[TPEG]");     // TPEG
+                        case 0x007: return QStringLiteral("[EPG]");      // Electronic Programme Guide
+                        case 0x044: return QStringLiteral("[Journaline]"); // Journaline
+                        case 0x008: return QStringLiteral("[DAB Java]"); // DAB Java
+                        default: break;
+                    }
+                }
+            }
+
+            // 5. Check data service labels (FIG 1/5) for type hints in the label
+            const std::vector<FIG1_5_DataServiceLabel> dataLabels = m_figAnalyser->getDataServiceLabels();
+            for (const FIG1_5_DataServiceLabel& dl : dataLabels) {
+                if (dl.service_id == serviceId) {
+                    QString label = QString::fromUtf8(dl.label, 16).trimmed().toLower();
+                    if (label.contains("epg")) return QStringLiteral("[EPG]");
+                    if (label.contains("tepg")) return QStringLiteral("[TPEG]");
+                    if (label.contains("tpeg")) return QStringLiteral("[TPEG]");
+                    if (label.contains("journ")) return QStringLiteral("[Journaline]");
+                    if (label.contains("mot")) return QStringLiteral("[MOT]");
+                    if (label.contains("slide")) return QStringLiteral("[MOT]");
+                    if (label.contains("ews")) return QStringLiteral("[EWS]");
+                    if (label.contains("ip")) return QStringLiteral("[IP]");
+                }
+            }
+
+            // 6. Fallback: generic data service with full SId
+            return QString("[Data:%1]").arg(serviceSidHex(serviceId));
+        }
+
+        // Service not found in analyser - fallback
+        return QString("[SId:%1]").arg(serviceSidHex(serviceId));
+    }
+
     // Clear stale items + selection and disable the selector (on load start and
     // in the no-file state). Guarded so it never fires onServiceSelectionChanged.
     void resetServiceSelectorForLoad()
@@ -3271,8 +3373,9 @@ private:
             for (const DABService& svc : m_figAnalyser->getDABServices()) {
                 const QString label = svc.service_label.trimmed();
                 const QString sid = serviceSidHex(svc.service_id);
+                const ServiceComponent primary = svc.getPrimaryComponent();
                 const QString itemText = label.isEmpty()
-                    ? QString("SId %1").arg(sid)
+                    ? QString("%1 (%2)").arg(getServiceTypeDisplay(svc.service_id, primary.sub_channel_id), sid)
                     : QString("%1 (%2)").arg(label, sid);
                 m_serviceCombo->addItem(itemText, svc.service_id);
                 const int index = m_serviceCombo->count() - 1;
@@ -3339,7 +3442,7 @@ private:
         m_selectedServiceLabel = displayServiceLabel(m_selectedServiceId);
     }
 
-    // The label part of the combo item for `serviceId` (empty when unlabeled).
+    // The label part of the combo item for `serviceId` (shows service type when unlabeled).
     QString displayServiceLabel(quint32 serviceId) const
     {
         if (!m_figAnalyser) {
@@ -3347,7 +3450,11 @@ private:
         }
         for (const DABService& svc : m_figAnalyser->getDABServices()) {
             if (svc.service_id == serviceId) {
-                return svc.service_label.trimmed();
+                if (!svc.service_label.trimmed().isEmpty()) {
+                    return svc.service_label.trimmed();
+                }
+                const ServiceComponent primary = svc.getPrimaryComponent();
+                return getServiceTypeDisplay(serviceId, primary.sub_channel_id);
             }
         }
         return QString();
@@ -5299,9 +5406,11 @@ private:
         if (m_figAnalyser) {
             for (const DABService& svc : m_figAnalyser->getDABServices()) {
                 const ServiceComponent primary = svc.getPrimaryComponent();
+                const QString displayLabel = svc.service_label.isEmpty()
+                    ? getServiceTypeDisplay(svc.service_id, primary.sub_channel_id)
+                    : svc.service_label;
                 addRow(QStringLiteral("0x%1").arg(svc.service_id, 0, 16).toUpper(),
-                       svc.service_label.isEmpty() ? QStringLiteral("(unlabelled)")
-                                                   : svc.service_label,
+                       displayLabel,
                        svc.service_type == 0 ? QStringLiteral("Programme")
                                              : QStringLiteral("Data"),
                        svc.is_dab_plus ? QStringLiteral("yes") : QStringLiteral("no"),
@@ -5784,7 +5893,16 @@ private:
         for (const ServiceInfo& service : services) {
             QTreeWidgetItem* serviceItem = new QTreeWidgetItem(ensembleRoot);
             serviceItem->setText(0, QString("0x%1").arg(service.serviceId, 4, 16, QChar('0')).toUpper());
-            serviceItem->setText(1, service.label);
+            
+            // Wave D Phase 1: Show service type with SId for unlabelled services
+            // Format: "[EPG] (SId:0x1234)" instead of empty or just "[EPG]"
+            QString label = service.label;
+            if (label.isEmpty()) {
+                QString typeDisplay = getServiceTypeDisplay(service.serviceId, service.subchannelId);
+                QString sidHex = QString("0x%1").arg(service.serviceId, service.serviceId > 0xFFFFu ? 8 : 4, 16, QChar('0')).toUpper();
+                label = QString("%1 (SId:%2)").arg(typeDisplay, sidHex);
+            }
+            serviceItem->setText(1, label);
             
             // Service type from ServiceInfo (uses .type field which contains "DAB+", "Data", etc.)
             QString serviceType = service.type.isEmpty() ? 
@@ -6277,9 +6395,12 @@ private:
                 QString sid = QString("0x%1")
                                   .arg(svc.service_id, 8, 16, QChar('0'))
                                   .toUpper();
-                if (!svc.service_label.isEmpty()) {
-                    sid += QString(" (%1)").arg(svc.service_label);
+                const ServiceComponent primary = svc.getPrimaryComponent();
+                QString label = svc.service_label;
+                if (label.isEmpty()) {
+                    label = getServiceTypeDisplay(svc.service_id, primary.sub_channel_id);
                 }
+                sid += QString(" (%1)").arg(label);
                 digital << sid;
             }
             m_tab2_digitalServices->setText(
@@ -6451,7 +6572,9 @@ private:
             QString sidStr = "-", labelStr = "-", shortStr = "-", subchType = "MSC";
             if (svc) {
                 sidStr = QString("0x%1").arg(svc->service_id, 4, 16, QChar('0')).toUpper();
-                labelStr = svc->service_label.isEmpty() ? sidStr : svc->service_label;
+                labelStr = svc->service_label.isEmpty()
+                    ? getServiceTypeDisplay(svc->service_id, subch.sub_channel_id)
+                    : svc->service_label;
                 shortStr = svc->short_label.isEmpty() ? "-" : svc->short_label;
                 subchType = svc->is_dab_plus ? "DAB+" : (svc->components.empty() ? "Audio" : "Audio");
             }
@@ -6490,9 +6613,12 @@ private:
         
         int row = 0;
         for (const DABService& service : services) {
+            const ServiceComponent primary = service.getPrimaryComponent();
             QVector<QString> cells = {
                 QString("0x%1").arg(service.service_id, 4, 16, QChar('0')).toUpper(),  // SId
-                service.service_label.isEmpty() ? "-" : service.service_label,          // Service Label
+                service.service_label.isEmpty()
+                    ? getServiceTypeDisplay(service.service_id, primary.sub_channel_id)
+                    : service.service_label,                                            // Service Label
                 service.short_label.isEmpty() ? "-" : service.short_label,              // Short Label
                 QStringLiteral("-")                                                     // CAID
             };
@@ -6870,10 +6996,13 @@ private:
         if (m_figAnalyser) {
             const std::vector<DABService> services = m_figAnalyser->getDABServices();
             for (const DABService& svc : services) {
-                if (!svc.service_label.isEmpty()) {
-                    addDetailRow(parent, QString("Label 0x%1").arg(svc.service_id, 4, 16, QChar('0')).toUpper(),
-                                 "FIG 1/1", svc.service_label, svc.short_label);
+                const ServiceComponent primary = svc.getPrimaryComponent();
+                QString label = svc.service_label;
+                if (label.isEmpty()) {
+                    label = getServiceTypeDisplay(svc.service_id, primary.sub_channel_id);
                 }
+                addDetailRow(parent, QString("Label 0x%1").arg(svc.service_id, 4, 16, QChar('0')).toUpper(),
+                             "FIG 1/1", label, svc.short_label);
             }
         }
     }
@@ -7739,7 +7868,7 @@ private:
 
         m_tab1DockManager->addDockWidget(ads::CenterDockWidgetArea, D("tab1_NowPlaying"), nullptr);
 
-        // === RIGHT column: Signal Info group + Error & Statistics group ===
+        // === RIGHT column: Signal Info group + Error & Statistics group + Data Services group ===
         ads::CDockWidget* signalInfoFirst = D("tab1_ETIOverview");
         m_tab1DockManager->addDockWidget(ads::RightDockWidgetArea, signalInfoFirst, nullptr);
         m_tab1DockManager->addDockWidgetTabToArea(D("tab1_Status"), signalInfoFirst->dockAreaWidget());
@@ -7752,6 +7881,20 @@ private:
         m_tab1DockManager->addDockWidgetTabToArea(D("tab1_StreamStats"), errorStatsFirst->dockAreaWidget());
         // Default active tab: the first dock of the Error & Statistics group.
         errorStatsFirst->dockAreaWidget()->setCurrentDockWidget(errorStatsFirst);
+
+        // Phase 2A: Data Services group (EPG | Journaline | TPEG) — new top-level docks
+        // These replace the inner tabs that were previously in the slideshow panel.
+        ads::CDockWidget* epgDock = makeDock(m_tab1DockManager, QStringLiteral("tab1_EPG"),
+                                             QStringLiteral("EPG"), createEpgDockContent());
+        m_tab1DockManager->addDockWidget(ads::RightDockWidgetArea, epgDock, nullptr);
+        ads::CDockWidget* journalineDock = makeDock(m_tab1DockManager, QStringLiteral("tab1_Journaline"),
+                                                    QStringLiteral("Journaline"), createJournalineDockContent());
+        m_tab1DockManager->addDockWidgetTabToArea(journalineDock, epgDock->dockAreaWidget());
+        ads::CDockWidget* tpegDock = makeDock(m_tab1DockManager, QStringLiteral("tab1_TPEG"),
+                                              QStringLiteral("TPEG"), createTpegDockContent());
+        m_tab1DockManager->addDockWidgetTabToArea(tpegDock, epgDock->dockAreaWidget());
+        // Default active tab: EPG.
+        epgDock->dockAreaWidget()->setCurrentDockWidget(epgDock);
 
         // Locate the top-level splitter of this manager's container.
         QSplitter* root = nullptr;
@@ -7826,7 +7969,8 @@ private:
         moved.clear();
         const QList<ads::CDockWidget*> rightDocks = {
             D("tab1_ETIOverview"), D("tab1_Status"), D("tab1_Timing"),
-            D("tab1_ErrorCounter"), D("tab1_StreamStats")};
+            D("tab1_ErrorCounter"), D("tab1_StreamStats"),
+            D("tab1_EPG"), D("tab1_Journaline"), D("tab1_TPEG")};
         for (ads::CDockWidget* d : rightDocks) {
             if (ads::CDockAreaWidget* a = d->dockAreaWidget()) {
                 if (!moved.contains(a)) {
@@ -7860,7 +8004,7 @@ private:
         // ============================================================
         root->setSizes({230, 698, 272});   // left | center | right widths ≈ 230/flex/272
         leftV->setSizes({178, 320});       // Transport ≈ 178, System grows
-        rightV->setSizes({210, 240});      // Signal Info ≈ 210, Error & Stats grows
+        rightV->setSizes({210, 240, 180}); // Signal Info ≈ 210, Error & Stats ≈ 240, Data Services grows
 
         // Now Playing / Slideshow (option A): grow the compact dock so the
         // inner Slideshow tab can actually show an image (previously 82 px).
@@ -9418,27 +9562,14 @@ private:
 
         m_nowPlayingSplitter->addWidget(dlsPanel);
 
-        // --- Slideshow / data-service panel: INNER tabs ---------------------
-        // Wave B: the existing slideshow/MOT area now hosts an inner
-        // QTabWidget "Slideshow | EPG | Journaline | TPEG". Deliberately an
-        // INNER tab widget (not a new top-level dock), so the dock registry
-        // and DOCKING_LAYOUT_VERSION stay untouched and the Slideshow page
-        // keeps its widgets, object names and behaviour exactly as before.
+        // --- Slideshow panel (no inner tabs) ----------------------------------
+        // Phase 2A: EPG/Journaline/TPEG are now top-level docks (see registerTab1Docks).
+        // The slidePanel directly contains the Slideshow page (4:3 letterbox + status).
         QWidget* slidePanel = new QWidget();
         slidePanel->setObjectName(QStringLiteral("slideshowPanel"));
         QVBoxLayout* panelLayout = new QVBoxLayout(slidePanel);
         panelLayout->setContentsMargins(2, 2, 2, 2);
         panelLayout->setSpacing(4);
-
-        m_dataServiceTabs = new QTabWidget();
-        m_dataServiceTabs->setObjectName(QStringLiteral("dataServiceTabs"));
-        m_dataServiceTabs->setDocumentMode(true);
-
-        QWidget* slideshowPage = new QWidget();
-        slideshowPage->setObjectName(QStringLiteral("slideshowPage"));
-        QVBoxLayout* slideLayout = new QVBoxLayout(slideshowPage);
-        slideLayout->setContentsMargins(2, 2, 2, 2);
-        slideLayout->setSpacing(4);
 
         // Fixed 4:3 letterbox frame; the image label is its child.
         m_slideshowFrame = new FourThreeLetterboxFrame();
@@ -9447,28 +9578,20 @@ private:
         // L2: rescale the retained slide when the splitter / floating dock
         // changes the frame size (not only on main-window resize).
         m_slideshowFrame->onResized = [this]() { refreshSlideshowPixmap(); };
-        slideLayout->addWidget(m_slideshowFrame, 1);
+        panelLayout->addWidget(m_slideshowFrame, 1);
 
         m_slideshowStatus = new QLabel(tr("Waiting for slideshow…"));
         m_slideshowStatus->setObjectName(QStringLiteral("slideshowStatus"));
         m_slideshowStatus->setStyleSheet(
             QStringLiteral("font-size: 10px; color: #999; font-style: italic;"));
         m_slideshowStatus->setWordWrap(true);
-        slideLayout->addWidget(m_slideshowStatus);
+        panelLayout->addWidget(m_slideshowStatus);
 
         m_slideshowInfo = new QLabel(QStringLiteral("—"));
         m_slideshowInfo->setObjectName(QStringLiteral("slideshowInfo"));
         m_slideshowInfo->setStyleSheet(QStringLiteral("font-size: 10px; color: #777;"));
         m_slideshowInfo->setWordWrap(true);
-        slideLayout->addWidget(m_slideshowInfo);
-
-        // Wave B: register the four inner pages (Slideshow content above is
-        // unchanged — only reparented one level deeper into tab page 0).
-        m_dataServiceTabs->addTab(slideshowPage, tr("Slideshow"));
-        m_dataServiceTabs->addTab(createEpgDataServiceTab(), tr("EPG"));
-        m_dataServiceTabs->addTab(createJournalineDataServiceTab(), tr("Journaline"));
-        m_dataServiceTabs->addTab(createTpegDataServiceTab(), tr("TPEG"));
-        panelLayout->addWidget(m_dataServiceTabs);
+        panelLayout->addWidget(m_slideshowInfo);
 
         m_nowPlayingSplitter->addWidget(slidePanel);
         // Wave C (user decision): default DLS+ : data-service = 50 : 50.
@@ -9608,7 +9731,7 @@ private:
             m_dataServiceRefreshTimer->setSingleShot(true);
             m_dataServiceRefreshTimer->setInterval(150);
             connect(m_dataServiceRefreshTimer, &QTimer::timeout, this,
-                    [this]() { refreshDataServiceTabs(); });
+                    [this]() { refreshDataServiceDocks(); });
         }
         if (m_epgDecoder) {
             connect(m_epgDecoder, &eti::epg::EPGDecoder::epgDecodingError, this,
@@ -9676,10 +9799,15 @@ private:
 
     // --- Tab page builders (called once from createNowPlayingPanel) --------
 
-    QWidget* createEpgDataServiceTab()
+    // ========================================================================
+    // Phase 2A: Top-level dock content widgets for EPG, Journaline, TPEG
+    // (replacing the inner tabs in the slideshow panel)
+    // ========================================================================
+
+    QWidget* createEpgDockContent()
     {
         QWidget* page = new QWidget();
-        page->setObjectName(QStringLiteral("epgDataServiceTab"));
+        page->setObjectName(QStringLiteral("epgDockContent"));
         QVBoxLayout* lay = new QVBoxLayout(page);
         lay->setContentsMargins(4, 4, 4, 4);
         lay->setSpacing(4);
@@ -9708,16 +9836,16 @@ private:
         connect(m_epgServiceCombo, qOverload<int>(&QComboBox::currentIndexChanged),
                 this, [this](int index) {
                     populateEpgScheduleList(index >= 0
-                                                 ? m_epgServiceCombo->itemData(index).toUInt()
-                                                 : 0u);
+                                             ? m_epgServiceCombo->itemData(index).toUInt()
+                                             : 0u);
                 });
         return page;
     }
 
-    QWidget* createJournalineDataServiceTab()
+    QWidget* createJournalineDockContent()
     {
         QWidget* page = new QWidget();
-        page->setObjectName(QStringLiteral("journalineDataServiceTab"));
+        page->setObjectName(QStringLiteral("journalineDockContent"));
         QVBoxLayout* lay = new QVBoxLayout(page);
         lay->setContentsMargins(4, 4, 4, 4);
         lay->setSpacing(4);
@@ -9748,10 +9876,10 @@ private:
         return page;
     }
 
-    QWidget* createTpegDataServiceTab()
+    QWidget* createTpegDockContent()
     {
         QWidget* page = new QWidget();
-        page->setObjectName(QStringLiteral("tpegDataServiceTab"));
+        page->setObjectName(QStringLiteral("tpegDockContent"));
         QVBoxLayout* lay = new QVBoxLayout(page);
         lay->setContentsMargins(4, 4, 4, 4);
         lay->setSpacing(4);
@@ -10145,9 +10273,9 @@ private:
         }
     }
 
-    // --- Tab refreshers ----------------------------------------------------
+    // --- Dock refreshers ----------------------------------------------------
 
-    void refreshDataServiceTabs()
+    void refreshDataServiceDocks()
     {
         refreshEpgTab();
         refreshJournalineTab();
@@ -12562,26 +12690,25 @@ private:
     static constexpr int kMaxDataSubChannelSlots = 32;
     bool m_dataTapSlotCapWarned = false;
     bool m_dataTapByteCapWarned = false;
-    // === Wave B: inner data-service tabs (Slideshow | EPG | Journaline |
-    // TPEG), inside the Now Playing / Slideshow dock area (no new dock) =====
-    QTabWidget* m_dataServiceTabs = nullptr;
+    // === Phase 2A: data-service docks (EPG | Journaline | TPEG) — top-level docks
+    // (replacing the inner tabs that were in the slideshow panel) ===============
     // Decoders + per-service data store (Qt parent-child ownership).
     eti::epg::EPGDecoder* m_epgDecoder = nullptr;
     eti::journaline::JournalineDecoder* m_journalineDecoder = nullptr;
     eti::tpeg::TpegDecoder* m_tpegDecoder = nullptr;
     eti::data::DataServiceStore* m_dataServiceStore = nullptr;
-    // EPG tab
+    // EPG dock
     QComboBox* m_epgServiceCombo = nullptr;
     QListWidget* m_epgScheduleList = nullptr;
     QLabel* m_epgStatusLabel = nullptr;
-    // Journaline tab
+    // Journaline dock
     QTreeWidget* m_journalineMenuTree = nullptr;
     QTextEdit* m_journalinePreview = nullptr;
     QLabel* m_journalineStatusLabel = nullptr;
-    // TPEG tab
+    // TPEG dock
     QTableWidget* m_tpegInventoryTable = nullptr;
     QLabel* m_tpegStatusLabel = nullptr;
-    // Coalesced decoder-signal -> tab rebuild (see scheduleDataServiceRefresh).
+    // Coalesced decoder-signal -> dock rebuild (see scheduleDataServiceRefresh).
     QTimer* m_dataServiceRefreshTimer = nullptr;
     // Honest per-capture bookkeeping (surfaced in the status lines).
     QString m_lastEpgError;
@@ -12780,7 +12907,11 @@ private:
     // "Messages" tab (8 -> 7 tabs) and the Tab-3 right dock gained the T42
     // "Hex Viewer" inner tab; a saved v7 state would restore the old strip/dock.
     // Any saved version != 8 is discarded once on restore.
-    static constexpr int DOCKING_LAYOUT_VERSION = 8;
+    // Bumped 8 -> 9 (Phase 2A): three new top-level docks added to Tab-1 Right
+    // column (EPG, Journaline, TPEG) replacing the inner tabs in the slideshow
+    // panel; the right column vertical splitter gains a third group. A saved v8
+    // state would restore the old right column without the Data Services group.
+    static constexpr int DOCKING_LAYOUT_VERSION = 9;
     
     // Phase 1: Processing counters
     int m_processedFrames{0};
