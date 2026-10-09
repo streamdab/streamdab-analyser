@@ -1,0 +1,151 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "linux-gcc",
+      "displayName": "Linux release (Unix Makefiles, system Qt6)",
+      "description": "Canonical Linux build into build/ (Qt6 from the distro packages). Never build with a bare -j / --parallel (unbounded): use the build presets, which carry RAM-safe job caps.",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "windows-msvc",
+      "displayName": "Windows release (Visual Studio 17 2022, vcpkg)",
+      "description": "Windows build into build/. Requires VCPKG_ROOT pointing at a vcpkg checkout (see docs/WINDOWS_BUILD.md) so the ZeroMQ/FFTW/FAAD2 detection ladder finds the tools. Optional components off: -DDABX_ENABLE_ZMQ=OFF / -DDABX_ENABLE_ALSA=OFF.",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "macos-brew",
+      "displayName": "macOS release (Unix Makefiles, Homebrew Qt6)",
+      "description": "macOS build into build/. Requires QT_DIR pointing at a Qt6 install, e.g. 'export QT_DIR=\"$(brew --prefix qt@6)\"' (see docs/MACOS_BUILD.md).",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "$env{QT_DIR}"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug (Unix Makefiles, build-debug/)",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "build-linux",
+      "displayName": "Build (Linux) - 8 jobs, RAM-safe",
+      "description": "Caps parallelism so gmake cannot over-fork on many-core boxes. Override: cmake --build --preset build-linux --parallel N, or JOBS=N bash scripts/build.sh.",
+      "configurePreset": "linux-gcc",
+      "jobs": 8
+    },
+    {
+      "name": "build-windows",
+      "displayName": "Build (Windows) - 8 jobs, RAM-safe",
+      "description": "MSBuild parallel limit. Override with --parallel N.",
+      "configurePreset": "windows-msvc",
+      "jobs": 8
+    },
+    {
+      "name": "build-macos",
+      "displayName": "Build (macOS) - 8 jobs, RAM-safe",
+      "description": "Caps parallelism so make cannot over-fork. Override with --parallel N.",
+      "configurePreset": "macos-brew",
+      "jobs": 8
+    },
+    {
+      "name": "low-memory",
+      "displayName": "Build - 4 jobs (small RAM, Linux-oriented)",
+      "configurePreset": "linux-gcc",
+      "jobs": 4
+    },
+    {
+      "name": "serial",
+      "displayName": "Build - 1 job (lowest memory, Linux-oriented)",
+      "configurePreset": "linux-gcc",
+      "jobs": 1
+    },
+    {
+      "name": "debug",
+      "displayName": "Build Debug - 4 jobs (Linux)",
+      "configurePreset": "debug",
+      "jobs": 4
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-linux",
+      "displayName": "Test (Linux) - serial offscreen",
+      "configurePreset": "linux-gcc",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 1,
+        "noTestsAction": "error"
+      }
+    },
+    {
+      "name": "test-windows",
+      "displayName": "Test (Windows) - serial offscreen",
+      "configurePreset": "windows-msvc",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 1,
+        "noTestsAction": "error"
+      }
+    },
+    {
+      "name": "test-macos",
+      "displayName": "Test (macOS) - serial offscreen",
+      "configurePreset": "macos-brew",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 1,
+        "noTestsAction": "error"
+      }
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="128"
+   height="128"
+   viewBox="0 0 128 128"
+   version="1.1"
+   id="svg16"
+   sodipodi:docname="eti-stream-analyser.svg"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview16"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showguides="false"
+     inkscape:zoom="2.1268446"
+     inkscape:cx="158.92087"
+     inkscape:cy="101.5589"
+     inkscape:window-width="1702"
+     inkscape:window-height="1010"
+     inkscape:window-x="1168"
+     inkscape:window-y="365"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg16" />
+  <!-- Professional StreamDAB Analyser Icon -->
+  <!-- Background circle with gradient -->
+  <defs
+     id="defs5">
+    <linearGradient
+       id="linearGradient7"
+       inkscape:collect="always">
+      <stop
+         style="stop-color:#c34500;stop-opacity:1;"
+         offset="0.04355109"
+         id="stop7" />
+      <stop
+         style="stop-color:#ff7f35;stop-opacity:1;"
+         offset="1"
+         id="stop8" />
+    </linearGradient>
+    <linearGradient
+       id="bgGradient"
+       x1="0%"
+       y1="0%"
+       x2="100%"
+       y2="100%">
+      <stop
+         offset="0"
+         style="stop-color:#ff6615;stop-opacity:1;"
+         id="stop1" />
+      <stop
+         offset="1"
+         style="stop-color:#9e3200;stop-opacity:1;"
+         id="stop2" />
+    </linearGradient>
+    <linearGradient
+       id="waveGradient"
+       x1="-0.37832528"
+       y1="-21.960792"
+       x2="44.028604"
+       y2="-21.960792"
+       gradientTransform="scale(2.1992987,0.4546904)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         style="stop-color:#00FF00;stop-opacity:1"
+         id="stop3" />
+      <stop
+         offset="50%"
+         style="stop-color:#FFFF00;stop-opacity:1"
+         id="stop4" />
+      <stop
+         offset="100%"
+         style="stop-color:#FF6600;stop-opacity:1"
+         id="stop5" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient7"
+       id="linearGradient8"
+       x1="64"
+       y1="125"
+       x2="64"
+       y2="3"
+       gradientUnits="userSpaceOnUse" />
+  </defs>
+  <!-- Background -->
+  <circle
+     cx="64"
+     cy="64"
+     r="60"
+     fill="url(#bgGradient)"
+     stroke="#ffffff"
+     stroke-width="2"
+     id="circle5"
+     style="fill:url(#linearGradient8);fill-opacity:1;stroke:none" />
+  <!-- ETI Stream representation - geometric bars -->
+  <!-- Digital waveform overlay -->
+  <!-- DAB symbol - stylized "D" -->
+  <!-- Professional indicator dots -->
+  <!-- Bottom text indicator -->
+  <text
+     x="64.391762"
+     y="118.29126"
+     text-anchor="middle"
+     font-family="Arial, sans-serif"
+     font-size="12.5351px"
+     font-weight="bold"
+     fill="#ffffff"
+     opacity="0.9"
+     id="text16"
+     style="stroke-width:1.25351">ETI</text>
+  <g
+     id="g18"
+     style="fill:#ffffff"
+     transform="matrix(1.422601,0,0,1.1548185,-326.97697,40.494519)">
+    <path
+       d="m 274.7671,52.380228 c -1.77663,-2.29616 -1.87833,-2.56041 -1.14984,-2.9875 7.27095,-4.26275 13.31947,-11.82313 16.32188,-20.401605 0.72563,-2.073284 1.49768,-3.829053 1.71566,-3.901711 0.53248,-0.177496 5.55416,1.145092 5.96375,1.570706 0.49651,0.51593 -1.45619,6.156133 -3.60255,10.40567 -2.94928,5.83921 -8.3176,12.02656 -13.45479,15.50756 -3.85391,2.61143 -3.61802,2.61929 -5.79411,-0.19312 z m -10.69685,-11.241 -1.73204,-2.60764 2.83451,-2.055681 c 3.70762,-2.688874 6.86562,-7.012654 8.45352,-11.574136 0.71495,-2.053795 1.44615,-3.467756 1.73583,-3.35664 0.27529,0.105593 1.6584,0.451071 3.07358,0.767736 3.01032,0.673593 3.09607,0.948242 1.64111,5.256621 -1.6672,4.936833 -5.92833,10.6113 -10.47898,13.95465 -3.50957,2.57847 -3.56161,2.57484 -5.52753,-0.38491 z M 253.33139,30.323743 c -0.77514,-1.24694 -1.40935,-2.421455 -1.40935,-2.610026 0,-0.188575 0.82998,-1.009848 1.84439,-1.825049 2.51573,-2.021701 4.15035,-5.613563 3.87218,-8.508594 -0.26111,-2.717365 -2.20264,-6.073616 -4.19271,-7.247791 -0.83812,-0.4945045 -1.52386,-1.0624555 -1.52386,-1.2621195 0,-0.576059 2.84019,-5.365906 3.18177,-5.365906 0.76065,0 4.97705,3.59026 6.33279,5.392357 3.43652,4.5679345 4.11055,10.3537535 1.78354,15.3096775 -0.72078,1.535068 -1.8892,3.475457 -2.59649,4.311976 -1.45895,1.725518 -4.53977,4.072646 -5.34571,4.072646 -0.29546,0 -1.17141,-1.020226 -1.94655,-2.267171 z m 20.95393,-17.227646 c -0.24003,-0.631319 -0.43925,-1.386453 -0.44271,-1.678076 -0.004,-0.291627 -0.81246,-2.0091865 -1.79778,-3.8168005 -1.80725,-3.315499 -4.17399,-5.926434 -7.25754,-8.00635297 -0.92294,-0.62254403 -1.67807,-1.40953103 -1.67807,-1.74886003 0,-0.901091 2.81749,-5.063965 3.43374,-5.073398 0.67775,-0.01038 4.3051,2.711781 6.76823,5.079251 3.35363,3.223365 7.34214,10.369688 7.7638,13.9106135 0.153,1.284793 0.0815,1.338 -2.52747,1.882292 -3.67113,0.765869 -3.76711,0.753514 -4.2622,-0.548669 z m 15.54014,-6.3157825 c -2.18991,-6.90603197 -7.18303,-13.715916 -13.00333,-17.7346445 -1.49331,-1.031077 -2.90829,-2.008532 -3.1444,-2.172115 -0.43661,-0.302502 0.20949,-1.524727 2.26878,-4.291839 0.95802,-1.287309 1.19851,-1.396505 2.06635,-0.938242 1.53024,0.808036 6.02369,4.339868 8.10785,6.37273 4.70719,4.5913325 9.62041,12.85822553 11.14781,18.7571025 l 0.67266,2.597819 -1.10999,0.422016 c -0.61049,0.2321075 -2.1549,0.5373155 -3.43201,0.6782385 l -2.32202,0.256222 z"
+       style="fill:#ffffff;stroke-width:0.447487"
+       id="path1" />
+  </g>
+</svg>

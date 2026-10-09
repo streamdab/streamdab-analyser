@@ -1,0 +1,14 @@
+#!/bin/bash
+# StreamDAB Analyser Pre-Removal Script
+
+set -e
+
+# Stop any running instances
+pkill -f StreamDABAnalyser || true
+
+# Clean up temporary files
+rm -rf /tmp/streamdab-analyser-* || true
+
+echo "StreamDAB Analyser pre-removal cleanup completed."
+
+exit 0

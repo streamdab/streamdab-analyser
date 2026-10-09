@@ -1,0 +1,93 @@
+GNU GENERAL PUBLIC LICENSE
+Version 3, 29 June 2007
+
+Copyright (C) 2026 StreamDAB Analyser contributors
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+================================================================================
+
+ADDITIONAL PERMISSIONS AND LINKING EXCEPTIONS
+
+As additional permissions under GNU GPL version 3 section 7, you are
+permitted to link this program with Qt libraries that are licensed under
+LGPL v3 or later, and distribute the combined work under the terms of
+GNU GPL v3.
+
+================================================================================
+
+THIRD-PARTY COMPONENTS AND LICENSES
+
+This software incorporates third-party components with the following licenses:
+
+1. Qt Framework (LGPL-3.0 / GPL-3.0)
+   Copyright (C) 2024 The Qt Company Ltd.
+   Licensed under LGPL-3.0 or GPL-3.0
+   https://www.qt.io/licensing/
+
+2. FFTW3 Library (GPL-2.0+)
+   Copyright (C) 2003, 2007-11 Matteo Frigo and Massachusetts Institute of Technology
+   Licensed under GPL-2.0 or later
+   http://www.fftw.org/
+
+3. Audio Decoder Libraries:
+
+   a) FDK-AAC (Modified BSD License with restrictions)
+      Copyright (C) 2012 Fraunhofer IIS
+      Licensed under modified BSD license with additional restrictions
+      https://github.com/mstorsjo/fdk-aac
+
+      NOTE: FDK-AAC may be subject to patent licensing requirements for
+      commercial use. For open source distribution, consider using FAAD2.
+
+   b) FAAD2 (GPL-2.0) - Alternative to FDK-AAC
+      Copyright (C) 2003-2005 M. Bakker
+      Licensed under GPL-2.0
+      https://github.com/knik0/faad2
+
+4. ALSA Library (LGPL-2.1)
+   Copyright (C) 1998-2001 Jaroslav Kysela
+   Licensed under LGPL-2.1
+   https://www.alsa-project.org/
+
+5. YAML-CPP (MIT License) - Optional dependency
+   Copyright (c) 2008-2015 Jesse Beder
+   Licensed under MIT License
+   https://github.com/jbeder/yaml-cpp
+
+================================================================================
+
+PATENT CONSIDERATIONS
+
+This software implements DAB/DAB+ stream analysis functionality. DAB/DAB+
+technologies may be subject to various patents. The use of this software
+does not grant any patent licenses. Users are responsible for ensuring
+compliance with applicable patent requirements in their jurisdiction.
+
+For commercial use, particularly broadcast applications, users should:
+1. Consult with qualified patent attorneys
+2. Evaluate patent licensing requirements for DAB/DAB+ technologies
+3. Consider audio codec patent implications (especially with FDK-AAC)
+
+================================================================================
+
+CONTACT INFORMATION
+
+For licensing questions or commercial licensing inquiries:
+- Repository: https://github.com/streamdab/streamdab-analyser
+- Issues: https://github.com/streamdab/streamdab-analyser/issues
+
+This software is provided "as is" without warranty of any kind, express or
+implied, including but not limited to the warranties of merchantability,
+fitness for a particular purpose and noninfringement.

@@ -1,0 +1,123 @@
+# ============================================================================
+# Phase 3A End-to-End Testing Suite
+# Complete pipeline validation: ETI → FIG → Audio → MOT → EPG → Journaline
+# ============================================================================
+
+cmake_minimum_required(VERSION 3.16)
+
+message(STATUS "=== Phase 3A E2E Test Suite Configuration ===")
+
+# Find Qt6 Test module
+find_package(Qt6 REQUIRED COMPONENTS Test Core Widgets)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Include project source directories
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration
+)
+
+# ============================================================================
+# Phase 3A Component Sources
+# ============================================================================
+
+set(PHASE3A_CORE_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/enhanced_eti_processor_qt.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/advanced_fig_analyser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/dabplus_stream_validator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/mot_protocol.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/epg_decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/journaline_decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/phase3a_integration.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/etsi_compliance_engine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/utils/logger.cpp
+)
+
+# ============================================================================
+# E2E Test 1: Complete Phase 3A Pipeline Testing (20-25 tests)
+# ============================================================================
+
+add_executable(test_phase3a_complete_pipeline
+    test_phase3a_complete_pipeline.cpp
+    ${PHASE3A_CORE_SOURCES}
+)
+
+target_link_libraries(test_phase3a_complete_pipeline
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    pthread
+)
+
+target_include_directories(test_phase3a_complete_pipeline PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration
+)
+
+add_test(NAME test_phase3a_complete_pipeline
+         COMMAND test_phase3a_complete_pipeline)
+
+set_tests_properties(test_phase3a_complete_pipeline PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_LOGGING_RULES=*.debug=false"
+    TIMEOUT 120
+)
+
+# ============================================================================
+# Standalone Tool: Performance Benchmark (not a test)
+# ============================================================================
+
+add_executable(performance_benchmark
+    performance_benchmark.cpp
+    ${PHASE3A_CORE_SOURCES}
+)
+
+target_link_libraries(performance_benchmark
+    Qt6::Core
+    Qt6::Widgets
+    pthread
+)
+
+target_include_directories(performance_benchmark PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+)
+
+# Note: Not added to CTest - this is a standalone benchmark tool
+# Run manually: ./performance_benchmark
+
+# ============================================================================
+# Custom Targets
+# ============================================================================
+
+# Run Phase 3A E2E test suite
+add_custom_target(run_phase3a_e2e_tests
+    COMMAND ${CMAKE_CTEST_COMMAND} -R "test_phase3a_complete_pipeline" --verbose --output-on-failure
+    DEPENDS test_phase3a_complete_pipeline
+    COMMENT "Running Phase 3A E2E test suite (complete pipeline validation)"
+)
+
+# Run performance benchmark
+add_custom_target(run_phase3a_benchmark
+    COMMAND ./performance_benchmark
+    DEPENDS performance_benchmark
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Running Phase 3A performance benchmark (10,000 frames)"
+)
+
+# ============================================================================
+# Summary
+# ============================================================================
+
+message(STATUS "")
+message(STATUS "===========================================")
+message(STATUS "Phase 3A E2E Test Suite Configured:")
+message(STATUS "  - test_phase3a_complete_pipeline (20-25 tests)")
+message(STATUS "  - performance_benchmark (standalone tool)")
+message(STATUS "")
+message(STATUS "Run tests: make && make run_phase3a_e2e_tests")
+message(STATUS "Run benchmark: make && make run_phase3a_benchmark")
+message(STATUS "===========================================")

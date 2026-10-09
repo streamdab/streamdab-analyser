@@ -1,0 +1,27 @@
+#!/bin/bash
+# StreamDAB Analyser Post-Installation Script
+
+set -e
+
+# Update desktop database
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database -q
+fi
+
+# Update icon cache
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor
+fi
+
+# Create application data directory
+mkdir -p /var/lib/streamdab-analyser
+chmod 755 /var/lib/streamdab-analyser
+
+# Configure logging directory
+mkdir -p /var/log/streamdab-analyser
+chmod 755 /var/log/streamdab-analyser
+
+echo "StreamDAB Analyser installation completed successfully."
+echo "You can run the application from Applications menu or by typing 'StreamDABAnalyser'"
+
+exit 0

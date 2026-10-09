@@ -1,0 +1,35 @@
+[Desktop Entry]
+Name=StreamDAB Analyser
+GenericName=ETI Stream Analysis Tool
+Comment=ETI/DAB stream analysis for broadcast engineers
+Comment[es]=Análisis profesional de flujos ETI/DAB para ingenieros de radiodifusión
+Comment[fr]=Analyse professionnelle de flux ETI/DAB pour ingénieurs de diffusion
+Comment[de]=Professionelle ETI/DAB-Strom-Analyse für Sendetechniker
+Icon=eti-stream-analyser
+Exec=StreamDABAnalyser %F
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Science;Engineering;
+MimeType=application/x-eti-stream;application/x-dab-stream;application/x-edi-stream;
+Keywords=ETI;DAB;DAB+;Broadcast;Audio;Stream;Analysis;Radio;Digital;
+StartupNotify=true
+StartupWMClass=StreamDABAnalyser
+Actions=Analyze;Record;
+
+[Desktop Action Analyze]
+Name=Analyze ETI Stream
+Icon=eti-stream-analyser
+Exec=StreamDABAnalyser --analyze %F
+
+[Desktop Action Record]
+Name=Record Live Stream
+Icon=eti-stream-analyser
+Exec=StreamDABAnalyser --record
+
+# Professional broadcast industry metadata
+X-AppStream-Ignore=false
+X-GNOME-UsesNotifications=true
+X-KDE-StartupNotify=true
+X-MATE-Bugzilla-Bugzilla=GitHub
+X-MATE-Bugzilla-Product=StreamDAB-Analyser
+X-MATE-Bugzilla-Component=Desktop

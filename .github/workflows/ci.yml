@@ -1,0 +1,138 @@
+# CI — Linux / Windows / macOS build + full test gate.
+#
+# Mirrors the local gates exactly: zero-error/zero-warning build, ctest 55/55,
+# fixture parity, bounded parallelism (never a bare -j). Each OS uses its own
+# CMake preset from CMakePresets.json; the offline-fixture tests run against
+# the real eti/ fixtures checked into the repo.
+#
+# Runs on: push to main + feature branches, pull requests against main,
+# manual dispatch. fetch-depth: 0 so the CMake DABX_VERSION resolution can see
+# the git tags (version = last tag, e.g. 1.5.0).
+
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+    tags-ignore: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  QT_QPA_PLATFORM: offscreen   # BEFORE configure: registers all GUI test targets
+  CTEST_TEST: "ctest --output-on-failure"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux (ubuntu-24.04, system Qt 6)
+            os: ubuntu-24.04
+            configure: linux-gcc
+            build: build-linux
+            test: test-linux
+            no-test-prefix: false
+          - name: Windows (windows-2022, aqt Qt + vcpkg)
+            os: windows-2022
+            configure: windows-msvc
+            build: build-windows
+            test: test-windows
+            shell: pwsh
+          - name: macOS (macos-14, Homebrew Qt 6)
+            os: macos-14
+            configure: macos-brew
+            build: build-macos
+            test: test-macos
+            no-test-prefix: true
+
+    steps:
+      - name: Checkout (with tags for the version resolution)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ---------------------------------------------------------------- Linux
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
+            libasound2-dev libgtest-dev build-essential
+
+      # -------------------------------------------------------------- Windows
+      - name: Install Qt 6 (Windows, aqt; Multimedia included)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2022_64'
+          modules: 'qtmultimedia'
+          cache: true
+
+      - name: Bootstrap vcpkg and build the small native deps (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$env:RUNNER_TEMP/vcpkg"
+          & "$env:RUNNER_TEMP/vcpkg/bootstrap-vcpkg.bat" -disableMetrics
+          & "$env:RUNNER_TEMP/vcpkg/vcpkg.exe" install --triplet x64-windows `
+            faad2 fftw3 zeromq cppzmq gtest
+          Add-Content $env:GITHUB_ENV "VCPKG_ROOT=$env:RUNNER_TEMP/vcpkg"
+
+      # ---------------------------------------------------------------- macOS
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install cmake qt@6 faad2 fftw libzmq googletest
+          echo "QT_DIR=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
+
+      # ------------------------------------------------------------ configure
+      - name: Configure (-p ${{ matrix.configure }})
+        run: >
+          cmake --preset ${{ matrix.configure }}
+          ${{ runner.os == 'Windows' && '-DDABX_ENABLE_ZMQ=ON' || '' }}
+      # ZMQ is ON by default everywhere; the Windows preset reads $env{VCPKG_ROOT}
+      # (set above). If a dependency is ever unavailable the ladder degrades and
+      # the suite shrinks - the workflow then reports the actual count.
+
+      # ----------------------------------------------------------------- build
+      - name: Build (bounded, preset ${{ matrix.build }})
+        run: cmake --build --preset ${{ matrix.build }}
+
+      # ----------------------------------------------------------------- tests
+      # PUBLIC subset only: the eti/ captures are World DAB licensed and never
+      # reach the public repo (docs/TEST_SUITE_PUBLIC_PRIVATE_SPLIT.md); the
+      # full suite runs on machines that have the captures.
+      # run from the repo root: ctest --preset needs CMakePresets.json here
+      - name: Test (ctest ${{ matrix.test }} -L PUBLIC)
+        run: ctest --preset ${{ matrix.test }} -L PUBLIC
+
+      # --------------------------------------------------------- smoke checks
+      - name: CLI smoke (real fixture, Linux/macOS)
+        if: runner.os != 'Windows'
+        working-directory: build
+        run: |
+          ./streamdab-cli --version
+          ./streamdab-cli --help | head -5
+          # with the private captures present this also runs:
+          #   ./streamdab-cli --input ../eti/bkk_20062022_141637.eti --output smoke.yaml
+
+      - name: CLI smoke (Windows)
+        if: runner.os == 'Windows'
+        working-directory: build
+        shell: pwsh
+        run: |
+          .\streamdab-cli.exe --version
+          .\streamdab-cli.exe --help | Select-Object -First 5

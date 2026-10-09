@@ -1,0 +1,33 @@
+#!/bin/bash
+# Pre-removal script for StreamDAB Analyser
+# Debian/Ubuntu package pre-removal
+
+set -e
+
+case "$1" in
+    remove|upgrade|deconfigure)
+        # Stop any running instances gracefully
+        if pgrep -f StreamDABAnalyser >/dev/null 2>&1; then
+            echo "Stopping running StreamDAB Analyser instances..."
+            pkill -TERM -f StreamDABAnalyser 2>/dev/null || true
+            sleep 2
+            # Force kill if still running
+            pkill -KILL -f StreamDABAnalyser 2>/dev/null || true
+        fi
+
+        # Clean up temporary files
+        if [ -d /tmp/streamdab-* ]; then
+            rm -rf /tmp/streamdab-* 2>/dev/null || true
+        fi
+        ;;
+
+    failed-upgrade)
+        ;;
+
+    *)
+        echo "prerm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

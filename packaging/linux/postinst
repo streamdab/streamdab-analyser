@@ -1,0 +1,81 @@
+#!/bin/bash
+# Post-installation script for StreamDAB Analyser
+# Debian/Ubuntu package post-installation
+
+set -e
+
+case "$1" in
+    configure)
+        # Update MIME database for ETI file associations
+        if [ -x /usr/bin/update-mime-database ]; then
+            update-mime-database /usr/share/mime >/dev/null 2>&1 || true
+        fi
+
+        # Update desktop database for application menu
+        if [ -x /usr/bin/update-desktop-database ]; then
+            update-desktop-database >/dev/null 2>&1 || true
+        fi
+
+        # Update icon cache
+        if [ -x /usr/bin/gtk-update-icon-cache ]; then
+            gtk-update-icon-cache -f -t /usr/share/icons/hicolor >/dev/null 2>&1 || true
+        fi
+
+        # Create user configuration directory template
+        if [ ! -d /etc/skel/.config/StreamDAB ]; then
+            mkdir -p /etc/skel/.config/StreamDAB
+            cat > /etc/skel/.config/StreamDAB/analyser.conf << 'EOF'
+# StreamDAB Analyser Default Configuration
+[General]
+AutoOpenRecentFiles=true
+ShowWelcomeDialog=true
+DefaultAnalysisMode=Professional
+
+[Audio]
+DefaultDecoder=fdk-aac
+SampleRate=48000
+BufferSize=1024
+
+[Network]
+DefaultPort=9200
+MulticastGroup=239.192.0.1
+EnableAutoDiscovery=true
+
+[ETSI]
+ComplianceLevel=Strict
+ValidateFrameStructure=true
+CheckAudioQuality=true
+EOF
+        fi
+
+        # Add ETI file type to shared-mime-info
+        if [ -d /usr/share/mime/packages ]; then
+            # MIME type should already be installed by package
+            echo "ETI file associations configured"
+        fi
+
+        # Create log directory for system-wide logging
+        if [ ! -d /var/log/streamdab ]; then
+            mkdir -p /var/log/streamdab
+            chmod 755 /var/log/streamdab
+        fi
+
+        # Add broadcast group for professional users (optional)
+        if ! getent group broadcast >/dev/null 2>&1; then
+            groupadd -r broadcast 2>/dev/null || true
+        fi
+
+        echo "StreamDAB Analyser installation completed successfully"
+        echo "Professional ETI analysis tools are now available"
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

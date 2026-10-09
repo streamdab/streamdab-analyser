@@ -1,0 +1,35 @@
+# ============================================================================
+# StreamDAB-Analyser — export/archive attributes
+#
+# `export-ignore` keeps internal paths out of `git archive` output (release
+# tarballs) and documents the not-for-public set used by
+# scripts/publish-public.sh — see docs/GITHUB_PUBLISHING_PLAN.md.
+# ============================================================================
+
+# Internal documentation (plans, audits, session notes, task lists)
+docs/                    export-ignore
+
+# Third-party reference PDFs (ETSI standard, vendor manuals — copyright)
+ref/                     export-ignore
+
+# Test captures: World DAB licensed material — NEVER exported (even the
+# tracked bkk fixture; the private suite uses it, the public tree must not
+# carry it).
+eti/                     export-ignore
+
+# Build/test artifacts
+build/                   export-ignore
+build-*/                 export-ignore
+Testing/                 export-ignore
+tests/tests/             export-ignore
+output.yaml              export-ignore
+
+# Agent / AI / IDE configuration
+AGENTS.md                export-ignore
+CLAUDE.md                export-ignore
+.agents-config.md        export-ignore
+.claude/                 export-ignore
+.opencode/               export-ignore
+.vscode/                 export-ignore
+.playwright-mcp/         export-ignore
+.ropeproject/            export-ignore

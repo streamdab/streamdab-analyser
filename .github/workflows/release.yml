@@ -1,0 +1,208 @@
+# Release — tag-triggered GitHub Release with per-OS packages.
+#
+# Triggered by tags vX.Y.Z (e.g. v1.6.0). Builds the same matrix as ci.yml,
+# packages the produced binaries with CPack (TGZ+DEB on Linux, ZIP on
+# Windows, .dmg on macOS via scripts/bundle-macos.sh) and publishes a GitHub
+# Release with auto-generated notes from the commit history since the
+# previous tag. NSIS installers and the AppImage script are documented in
+# INSTALL.md §6 (they need makensis / linuxdeploy on the runner).
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # create the Release + upload assets
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-24.04
+            configure: linux-gcc
+            build: build-linux
+            archive: linux-x86_64.tar.gz
+          - name: windows
+            os: windows-2022
+            configure: windows-msvc
+            build: build-windows
+            archive: windows-x86_64.zip
+          - name: macos
+            os: macos-14
+            configure: macos-brew
+            build: build-macos
+            archive: macos-arm64.dmg   # macos-14 runners are Apple Silicon
+
+    steps:
+      - name: Checkout (with tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ----------------------------------------------------- dependencies
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
+            libasound2-dev libgtest-dev build-essential
+
+      - name: Install Qt 6 (Windows)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2022_64'
+          modules: 'qtmultimedia'
+          cache: true
+
+      - name: Bootstrap vcpkg deps (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$env:RUNNER_TEMP/vcpkg"
+          & "$env:RUNNER_TEMP/vcpkg/bootstrap-vcpkg.bat" -disableMetrics
+          & "$env:RUNNER_TEMP/vcpkg/vcpkg.exe" install --triplet x64-windows `
+            faad2 fftw3 zeromq cppzmq gtest
+          Add-Content $env:GITHUB_ENV "VCPKG_ROOT=$env:RUNNER_TEMP/vcpkg"
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install cmake qt@6 faad2 fftw libzmq googletest
+          echo "QT_DIR=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
+
+      # ------------------------------------------------------- build + test
+      - name: Configure
+        run: cmake --preset ${{ matrix.configure }}
+
+      - name: Build (bounded)
+        run: cmake --build --preset ${{ matrix.build }}
+
+      - name: Test
+        run: ctest --preset test-${{ matrix.name }} -L PUBLIC   # from repo root (preset file)
+
+      # ----------------------------------------------------------- package
+      # CPack artifacts (INSTALL.md §6): TGZ+DEB on Linux, ZIP on Windows,
+      # .dmg via scripts/bundle-macos.sh (install -> macdeployqt -> hdiutil)
+      # on macOS. NSIS needs makensis on the runner; enabled when available.
+      - name: "Package (Linux: TGZ + DEB)"
+        if: runner.os == 'Linux'
+        working-directory: build
+        run: |
+          cpack --config CPackConfig.cmake -G TGZ
+          cpack --config CPackConfig.cmake -G DEB
+
+      - name: "Package (Windows: ZIP)"
+        if: runner.os == 'Windows'
+        working-directory: build
+        shell: pwsh
+        run: cpack --config CPackConfig.cmake -G ZIP
+
+      - name: "Package (macOS: .app + .dmg)"
+        if: runner.os == 'macOS'
+        run: bash scripts/bundle-macos.sh
+
+      # ----------------------------------------------------------- normalize
+      - name: "Normalize artifact (Linux: TGZ)"
+        if: runner.os == 'Linux'
+        working-directory: build
+        run: |
+          # The TGZ is the canonical Linux asset; never rename the .deb as .tar.gz.
+          cp streamdab-analyser-*-Linux.tar.gz ${{ matrix.archive }}
+
+      - name: "Normalize artifact (macOS: .dmg)"
+        if: runner.os == 'macOS'
+        working-directory: build
+        run: |
+          cp "$(ls *.dmg | head -1)" ${{ matrix.archive }}
+
+      - name: "Normalize artifact (Windows: ZIP)"
+        if: runner.os == 'Windows'
+        working-directory: build
+        shell: pwsh
+        run: |
+          $latest = Get-ChildItem streamdab-analyser*.zip | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if ($latest) { Copy-Item $latest.FullName -Destination ${{ matrix.archive }} }
+        # If any normalize step finds nothing, cp fails and the job fails loudly
+        # (GITHUB defaults to bash/pwsh -e).
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: build/${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout (tags; for release notes)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download per-OS archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*.tar.gz"
+          path: assets
+          merge-multiple: true
+
+      - name: Download Windows archive
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*.zip"
+          path: assets
+          merge-multiple: true
+
+      - name: Download macOS archive
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*.dmg"
+          path: assets
+          merge-multiple: true
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          # Commits since the previous tag (or all if none).
+          PREV=$(git describe --tags --abbrev=0 --skip 1 2>/dev/null || echo "")
+          if [ -z "$PREV" ]; then
+            git log -1 --format='%s%n%n%b' HEAD > RELEASE_NOTES.md
+          else
+            git log --format='- %s' "$PREV..HEAD" > RELEASE_NOTES.md
+          fi
+          {
+            echo "Built and tested on Linux, Windows and macOS (PUBLIC suite;"
+            echo "the full suite including the private World-DAB captures runs"
+            echo "locally)."
+            echo ""
+            echo "Assets: CPack packages — TGZ + DEB (Linux), ZIP (Windows),"
+            echo ".dmg (macOS) — each carrying the GUI (StreamDABAnalyser) and"
+            echo "the CLI (streamdab-cli)."
+          } >> RELEASE_NOTES.md
+
+      - name: Create/update the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "StreamDAB Analyser ${{ github.ref_name }}"
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          files: |
+            assets/*

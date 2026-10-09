@@ -1,0 +1,322 @@
+# ETI Stream Analyser - Professional .gitignore
+# C++/Qt/CMake Project with Cross-Platform Build Support
+
+#==============================================================================
+# Build Directories
+#==============================================================================
+build/
+build-*/
+build_*/
+out/
+dist/
+release/
+
+# Nested accidentally-committed CMake build tree
+tests/tests/
+debug/
+Release/
+Debug/
+RelWithDebInfo/
+MinSizeRel/
+
+#==============================================================================
+# CMake Generated Files
+#==============================================================================
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+*.cmake
+!CMakeLists.txt
+!*.cmake
+# Re-include our custom cmake modules
+!cmake/
+!cmake/**/*.cmake
+
+#==============================================================================
+# C++ Compiled Objects & Libraries
+#==============================================================================
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.app
+*.dSYM/
+
+#==============================================================================
+# Qt Generated Files
+#==============================================================================
+# Qt MOC files
+moc_*.cpp
+moc_*.h
+*_moc.cpp
+
+# Qt UIC files
+ui_*.h
+
+# Qt RCC files
+qrc_*.cpp
+
+# Qt translations
+*.qm
+
+# Qt Creator files
+*.pro.user*
+*.pri
+*.qbs.user*
+*.qtcreator.user*
+CMakeLists.txt.user*
+
+# Qt autogen directories
+*_autogen/
+*autogen*/
+
+#==============================================================================
+# IDE & Editor Files
+#==============================================================================
+# Visual Studio
+.vs/
+*.vcxproj*
+*.sln
+*.user
+*.suo
+*.ncb
+*.aps
+*.sdf
+*.opensdf
+*.cachefile
+*.VC.db
+*.VC.opendb
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# CLion
+.idea/
+cmake-build-*/
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# Rope / Playwright MCP tool caches
+.ropeproject/
+.playwright-mcp/
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+#==============================================================================
+# Platform Specific
+#==============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.DocumentRevisions-V100
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+.directory
+.Trash-*
+
+#==============================================================================
+# Testing & Coverage
+#==============================================================================
+# Test results
+Testing/
+test_results/
+*.xml
+*.html
+coverage/
+*.gcov
+*.gcda
+*.gcno
+*.lcov
+*.info
+
+# Google Test
+gtest/
+gmock/
+
+#==============================================================================
+# Documentation Generated
+#==============================================================================
+docs/_build/
+docs/html/
+docs/latex/
+docs/xml/
+*.pdf
+*.eps
+*.png
+*.jpg
+*.jpeg
+!docs/images/
+!resources/icons/
+!resources/images/
+
+#==============================================================================
+# Package Management
+#==============================================================================
+# Conan
+conandata.txt
+conanfile.txt
+conaninfo.txt
+conanbuildinfo.*
+conan.lock
+.conan/
+
+# vcpkg
+vcpkg_installed/
+.vcpkg-root
+
+# CPack
+_CPack_Packages/
+*.dmg
+*.pkg
+*.deb
+*.rpm
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.zip
+
+#==============================================================================
+# Professional Development
+#==============================================================================
+# Version control
+*.orig
+*.patch
+*.diff
+
+# Backup files
+*.bak
+*.backup
+*.backup*
+*.old
+*.tmp
+
+# Log files
+*.log
+logs/
+
+# Configuration overrides (keep templates)
+config/local.*
+*.local.yaml
+*.local.json
+!config/*.template.*
+
+#==============================================================================
+# ETI Stream Analyser Specific
+#==============================================================================
+# ETI test files (large binary files)
+*.eti
+*.raw
+test_data/streams/
+samples/large/
+
+# Large ETI test data directories. The captures are World DAB licensed
+# test material and NEVER published (they only make the PRIVATE test suite
+# work locally). The small Bangkok fixture (30 MB) and the *.txt description
+# files are TRACKED in the private repo so the private suite is self-contained.
+eti/BayerischerRundfunk-Warntag2024-2024-09-12/
+eti/EWSv1_1/
+eti/HessischerRundfunk-Warntag2024-2024-09-12_journalline/
+!eti/bkk_20062022_141637.eti
+
+# Generated reports
+reports/
+exports/
+recordings/
+output.yaml
+
+# Performance profiling
+*.prof
+*.perf
+callgrind.out.*
+massif.out.*
+
+# Audio output files
+*.wav
+*.mp3
+*.aac
+audio_exports/
+
+# Stream recordings
+recordings/
+captures/
+
+#==============================================================================
+# Security & Sensitive Data
+#==============================================================================
+# Never commit secrets
+*.key
+*.pem
+*.crt
+*.p12
+secrets/
+.env
+.env.local
+.env.production
+
+# API keys and configs
+api_keys.txt
+credentials.json
+auth_config.yaml
+
+#==============================================================================
+# Temporary & Cache
+#==============================================================================
+# General temp
+temp/
+tmp/
+*.temp
+*.cache
+
+# Qt cache
+.qt/
+.qtc_clangd/
+
+# CMake cache
+.cmake/
+
+# Compiler cache
+.ccache/
+.sccache/
+
+#==============================================================================
+# END OF .gitignore
+#==============================================================================
