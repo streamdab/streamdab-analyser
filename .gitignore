@@ -160,6 +160,8 @@ $RECYCLE.BIN/
 Testing/
 test_results/
 *.xml
+# packaging input that must be tracked (installed to share/mime/packages)
+!resources/linux/eti-stream-analyser.xml
 *.html
 coverage/
 *.gcov
