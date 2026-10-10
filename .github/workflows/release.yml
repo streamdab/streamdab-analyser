@@ -17,6 +17,13 @@ on:
 permissions:
   contents: write   # create the Release + upload assets
 
+env:
+  # Same as ci.yml: BEFORE configure, so every GUI test target is registered
+  # and the Qt tests run without a display. Without it the Linux Test step
+  # dies on "could not load the Qt platform plugin xcb".
+  QT_QPA_PLATFORM: offscreen
+  CTEST_TEST: "ctest --output-on-failure"
+
 jobs:
   build:
     name: ${{ matrix.name }}
@@ -94,7 +101,9 @@ jobs:
 
       # ------------------------------------------------------- build + test
       - name: Configure
-        run: cmake --preset ${{ matrix.configure }}
+        run: >
+          cmake --preset ${{ matrix.configure }}
+          ${{ runner.os == 'Windows' && '-DDABX_ENABLE_ZMQ=ON' || '' }}
 
       - name: Build (bounded)
         run: cmake --build --preset ${{ matrix.build }}
@@ -133,6 +142,12 @@ jobs:
       - name: "Package (macOS: .app + .dmg)"
         if: runner.os == 'macOS'
         run: bash scripts/bundle-macos.sh
+
+      # The .app must not depend on Homebrew / build-tree paths and must start
+      # with an empty environment (see scripts/ci/verify_macos_bundle.sh).
+      - name: "Verify the macOS bundle is self-contained"
+        if: runner.os == 'macOS'
+        run: bash scripts/ci/verify_macos_bundle.sh dist/StreamDAB-Analyser.app
 
       # ----------------------------------------------------------- normalize
       - name: "Normalize artifact (Linux: TGZ)"

@@ -200,6 +200,16 @@ jobs:
           # with the private captures present this also runs:
           #   ./streamdab-cli --input ../eti/bkk_20062022_141637.eti --output smoke.yaml
 
+      # Release-only packaging code rots unseen until a tag is pushed, so build
+      # the macOS bundle here too. Informational for now (continue-on-error):
+      # the result is visible in the log; make it blocking once it is green.
+      - name: macOS bundle check (informational)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          bash scripts/bundle-macos.sh
+          bash scripts/ci/verify_macos_bundle.sh dist/StreamDAB-Analyser.app
+
       - name: CLI smoke (Windows)
         if: runner.os == 'Windows'
         working-directory: build
