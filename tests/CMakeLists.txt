@@ -785,30 +785,8 @@ if(CAN_RUN_GUI_TESTS)
     add_dependencies(test_dock_interactions DABAnalyser_Enhanced_FilteringBuild)
     target_include_directories(test_dock_interactions PRIVATE
         ${APP_AUTOGEN_INCLUDE_DIR})
-    if(WIN32)
-        # Windows: run each test function in its own process. The tests build
-        # several top-level DABAnalyserWindow objects in a row; in one process
-        # the 4th construction crashes in Qt's accessibility layer
-        # (QWidget::setWindowTitle -> QAccessibleWidget::text -> null widget,
-        # a stale accessible-interface entry for a recycled window address).
-        # Every function still runs.
-        file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/gui/test_dock_interactions.cpp" _dock_slots
-             REGEX "^[ \t]*void test[A-Za-z0-9_]+\\(\\);")
-        set(_dock_funcs "")
-        foreach(_line IN LISTS _dock_slots)
-            string(REGEX REPLACE "^[ \t]*void (test[A-Za-z0-9_]+)\\(\\);.*$" "\\1" _fn "${_line}")
-            list(APPEND _dock_funcs "${_fn}")
-        endforeach()
-        list(JOIN _dock_funcs "|" _dock_funcs_joined)
-        add_test(NAME test_dock_interactions
-                 COMMAND ${CMAKE_COMMAND}
-                         -DEXE=$<TARGET_FILE:test_dock_interactions>
-                         "-DFUNCS=${_dock_funcs_joined}"
-                         -P ${CMAKE_CURRENT_SOURCE_DIR}/run_each_test_function.cmake)
-    else()
-        add_test(NAME test_dock_interactions
-                 COMMAND test_dock_interactions)
-    endif()
+    add_test(NAME test_dock_interactions
+             COMMAND test_dock_interactions)
     set_tests_properties(test_dock_interactions PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         TIMEOUT 240

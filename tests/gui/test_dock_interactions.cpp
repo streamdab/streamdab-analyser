@@ -32,7 +32,6 @@
  */
 
 #include <QtTest/QtTest>
-#include <QAccessible>
 #include <QStandardPaths>
 #include <QSettings>
 #include <QSplitter>
@@ -179,17 +178,6 @@ private:
 
 void TestDockInteractions::initTestCase()
 {
-    // These tests build several top-level DABAnalyserWindow objects one after
-    // another. With Qt accessibility active (a UI Automation client on the
-    // Windows CI runner), QWidget::setWindowTitle() in the NEXT window's
-    // constructor can hit a stale accessible-interface cache entry left by a
-    // destroyed window at the same address (QAccessibleWidget::text() ->
-    // QWidget::accessibleName() with a null widget -> access violation). No
-    // assistive technology is needed here, so keep accessibility off.
-    if (QAccessible::isActive()) {
-        qInfo() << "QAccessible was active at test start; deactivating";
-        QAccessible::setActive(false);
-    }
     // Redirect QSettings to Qt's test-mode location so the real user config is
     // never touched, and start empty. SettingsDialog uses default QSettings, so
     // match the app's org/app names too.
@@ -206,7 +194,6 @@ void TestDockInteractions::cleanupTestCase()
 
 void TestDockInteractions::init()
 {
-    qInfo() << "[a11y] QAccessible::isActive() =" << QAccessible::isActive();
     // Per-test isolation: each interactive scenario starts from a fresh default
     // layout (no state leaking from a previous interaction test).
     clearSettingsStore();
