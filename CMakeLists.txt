@@ -633,6 +633,50 @@ install(TARGETS DABAnalyser_Enhanced_FilteringBuild
 )
 install(TARGETS streamdab-cli RUNTIME DESTINATION bin)
 
+if(WIN32)
+    # --- Windows runtime deployment ------------------------------------------
+    # Windows has no rpath: every DLL a binary needs must sit next to it (or be
+    # on PATH). Deploy at BUILD time so the binaries in the build tree run on
+    # their own, then ship exactly that set in the package:
+    #   * Qt runtime + plugins (platforms/, styles/, ...)  -> windeployqt
+    #   * Qt-ADS (shared library built by this project)    -> copied below
+    #   * vcpkg DLLs (FAAD2, FFTW, ZeroMQ, ...)            -> vcpkg's applocal
+    #   * MSVC / UCRT runtime                              -> InstallRequiredSystemLibraries
+    find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt
+        HINTS "${Qt6_DIR}/../../../bin" "$ENV{QT_ROOT_DIR}/bin")
+    # One target that runs once after BOTH binaries exist: two parallel
+    # post-build windeployqt runs would copy the same DLLs into the same
+    # directory at the same time.
+    add_custom_target(dabx_deploy_windows_runtime ALL
+        COMMENT "Deploying the Windows runtime next to the binaries")
+    add_dependencies(dabx_deploy_windows_runtime
+        DABAnalyser_Enhanced_FilteringBuild streamdab-cli qtadvanceddocking-qt6)
+    if(WINDEPLOYQT_EXECUTABLE)
+        add_custom_command(TARGET dabx_deploy_windows_runtime POST_BUILD
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}" --no-translations --no-compiler-runtime
+                    "$<TARGET_FILE:DABAnalyser_Enhanced_FilteringBuild>"
+                    "$<TARGET_FILE:streamdab-cli>"
+            VERBATIM)
+    else()
+        message(WARNING "windeployqt not found - the Windows binaries will only run "
+                        "with the Qt bin directory on PATH and the package will lack Qt")
+    endif()
+    add_custom_command(TARGET dabx_deploy_windows_runtime POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:qtadvanceddocking-qt6>"
+                "$<TARGET_FILE_DIR:DABAnalyser_Enhanced_FilteringBuild>"
+        VERBATIM)
+
+    # Package every DLL deployed next to the binaries (top level + plugin
+    # sub-directories), plus the C/C++ runtime.
+    install(DIRECTORY "$<TARGET_FILE_DIR:DABAnalyser_Enhanced_FilteringBuild>/"
+        DESTINATION bin
+        FILES_MATCHING PATTERN "*.dll")
+    set(CMAKE_INSTALL_UCRT_LIBRARIES TRUE)
+    set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION bin)
+    include(InstallRequiredSystemLibraries)
+endif()
+
 if(UNIX AND NOT APPLE)
     # Qt-ADS is a shared library that the GUI links dynamically, and its own
     # install() rules place it in lib/. Embed an $ORIGIN-relative rpath so the

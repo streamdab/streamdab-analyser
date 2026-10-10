@@ -118,7 +118,22 @@ jobs:
 
       # ----------------------------------------------------------------- build
       - name: Build (bounded, preset ${{ matrix.build }})
+        if: runner.os != 'Windows'
         run: cmake --build --preset ${{ matrix.build }}
+
+      # Windows: keep the full MSVC output so the warnings can be summarised.
+      - name: Build (bounded, preset ${{ matrix.build }}) [Windows, log kept]
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cmake --build --preset ${{ matrix.build }} 2>&1 | Tee-Object -FilePath build-windows.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Windows build warning summary
+        if: always() && runner.os == 'Windows'
+        continue-on-error: true   # reporting only: never fail the job
+        shell: pwsh
+        run: python scripts/ci/windows_warning_summary.py build-windows.log
 
       # ----------------------------------------------------------------- tests
       # PUBLIC subset only: the eti/ captures are World DAB licensed and never
@@ -132,6 +147,7 @@ jobs:
       # flushed), so re-run each failed test directly with a verbose file log.
       # Also run every test function in its own process (order dependence) and,
       # when the Windows debugger is installed, print a stack trace of the crash.
+      # (Only runs when a test failed.)
       - name: Diagnose failed tests (Windows, verbose rerun)
         if: failure() && runner.os == 'Windows'
         shell: pwsh
@@ -163,6 +179,16 @@ jobs:
             }
           }
           exit 0
+
+      # The package must run on its own: install it and start the installed
+      # binaries with a PATH that has no Qt, vcpkg or Visual Studio in it.
+      - name: Verify the installed Windows package runs (clean PATH)
+        if: always() && runner.os == 'Windows' && hashFiles('build/Release/StreamDABAnalyser.exe') != ''
+        shell: pwsh
+        run: |
+          cmake --install build --config Release --prefix "$env:RUNNER_TEMP/stage"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/ci/verify_windows_deploy.py "$env:RUNNER_TEMP/stage"
 
       # --------------------------------------------------------- smoke checks
       - name: CLI smoke (real fixture, Linux/macOS)

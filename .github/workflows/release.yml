@@ -119,6 +119,17 @@ jobs:
         shell: pwsh
         run: cpack --config CPackConfig.cmake -C Release -G ZIP
 
+      # The shipped artifact itself must run on a machine without Qt/vcpkg:
+      # unpack the ZIP and start its binaries with a PATH that has neither.
+      - name: "Verify the Windows ZIP runs (clean PATH)"
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem build -Filter *.zip | Select-Object -First 1
+          if (-not $zip) { throw "no ZIP produced by CPack" }
+          Expand-Archive $zip.FullName -DestinationPath "$env:RUNNER_TEMP/zipcheck"
+          python scripts/ci/verify_windows_deploy.py "$env:RUNNER_TEMP/zipcheck"
+
       - name: "Package (macOS: .app + .dmg)"
         if: runner.os == 'macOS'
         run: bash scripts/bundle-macos.sh
