@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  shared-mime-info definition installed to share/mime/packages.
+  The MIME types match the MimeType= line of eti-stream-analyser.desktop.
+-->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-eti-stream">
+    <comment>ETI (Ensemble Transport Interface) stream</comment>
+    <glob pattern="*.eti"/>
+    <icon name="eti-stream-analyser"/>
+  </mime-type>
+  <mime-type type="application/x-dab-stream">
+    <comment>DAB stream</comment>
+    <glob pattern="*.dab"/>
+    <icon name="eti-stream-analyser"/>
+  </mime-type>
+  <mime-type type="application/x-edi-stream">
+    <comment>EDI (Encapsulation of DAB Interfaces) stream</comment>
+    <glob pattern="*.edi"/>
+    <icon name="eti-stream-analyser"/>
+  </mime-type>
+</mime-info>
