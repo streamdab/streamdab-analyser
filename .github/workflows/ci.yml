@@ -66,6 +66,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
+            qt6-base-private-dev libxkbcommon-dev libxkbcommon-x11-dev \
             libasound2-dev libgtest-dev build-essential
 
       # -------------------------------------------------------------- Windows
@@ -79,6 +80,14 @@ jobs:
           arch: 'win64_msvc2022_64'
           modules: 'qtmultimedia'
           cache: true
+
+      - name: Install ImageMagick (Windows, icon generation via magick)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install imagemagick.app -y --no-progress
+          $dir = (Get-ChildItem 'C:\Program Files\ImageMagick-*' -Directory | Select-Object -First 1).FullName
+          Add-Content $env:GITHUB_PATH $dir
 
       - name: Bootstrap vcpkg and build the small native deps (Windows)
         if: runner.os == 'Windows'
@@ -94,8 +103,8 @@ jobs:
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew update
-          brew install cmake qt@6 faad2 fftw libzmq googletest
+          HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_UPGRADE=1 \
+            brew install cmake qt@6 faad2 fftw zeromq cppzmq googletest
           echo "QT_DIR=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
 
       # ------------------------------------------------------------ configure
@@ -109,7 +118,22 @@ jobs:
 
       # ----------------------------------------------------------------- build
       - name: Build (bounded, preset ${{ matrix.build }})
+        if: runner.os != 'Windows'
         run: cmake --build --preset ${{ matrix.build }}
+
+      # Windows: keep the full MSVC output so the warnings can be summarised.
+      - name: Build (bounded, preset ${{ matrix.build }}) [Windows, log kept]
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cmake --build --preset ${{ matrix.build }} 2>&1 | Tee-Object -FilePath build-windows.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Windows build warning summary
+        if: always() && runner.os == 'Windows'
+        continue-on-error: true   # reporting only: never fail the job
+        shell: pwsh
+        run: python scripts/ci/windows_warning_summary.py build-windows.log
 
       # ----------------------------------------------------------------- tests
       # PUBLIC subset only: the eti/ captures are World DAB licensed and never
@@ -118,6 +142,53 @@ jobs:
       # run from the repo root: ctest --preset needs CMakePresets.json here
       - name: Test (ctest ${{ matrix.test }} -L PUBLIC)
         run: ctest --preset ${{ matrix.test }} -L PUBLIC
+
+      # QtTest output is lost when a Windows test crashes (stdout is not
+      # flushed), so re-run each failed test directly with a verbose file log.
+      # Also run every test function in its own process (order dependence) and,
+      # when the Windows debugger is installed, print a stack trace of the crash.
+      # (Only runs when a test failed.)
+      - name: Diagnose failed tests (Windows, verbose rerun)
+        if: failure() && runner.os == 'Windows'
+        shell: pwsh
+        working-directory: build
+        run: |
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          $cdb = "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe"
+          Write-Host "cdb available: $(Test-Path $cdb)"
+          $list = 'Testing/Temporary/LastTestsFailed.log'
+          if (Test-Path $list) {
+            foreach ($line in Get-Content $list) {
+              $name = ($line -split ':', 2)[1]
+              if (-not $name) { continue }
+              Write-Host "=== $name"
+              $exe = Get-ChildItem -Path . -Recurse -Filter "$name.exe" | Select-Object -First 1
+              if (-not $exe) { Write-Host 'executable not found'; continue }
+              & $exe.FullName -v1 -o "$name.log,txt"
+              Write-Host "whole-suite exit code: $LASTEXITCODE"
+              # each test function alone
+              $funcs = (& $exe.FullName -functions) | ForEach-Object { if ($_ -match '^(test\w+)\(\)') { $Matches[1] } }
+              foreach ($f in $funcs) {
+                & $exe.FullName $f -o "$name-$f.log,txt" | Out-Null
+                Write-Host "alone: $f -> exit $LASTEXITCODE"
+              }
+              if (Test-Path $cdb) {
+                Write-Host "--- stack of the crash (cdb)"
+                & $cdb -G -g -c "g;kP 40;q" $exe.FullName 2>&1 | Select-Object -Last 90
+              }
+            }
+          }
+          exit 0
+
+      # The package must run on its own: install it and start the installed
+      # binaries with a PATH that has no Qt, vcpkg or Visual Studio in it.
+      - name: Verify the installed Windows package runs (clean PATH)
+        if: always() && runner.os == 'Windows' && hashFiles('build/Release/StreamDABAnalyser.exe') != ''
+        shell: pwsh
+        run: |
+          cmake --install build --config Release --prefix "$env:RUNNER_TEMP/stage"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/ci/verify_windows_deploy.py "$env:RUNNER_TEMP/stage"
 
       # --------------------------------------------------------- smoke checks
       - name: CLI smoke (real fixture, Linux/macOS)
@@ -129,10 +200,21 @@ jobs:
           # with the private captures present this also runs:
           #   ./streamdab-cli --input ../eti/bkk_20062022_141637.eti --output smoke.yaml
 
+      # Release-only packaging code rots unseen until a tag is pushed, so build
+      # the macOS bundle here too. Informational for now (continue-on-error):
+      # the result is visible in the log; make it blocking once it is green.
+      - name: macOS bundle check (informational)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          bash scripts/bundle-macos.sh
+          bash scripts/ci/verify_macos_bundle.sh dist/StreamDAB-Analyser.app
+
       - name: CLI smoke (Windows)
         if: runner.os == 'Windows'
         working-directory: build
         shell: pwsh
         run: |
-          .\streamdab-cli.exe --version
-          .\streamdab-cli.exe --help | Select-Object -First 5
+          # Visual Studio is multi-config: binaries land in build\Release
+          .\Release\streamdab-cli.exe --version
+          .\Release\streamdab-cli.exe --help | Select-Object -First 5

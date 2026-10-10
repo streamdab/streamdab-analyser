@@ -156,6 +156,9 @@ void TestCLIFigTrace::initTestCase()
     // streamdab-cli sits one level above the test binary (build/tests).
     const QString appDir = QCoreApplication::applicationDirPath();
     const QStringList cliCandidates = {
+#ifdef STREAMDAB_CLI_PATH
+        QStringLiteral(STREAMDAB_CLI_PATH),  // exact path from CMake (multi-config, .exe)
+#endif
         appDir + "/../streamdab-cli",
         appDir + "/streamdab-cli",
     };

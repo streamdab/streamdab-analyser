@@ -421,6 +421,9 @@ void ConstellationWidget::paintEvent(QPaintEvent *event)
         case DisplayMode::Waterfall:
             paintWaterfall(painter);
             break;
+        case DisplayMode::Scatter:
+        case DisplayMode::Histogram:
+            break; // not implemented by this widget
     }
     
     // Paint common elements
@@ -989,6 +992,10 @@ void ConstellationWidget::paintScale(QPainter& painter)
             painter.drawText(10, 20, tr("Waterfall Display"));
             painter.drawText(10, height() - 10, tr("Frequency"));
             break;
+
+        case DisplayMode::Scatter:
+        case DisplayMode::Histogram:
+            break; // not implemented by this widget
     }
     
     // Draw zoom level indicator
@@ -1130,6 +1137,8 @@ void ConstellationWidget::paintQualityIndicators(QPainter& painter)
         case DisplayMode::Spectrum: modeText = tr("SPECTRUM"); break;
         case DisplayMode::EyeDiagram: modeText = tr("EYE DIAGRAM"); break;
         case DisplayMode::Waterfall: modeText = tr("WATERFALL"); break;
+        case DisplayMode::Scatter: modeText = tr("SCATTER"); break;
+        case DisplayMode::Histogram: modeText = tr("HISTOGRAM"); break;
     }
     painter.drawText(rightX, topY, modeText);
     
@@ -1252,6 +1261,10 @@ void ConstellationWidget::generateTestData()
             }
             break;
         }
+
+        case DisplayMode::Scatter:
+        case DisplayMode::Histogram:
+            break; // not implemented by this widget
     }
 }
 

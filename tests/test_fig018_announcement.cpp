@@ -19,6 +19,7 @@
 
 #include <QtTest/QtTest>
 #include "../src/core/fig_parser.hpp"
+#include "../src/utils/logger.h"
 #include <vector>
 
 
@@ -401,6 +402,14 @@ void TestFig018Announcement::test_max_clusters() {
 }
 
 void TestFig018Announcement::test_parsing_performance() {
+    // The benchmark measures parsing, not per-call logging: keep the logger
+    // quiet for the timed section (restored on scope exit).
+    struct LogLevelGuard {
+        Logger::LogLevel saved = Logger::instance().getLogLevel();
+        LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+        ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+    } logGuard;
+
     qDebug() << "TEST: Parsing performance";
 
     auto fig_data = createFig018Data(0x5555, false, 0x00FF, {0x01, 0x02, 0x03});

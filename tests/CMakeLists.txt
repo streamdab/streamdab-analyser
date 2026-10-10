@@ -718,6 +718,11 @@ if(CAN_RUN_GUI_TESTS)
             list(APPEND APP_UNDER_TEST_SOURCES ${CMAKE_SOURCE_DIR}/${src})
         endif()
     endforeach()
+    # AUTOMOC puts the app target's .moc files in <autogen>/include on
+    # single-config generators but <autogen>/include_<CONFIG> on multi-config
+    # ones (Visual Studio), so the tests that include src/main.cpp need both.
+    set(APP_AUTOGEN_INCLUDE_DIR
+        "${CMAKE_BINARY_DIR}/DABAnalyser_Enhanced_FilteringBuild_autogen/include$<$<BOOL:${CMAKE_CONFIGURATION_TYPES}>:_$<CONFIG>>")
     add_executable(test_gui_dock_layout
         gui/test_gui_dock_layout.cpp
         ${APP_UNDER_TEST_SOURCES})
@@ -739,7 +744,7 @@ if(CAN_RUN_GUI_TESTS)
     # expose its autogen include directory.
     add_dependencies(test_gui_dock_layout DABAnalyser_Enhanced_FilteringBuild)
     target_include_directories(test_gui_dock_layout PRIVATE
-        ${CMAKE_BINARY_DIR}/DABAnalyser_Enhanced_FilteringBuild_autogen/include)
+        ${APP_AUTOGEN_INCLUDE_DIR})
     add_test(NAME test_gui_dock_layout
              COMMAND test_gui_dock_layout)
     set_tests_properties(test_gui_dock_layout PROPERTIES
@@ -779,7 +784,7 @@ if(CAN_RUN_GUI_TESTS)
     # Same main.moc contract as test_gui_dock_layout (see above).
     add_dependencies(test_dock_interactions DABAnalyser_Enhanced_FilteringBuild)
     target_include_directories(test_dock_interactions PRIVATE
-        ${CMAKE_BINARY_DIR}/DABAnalyser_Enhanced_FilteringBuild_autogen/include)
+        ${APP_AUTOGEN_INCLUDE_DIR})
     add_test(NAME test_dock_interactions
              COMMAND test_dock_interactions)
     set_tests_properties(test_dock_interactions PROPERTIES
@@ -788,6 +793,24 @@ if(CAN_RUN_GUI_TESTS)
         # Shares the test-mode QSettings store; serialise (see above).
         RESOURCE_LOCK settings_store
     )
+
+    # Qt-ADS is a shared library; on Windows there is no rpath, so its DLL must
+    # sit next to the test executables or they die with 0xc0000135
+    # (STATUS_DLL_NOT_FOUND) before main().
+    if(WIN32)
+        foreach(_ads_test test_gui_dock_layout test_dock_interactions)
+            if(MSVC)
+                # Optimised build with symbols so a crash can be symbolised in CI.
+                target_compile_options(${_ads_test} PRIVATE /Zi)
+                target_link_options(${_ads_test} PRIVATE /DEBUG /OPT:REF /OPT:ICF)
+            endif()
+            add_custom_command(TARGET ${_ads_test} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        $<TARGET_FILE:qtadvanceddocking-qt6>
+                        $<TARGET_FILE_DIR:${_ads_test}>
+                VERBATIM)
+        endforeach()
+    endif()
 
     message(STATUS "  ✓ test_gui_stream_info_panel (10 widget tests)")
     message(STATUS "  ✓ test_gui_service_discovery_panel (13 widget tests)")
@@ -1252,5 +1275,17 @@ foreach(_dabx_test_target IN ITEMS
         else()
             set_tests_properties("${_dabx_test_target}" PROPERTIES LABELS "PUBLIC")
         endif()
+    endif()
+endforeach()
+
+# The CLI tests launch the real streamdab-cli. Hand them its exact path instead
+# of letting them guess "../streamdab-cli": on Windows the binary is
+# build/Release/streamdab-cli.exe, so the guess never matched and the tests
+# silently skipped.
+foreach(_cli_test test_cli_fig_trace test_cli_fig_extended test_cli_mode_functional)
+    if(TARGET ${_cli_test})
+        add_dependencies(${_cli_test} streamdab-cli)
+        target_compile_definitions(${_cli_test} PRIVATE
+            STREAMDAB_CLI_PATH="$<TARGET_FILE:streamdab-cli>")
     endif()
 endforeach()

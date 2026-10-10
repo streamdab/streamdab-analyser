@@ -17,6 +17,13 @@ on:
 permissions:
   contents: write   # create the Release + upload assets
 
+env:
+  # Same as ci.yml: BEFORE configure, so every GUI test target is registered
+  # and the Qt tests run without a display. Without it the Linux Test step
+  # dies on "could not load the Qt platform plugin xcb".
+  QT_QPA_PLATFORM: offscreen
+  CTEST_TEST: "ctest --output-on-failure"
+
 jobs:
   build:
     name: ${{ matrix.name }}
@@ -53,6 +60,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
+            qt6-base-private-dev libxkbcommon-dev libxkbcommon-x11-dev \
             libasound2-dev libgtest-dev build-essential
 
       - name: Install Qt 6 (Windows)
@@ -65,6 +73,14 @@ jobs:
           arch: 'win64_msvc2022_64'
           modules: 'qtmultimedia'
           cache: true
+
+      - name: Install ImageMagick (Windows, icon generation via magick)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install imagemagick.app -y --no-progress
+          $dir = (Get-ChildItem 'C:\Program Files\ImageMagick-*' -Directory | Select-Object -First 1).FullName
+          Add-Content $env:GITHUB_PATH $dir
 
       - name: Bootstrap vcpkg deps (Windows)
         if: runner.os == 'Windows'
@@ -79,13 +95,15 @@ jobs:
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew update
-          brew install cmake qt@6 faad2 fftw libzmq googletest
+          HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_UPGRADE=1 \
+            brew install cmake qt@6 faad2 fftw zeromq cppzmq googletest
           echo "QT_DIR=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
 
       # ------------------------------------------------------- build + test
       - name: Configure
-        run: cmake --preset ${{ matrix.configure }}
+        run: >
+          cmake --preset ${{ matrix.configure }}
+          ${{ runner.os == 'Windows' && '-DDABX_ENABLE_ZMQ=ON' || '' }}
 
       - name: Build (bounded)
         run: cmake --build --preset ${{ matrix.build }}
@@ -108,11 +126,28 @@ jobs:
         if: runner.os == 'Windows'
         working-directory: build
         shell: pwsh
-        run: cpack --config CPackConfig.cmake -G ZIP
+        run: cpack --config CPackConfig.cmake -C Release -G ZIP
+
+      # The shipped artifact itself must run on a machine without Qt/vcpkg:
+      # unpack the ZIP and start its binaries with a PATH that has neither.
+      - name: "Verify the Windows ZIP runs (clean PATH)"
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem build -Filter *.zip | Select-Object -First 1
+          if (-not $zip) { throw "no ZIP produced by CPack" }
+          Expand-Archive $zip.FullName -DestinationPath "$env:RUNNER_TEMP/zipcheck"
+          python scripts/ci/verify_windows_deploy.py "$env:RUNNER_TEMP/zipcheck"
 
       - name: "Package (macOS: .app + .dmg)"
         if: runner.os == 'macOS'
         run: bash scripts/bundle-macos.sh
+
+      # The .app must not depend on Homebrew / build-tree paths and must start
+      # with an empty environment (see scripts/ci/verify_macos_bundle.sh).
+      - name: "Verify the macOS bundle is self-contained"
+        if: runner.os == 'macOS'
+        run: bash scripts/ci/verify_macos_bundle.sh dist/StreamDAB-Analyser.app
 
       # ----------------------------------------------------------- normalize
       - name: "Normalize artifact (Linux: TGZ)"

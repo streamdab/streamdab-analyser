@@ -28,9 +28,12 @@
 #include "../core/headless_eti_processor.hpp"
 #include "../core/analyser_settings.hpp"
 #include "../utils/logger.h"
+#include <QDir>
 #include <QFile>
+#include <QTemporaryFile>
 #include <QElapsedTimer>
 #include <QCoreApplication>
+#include <QLoggingCategory>
 #include <QTextStream>
 #include <iostream>
 #include <stdexcept>
@@ -54,6 +57,12 @@ namespace {
         Logger::LogLevel logLevel;
         if (quiet) {
             logLevel = Logger::LogLevel::Error;
+            // Qt logging categories (e.g. streamdab.eti progress/summary lines
+            // from the headless processor) bypass Logger; keep errors only.
+            QLoggingCategory::setFilterRules(QStringLiteral(
+                "streamdab.*.debug=false\n"
+                "streamdab.*.info=false\n"
+                "streamdab.*.warning=false\n"));
         } else if (verbose) {
             logLevel = Logger::LogLevel::Debug;
         } else {
@@ -222,8 +231,16 @@ int cli_main(int argc, char** argv) {
         // Note: HeadlessETIProcessor::process_file requires output file parameter
         // We'll use a temporary output if only stdout is desired
         QString tempOutputFile = options.output_file;
+        QTemporaryFile stdoutScratch;  // removed automatically on scope exit
         if (tempOutputFile.isEmpty()) {
-            tempOutputFile = "/tmp/streamdab_temp_output.yaml";
+            // Portable scratch path ("/tmp" does not exist on Windows)
+            stdoutScratch.setFileTemplate(QDir::tempPath() + "/streamdab_cli_XXXXXX.yaml");
+            if (!stdoutScratch.open()) {
+                std::cerr << "ERROR: cannot create temporary output file\n";
+                return CLI_EXIT_WRITE_ERROR;
+            }
+            tempOutputFile = stdoutScratch.fileName();
+            stdoutScratch.close();
         }
 
         HeadlessETIProcessor::ProcessingResult result =

@@ -342,7 +342,7 @@ QString ComprehensiveETSIValidator::generateComplianceReport() const {
     report << "PERFORMANCE IMPACT ANALYSIS\n";
     report << "----------------------------\n";
     report << "Average Validation Time: " << (statistics_.total_validation_time.count() / 1e6) << " ms\n";
-    report << "Validation Overhead: " << ((validation_time_ns_.load() / 1e6) / std::max(1UL, frames_processed_.load())) << " ms/frame\n";
+    report << "Validation Overhead: " << ((validation_time_ns_.load() / 1e6) / std::max<uint64_t>(1, frames_processed_.load())) << " ms/frame\n";
     report << "Performance Target: >7,482 FPS maintained\n";
     report << "Strict Mode: " << (strict_mode_ ? "ENABLED" : "DISABLED") << "\n\n";
     

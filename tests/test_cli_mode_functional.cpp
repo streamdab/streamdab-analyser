@@ -105,6 +105,9 @@ void TestCLIModeFunctional::initTestCase() {
     // binary is one level up). Candidates in preference order.
     const QString appDir = QCoreApplication::applicationDirPath();
     const QStringList candidates = {
+#ifdef STREAMDAB_CLI_PATH
+        QStringLiteral(STREAMDAB_CLI_PATH),  // exact path from CMake (multi-config, .exe)
+#endif
         appDir + "/../streamdab-cli",
         appDir + "/streamdab-cli",
     };
@@ -259,7 +262,10 @@ void TestCLIModeFunctional::test05_QuietMode() {
     // Quiet mode should produce minimal stderr output
     QString stderr_output = process.readAllStandardError();
     // Should have minimal or no progress messages
-    QVERIFY2(stderr_output.length() < 500, "Quiet mode produced too much output");
+    QVERIFY2(stderr_output.length() < 500,
+             qPrintable(QStringLiteral("Quiet mode produced too much output (%1 chars): %2")
+                            .arg(stderr_output.length())
+                            .arg(stderr_output.left(1500))));
 }
 
 void TestCLIModeFunctional::test06_VerboseMode() {

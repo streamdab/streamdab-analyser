@@ -287,6 +287,14 @@ private slots:
      * @brief Test parsing performance (target: <15µs per parse)
      */
     void test_Performance_1000Iterations() {
+        // The benchmark measures parsing, not per-call debug logging: keep the
+        // logger quiet for the timed section (restored on scope exit).
+        struct LogLevelGuard {
+            Logger::LogLevel saved = Logger::instance().getLogLevel();
+            LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+            ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+        } logGuard;
+
         // Create test data
         auto data = createFig024Data(0x4001, 0xE1C00521, false);
 
