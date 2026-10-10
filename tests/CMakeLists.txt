@@ -1277,3 +1277,15 @@ foreach(_dabx_test_target IN ITEMS
         endif()
     endif()
 endforeach()
+
+# The CLI tests launch the real streamdab-cli. Hand them its exact path instead
+# of letting them guess "../streamdab-cli": on Windows the binary is
+# build/Release/streamdab-cli.exe, so the guess never matched and the tests
+# silently skipped.
+foreach(_cli_test test_cli_fig_trace test_cli_fig_extended test_cli_mode_functional)
+    if(TARGET ${_cli_test})
+        add_dependencies(${_cli_test} streamdab-cli)
+        target_compile_definitions(${_cli_test} PRIVATE
+            STREAMDAB_CLI_PATH="$<TARGET_FILE:streamdab-cli>")
+    endif()
+endforeach()

@@ -105,6 +105,9 @@ void TestCLIModeFunctional::initTestCase() {
     // binary is one level up). Candidates in preference order.
     const QString appDir = QCoreApplication::applicationDirPath();
     const QStringList candidates = {
+#ifdef STREAMDAB_CLI_PATH
+        QStringLiteral(STREAMDAB_CLI_PATH),  // exact path from CMake (multi-config, .exe)
+#endif
         appDir + "/../streamdab-cli",
         appDir + "/streamdab-cli",
     };
