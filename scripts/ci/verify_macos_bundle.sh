@@ -19,7 +19,11 @@ bad=0
 
 while IFS= read -r -d '' file; do
     case "$(file -b "$file")" in *Mach-O*) ;; *) continue ;; esac
+    # otool -L also lists the library's own install name; that is not a
+    # dependency, so leave it out.
+    self_id="$(otool -D "$file" 2>/dev/null | sed -n 2p)"
     while IFS= read -r dep; do
+        [ -n "$self_id" ] && [ "$dep" = "$self_id" ] && continue
         case "$dep" in
             /usr/lib/*|/System/*|@executable_path/*|@loader_path/*) ;;
             @rpath/*)
