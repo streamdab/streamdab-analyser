@@ -141,6 +141,44 @@ copy_missing_frameworks() {
 }
 copy_missing_frameworks
 
+# Frameworks copied from Homebrew (QtSvg, ...) reference their Qt siblings by
+# absolute Homebrew path. Point every such reference, and every Homebrew
+# install name, at the copy inside the bundle (@rpath resolves through the
+# executable's Frameworks rpath).
+to_bundle_rpath() {
+    local rel
+    case "$1" in
+        */lib/*) rel="${1#*/lib/}" ;;
+        *)       rel="${1##*/}" ;;
+    esac
+    echo "@rpath/${rel}"
+}
+
+relink_homebrew_deps() {
+    local file dep self rel
+    while IFS= read -r -d '' file; do
+        case "$(file -b "${file}")" in *Mach-O*) ;; *) continue ;; esac
+        self="$(otool -D "${file}" 2>/dev/null | sed -n 2p)"
+        case "${self}" in
+            "${BREW_PREFIX}"/*)
+                install_name_tool -id "$(to_bundle_rpath "${self}")" "${file}" ;;
+        esac
+        while IFS= read -r dep; do
+            [ "${dep}" = "${self}" ] && continue
+            case "${dep}" in
+                "${BREW_PREFIX}"/*)
+                    rel="$(to_bundle_rpath "${dep}")"
+                    if [ -e "${FRAMEWORKS_DIR}/${rel#@rpath/}" ]; then
+                        install_name_tool -change "${dep}" "${rel}" "${file}"
+                    else
+                        echo "warning: ${file#"${APP_DIR}"/} needs ${dep}, which is not in the bundle" >&2
+                    fi ;;
+            esac
+        done < <(otool -L "${file}" 2>/dev/null | tail -n +2 | awk '{print $1}')
+    done < <(find "${APP_DIR}/Contents" -type f -print0)
+}
+relink_homebrew_deps
+
 # A dangling symlink makes codesign fail with a bare "No such file or
 # directory"; list them so the cause is visible, and stop.
 DANGLING="$(find "${APP_DIR}" -type l ! -exec test -e {} \; -print)"
