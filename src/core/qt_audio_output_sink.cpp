@@ -605,9 +605,9 @@ bool QtAudioOutputSink::start(std::shared_ptr<const QByteArray> pcm, int sampleR
     d->m_outRate = outRate;
     d->m_channels = channels;
     d->m_totalFrames = pcm->size() / (channels * 2);
-    d->m_device_io->setSource(source, channels,
-                              d->byteForSourceFrame(std::clamp<qint64>(
-                                  startFrame, 0, std::max<qint64>(0, d->m_totalFrames - 1))));
+    // byteForSourceFrame() clamps to [0, totalFrames], like seek(): starting at
+    // the logical end is allowed and simply ends the playback at once.
+    d->m_device_io->setSource(source, channels, d->byteForSourceFrame(startFrame));
     d->applyGain();
 
 #ifdef HAVE_QMULTIMEDIA

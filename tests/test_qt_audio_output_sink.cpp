@@ -53,6 +53,7 @@ private slots:
     void testStopReleasesBuffer();
     void testControlCallsFromSignalHandlersDoNotBlock();
     void testSecondStartWithOtherFormat();
+    void testStartAtTheEndEndsAtOnce();
 };
 
 namespace {
@@ -388,6 +389,28 @@ void TestQtAudioOutputSink::testSecondStartWithOtherFormat()
     QSignalSpy ended(&sink, &QtAudioOutputSink::playbackEnded);
     QTRY_VERIFY_WITH_TIMEOUT(ended.count() == 1, 3000);
     QCOMPARE(sink.positionFrames(), qint64(24000));
+#endif
+}
+
+void TestQtAudioOutputSink::testStartAtTheEndEndsAtOnce()
+{
+#ifndef HAVE_QMULTIMEDIA
+    QSKIP("Qt Multimedia not built in: simulated pull engine unavailable");
+#else
+    // start() accepts the same range as seek(): [0, totalFrames]. Starting at
+    // the end must not replay the last frame and must report the end.
+    SimulatedEngine engine;
+    QtAudioOutputSink sink;
+    QVERIFY(sink.open());
+    QSignalSpy ended(&sink, &QtAudioOutputSink::playbackEnded);
+    QVERIFY(sink.start(makePcm(48000, 2, 0.5), 48000, 2, 24000));
+    QCOMPARE(sink.positionFrames(), qint64(24000));
+    QTRY_VERIFY_WITH_TIMEOUT(ended.count() == 1, 1000);
+    QCOMPARE(sink.positionFrames(), qint64(24000));
+    // far past the end is clamped, not an error
+    QVERIFY(sink.start(makePcm(48000, 2, 0.5), 48000, 2, 1000000));
+    QCOMPARE(sink.positionFrames(), qint64(24000));
+    sink.stop();
 #endif
 }
 
