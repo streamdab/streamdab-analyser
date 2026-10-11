@@ -7,8 +7,8 @@
   The @MACOSX_BUNDLE_*@ placeholders are substituted by CMake from the
   MACOSX_BUNDLE_* target properties (single source: DABX_VERSION for the
   version keys). Do NOT use @PROJECT_VERSION@ here — CMake does not replace it.
-  CFBundleIconFile is deliberately absent: the project ships an SVG only; a
-  Finder .icns is a documented follow-up (MACOSX_BUNDLE_ICON_FILE is unset).
+  CFBundleIconFile names the .icns copied into Contents/Resources
+  (resources/icons/eti-stream-analyser.icns, MACOSX_BUNDLE_ICON_FILE).
 -->
 <plist version="1.0">
 <dict>
@@ -18,6 +18,8 @@
     <string>StreamDAB Analyser</string>
     <key>CFBundleExecutable</key>
     <string>@MACOSX_BUNDLE_EXECUTABLE_NAME@</string>
+    <key>CFBundleIconFile</key>
+    <string>@MACOSX_BUNDLE_ICON_FILE@</string>
     <key>CFBundleIdentifier</key>
     <string>@MACOSX_BUNDLE_GUI_IDENTIFIER@</string>
     <key>CFBundleInfoDictionaryVersion</key>
