@@ -165,8 +165,11 @@ public:
 #ifdef HAVE_QMULTIMEDIA
         std::lock_guard<std::mutex> lock(m_sinkMutex);
         if (m_sink) {
-            m_sink->setMuted(m_muted.load());
-            m_sink->setVolume(static_cast<qreal>(m_volume.load()));
+            // QAudioSink has no setMuted() in Qt 6 (that is QAudioOutput);
+            // mute by driving the sink volume to zero.
+            m_sink->setVolume(m_muted.load()
+                                  ? qreal(0)
+                                  : static_cast<qreal>(m_volume.load()));
         }
 #else
         // Volume/mute are stored in the atomics even without the backend so the
@@ -635,8 +638,9 @@ bool QtAudioOutputSink::start(std::shared_ptr<const QByteArray> pcm, int sampleR
             emit errorOccurred(message);
             return false;
         }
-        d->m_sink->setVolume(static_cast<qreal>(d->m_volume.load()));
-        d->m_sink->setMuted(d->m_muted.load());
+        d->m_sink->setVolume(d->m_muted.load()
+                                 ? qreal(0)
+                                 : static_cast<qreal>(d->m_volume.load()));
 #else
         const QString message =
             QStringLiteral("Qt Multimedia backend not available in this build");
@@ -767,7 +771,6 @@ QAudioFormat QtAudioOutputSink::qtAudioFormatFor(int sampleRate, int channels)
     format.setSampleRate(sampleRate);
     format.setChannelCount(channels);
     format.setSampleFormat(QAudioFormat::Int16);
-    format.setByteOrder(QAudioFormat::LittleEndian);
     return format;
 }
 #endif

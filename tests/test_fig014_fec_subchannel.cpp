@@ -18,6 +18,7 @@
 
 #include <QtTest/QtTest>
 #include "../src/core/fig_parser.hpp"
+#include "../src/utils/logger.h"
 #include <chrono>
 #include <vector>
 
@@ -463,6 +464,14 @@ void TestFig014FECSubchannel::test_minimal_invalid_data() {
 
 void TestFig014FECSubchannel::test_parsing_performance() {
     qDebug() << "TEST: Parsing performance benchmark";
+
+    // The benchmark measures parsing, not per-call logging: keep the logger
+    // quiet for the timed section (restored on scope exit).
+    struct LogLevelGuard {
+        Logger::LogLevel saved = Logger::instance().getLogLevel();
+        LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+        ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+    } logGuard;
 
     auto fig_data = createShortFormFig014(10, 1, 100, 20);
 

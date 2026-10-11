@@ -16,7 +16,7 @@
  * - Component labels from FIG 1/4
  * - EEP protection level decoding (1-A to 5-B)
  * - Service-to-subchannel mapping
- * - Extended label support (FIG 2/*)
+ * - Extended label support (FIG 2/x)
  *
  * VERBOSE MODE (2025-11-08): Added frame-by-frame detailed analysis
  * - Per-frame ETI header extraction

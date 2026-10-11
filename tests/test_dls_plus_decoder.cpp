@@ -318,7 +318,7 @@ void TestDLSPlusDecoder::testTagParsing_UnknownTag()
     QString dls_text = "Test Message";
     // Use tag value 0x3E (62) which should be valid but might not be in standard set
     QByteArray descriptor(4, 0);
-    descriptor[0] = (0x3E << 2); // Tag 62
+    descriptor[0] = static_cast<char>(0x3E << 2); // Tag 62
     descriptor[1] = 0x00;
     descriptor[2] = (0 << 5) | 12; // start=0, length=12
     descriptor[3] = 0x00;
@@ -342,7 +342,7 @@ void TestDLSPlusDecoder::testTagParsing_InvalidTagCode()
     QString dls_text = "Test Message";
     // Tag value 64 is invalid (6-bit field max is 63)
     QByteArray descriptor(4, 0);
-    descriptor[0] = (0x40 << 2); // Invalid: 64 > 63
+    descriptor[0] = static_cast<char>(0x40 << 2); // Invalid: 64 > 63
     descriptor[1] = 0x00;
     descriptor[2] = (0 << 5) | 12;
     descriptor[3] = 0x00;

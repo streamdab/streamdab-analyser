@@ -588,6 +588,7 @@ private slots:
         }
         {
             QSettings o(legacyOrganization(), legacyApplication());
+            o.setFallbacksEnabled(false);  // macOS: ignore the global domain
             QVERIFY(o.allKeys().isEmpty());  // legacy scope removed
         }
 
@@ -673,6 +674,7 @@ private slots:
         }
         {
             QSettings o(legacyOrganization(), legacyApplication());
+            o.setFallbacksEnabled(false);  // macOS: ignore the global domain
             QVERIFY(o.allKeys().isEmpty());  // legacy scope removed after copy
         }
         { QSettings n(organization(), application()); n.clear(); n.sync(); }

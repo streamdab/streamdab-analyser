@@ -142,7 +142,6 @@ void TestQtAudioOutputSink::testFormatMapping()
     QCOMPARE(stereo.sampleRate(), 48000);
     QCOMPARE(stereo.channelCount(), 2);
     QCOMPARE(stereo.sampleFormat(), QAudioFormat::Int16);
-    QCOMPARE(stereo.byteOrder(), QAudioFormat::LittleEndian);
     QVERIFY2(stereo.isValid(), "the sink format must be valid");
     const QAudioFormat mono = QtAudioOutputSink::qtAudioFormatFor(24000, 1);
     QCOMPARE(mono.sampleRate(), 24000);

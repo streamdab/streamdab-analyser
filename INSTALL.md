@@ -17,6 +17,7 @@ warnings.
 ```bash
 # Debian/Ubuntu prerequisites
 sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
+    qt6-base-private-dev libxkbcommon-dev libxkbcommon-x11-dev \
     libgtest-dev build-essential ninja-build
 
 # Configure — MUST export offscreen BEFORE configure so GUI tests register
@@ -175,7 +176,7 @@ that stage first. Never mix a `win64_mingw` Qt kit with the MSVC toolchain.
 ## 4. macOS
 
 ```bash
-brew install cmake qt@6 faad2 fftw libzmq googletest
+brew install cmake qt@6 faad2 fftw zeromq cppzmq googletest
 export QT_QPA_PLATFORM=offscreen     # before configure, else GUI tests are not registered
 export QT_DIR="$(brew --prefix qt@6)"  # qt@6 is keg-only
 cmake --preset macos-brew            # configure into build/ (Release)
