@@ -88,12 +88,19 @@ if(UNIX AND NOT APPLE)
     # without touching this file:
     #   cmake -DDABX_DEBIAN_DEPENDS="" ...
     set(DABX_DEBIAN_DEPENDS
-        "libqt6core6t64 | libqt6core6, libqt6gui6t64 | libqt6gui6, libqt6widgets6t64 | libqt6widgets6, libqt6network6t64 | libqt6network6, libqt6multimedia6, libqt6test6t64 | libqt6test6, libasound2 | libasound2t64, libfaad2, libfftw3-3"
+        "libqt6core6t64 | libqt6core6, libqt6gui6t64 | libqt6gui6, libqt6widgets6t64 | libqt6widgets6, libqt6network6t64 | libqt6network6, libqt6multimedia6, libqt6svg6, libqt6test6t64 | libqt6test6, libasound2 | libasound2t64, libfaad2, libfftw3-3"
         CACHE STRING "CPack DEB Depends (Ubuntu 24.04 defaults; override for other distros)")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "StreamDAB Analyser Team <maintainers@streamdab-analyser>")
     set(CPACK_DEBIAN_PACKAGE_SECTION "multimedia")
     set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "${DABX_DEBIAN_DEPENDS}")
+    # The binary links libzmq.so.5 whenever ZeroMQ support was built in; without
+    # this entry `apt install ./streamdab-analyser.deb` leaves the app unable to
+    # start. (libqt6svg6 above provides the SVG image/icon plugins the docking
+    # library's button icons and the window icon need.)
+    if(ZMQ_HAVE_ZMQ AND NOT CPACK_DEBIAN_PACKAGE_DEPENDS MATCHES "libzmq")
+        string(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS ", libzmq5")
+    endif()
     set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/packaging/debian/postinst")
         set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA

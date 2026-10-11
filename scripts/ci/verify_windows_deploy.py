@@ -83,6 +83,23 @@ def main() -> int:
         if not os.path.exists(exe):
             failures.append(f"missing {exe}")
 
+    # Components the application really uses: the docking library's buttons and
+    # the window icon are SVG (QtSvg + its image/icon-engine plugins), and audio
+    # playback needs a Qt Multimedia backend plugin.
+    required = [
+        os.path.join("platforms", "qwindows.dll"),
+        "Qt6Svg.dll",
+        os.path.join("imageformats", "qsvg.dll"),
+        os.path.join("iconengines", "qsvgicon.dll"),
+    ]
+    for rel in required:
+        if not os.path.exists(os.path.join(bindir, rel)):
+            failures.append(f"missing required component: bin\\{rel}")
+    if os.path.exists(os.path.join(bindir, "Qt6Multimedia.dll")):
+        mm = os.path.join(bindir, "multimedia")
+        if not (os.path.isdir(mm) and any(f.lower().endswith(".dll") for f in os.listdir(mm))):
+            failures.append("missing required component: bin\\multimedia backend plugin")
+
     if not failures:
         for exe, args in ((cli, ["--version"]), (cli, ["--help"]), (gui, ["--version"])):
             code = run([exe] + args, env)
