@@ -12,6 +12,8 @@ metadata, MOT slideshow and data services, with ETSI compliance checks.
 > **Status:** first public release. CI builds and tests on Linux, Windows and
 > macOS; the test suite (58 targets) and the fixture parity gate must stay green.
 
+![StreamDAB Analyser Application](./resources/img/streamdab-analyser.png)
+
 ## Features
 
 **ETI and signalling**
