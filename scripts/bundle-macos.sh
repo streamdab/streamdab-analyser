@@ -230,8 +230,11 @@ hdiutil create \
 # Check what the image really contains.
 MOUNT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/streamdab-dmg.XXXXXX")"
 hdiutil attach -nobrowse -readonly -mountpoint "${MOUNT_DIR}" "${DMG_OUT_DIR}/${DMG_NAME}" >/dev/null
-DMG_ITEMS="$(ls "${MOUNT_DIR}" | sort | tr '\n' ' ')"
+# ls -A lists dotfiles too (a stray .DS_Store must fail); only the volume
+# metadata macOS itself creates on a mount is ignored.
+DMG_ITEMS="$(ls -A "${MOUNT_DIR}" | grep -Ev '^\.(fseventsd|Trashes|Spotlight-V100|VolumeIcon\.icns)$' | sort | tr '\n' ' ' || true)"
 hdiutil detach -quiet "${MOUNT_DIR}" || hdiutil detach -force -quiet "${MOUNT_DIR}" || true
+rmdir "${MOUNT_DIR}" 2>/dev/null || true
 echo "DMG contents: ${DMG_ITEMS}"
 [ "${DMG_ITEMS}" = "Applications ${APP_NAME} " ] || die "unexpected DMG contents: ${DMG_ITEMS}"
 

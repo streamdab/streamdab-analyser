@@ -262,9 +262,12 @@ set(CMAKE_BUILD_TYPE Release)
 set(APP_ICON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons")
 set(APP_ICON_ICO "${APP_ICON_DIR}/eti-stream-analyser.ico")
 set(APP_ICON_ICNS "${APP_ICON_DIR}/eti-stream-analyser.icns")
-foreach(_icon "${APP_ICON_ICO}" "${APP_ICON_ICNS}"
-              "${APP_ICON_DIR}/eti-stream-analyser.svg"
-              "${APP_ICON_DIR}/eti-stream-analyser_256.png")
+set(_app_icons "${APP_ICON_ICO}" "${APP_ICON_ICNS}"
+               "${APP_ICON_DIR}/eti-stream-analyser.svg")
+foreach(_size 16 24 32 48 64 128 256 512)
+    list(APPEND _app_icons "${APP_ICON_DIR}/eti-stream-analyser_${_size}.png")
+endforeach()
+foreach(_icon IN LISTS _app_icons)
     if(NOT EXISTS "${_icon}")
         message(FATAL_ERROR "missing application icon ${_icon} "
                 "(regenerate with: python3 scripts/generate_icons.py)")
