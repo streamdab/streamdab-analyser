@@ -64,7 +64,7 @@ fi
 # 4. the GUI itself must come up (the --version run above never loads the
 #    Cocoa platform plugin, the SVG plugins or the docking library's UI).
 echo "--- starting the GUI for 10 s with an empty environment"
-GUI_LOG="$(mktemp)"
+GUI_LOG="$(mktemp "${TMPDIR:-/tmp}/streamdab-gui.XXXXXX")"
 env -i HOME="${HOME:-/tmp}" PATH=/usr/bin:/bin "$EXE" >"$GUI_LOG" 2>&1 &
 GUI_PID=$!
 sleep 10
@@ -73,10 +73,14 @@ if kill -0 "$GUI_PID" 2>/dev/null; then
     kill "$GUI_PID" 2>/dev/null || true
     wait "$GUI_PID" 2>/dev/null || true
 else
-    wait "$GUI_PID" 2>/dev/null; echo "GUI exited early (exit $?); output:"
+    # wait returns the child's exit status; capture it so `set -e` does not
+    # end the script before the output is printed.
+    gui_status=0
+    wait "$GUI_PID" 2>/dev/null || gui_status=$?
+    echo "GUI exited early (exit $gui_status); output:"
     sed 's/^/    /' "$GUI_LOG"; bad=1
 fi
-grep -i "could not load\|plugin\|dyld" "$GUI_LOG" | head -5 | sed 's/^/    log: /' || true
+grep -i -E "could not load|plugin|dyld" "$GUI_LOG" | head -5 | sed 's/^/    log: /' || true
 rm -f "$GUI_LOG"
 
 if [ "$bad" -ne 0 ]; then
