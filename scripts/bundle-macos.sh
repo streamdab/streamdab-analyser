@@ -83,7 +83,7 @@ for lib in "${DIST_DIR}"/lib/libqtadvanceddocking-qt6*.dylib; do
     [ -e "${lib}" ] && cp -a "${lib}" "${FRAMEWORKS_DIR}/"
 done
 ADS_LIB="$(ls "${FRAMEWORKS_DIR}"/libqtadvanceddocking-qt6.*.*.dylib 2>/dev/null | head -1 || true)"
-[ -n "${ADS_LIB}" ] || die "Qt-ADS dylib not found in ${DIST_DIR}/lib — check the install step"
+[ -n "${ADS_LIB}" ] || die "Qt-ADS dylib (libqtadvanceddocking-qt6.<major>.<minor>.<patch>.dylib) not found in ${FRAMEWORKS_DIR} after copying from ${DIST_DIR}/lib — check the install step"
 if ! otool -l "${APP_EXE}" | grep -q "path @executable_path/../Frameworks"; then
     install_name_tool -add_rpath "@executable_path/../Frameworks" "${APP_EXE}"
 fi
@@ -101,6 +101,39 @@ LIBPATH_ARGS+=("-libpath=${DIST_DIR}/lib")
 echo "[2/3] macdeployqt ${APP_DIR}"
 macdeployqt "${APP_DIR}" -always-overwrite -verbose=1 \
     "-executable=${ADS_LIB}" "${LIBPATH_ARGS[@]}"
+
+# Homebrew's split Qt keeps QtSvg, QtPdf, ... in separate prefixes that
+# macdeployqt does not search for plugin dependencies, so a plugin can still
+# point at a framework that never reached the bundle (QtSvg is needed for the
+# SVG icons). Drop plugins the application does not use, then copy any
+# framework a bundled binary still needs from Homebrew; the executable's
+# Frameworks rpath resolves them for every image it loads.
+rm -f "${APP_DIR}/Contents/PlugIns/platforminputcontexts/libqtvirtualkeyboardplugin.dylib" \
+      "${APP_DIR}/Contents/PlugIns/imageformats/libqpdf.dylib"
+
+copy_missing_frameworks() {
+    local changed file dep name src
+    for _ in 1 2 3 4 5; do
+        changed=0
+        while IFS= read -r -d '' file; do
+            case "$(file -b "${file}")" in *Mach-O*) ;; *) continue ;; esac
+            while IFS= read -r dep; do
+                case "${dep}" in
+                    @rpath/*.framework/*)
+                        name="${dep#@rpath/}"; name="${name%%/*}"
+                        [ -e "${FRAMEWORKS_DIR}/${name}" ] && continue
+                        src="$(ls -d "${BREW_PREFIX}"/opt/*/lib/"${name}" 2>/dev/null | head -1 || true)"
+                        [ -n "${src}" ] || continue
+                        echo "bundling missing framework ${name} (from ${src})"
+                        cp -R "${src}" "${FRAMEWORKS_DIR}/"
+                        changed=1 ;;
+                esac
+            done < <(otool -L "${file}" 2>/dev/null | tail -n +2 | awk '{print $1}')
+        done < <(find "${APP_DIR}/Contents" -type f -print0)
+        [ "${changed}" -eq 1 ] || break
+    done
+}
+copy_missing_frameworks
 
 # macdeployqt rewrites binaries; make sure the final bundle carries a valid
 # (ad-hoc) signature, otherwise Apple-silicon macOS refuses to run it.
