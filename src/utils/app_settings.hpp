@@ -98,12 +98,16 @@ inline QSettings* create(QObject* parent = nullptr)
  */
 inline bool migrateLegacyScope()
 {
+    // Fallbacks off: on macOS they merge the global preferences domain, which
+    // would make every fresh install look like it has legacy keys.
     QSettings newScope(organization(), application());
+    newScope.setFallbacksEnabled(false);
     if (!newScope.value(QStringLiteral("docking/layout_version")).isNull()) {
         return false;  // new scope already in use — never overwrite it
     }
 
     QSettings legacyScope(legacyOrganization(), legacyApplication());
+    legacyScope.setFallbacksEnabled(false);
     const QStringList keys = legacyScope.allKeys();
     if (keys.isEmpty()) {
         return false;  // nothing to migrate (fresh install / already done)

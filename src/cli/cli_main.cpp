@@ -33,6 +33,7 @@
 #include <QTemporaryFile>
 #include <QElapsedTimer>
 #include <QCoreApplication>
+#include <QLoggingCategory>
 #include <QTextStream>
 #include <iostream>
 #include <stdexcept>
@@ -56,6 +57,12 @@ namespace {
         Logger::LogLevel logLevel;
         if (quiet) {
             logLevel = Logger::LogLevel::Error;
+            // Qt logging categories (e.g. streamdab.eti progress/summary lines
+            // from the headless processor) bypass Logger; keep errors only.
+            QLoggingCategory::setFilterRules(QStringLiteral(
+                "streamdab.*.debug=false\n"
+                "streamdab.*.info=false\n"
+                "streamdab.*.warning=false\n"));
         } else if (verbose) {
             logLevel = Logger::LogLevel::Debug;
         } else {

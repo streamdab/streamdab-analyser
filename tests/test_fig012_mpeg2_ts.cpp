@@ -17,6 +17,7 @@
 
 #include <QtTest/QtTest>
 #include "../src/core/fig_parser.hpp"
+#include "../src/utils/logger.h"
 #include <chrono>
 #include <vector>
 
@@ -184,6 +185,14 @@ void TestFig012Mpeg2Ts::test_service_id_zero() {
 }
 
 void TestFig012Mpeg2Ts::test_parsing_performance() {
+    // The benchmark measures parsing, not per-call logging: keep the logger
+    // quiet for the timed section (restored on scope exit).
+    struct LogLevelGuard {
+        Logger::LogLevel saved = Logger::instance().getLogLevel();
+        LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+        ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+    } logGuard;
+
     auto data = createFig012(0x12345678, true, 10, 188);
     
     const int iterations = 10000;

@@ -226,6 +226,11 @@ FetchContent_Declare(
     QtAdvancedDockingSystem
     GIT_REPOSITORY https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git
     GIT_TAG 87cffe5d40307c61141c88b88c10c5e7d181d880 # 4.5.0
+    # Qt-ADS's Versioning.cmake runs `git describe --tags` in OUR source dir;
+    # with no tags it yields an empty version and the Windows .rc fails to
+    # compile (RC2127). Fall back to the pinned version.
+    PATCH_COMMAND ${CMAKE_COMMAND} -DADS_PINNED_VERSION=4.5.0
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_ads_versioning.cmake
 )
 # Qt-ADS ships examples + a Qt6Quick demo app; we only need the library and
 # Qt6Quick is not installed. Force-disable them before MakeAvailable.
@@ -251,9 +256,29 @@ set(CMAKE_BUILD_TYPE Release)
 # Application Icon Generation (cross-platform)
 # ============================================================================
 # Generate PNG fallbacks, .ico (Windows), .icns (macOS) from the source SVG
-find_program(CONVERT_EXECUTABLE convert DOC "ImageMagick convert for icon generation")
+# Windows ships C:\Windows\System32\convert.exe (a disk-format tool, not
+# ImageMagick), so on Windows only the ImageMagick 7 `magick` driver is valid.
+if(WIN32)
+    find_program(CONVERT_EXECUTABLE NAMES magick DOC "ImageMagick for icon generation")
+else()
+    find_program(CONVERT_EXECUTABLE NAMES magick convert DOC "ImageMagick for icon generation")
+endif()
+if(CONVERT_EXECUTABLE)
+    # A converter without a working SVG delegate (e.g. no rsvg-convert) would
+    # fail the whole build at icon-generation time; probe once at configure time.
+    execute_process(
+        COMMAND ${CONVERT_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-stream-analyser.svg"
+                -resize 16x16 -background none "${CMAKE_CURRENT_BINARY_DIR}/icon_probe.png"
+        RESULT_VARIABLE _icon_probe_rc
+        OUTPUT_QUIET ERROR_QUIET)
+    if(NOT _icon_probe_rc EQUAL 0 OR NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/icon_probe.png")
+        message(WARNING "ImageMagick at ${CONVERT_EXECUTABLE} cannot render SVG - platform icons will not be generated")
+        unset(CONVERT_EXECUTABLE CACHE)
+        set(CONVERT_EXECUTABLE "")
+    endif()
+endif()
 if(NOT CONVERT_EXECUTABLE)
-    message(WARNING "ImageMagick 'convert' not found - platform icons will not be generated")
+    message(WARNING "ImageMagick ('magick' or 'convert') not usable - platform icons will not be generated")
 endif()
 
 # Platform-specific icon sizes
@@ -366,13 +391,14 @@ endif()
 
 # Custom target to build all icons
 if(CONVERT_EXECUTABLE)
-    add_custom_target(generate_icons DEPENDS ${GENERATED_PNG_ICONS})
+    set(GENERATED_ICON_OUTPUTS ${GENERATED_PNG_ICONS})
     if(WIN32 AND GENERATED_ICO_ICON)
-        add_dependencies(generate_icons ${GENERATED_ICO_ICON})
+        list(APPEND GENERATED_ICON_OUTPUTS "${GENERATED_ICO_ICON}")
     endif()
     if(APPLE AND GENERATED_ICNS_ICON)
-        add_dependencies(generate_icons ${GENERATED_ICNS_ICON})
+        list(APPEND GENERATED_ICON_OUTPUTS "${GENERATED_ICNS_ICON}")
     endif()
+    add_custom_target(generate_icons DEPENDS ${GENERATED_ICON_OUTPUTS})
     # Make main target depend on icon generation (added after target creation)
 endif()
 

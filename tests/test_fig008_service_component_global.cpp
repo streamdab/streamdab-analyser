@@ -20,6 +20,7 @@
 
 #include <QtTest/QtTest>
 #include "../src/core/fig_parser.hpp"
+#include "../src/utils/logger.h"
 #include <chrono>
 #include <vector>
 
@@ -431,6 +432,14 @@ void TestFig008ServiceComponentGlobal::test_invalid_subchid_exceeds_6bit() {
 // ============================================================================
 
 void TestFig008ServiceComponentGlobal::test_parsing_performance() {
+    // The benchmark measures parsing, not per-call logging: keep the logger
+    // quiet for the timed section (restored on scope exit).
+    struct LogLevelGuard {
+        Logger::LogLevel saved = Logger::instance().getLogLevel();
+        LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+        ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+    } logGuard;
+
     qDebug() << "TEST: Parsing performance (<15µs target)";
 
     auto fig_data = createFig008Data(0x123, 0x0, false, 0x456, false, true, 0x10, 0x00);

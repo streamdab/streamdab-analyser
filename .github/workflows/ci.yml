@@ -66,6 +66,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
+            qt6-base-private-dev libxkbcommon-dev libxkbcommon-x11-dev \
             libasound2-dev libgtest-dev build-essential
 
       # -------------------------------------------------------------- Windows
@@ -79,6 +80,14 @@ jobs:
           arch: 'win64_msvc2022_64'
           modules: 'qtmultimedia'
           cache: true
+
+      - name: Install ImageMagick (Windows, icon generation via magick)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install imagemagick.app -y --no-progress
+          $dir = (Get-ChildItem 'C:\Program Files\ImageMagick-*' -Directory | Select-Object -First 1).FullName
+          Add-Content $env:GITHUB_PATH $dir
 
       - name: Bootstrap vcpkg and build the small native deps (Windows)
         if: runner.os == 'Windows'
@@ -94,8 +103,8 @@ jobs:
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew update
-          brew install cmake qt@6 faad2 fftw libzmq googletest
+          HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_UPGRADE=1 \
+            brew install cmake qt@6 faad2 fftw zeromq cppzmq googletest
           echo "QT_DIR=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
 
       # ------------------------------------------------------------ configure
@@ -206,5 +215,6 @@ jobs:
         working-directory: build
         shell: pwsh
         run: |
-          .\streamdab-cli.exe --version
-          .\streamdab-cli.exe --help | Select-Object -First 5
+          # Visual Studio is multi-config: binaries land in build\Release
+          .\Release\streamdab-cli.exe --version
+          .\Release\streamdab-cli.exe --help | Select-Object -First 5

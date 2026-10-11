@@ -17,6 +17,7 @@
 
 #include <QtTest/QtTest>
 #include "../src/core/fig_parser.hpp"
+#include "../src/utils/logger.h"
 #include <chrono>
 #include <vector>
 
@@ -326,6 +327,14 @@ void TestFig10EnsembleLabel::test_reserved_ensemble_ids() {
 }
 
 void TestFig10EnsembleLabel::test_parsing_performance() {
+    // The benchmark measures parsing, not per-call logging: keep the logger
+    // quiet for the timed section (restored on scope exit).
+    struct LogLevelGuard {
+        Logger::LogLevel saved = Logger::instance().getLogLevel();
+        LogLevelGuard() { Logger::instance().setLogLevel(Logger::LogLevel::Warning); }
+        ~LogLevelGuard() { Logger::instance().setLogLevel(saved); }
+    } logGuard;
+
     qDebug() << "TEST: Parsing performance benchmark";
 
     auto fig_data = createFig10Data(0xC000, "Performance Test", 0x0000);

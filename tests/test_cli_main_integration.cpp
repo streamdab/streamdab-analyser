@@ -14,6 +14,7 @@
 #include <QTemporaryDir>
 #include <QFile>
 #include <QTextStream>
+#include <deque>
 #include "../src/cli/cli_main.hpp"
 #include "../src/cli/cli_argument_parser.hpp"
 #include "../src/cli/yaml_output_generator.hpp"
@@ -22,6 +23,15 @@ class TestCLIMainIntegration : public QObject {
     Q_OBJECT
 
 private:
+    // argv entries must outlive the cli_main() call; toUtf8().data() on a
+    // temporary dangles as soon as the initializer statement ends.
+    std::deque<QByteArray> m_argStorage;
+    char* argOf(const QString& s)
+    {
+        m_argStorage.push_back(s.toUtf8());
+        return m_argStorage.back().data();
+    }
+
     QTemporaryDir m_tempDir;
     QString m_testETIFile;
 
@@ -73,9 +83,9 @@ private slots:
         char* argv[] = {
             const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--input"),
-            const_cast<char*>(m_testETIFile.toUtf8().data()),
+            argOf(m_testETIFile),
             const_cast<char*>("--output"),
-            const_cast<char*>(outputFile.toUtf8().data()),
+            argOf(outputFile),
             const_cast<char*>("--quiet")
         };
         int argc = 6;
@@ -96,9 +106,9 @@ private slots:
         char* argv[] = {
             const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--input"),
-            const_cast<char*>(m_testETIFile.toUtf8().data()),
+            argOf(m_testETIFile),
             const_cast<char*>("--output"),
-            const_cast<char*>(outputFile.toUtf8().data()),
+            argOf(outputFile),
             const_cast<char*>("--quiet")
         };
         int argc = 6;
@@ -134,9 +144,9 @@ private slots:
         char* argv[] = {
             const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--input"),
-            const_cast<char*>(m_testETIFile.toUtf8().data()),
+            argOf(m_testETIFile),
             const_cast<char*>("--output"),
-            const_cast<char*>(outputFile.toUtf8().data()),
+            argOf(outputFile),
             const_cast<char*>("--quiet")
         };
         int argc = 6;
@@ -157,7 +167,7 @@ private slots:
         char* argv[] = {
             const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--input"),
-            const_cast<char*>(nonExistentFile.toUtf8().data())
+            argOf(nonExistentFile)
         };
         int argc = 3;
 
@@ -196,9 +206,9 @@ private slots:
         char* argv[] = {
             const_cast<char*>("streamdab-analyser"),
             const_cast<char*>("--input"),
-            const_cast<char*>(m_testETIFile.toUtf8().data()),
+            argOf(m_testETIFile),
             const_cast<char*>("--output"),
-            const_cast<char*>(outputFile.toUtf8().data())
+            argOf(outputFile)
         };
         int argc = 5;
 

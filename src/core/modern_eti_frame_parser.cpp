@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <execution>
 #include <bit>
-#include <immintrin.h> // For SIMD operations
 #include <QThreadPool>
 #include <QRunnable>
 

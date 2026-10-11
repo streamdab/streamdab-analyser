@@ -13602,8 +13602,16 @@ DABAnalyserWindow::~DABAnalyserWindow()
         m_multiStreamProcessor->stopParallelProcessing();
     }
 
-    // Disconnect all signals to prevent race conditions during destruction
-    disconnect();
+    // NOTE: do NOT call a bare `disconnect()` here. DABAnalyserWindow declares no
+    // signals of its own and nothing connects with the window as the sender, so
+    // it would only sever Qt's *internal* connections to the window's built-in
+    // signals - above all QObject::destroyed, which QAccessibleCache uses to
+    // drop its entry for this widget. With the entry left behind, a later window
+    // allocated at the same address (e.g. a stack `DABAnalyserWindow w;` in a
+    // test) hits a stale accessible interface in QWidget::setWindowTitle()
+    // (Qt >= 6.5 queries it unconditionally) and crashes with a null widget in
+    // QAccessibleWidget::text(). The per-sender disconnects above already cover
+    // every receiver-side race.
 
     // Brief wait for any pending queued signals to complete
     QThread::msleep(100);
