@@ -112,7 +112,7 @@ rm -f "${APP_DIR}/Contents/PlugIns/platforminputcontexts/libqtvirtualkeyboardplu
       "${APP_DIR}/Contents/PlugIns/imageformats/libqpdf.dylib"
 
 copy_missing_frameworks() {
-    local changed file dep name src
+    local changed file dep name src real
     for _ in 1 2 3 4 5; do
         changed=0
         while IFS= read -r -d '' file; do
@@ -124,8 +124,14 @@ copy_missing_frameworks() {
                         [ -e "${FRAMEWORKS_DIR}/${name}" ] && continue
                         src="$(ls -d "${BREW_PREFIX}"/opt/*/lib/"${name}" 2>/dev/null | head -1 || true)"
                         [ -n "${src}" ] || continue
-                        echo "bundling missing framework ${name} (from ${src})"
-                        cp -R "${src}" "${FRAMEWORKS_DIR}/"
+                        # Homebrew's "qt" prefix links the module frameworks in
+                        # with symlinks. Copy the real framework: a copied
+                        # symlink is dangling inside the bundle and breaks
+                        # codesign.
+                        real="$(cd "${src}" && pwd -P)"
+                        echo "bundling missing framework ${name} (from ${real})"
+                        cp -R "${real}" "${FRAMEWORKS_DIR}/${name}"
+                        [ -e "${FRAMEWORKS_DIR}/${name}" ] || die "could not bundle ${name} from ${real}"
                         changed=1 ;;
                 esac
             done < <(otool -L "${file}" 2>/dev/null | tail -n +2 | awk '{print $1}')
@@ -134,6 +140,15 @@ copy_missing_frameworks() {
     done
 }
 copy_missing_frameworks
+
+# A dangling symlink makes codesign fail with a bare "No such file or
+# directory"; list them so the cause is visible, and stop.
+DANGLING="$(find "${APP_DIR}" -type l ! -exec test -e {} \; -print)"
+if [ -n "${DANGLING}" ]; then
+    echo "dangling symlinks in the bundle:" >&2
+    echo "${DANGLING}" >&2
+    die "bundle contains dangling symlinks"
+fi
 
 # macdeployqt rewrites binaries; make sure the final bundle carries a valid
 # (ad-hoc) signature, otherwise Apple-silicon macOS refuses to run it.
