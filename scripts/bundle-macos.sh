@@ -111,6 +111,19 @@ macdeployqt "${APP_DIR}" -always-overwrite -verbose=1 \
 rm -f "${APP_DIR}/Contents/PlugIns/platforminputcontexts/libqtvirtualkeyboardplugin.dylib" \
       "${APP_DIR}/Contents/PlugIns/imageformats/libqpdf.dylib"
 
+# macdeployqt deploys the SVG *image-format* plugin only when QtSvg is already
+# part of the bundle, and QtSvg is added by this script afterwards. Copy the
+# plugin ourselves (QPixmap/QImage and style-sheet url(...svg) need it; the
+# icon-engine plugin alone covers QIcon only).
+if [ ! -e "${APP_DIR}/Contents/PlugIns/imageformats/libqsvg.dylib" ]; then
+    QSVG_PLUGIN="$(find -L "${BREW_PREFIX}/opt/qtsvg" "${BREW_PREFIX}/Cellar/qtsvg" \
+        -name libqsvg.dylib -path '*imageformats*' 2>/dev/null | head -1 || true)"
+    [ -n "${QSVG_PLUGIN}" ] || die "Qt SVG image-format plugin (libqsvg.dylib) not found under ${BREW_PREFIX} — brew install qtsvg"
+    mkdir -p "${APP_DIR}/Contents/PlugIns/imageformats"
+    echo "bundling the SVG image-format plugin (from ${QSVG_PLUGIN})"
+    cp "${QSVG_PLUGIN}" "${APP_DIR}/Contents/PlugIns/imageformats/"
+fi
+
 copy_missing_frameworks() {
     local changed file dep name src real
     for _ in 1 2 3 4 5; do
