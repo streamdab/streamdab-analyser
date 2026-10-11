@@ -10,6 +10,7 @@ build_*/
 out/
 dist/
 release/
+ref/*
 
 # Nested accidentally-committed CMake build tree
 tests/tests/
@@ -183,7 +184,6 @@ docs/latex/
 docs/xml/
 *.pdf
 *.eps
-*.png
 *.jpg
 *.jpeg
 !docs/images/
