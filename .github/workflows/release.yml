@@ -216,7 +216,11 @@ jobs:
         run: |
           # Commits since the previous tag (or all if none).
           PREV=$(git describe --tags --abbrev=0 --skip 1 2>/dev/null || echo "")
-          if [ -z "$PREV" ]; then
+          if [ -f "docs/releases/${GITHUB_REF_NAME}.md" ]; then
+            # Hand-written notes for this tag win over the commit list.
+            cp "docs/releases/${GITHUB_REF_NAME}.md" RELEASE_NOTES.md
+            exit 0
+          elif [ -z "$PREV" ]; then
             git log -1 --format='%s%n%n%b' HEAD > RELEASE_NOTES.md
           else
             git log --format='- %s' "$PREV..HEAD" > RELEASE_NOTES.md
