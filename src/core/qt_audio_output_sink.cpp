@@ -1,42 +1,44 @@
 /**
  * @file qt_audio_output_sink.cpp
- * @brief T34-ext: Qt Multimedia (QAudioSink) playback sink implementation.
+ * @brief Qt Multimedia (QAudioSink) playback sink — pull-mode implementation.
  *
- * See the header for the lifecycle/threading contract. The writer thread is the
- * only user of the QAudioSink / the internal push-mode QIODevice; every call is
- * serialized by `m_sinkMutex`. In push mode (`QAudioSink::start()` without a
- * device) the writer writes at most `bytesFree()` bytes per call — which never
- * blocks — and when the ring buffer is full it waits with a bounded sleep,
- * checking the cancellation flag, so `close()` and the destructor can never
- * hang on a stalled device.
+ * See the header for the threading contract. In short: every public call and
+ * every QAudioSink call happens on the thread the sink lives in (the GUI
+ * thread). The audio engine PULLS PCM through `PcmPullDevice::readData()`,
+ * which only copies bytes out of an immutable buffer and never calls back into
+ * Qt Multimedia, so there is no writer thread, no sink mutex and nothing that
+ * can block or re-enter.
+ *
+ * Why not push mode: the previous design had a writer thread feeding the
+ * QAudioSink and a mutex held around `QAudioSink::start()` while the
+ * `stateChanged` handler took the same mutex. On WASAPI/CoreAudio the state
+ * change is emitted synchronously inside `start()`, so pressing Play deadlocked
+ * the GUI thread (and Pause/Stop/seek could do the same).
  *
  * When the module is absent (`HAVE_QMULTIMEDIA` unset) every QAudio and QMedia
  * symbol is compiled out and the class provides the same graceful-degradation
  * stubs as `AudioOutputSink` without ALSA.
- *
- * @author C++ Qt Developer Agent (T34-ext)
  */
 
 #include "qt_audio_output_sink.hpp"
 
-#include <QMetaObject>
+#include <QElapsedTimer>
+#include <QIODevice>
+#include <QTimer>
 
 #include <algorithm>
 #include <atomic>
-#include <chrono>
 #include <cmath>
-#include <condition_variable>
-#include <functional>
+#include <cstdint>
+#include <cstring>
 #include <memory>
 #include <mutex>
-#include <string>   // must precede <chrono> (GCC 13: <chrono> pulls <format>)
-#include <thread>
+#include <string>
 
 #ifdef HAVE_QMULTIMEDIA
 #include <QAudioDevice>
 #include <QAudioFormat>
 #include <QAudioSink>
-#include <QIODevice>
 #include <QMediaDevices>
 #endif
 
@@ -54,9 +56,14 @@ namespace qtns = QAudio;
 #endif
 
 namespace {
-// Test-only simulated backend state (see setSimulatedBackendForTest()).
+
+// Test-only simulated backend: no QAudioSink, a timer pulls from the device the
+// way the audio engine would. `stallMs` is accepted for API compatibility; a
+// pull-mode sink has nothing that can block, so it is ignored.
 std::atomic<bool> g_simulated{false};
-std::atomic<int> g_simStallMs{0};
+
+constexpr int kTickMs = 40;          // level updates + end-of-buffer detection (25 Hz)
+constexpr int kSimulatedTickMs = 10;  // simulated engine pull cadence
 
 #ifdef HAVE_QMULTIMEDIA
 /**
@@ -88,376 +95,321 @@ bool resolveDevice(const QString& wanted, QAudioDevice* out)
     return false;
 }
 #endif
-} // namespace
 
-class QtAudioOutputSink::Impl {
+/**
+ * @brief Read-only sequential device that serves a pre-decoded PCM buffer.
+ *
+ * `readData()` may be called from the audio engine's own thread (CoreAudio) or
+ * from the GUI thread (WASAPI), and may even run synchronously inside
+ * `QAudioSink::start()`. It therefore only touches atomics, a short critical
+ * section around the buffer pointer, and the destination memory: it never
+ * calls into QAudioSink and never blocks.
+ */
+class PcmPullDevice : public QIODevice {
 public:
-    ~Impl() { shutdown(); }
+    explicit PcmPullDevice(QObject* parent = nullptr) : QIODevice(parent) {}
 
-    // ------------------------------------------------------------------
-    // Sink ownership. All QAudioSink/QIODevice access happens under
-    // m_sinkMutex (the writer locks it only for a non-blocking write, the
-    // GUI-thread control paths for short control calls).
-    // ------------------------------------------------------------------
-    void closeSink()
-    {
-#ifdef HAVE_QMULTIMEDIA
-        std::lock_guard<std::mutex> lock(m_sinkMutex);
-        // The QAudioSink destructor releases the device resources immediately
-        // (no synchronous drain); deleting before joining guarantees a stalled
-        // device can never pin close()/the destructor.
-        m_sink.reset();
-        m_io = nullptr;
-#endif
-        m_open = false;
-    }
-
-    void dropSink()
-    {
-#ifdef HAVE_QMULTIMEDIA
-        std::lock_guard<std::mutex> lock(m_sinkMutex);
-        if (m_sink) {
-            m_sink->stop();
-            m_io = nullptr;  // start() must be called again before the next write
-        }
-#endif
-    }
-
-    void suspendSink()
-    {
-#ifdef HAVE_QMULTIMEDIA
-        std::lock_guard<std::mutex> lock(m_sinkMutex);
-        if (m_sink) {
-            m_sink->suspend();
-        }
-#endif
-    }
-
-    void resumeSink()
-    {
-#ifdef HAVE_QMULTIMEDIA
-        std::lock_guard<std::mutex> lock(m_sinkMutex);
-        if (m_sink) {
-            m_sink->resume();
-        }
-#endif
-    }
-
-    void seekSink()
-    {
-#ifdef HAVE_QMULTIMEDIA
-        std::lock_guard<std::mutex> lock(m_sinkMutex);
-        if (m_sink && m_open.load()) {
-            // Discard stale pre-seek buffered audio immediately. reset() (unlike
-            // stop()) does not synchronously drain, so seek stays prompt even on
-            // a stalled device. Some backends fall back to StoppedState after
-            // reset(); re-arm push mode in that case so the writer can continue.
-            m_sink->reset();
-            if (m_sink->state() == qtns::State::StoppedState) {
-                m_io = m_sink->start();
-            }
-        }
-#endif
-    }
-
-    void applyVolumeMute()
-    {
-#ifdef HAVE_QMULTIMEDIA
-        std::lock_guard<std::mutex> lock(m_sinkMutex);
-        if (m_sink) {
-            // QAudioSink has no setMuted() in Qt 6 (that is QAudioOutput);
-            // mute by driving the sink volume to zero.
-            m_sink->setVolume(m_muted.load()
-                                  ? qreal(0)
-                                  : static_cast<qreal>(m_volume.load()));
-        }
-#else
-        // Volume/mute are stored in the atomics even without the backend so the
-        // query API behaves identically.
-#endif
-    }
-
-    /**
-     * @brief Stop, destroy and join. Bounded by construction.
-     *
-     * Order matters: clear the running flag, then drop the PCM reference, then
-     * destroy the sink (which wakes/aborts any writer parked waiting on the
-     * device), THEN join. The writer holds m_sinkMutex only for the
-     * (non-blocking, <= bytesFree) write, never during a wait, so closeSink()
-     * cannot block on it for long.
-     */
-    void shutdown()
+    /// Install a new buffer (GUI thread). @p startByte is where reading starts.
+    void setSource(std::shared_ptr<const QByteArray> pcm, int channels, qint64 startByte)
     {
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            m_running = false;
-            m_playing = false;
+            m_pcm = std::move(pcm);
+        }
+        m_frameBytes = std::max(1, channels) * 2;
+        m_pos = alignToFrame(startByte);
+        m_ended = false;
+        m_peakL = 0.0f;
+        m_peakR = 0.0f;
+    }
+
+    void clearSource()
+    {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
             m_pcm.reset();
         }
-        m_cv.notify_all();
-        closeSink();
-        if (m_thread.joinable()) {
-            m_thread.join();
-        }
+        m_pos = 0;
+        m_ended = false;
+        m_peakL = 0.0f;
+        m_peakR = 0.0f;
     }
 
-    void ensureThread(QtAudioOutputSink* owner)
+    void setPositionBytes(qint64 byte)
     {
-        if (!m_thread.joinable()) {
-            m_running = true;
-            m_thread = std::thread(&Impl::run, this, owner);
+        m_pos = alignToFrame(byte);
+        m_ended = false;
+    }
+    qint64 positionBytes() const { return m_pos.load(); }
+    qint64 totalBytes() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_pcm ? m_pcm->size() : 0;
+    }
+    bool reachedEnd() const { return m_ended.load(); }
+
+    /// Effective output gain used only for the level meters.
+    void setGain(float gain) { m_gain = gain; }
+
+    /// Largest peaks since the last call (then reset). 0..1.
+    void takePeaks(float* left, float* right)
+    {
+        *left = m_peakL.exchange(0.0f);
+        *right = m_peakR.exchange(0.0f);
+    }
+
+    bool isSequential() const override { return true; }
+    qint64 bytesAvailable() const override
+    {
+        const qint64 total = totalBytes();
+        return std::max<qint64>(0, total - m_pos.load()) + QIODevice::bytesAvailable();
+    }
+
+protected:
+    qint64 readData(char* data, qint64 maxlen) override
+    {
+        std::shared_ptr<const QByteArray> pcm;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            pcm = m_pcm;
+        }
+        if (!pcm || maxlen <= 0) {
+            return 0;
+        }
+        const int frameBytes = m_frameBytes.load();
+        const qint64 pos = m_pos.load();
+        const qint64 remaining = pcm->size() - pos;
+        if (remaining < frameBytes) {
+            m_ended = true;
+            return 0;
+        }
+        qint64 n = std::min<qint64>(maxlen, remaining);
+        n -= n % frameBytes;
+        if (n <= 0) {
+            return 0;
+        }
+        std::memcpy(data, pcm->constData() + pos, static_cast<size_t>(n));
+        m_pos = pos + n;
+
+        // Level meters (cheap: one pass over the chunk just handed out).
+        const int channels = frameBytes / 2;
+        const int16_t* s = reinterpret_cast<const int16_t*>(data);
+        const qint64 frames = n / frameBytes;
+        const float gain = m_gain.load();
+        float pl = 0.0f;
+        float pr = 0.0f;
+        for (qint64 i = 0; i < frames; ++i) {
+            const float l = std::fabs(static_cast<float>(s[i * channels])) * gain / 32768.0f;
+            const float r = channels > 1
+                ? std::fabs(static_cast<float>(s[i * channels + 1])) * gain / 32768.0f
+                : l;
+            pl = std::max(pl, l);
+            pr = std::max(pr, r);
+        }
+        float cur = m_peakL.load();
+        while (pl > cur && !m_peakL.compare_exchange_weak(cur, pl)) {
+        }
+        cur = m_peakR.load();
+        while (pr > cur && !m_peakR.compare_exchange_weak(cur, pr)) {
+        }
+        return n;
+    }
+
+    qint64 writeData(const char*, qint64) override { return -1; }
+
+private:
+    qint64 alignToFrame(qint64 byte) const
+    {
+        const int fb = std::max(1, m_frameBytes.load());
+        const qint64 clamped = std::max<qint64>(0, byte);
+        return clamped - (clamped % fb);
+    }
+
+    mutable std::mutex m_mutex;  // guards only the buffer pointer
+    std::shared_ptr<const QByteArray> m_pcm;
+    std::atomic<int> m_frameBytes{4};
+    std::atomic<qint64> m_pos{0};
+    std::atomic<bool> m_ended{false};
+    std::atomic<float> m_gain{1.0f};
+    std::atomic<float> m_peakL{0.0f};
+    std::atomic<float> m_peakR{0.0f};
+};
+
+} // namespace
+
+QByteArray QtAudioOutputSink::resampleLinearS16(const QByteArray& src, int channels,
+                                                int srcRate, int dstRate)
+{
+    if (channels <= 0 || srcRate <= 0 || dstRate <= 0 || src.isEmpty()) {
+        return QByteArray();
+    }
+    if (srcRate == dstRate) {
+        return src;
+    }
+    const int16_t* in = reinterpret_cast<const int16_t*>(src.constData());
+    const qint64 inFrames = src.size() / (channels * 2);
+    if (inFrames <= 0) {
+        return QByteArray();
+    }
+    const qint64 outFrames = std::max<qint64>(1, inFrames * dstRate / srcRate);
+    QByteArray out;
+    out.resize(static_cast<qsizetype>(outFrames * channels * 2));
+    int16_t* o = reinterpret_cast<int16_t*>(out.data());
+    const double step = static_cast<double>(srcRate) / static_cast<double>(dstRate);
+    for (qint64 i = 0; i < outFrames; ++i) {
+        const double p = static_cast<double>(i) * step;
+        const qint64 i0 = std::min<qint64>(inFrames - 1, static_cast<qint64>(p));
+        const qint64 i1 = std::min<qint64>(inFrames - 1, i0 + 1);
+        const double frac = p - static_cast<double>(i0);
+        for (int c = 0; c < channels; ++c) {
+            const double a = in[i0 * channels + c];
+            const double b = in[i1 * channels + c];
+            o[i * channels + c] = static_cast<int16_t>(std::lround(a + (b - a) * frac));
         }
     }
+    return out;
+}
+
+class QtAudioOutputSink::Impl {
+public:
+    explicit Impl(QtAudioOutputSink* owner) : m_owner(owner)
+    {
+        m_device_io = new PcmPullDevice(owner);
+        m_device_io->open(QIODevice::ReadOnly);
+        m_timer = new QTimer(owner);
+        m_timer->setInterval(kTickMs);
+        QObject::connect(m_timer, &QTimer::timeout, owner, [this]() { onTick(); });
+    }
+
+    ~Impl() { teardownSink(); }
 
     // ------------------------------------------------------------------
-    // Writer thread
+    // Sink ownership (GUI thread only)
     // ------------------------------------------------------------------
-    void run(QtAudioOutputSink* owner)
+    void teardownSink()
     {
-        using namespace std::chrono;
-        qint64 lastLevelUs = 0;
-        while (true) {
-            std::shared_ptr<const QByteArray> pcm;
-            int sampleRate = 0;
-            int channels = 0;
-            qint64 total = 0;
-            {
-                std::unique_lock<std::mutex> lock(m_mutex);
-                if (!m_running) {
-                    break;
-                }
-                if (!m_playing || !m_pcm || m_sampleRate <= 0 || m_channels <= 0) {
-                    m_cv.wait_for(lock, std::chrono::milliseconds(20));
-                    continue;
-                }
-                // Snapshot: the shared pointer keeps the buffer alive for the
-                // whole iteration even if the owner resets its reference.
-                pcm = m_pcm;
-                sampleRate = m_sampleRate;
-                channels = m_channels;
-                total = m_totalFrames;
-            }
-
-            const qint64 pos = m_position.load();
-            if (pos >= total) {
-                m_playing = false;
-                emitQueued(owner, [owner]() { emit owner->playbackEnded(); });
-                continue;
-            }
-            const qint64 want = std::max<qint64>(1, sampleRate / 100);  // ~10 ms
-            const qint64 frames = std::min(want, total - pos);
-
-            // Peaks reflect the effective output level (the Qt sink applies the
-            // volume/mute it was given); the bytes written are NOT rescaled so
-            // the device-side gain is applied exactly once.
-            const int16_t* src = reinterpret_cast<const int16_t*>(pcm->constData())
-                                 + pos * channels;
-            const float vol = m_muted.load() ? 0.0f : static_cast<float>(m_volume.load());
-            float peakL = 0.0f;
-            float peakR = 0.0f;
-            for (qint64 i = 0; i < frames; ++i) {
-                for (int c = 0; c < channels; ++c) {
-                    const float s = static_cast<float>(src[i * channels + c]) * vol;
-                    const float mag = std::fabs(s) / 32768.0f;
-                    if (c == 0) {
-                        peakL = std::max(peakL, mag);
-                    }
-                    if (c == 1 || channels == 1) {
-                        peakR = std::max(peakR, mag);
-                    }
-                }
-            }
-
-            const WriteResult result = writeChunk(src, frames, channels);
-            if (result.status == WriteStatus::Interrupted) {
-                // Control-path stop()/pause() clear m_playing (prompt return);
-                // a spontaneous device stop while still playing is converted to
-                // an Error inside writeChunk. Reaching this with m_playing true
-                // is therefore transient (state race) — wait bounded, never spin.
-                if (m_running.load() && m_playing.load()) {
-                    waitWritable();
-                } else {
-                    std::unique_lock<std::mutex> lock(m_mutex);
-                    m_cv.wait_for(lock, std::chrono::milliseconds(20));
-                }
-                continue;
-            }
-            if (result.status == WriteStatus::WriteLater) {
-                waitWritable();
-                continue;
-            }
-            if (result.status == WriteStatus::Error) {
-                const QString message = QStringLiteral("Qt audio device error: %1")
-                                            .arg(result.errorText);
-                setError(message);
-                m_playing = false;  // never spin; wait on the CV
-                emitQueued(owner, [owner, message]() {
-                    emit owner->errorOccurred(message);
-                });
-                std::unique_lock<std::mutex> lock(m_mutex);
-                m_cv.wait_for(lock, std::chrono::milliseconds(100));
-                continue;
-            }
-            if (result.frames <= 0) {
-                continue;
-            }
-            m_position.fetch_add(result.frames);
-
-            const qint64 nowUs = duration_cast<microseconds>(
-                steady_clock::now().time_since_epoch()).count();
-            if (nowUs - lastLevelUs >= 50000) {  // ~20 Hz level updates
-                lastLevelUs = nowUs;
-                emitQueued(owner, [owner, peakL, peakR]() {
-                    emit owner->levelsChanged(peakL, peakR);
-                });
-            }
-        }
-    }
-
-    enum class WriteStatus { Ok, WriteLater, Interrupted, Error };
-    struct WriteResult {
-        WriteStatus status = WriteStatus::Ok;
-        int frames = 0;
-        QString errorText;
-    };
-
-    WriteResult writeChunk(const int16_t* data, qint64 frames, int channels)
-    {
-        WriteResult r;
-        if (!m_running.load() || !m_playing.load()) {
-            r.status = WriteStatus::Interrupted;
-            return r;
-        }
-        if (g_simulated.load()) {
-            // Simulate a device that may block for a long time per write; check
-            // the cancellation flag every ~5 ms so shutdown stays bounded.
-            const int stallMs = g_simStallMs.load();
-            for (int waited = 0; waited < stallMs; waited += 5) {
-                if (!m_running.load() || !m_playing.load()) {
-                    r.status = WriteStatus::Interrupted;
-                    return r;
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(5));
-            }
-            r.status = WriteStatus::Ok;
-            r.frames = static_cast<int>(frames);
-            return r;
-        }
 #ifdef HAVE_QMULTIMEDIA
-        std::lock_guard<std::mutex> lock(m_sinkMutex);
-        if (!m_sink || !m_io || !m_running.load() || !m_playing.load()) {
-            r.status = WriteStatus::Interrupted;
-            return r;
+        if (m_sink) {
+            // Immediate teardown (no synchronous drain).
+            m_sink->stop();
+            m_sink.reset();
         }
-        const qtns::State state = m_sink->state();
-        if (state == qtns::State::StoppedState) {
-            // Control-path stop()/pause() already cleared m_playing, so the
-            // guard above returns first. Reaching this line with m_playing
-            // still true means the device stopped on its own (unplug / backend
-            // error) — report it as a terminal error; looping Interrupted here
-            // would busy-spin with m_playing never cleared.
-            if (m_playing.load()) {
-                r.status = WriteStatus::Error;
-                r.errorText = QStringLiteral("audio device stopped unexpectedly");
-                return r;
-            }
-            r.status = WriteStatus::Interrupted;  // stopped by the control path
-            return r;
-        }
-        if (state == qtns::State::SuspendedState) {
-            r.status = WriteStatus::WriteLater;  // paused; wait and retry
-            return r;
-        }
-        // ActiveState or IdleState: bytesFree() is valid. Write at most the
-        // free capacity so this call can never block on the device.
-        const qint64 bytesNeeded = frames * channels * 2;
-        const qint64 freeBytes = static_cast<qint64>(m_sink->bytesFree());
-        if (freeBytes <= 0) {
-            r.status = WriteStatus::WriteLater;
-            return r;
-        }
-        const qint64 toWrite = std::min(bytesNeeded, freeBytes);
-        const qint64 written =
-            m_io->write(reinterpret_cast<const char*>(data), toWrite);
-        if (written < 0) {
-            r.status = WriteStatus::Error;
-            r.errorText = QStringLiteral("QIODevice::write failed");
-            return r;
-        }
-        if (written == 0) {
-            r.status = WriteStatus::WriteLater;
-            return r;
-        }
-        r.status = WriteStatus::Ok;
-        r.frames = static_cast<int>(written / (channels * 2));
-        return r;
-#else
-        Q_UNUSED(data);
-        Q_UNUSED(frames);
-        Q_UNUSED(channels);
-        r.status = WriteStatus::Interrupted;
-        return r;
 #endif
     }
 
-    void waitWritable()
+    void setError(const QString& error) { m_lastError = error; }
+
+    void fail(const QString& message)
     {
-        if (g_simulated.load()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        setError(message);
+        m_playing = false;
+        m_timer->stop();
+        emit m_owner->errorOccurred(message);
+    }
+
+    /// Source frame -> byte offset in the (possibly resampled) device buffer.
+    qint64 byteForSourceFrame(qint64 frame) const
+    {
+        const qint64 clamped = std::clamp<qint64>(frame, 0, std::max<qint64>(0, m_totalFrames));
+        return clamped * m_outRate / std::max(1, m_srcRate) * m_channels * 2;
+    }
+
+    qint64 sourceFrameForByte(qint64 byte) const
+    {
+        const qint64 outFrame = byte / std::max(1, m_channels * 2);
+        return outFrame * std::max(1, m_srcRate) / std::max(1, m_outRate);
+    }
+
+    void applyGain()
+    {
+        const float gain = m_muted ? 0.0f : m_volume;
+        m_device_io->setGain(gain);
+#ifdef HAVE_QMULTIMEDIA
+        if (m_sink) {
+            // QAudioSink has no setMuted() in Qt 6 (that is QAudioOutput);
+            // mute by driving the sink volume to zero.
+            m_sink->setVolume(static_cast<qreal>(gain));
+        }
+#endif
+    }
+
+    // ------------------------------------------------------------------
+    // 25 Hz housekeeping tick (GUI thread): level meters + end of buffer.
+    // In simulated mode the tick also plays the part of the audio engine.
+    // ------------------------------------------------------------------
+    void onTick()
+    {
+        if (!m_playing) {
             return;
         }
-        // QAudio has no poll(); the ring buffer frees as the device consumes.
-        // Sleep briefly and re-check the cancellation flag — always bounded.
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        if (g_simulated.load()) {
+            simulatePull();
+        }
+        float l = 0.0f;
+        float r = 0.0f;
+        m_device_io->takePeaks(&l, &r);
+        emit m_owner->levelsChanged(l, r);
+
+        if (m_device_io->reachedEnd()) {
+            bool drained = true;
+#ifdef HAVE_QMULTIMEDIA
+            if (!g_simulated.load() && m_sink) {
+                // Everything handed to the device has been played once the
+                // device buffer is entirely free again (or the sink went idle).
+                drained = m_sink->bytesFree() >= m_sink->bufferSize()
+                          || m_sink->state() != qtns::State::ActiveState;
+            }
+#endif
+            if (drained) {
+                m_playing = false;
+                m_timer->stop();
+                emit m_owner->playbackEnded();
+            }
+        }
     }
 
-    template <typename Fn>
-    static void emitQueued(QtAudioOutputSink* owner, Fn&& fn)
+    void simulatePull()
     {
-        QMetaObject::invokeMethod(owner, std::forward<Fn>(fn), Qt::QueuedConnection);
+        const qint64 ms = std::max<qint64>(1, m_simClock.restart());
+        qint64 bytes = ms * m_outRate / 1000 * m_channels * 2;
+        bytes -= bytes % (m_channels * 2);
+        if (bytes <= 0) {
+            return;
+        }
+        QByteArray sink;
+        sink.resize(static_cast<qsizetype>(bytes));
+        m_device_io->read(sink.data(), bytes);
     }
 
-    void setError(const QString& error)
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_lastError = error;
-    }
+    QtAudioOutputSink* m_owner = nullptr;
+    PcmPullDevice* m_device_io = nullptr;
+    QTimer* m_timer = nullptr;
+    QElapsedTimer m_simClock;
 
 #ifdef HAVE_QMULTIMEDIA
-    // Owned sink + the internal push-mode device returned by QAudioSink::start().
-    // It becomes invalid after stop()/reset()+start(); both are only mutated
-    // under m_sinkMutex, so the writer and the control paths never race it.
     std::unique_ptr<QAudioSink> m_sink;
-    QIODevice* m_io = nullptr;
+    QAudioFormat m_sinkFormat;
     QAudioDevice m_deviceInfo;
 #endif
     QString m_device;
     QString m_lastError;
 
-    std::thread m_thread;
-    // m_mutex guards the writer state (running/playing/pcm/params/cv);
-    // m_sinkMutex serializes all QAudioSink/the internal device access. Lock
-    // order, when both are needed, is m_sinkMutex -> m_mutex (never reverse).
-    std::mutex m_mutex;
-    std::mutex m_sinkMutex;
-    std::condition_variable m_cv;
-
-    std::shared_ptr<const QByteArray> m_pcm;
-    int m_sampleRate = 0;
+    std::shared_ptr<const QByteArray> m_pcm;  // keeps the caller's buffer alive
+    std::shared_ptr<const QByteArray> m_converted;  // resampled copy, if needed
+    int m_srcRate = 0;
+    int m_outRate = 0;
     int m_channels = 0;
-    qint64 m_totalFrames = 0;
+    qint64 m_totalFrames = 0;  // in SOURCE frames
 
-    std::atomic<bool> m_open{false};
-    std::atomic<bool> m_running{false};
+    bool m_open = false;
     std::atomic<bool> m_playing{false};
-    std::atomic<qint64> m_position{0};
-    std::atomic<float> m_volume{1.0f};
-    std::atomic<bool> m_muted{false};
+    float m_volume = 1.0f;
+    bool m_muted = false;
 };
 
 QtAudioOutputSink::QtAudioOutputSink(QObject* parent)
     : QObject(parent)
-    , d(std::make_unique<Impl>())
+    , d(std::make_unique<Impl>(this))
 {
 }
 
@@ -489,8 +441,8 @@ QString QtAudioOutputSink::defaultDeviceName()
 void QtAudioOutputSink::setSimulatedBackendForTest(bool enabled, int stallMs)
 {
 #ifdef HAVE_QMULTIMEDIA
+    Q_UNUSED(stallMs);  // pull mode: nothing can block, so nothing to stall
     g_simulated = enabled;
-    g_simStallMs = enabled ? std::max(0, stallMs) : 0;
 #else
     // No-op stub: without the module there is no simulated sink backend.
     Q_UNUSED(enabled);
@@ -504,11 +456,11 @@ QList<QtAudioOutputSink::DeviceInfo> QtAudioOutputSink::enumerateOutputDevices()
 #ifdef HAVE_QMULTIMEDIA
     const QList<QAudioDevice> outputs = QMediaDevices::audioOutputs();
     const QAudioDevice def = QMediaDevices::defaultAudioOutput();
-    for (const QAudioDevice& d : outputs) {
+    for (const QAudioDevice& dev : outputs) {
         DeviceInfo info;
-        info.name = d.id();
-        info.description = d.description();
-        info.isDefault = !def.isNull() && (d.id() == def.id());
+        info.name = dev.id();
+        info.description = dev.description();
+        info.isDefault = !def.isNull() && (dev.id() == def.id());
         devices.append(info);
     }
 #endif
@@ -527,15 +479,14 @@ bool QtAudioOutputSink::open(const QString& device)
     const QString wanted = device.isEmpty() ? defaultDeviceName() : device;
 
     // Stop any playback and release the previous sink before opening a new
-    // device. closeSink() is bounded (immediate teardown, no drain) and
-    // serialized with the writer.
-    {
-        std::lock_guard<std::mutex> lock(d->m_mutex);
-        d->m_playing = false;
-        d->m_pcm.reset();
-    }
-    d->m_cv.notify_all();
-    d->closeSink();
+    // device (immediate teardown, no drain).
+    d->m_playing = false;
+    d->m_timer->stop();
+    d->m_device_io->clearSource();
+    d->m_pcm.reset();
+    d->m_converted.reset();
+    d->teardownSink();
+    d->m_open = false;
 
     if (g_simulated.load()) {
         d->m_device = wanted;
@@ -569,12 +520,18 @@ bool QtAudioOutputSink::open(const QString& device)
 
 void QtAudioOutputSink::close()
 {
-    d->shutdown();
+    d->m_playing = false;
+    d->m_timer->stop();
+    d->m_device_io->clearSource();
+    d->m_pcm.reset();
+    d->m_converted.reset();
+    d->teardownSink();
+    d->m_open = false;
 }
 
 bool QtAudioOutputSink::isOpen() const
 {
-    return d->m_open.load();
+    return d->m_open;
 }
 
 bool QtAudioOutputSink::start(std::shared_ptr<const QByteArray> pcm, int sampleRate,
@@ -586,160 +543,184 @@ bool QtAudioOutputSink::start(std::shared_ptr<const QByteArray> pcm, int sampleR
         emit errorOccurred(message);
         return false;
     }
-    if (!d->m_open.load() && !open(d->m_device.isEmpty() ? defaultDeviceName() : d->m_device)) {
+    if (!d->m_open && !open(d->m_device.isEmpty() ? defaultDeviceName() : d->m_device)) {
         return false;
     }
 
-    if (g_simulated.load()) {
-        // Simulated backend: no real QAudioSink is created; the writer feeds
-        // the stall simulation below.
-    } else {
+    d->m_playing = false;
+    d->m_timer->stop();
+
+    int outRate = sampleRate;
 #ifdef HAVE_QMULTIMEDIA
-        const QAudioFormat format = qtAudioFormatFor(sampleRate, channels);
-        std::lock_guard<std::mutex> lock(d->m_sinkMutex);
-        if (!d->m_sink) {
-            d->m_sink = std::make_unique<QAudioSink>(d->m_deviceInfo, format);
-            if (d->m_sink->error() != qtns::Error::NoError) {
-                const QString message =
-                    QStringLiteral("QAudioSink open failed: %1")
-                        .arg(d->m_deviceInfo.description());
-                d->setError(message);
-                emit errorOccurred(message);
+    if (!g_simulated.load()) {
+        QAudioFormat format = qtAudioFormatFor(sampleRate, channels);
+        if (!d->m_deviceInfo.isFormatSupported(format)) {
+            // Ask the device what it wants and resample to that rate. A device
+            // that cannot take 16-bit PCM at any rate is reported, not played.
+            const int preferred = d->m_deviceInfo.preferredFormat().sampleRate();
+            QAudioFormat alt = qtAudioFormatFor(preferred > 0 ? preferred : 48000, channels);
+            if (!d->m_deviceInfo.isFormatSupported(alt)) {
+                alt = qtAudioFormatFor(48000, channels);
+            }
+            if (!d->m_deviceInfo.isFormatSupported(alt)) {
+                d->fail(QStringLiteral("audio device '%1' does not support 16-bit PCM at %2 Hz")
+                            .arg(d->m_deviceInfo.description())
+                            .arg(sampleRate));
                 return false;
             }
-            // The audio engine may report state changes from its own thread;
-            // the context (this) functor connection queues them to the GUI
-            // thread. Report every non-NoError state as an errorOccurred.
+            format = alt;
+            outRate = alt.sampleRate();
+        }
+        // (Re)create the sink when the format changed (e.g. another service with
+        // a different sample rate); an unchanged format reuses the sink.
+        if (!d->m_sink || d->m_sinkFormat != format) {
+            d->teardownSink();
+            d->m_sink = std::make_unique<QAudioSink>(d->m_deviceInfo, format);
+            d->m_sinkFormat = format;
+            // Reported on the GUI thread (direct connection, same thread). The
+            // handler takes no lock and never calls back into the sink.
             QObject::connect(d->m_sink.get(), &QAudioSink::stateChanged, this,
                              [this](qtns::State state) {
-                                 Q_UNUSED(state);
-                                 qtns::Error err = qtns::Error::NoError;
-                                 {
-                                     std::lock_guard<std::mutex> lock(d->m_sinkMutex);
-                                     if (!d->m_sink) {
-                                         return;
-                                     }
-                                     err = d->m_sink->error();
-                                 }
-                                 if (err != qtns::Error::NoError) {
-                                     const QString message =
-                                         QStringLiteral("Qt audio device error");
-                                     d->setError(message);
-                                     emit errorOccurred(message);
+                                 if (state == qtns::State::StoppedState && d->m_sink
+                                     && d->m_sink->error() != qtns::Error::NoError) {
+                                     d->fail(QStringLiteral("Qt audio device error (code %1)")
+                                                 .arg(static_cast<int>(d->m_sink->error())));
                                  }
                              });
         }
-        d->m_io = d->m_sink->start();  // push mode: write() into the returned device
-        if (d->m_sink->error() != qtns::Error::NoError || !d->m_io) {
-            const QString message =
-                QStringLiteral("QAudioSink start failed: %1")
-                    .arg(d->m_deviceInfo.description());
-            d->setError(message);
-            emit errorOccurred(message);
-            return false;
-        }
-        d->m_sink->setVolume(d->m_muted.load()
-                                 ? qreal(0)
-                                 : static_cast<qreal>(d->m_volume.load()));
-#else
-        const QString message =
-            QStringLiteral("Qt Multimedia backend not available in this build");
-        d->setError(message);
-        emit errorOccurred(message);
-        return false;
+    }
 #endif
+
+    std::shared_ptr<const QByteArray> source = pcm;
+    if (outRate != sampleRate) {
+        d->m_converted = std::make_shared<const QByteArray>(
+            resampleLinearS16(*pcm, channels, sampleRate, outRate));
+        source = d->m_converted;
+    } else {
+        d->m_converted.reset();
     }
 
-    const qint64 totalFrames = pcm->size() / (channels * 2);
-    {
-        std::lock_guard<std::mutex> lock(d->m_mutex);
-        d->m_pcm = std::move(pcm);
-        d->m_sampleRate = sampleRate;
-        d->m_channels = channels;
-        d->m_totalFrames = totalFrames;
+    d->m_pcm = pcm;
+    d->m_srcRate = sampleRate;
+    d->m_outRate = outRate;
+    d->m_channels = channels;
+    d->m_totalFrames = pcm->size() / (channels * 2);
+    d->m_device_io->setSource(source, channels,
+                              d->byteForSourceFrame(std::clamp<qint64>(
+                                  startFrame, 0, std::max<qint64>(0, d->m_totalFrames - 1))));
+    d->applyGain();
+
+#ifdef HAVE_QMULTIMEDIA
+    if (!g_simulated.load()) {
+        // A previous play may have left the sink running or idle: restart it
+        // on the freshly positioned device.
+        if (d->m_sink->state() != qtns::State::StoppedState) {
+            d->m_sink->stop();
+        }
+        d->m_sink->start(d->m_device_io);  // pull mode: the engine reads from us
+        d->applyGain();
+        if (d->m_sink->error() != qtns::Error::NoError) {
+            d->fail(QStringLiteral("QAudioSink start failed: %1")
+                        .arg(d->m_deviceInfo.description()));
+            return false;
+        }
+    } else {
+        d->m_simClock.start();
     }
-    d->m_position = std::clamp<qint64>(startFrame, 0, std::max<qint64>(0, totalFrames - 1));
+#endif
+#ifndef HAVE_QMULTIMEDIA
+    d->m_simClock.start();
+#endif
+
     d->m_playing = true;
-    d->ensureThread(this);
-    d->m_cv.notify_all();
+    d->m_timer->setInterval(g_simulated.load() ? kSimulatedTickMs : kTickMs);
+    d->m_timer->start();
     return true;
 }
 
 void QtAudioOutputSink::stop()
 {
-    {
-        std::lock_guard<std::mutex> lock(d->m_mutex);
-        d->m_playing = false;
-        d->m_position = 0;
-        d->m_pcm.reset();
+    d->m_playing = false;
+    d->m_timer->stop();
+#ifdef HAVE_QMULTIMEDIA
+    if (d->m_sink) {
+        d->m_sink->stop();
     }
-    d->dropSink();
-    d->m_cv.notify_all();
+#endif
+    d->m_device_io->clearSource();
+    d->m_pcm.reset();
+    d->m_converted.reset();
 }
 
 void QtAudioOutputSink::pause()
 {
-    {
-        std::lock_guard<std::mutex> lock(d->m_mutex);
-        d->m_playing = false;
+    d->m_playing = false;
+    d->m_timer->stop();
+#ifdef HAVE_QMULTIMEDIA
+    if (d->m_sink) {
+        d->m_sink->suspend();
     }
-    d->suspendSink();
-    d->m_cv.notify_all();
+#endif
 }
 
 void QtAudioOutputSink::resume()
 {
+    if (d->m_device_io->totalBytes() <= 0) {
+        return;  // nothing loaded (stop() released the buffer): start() again
+    }
 #ifdef HAVE_QMULTIMEDIA
-    d->resumeSink();
-    {
-        std::lock_guard<std::mutex> lock(d->m_sinkMutex);
-        // stop()/dropSink() nulled the internal push-mode device; re-arm it so
-        // the writer has a device to write into again (mirrors ALSA resume()
-        // re-prepping the handle).
-        if (d->m_sink && d->m_io == nullptr) {
-            d->m_io = d->m_sink->start();
+    if (d->m_sink) {
+        if (d->m_sink->state() == qtns::State::SuspendedState) {
+            d->m_sink->resume();
+        } else if (d->m_sink->state() == qtns::State::StoppedState) {
+            d->m_sink->start(d->m_device_io);
         }
     }
-#else
-    d->resumeSink();
 #endif
+    d->m_simClock.start();
     d->m_playing = true;
-    d->ensureThread(this);
-    d->m_cv.notify_all();
+    d->m_timer->setInterval(g_simulated.load() ? kSimulatedTickMs : kTickMs);
+    d->m_timer->start();
 }
 
 void QtAudioOutputSink::seek(qint64 frameIndex)
 {
-    {
-        std::lock_guard<std::mutex> lock(d->m_mutex);
-        d->m_position = std::max<qint64>(0, frameIndex);
+    if (d->m_device_io->totalBytes() <= 0) {
+        return;
     }
-    // Drop the pre-seek buffered audio so playback continues from the new
-    // position instead of the stale tail.
-    d->seekSink();
-    d->m_cv.notify_all();
+    d->m_device_io->setPositionBytes(d->byteForSourceFrame(frameIndex));
+#ifdef HAVE_QMULTIMEDIA
+    if (d->m_sink && d->m_open) {
+        // Discard stale pre-seek buffered audio. Some backends fall back to
+        // StoppedState after reset(); re-arm pull mode in that case.
+        d->m_sink->reset();
+        if (d->m_sink->state() == qtns::State::StoppedState && d->m_playing) {
+            d->m_sink->start(d->m_device_io);
+        }
+    }
+#endif
 }
 
 void QtAudioOutputSink::setVolume(double volume)
 {
     d->m_volume = static_cast<float>(std::clamp(volume, 0.0, 1.0));
-    d->applyVolumeMute();
+    d->applyGain();
 }
 
 double QtAudioOutputSink::volume() const
 {
-    return static_cast<double>(d->m_volume.load());
+    return static_cast<double>(d->m_volume);
 }
 
 void QtAudioOutputSink::setMuted(bool muted)
 {
     d->m_muted = muted;
-    d->applyVolumeMute();
+    d->applyGain();
 }
 
 bool QtAudioOutputSink::isMuted() const
 {
-    return d->m_muted.load();
+    return d->m_muted;
 }
 
 bool QtAudioOutputSink::isPlaying() const
@@ -749,18 +730,20 @@ bool QtAudioOutputSink::isPlaying() const
 
 qint64 QtAudioOutputSink::positionFrames() const
 {
-    return d->m_position.load();
+    if (d->m_device_io->totalBytes() <= 0) {
+        return 0;
+    }
+    return std::min(d->sourceFrameForByte(d->m_device_io->positionBytes()),
+                    d->m_totalFrames);
 }
 
 qint64 QtAudioOutputSink::totalFrames() const
 {
-    std::lock_guard<std::mutex> lock(d->m_mutex);
-    return d->m_totalFrames;
+    return d->m_pcm ? d->m_totalFrames : 0;
 }
 
 QString QtAudioOutputSink::lastError() const
 {
-    std::lock_guard<std::mutex> lock(d->m_mutex);
     return d->m_lastError;
 }
 

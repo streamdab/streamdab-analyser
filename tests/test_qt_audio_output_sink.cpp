@@ -17,6 +17,7 @@
  */
 
 #include <QtTest/QtTest>
+#include <QSignalSpy>
 
 #include <QByteArray>
 #include <QElapsedTimer>
@@ -44,7 +45,40 @@ private slots:
     void testSinkSelectionInvariant();
     void testFormatMapping();          // QSKIPs without the module
     void testStalledShutdownIsBounded();  // QSKIPs without the module
+    // Pull-mode behaviour through the simulated engine (no sound card needed).
+    void testResampler();
+    void testPlaybackAdvancesLevelsAndEnds();
+    void testPauseHoldsPositionAndResumeContinues();
+    void testSeekRepositions();
+    void testStopReleasesBuffer();
+    void testControlCallsFromSignalHandlersDoNotBlock();
+    void testSecondStartWithOtherFormat();
 };
+
+namespace {
+// Interleaved S16 PCM with a constant-amplitude square wave.
+std::shared_ptr<const QByteArray> makePcm(int sampleRate, int channels, double seconds,
+                                          qint16 amplitude = 16000)
+{
+    const qint64 frames = static_cast<qint64>(sampleRate * seconds);
+    auto buf = std::make_shared<QByteArray>();
+    buf->resize(static_cast<qsizetype>(frames * channels * 2));
+    qint16* p = reinterpret_cast<qint16*>(buf->data());
+    for (qint64 i = 0; i < frames; ++i) {
+        const qint16 v = ((i / 24) % 2) ? amplitude : static_cast<qint16>(-amplitude);
+        for (int c = 0; c < channels; ++c) {
+            p[i * channels + c] = v;
+        }
+    }
+    return buf;
+}
+
+// RAII: simulated engine on for the scope of a test.
+struct SimulatedEngine {
+    SimulatedEngine() { QtAudioOutputSink::setSimulatedBackendForTest(true, 0); }
+    ~SimulatedEngine() { QtAudioOutputSink::setSimulatedBackendForTest(false, 0); }
+};
+} // namespace
 
 void TestQtAudioOutputSink::testBackendAvailabilityMatchesCompileTimeConfig()
 {
@@ -157,8 +191,8 @@ void TestQtAudioOutputSink::testStalledShutdownIsBounded()
 #ifndef HAVE_QMULTIMEDIA
     QSKIP("Qt Multimedia not built in: simulated Qt sink backend unavailable");
 #endif
-    // Simulate a device whose write blocks 3 s per call. Without the bounded,
-    // cancellable write path close()/the destructor would hang here.
+    // A "stalled" device cannot pin close() any more (pull mode has no writer to
+    // join); kept as a guard that teardown stays immediate while playing.
     QtAudioOutputSink::setSimulatedBackendForTest(true, 3000);
     {
         QtAudioOutputSink sink;
@@ -180,6 +214,181 @@ void TestQtAudioOutputSink::testStalledShutdownIsBounded()
         QVERIFY(!sink.isOpen());
     }
     QtAudioOutputSink::setSimulatedBackendForTest(false, 0);
+}
+
+void TestQtAudioOutputSink::testResampler()
+{
+    // Pure helper: always compiled, no module needed.
+    QByteArray ramp;
+    ramp.resize(48000 * 2);  // 1 s mono
+    qint16* r = reinterpret_cast<qint16*>(ramp.data());
+    for (int i = 0; i < 48000; ++i) {
+        r[i] = static_cast<qint16>(i / 2);  // slow ramp 0..23999
+    }
+    // same rate: unchanged
+    QCOMPARE(QtAudioOutputSink::resampleLinearS16(ramp, 1, 48000, 48000), ramp);
+    // 48k -> 24k halves the frame count and keeps the shape
+    const QByteArray half = QtAudioOutputSink::resampleLinearS16(ramp, 1, 48000, 24000);
+    QCOMPARE(half.size(), 24000 * 2);
+    const qint16* h = reinterpret_cast<const qint16*>(half.constData());
+    QCOMPARE(int(h[0]), 0);
+    QVERIFY(std::abs(int(h[12000]) - 12000) <= 2);
+    // 24k -> 48k doubles it
+    const QByteArray twice = QtAudioOutputSink::resampleLinearS16(half, 1, 24000, 48000);
+    QCOMPARE(twice.size(), 48000 * 2);
+    // stereo keeps channel interleaving
+    QByteArray st;
+    st.resize(100 * 2 * 2);
+    qint16* sp = reinterpret_cast<qint16*>(st.data());
+    for (int i = 0; i < 100; ++i) { sp[i * 2] = 1000; sp[i * 2 + 1] = -1000; }
+    const QByteArray st2 = QtAudioOutputSink::resampleLinearS16(st, 2, 32000, 48000);
+    const qint16* q = reinterpret_cast<const qint16*>(st2.constData());
+    QCOMPARE(int(q[0]), 1000);
+    QCOMPARE(int(q[1]), -1000);
+    QCOMPARE(int(q[st2.size() / 2 - 2]), 1000);
+    // invalid arguments
+    QVERIFY(QtAudioOutputSink::resampleLinearS16(QByteArray(), 2, 48000, 24000).isEmpty());
+    QVERIFY(QtAudioOutputSink::resampleLinearS16(ramp, 0, 48000, 24000).isEmpty());
+    QVERIFY(QtAudioOutputSink::resampleLinearS16(ramp, 1, 0, 24000).isEmpty());
+}
+
+void TestQtAudioOutputSink::testPlaybackAdvancesLevelsAndEnds()
+{
+#ifndef HAVE_QMULTIMEDIA
+    QSKIP("Qt Multimedia not built in: simulated pull engine unavailable");
+#else
+    SimulatedEngine engine;
+    QtAudioOutputSink sink;
+    QVERIFY(sink.open());
+    const auto pcm = makePcm(48000, 2, 0.5);
+    QSignalSpy ended(&sink, &QtAudioOutputSink::playbackEnded);
+    QSignalSpy levels(&sink, &QtAudioOutputSink::levelsChanged);
+    QVERIFY(sink.start(pcm, 48000, 2, 0));
+    QVERIFY(sink.isPlaying());
+    QCOMPARE(sink.totalFrames(), qint64(24000));
+    QTRY_VERIFY_WITH_TIMEOUT(ended.count() == 1, 3000);
+    QVERIFY(!sink.isPlaying());
+    QCOMPARE(sink.positionFrames(), qint64(24000));
+    QVERIFY2(levels.count() >= 3, "level meters must keep updating during playback");
+    float maxPeak = 0.0f;
+    for (const QList<QVariant>& args : levels) {
+        maxPeak = std::max(maxPeak, args.at(0).toFloat());
+    }
+    QVERIFY2(maxPeak > 0.3f, qPrintable(QString("peak %1 too low").arg(maxPeak)));
+#endif
+}
+
+void TestQtAudioOutputSink::testPauseHoldsPositionAndResumeContinues()
+{
+#ifndef HAVE_QMULTIMEDIA
+    QSKIP("Qt Multimedia not built in: simulated pull engine unavailable");
+#else
+    SimulatedEngine engine;
+    QtAudioOutputSink sink;
+    QVERIFY(sink.open());
+    QVERIFY(sink.start(makePcm(48000, 2, 5.0), 48000, 2, 0));
+    QTRY_VERIFY_WITH_TIMEOUT(sink.positionFrames() > 2000, 2000);
+    sink.pause();
+    QVERIFY(!sink.isPlaying());
+    const qint64 held = sink.positionFrames();
+    QTest::qWait(150);
+    QCOMPARE(sink.positionFrames(), held);
+    sink.resume();
+    QVERIFY(sink.isPlaying());
+    QTRY_VERIFY_WITH_TIMEOUT(sink.positionFrames() > held + 2000, 2000);
+    sink.stop();
+#endif
+}
+
+void TestQtAudioOutputSink::testSeekRepositions()
+{
+#ifndef HAVE_QMULTIMEDIA
+    QSKIP("Qt Multimedia not built in: simulated pull engine unavailable");
+#else
+    SimulatedEngine engine;
+    QtAudioOutputSink sink;
+    QVERIFY(sink.open());
+    QVERIFY(sink.start(makePcm(48000, 2, 5.0), 48000, 2, 0));
+    sink.seek(200000);
+    QVERIFY(sink.positionFrames() >= 200000);
+    QVERIFY(sink.positionFrames() < 205000);
+    sink.seek(10);
+    QVERIFY(sink.positionFrames() < 5000);
+    sink.stop();
+#endif
+}
+
+void TestQtAudioOutputSink::testStopReleasesBuffer()
+{
+#ifndef HAVE_QMULTIMEDIA
+    QSKIP("Qt Multimedia not built in: simulated pull engine unavailable");
+#else
+    SimulatedEngine engine;
+    QtAudioOutputSink sink;
+    QVERIFY(sink.open());
+    auto pcm = makePcm(48000, 2, 1.0);
+    std::weak_ptr<const QByteArray> weak = pcm;
+    QVERIFY(sink.start(pcm, 48000, 2, 0));
+    pcm.reset();
+    QVERIFY2(!weak.expired(), "the sink must keep the buffer alive while playing");
+    sink.stop();
+    QVERIFY(!sink.isPlaying());
+    QCOMPARE(sink.positionFrames(), qint64(0));
+    QVERIFY2(weak.expired(), "stop() must release the PCM buffer");
+    sink.resume();  // nothing loaded: must be a harmless no-op
+    QVERIFY(!sink.isPlaying());
+#endif
+}
+
+void TestQtAudioOutputSink::testControlCallsFromSignalHandlersDoNotBlock()
+{
+#ifndef HAVE_QMULTIMEDIA
+    QSKIP("Qt Multimedia not built in: simulated pull engine unavailable");
+#else
+    // Regression for the Windows/macOS Play freeze: the old sink held a mutex
+    // across QAudioSink::start() while its stateChanged handler took the same
+    // mutex, so a control call made from inside a signal handler deadlocked the
+    // GUI thread. Control calls from handlers must now return immediately.
+    SimulatedEngine engine;
+    QtAudioOutputSink sink;
+    QVERIFY(sink.open());
+    int calls = 0;
+    QObject::connect(&sink, &QtAudioOutputSink::levelsChanged, &sink,
+                     [&sink, &calls](float, float) {
+                         ++calls;
+                         sink.setVolume(0.5);
+                         sink.pause();
+                         sink.resume();
+                         sink.seek(100);
+                     });
+    QElapsedTimer watchdog;
+    watchdog.start();
+    QVERIFY(sink.start(makePcm(48000, 2, 2.0), 48000, 2, 0));
+    QTRY_VERIFY_WITH_TIMEOUT(calls >= 5, 3000);
+    sink.stop();
+    sink.close();
+    QVERIFY2(watchdog.elapsed() < 3500, "control calls from handlers must not block");
+#endif
+}
+
+void TestQtAudioOutputSink::testSecondStartWithOtherFormat()
+{
+#ifndef HAVE_QMULTIMEDIA
+    QSKIP("Qt Multimedia not built in: simulated pull engine unavailable");
+#else
+    // Another service can have another sample rate / channel count: the second
+    // start() must adopt it instead of reusing the first stream's parameters.
+    SimulatedEngine engine;
+    QtAudioOutputSink sink;
+    QVERIFY(sink.open());
+    QVERIFY(sink.start(makePcm(48000, 2, 1.0), 48000, 2, 0));
+    QCOMPARE(sink.totalFrames(), qint64(48000));
+    QVERIFY(sink.start(makePcm(24000, 1, 1.0), 24000, 1, 0));
+    QCOMPARE(sink.totalFrames(), qint64(24000));
+    QSignalSpy ended(&sink, &QtAudioOutputSink::playbackEnded);
+    QTRY_VERIFY_WITH_TIMEOUT(ended.count() == 1, 3000);
+    QCOMPARE(sink.positionFrames(), qint64(24000));
+#endif
 }
 
 QTEST_MAIN(TestQtAudioOutputSink)
