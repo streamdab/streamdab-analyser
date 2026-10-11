@@ -67,8 +67,45 @@ cmake --install "${BUILD_DIR}" --prefix "${DIST_DIR}" --config "${BUILD_CONFIG}"
 [ -d "${DIST_DIR}/${APP_NAME}" ] || die "expected ${DIST_DIR}/${APP_NAME} — check the install step"
 
 # --- 3) Qt framework bundling -------------------------------------------------
-echo "[2/3] macdeployqt ${DIST_DIR}/${APP_NAME}"
-macdeployqt "${DIST_DIR}/${APP_NAME}" -always-overwrite -verbose=1
+APP_DIR="${DIST_DIR}/${APP_NAME}"
+APP_EXE="${APP_DIR}/Contents/MacOS/StreamDAB-Analyser"
+FRAMEWORKS_DIR="${APP_DIR}/Contents/Frameworks"
+
+# The GUI links the Qt-Advanced-Docking-System dylib through @rpath, but the
+# install step puts it in <prefix>/lib (outside the .app) and leaves the
+# executable without an LC_RPATH. macdeployqt then cannot resolve it and
+# silently ships a bundle that dies at start-up ("no LC_RPATH's found").
+# Put the library inside the bundle and give the executable the Frameworks
+# rpath *before* macdeployqt runs, so it is deployed and re-linked with the Qt
+# frameworks.
+mkdir -p "${FRAMEWORKS_DIR}"
+for lib in "${DIST_DIR}"/lib/libqtadvanceddocking-qt6*.dylib; do
+    [ -e "${lib}" ] && cp -a "${lib}" "${FRAMEWORKS_DIR}/"
+done
+ADS_LIB="$(ls "${FRAMEWORKS_DIR}"/libqtadvanceddocking-qt6.*.*.dylib 2>/dev/null | head -1 || true)"
+[ -n "${ADS_LIB}" ] || die "Qt-ADS dylib not found in ${DIST_DIR}/lib — check the install step"
+if ! otool -l "${APP_EXE}" | grep -q "path @executable_path/../Frameworks"; then
+    install_name_tool -add_rpath "@executable_path/../Frameworks" "${APP_EXE}"
+fi
+
+# Homebrew splits Qt into one formula per module (qtbase, qtsvg, qtdeclarative,
+# ...) and the plugins reference sibling frameworks through @rpath. Hand every
+# Homebrew library directory to macdeployqt so it can resolve all of them.
+BREW_PREFIX="$(brew --prefix 2>/dev/null || echo /opt/homebrew)"
+LIBPATH_ARGS=()
+for d in "${BREW_PREFIX}"/opt/*/lib; do
+    [ -d "${d}" ] && LIBPATH_ARGS+=("-libpath=${d}")
+done
+LIBPATH_ARGS+=("-libpath=${DIST_DIR}/lib")
+
+echo "[2/3] macdeployqt ${APP_DIR}"
+macdeployqt "${APP_DIR}" -always-overwrite -verbose=1 \
+    "-executable=${ADS_LIB}" "${LIBPATH_ARGS[@]}"
+
+# macdeployqt rewrites binaries; make sure the final bundle carries a valid
+# (ad-hoc) signature, otherwise Apple-silicon macOS refuses to run it.
+codesign --force --deep --sign - "${APP_DIR}"
+codesign --verify --deep --strict "${APP_DIR}"
 
 # --- 4) compressed .dmg -------------------------------------------------------
 mkdir -p "${DMG_OUT_DIR}"
