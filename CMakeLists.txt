@@ -253,177 +253,26 @@ endif()
 set(CMAKE_BUILD_TYPE Release)
 
 # ============================================================================
-# Application Icon Generation (cross-platform)
+# Application icons (cross-platform)
 # ============================================================================
-# Generate PNG fallbacks, .ico (Windows), .icns (macOS) from the source SVG
-# Windows ships C:\Windows\System32\convert.exe (a disk-format tool, not
-# ImageMagick), so on Windows only the ImageMagick 7 `magick` driver is valid.
-if(WIN32)
-    find_program(CONVERT_EXECUTABLE NAMES magick DOC "ImageMagick for icon generation")
-else()
-    find_program(CONVERT_EXECUTABLE NAMES magick convert DOC "ImageMagick for icon generation")
-endif()
-if(CONVERT_EXECUTABLE)
-    # A converter without a working SVG delegate (e.g. no rsvg-convert) would
-    # fail the whole build at icon-generation time; probe once at configure time.
-    execute_process(
-        COMMAND ${CONVERT_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-stream-analyser.svg"
-                -resize 16x16 -background none "${CMAKE_CURRENT_BINARY_DIR}/icon_probe.png"
-        RESULT_VARIABLE _icon_probe_rc
-        OUTPUT_QUIET ERROR_QUIET)
-    if(NOT _icon_probe_rc EQUAL 0 OR NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/icon_probe.png")
-        message(WARNING "ImageMagick at ${CONVERT_EXECUTABLE} cannot render SVG - platform icons will not be generated")
-        unset(CONVERT_EXECUTABLE CACHE)
-        set(CONVERT_EXECUTABLE "")
+# The icons are generated from resources/icons/eti-stream-analyser.svg by
+# scripts/generate_icons.py (rsvg-convert + Pillow) and COMMITTED, so a build
+# never needs an SVG renderer. ImageMagick is not used on purpose: its built-in
+# SVG renderer drops the gradient and the transparency (black disc on white).
+set(APP_ICON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons")
+set(APP_ICON_ICO "${APP_ICON_DIR}/eti-stream-analyser.ico")
+set(APP_ICON_ICNS "${APP_ICON_DIR}/eti-stream-analyser.icns")
+set(_app_icons "${APP_ICON_ICO}" "${APP_ICON_ICNS}"
+               "${APP_ICON_DIR}/eti-stream-analyser.svg")
+foreach(_size 16 24 32 48 64 128 256 512)
+    list(APPEND _app_icons "${APP_ICON_DIR}/eti-stream-analyser_${_size}.png")
+endforeach()
+foreach(_icon IN LISTS _app_icons)
+    if(NOT EXISTS "${_icon}")
+        message(FATAL_ERROR "missing application icon ${_icon} "
+                "(regenerate with: python3 scripts/generate_icons.py)")
     endif()
-endif()
-if(NOT CONVERT_EXECUTABLE)
-    message(WARNING "ImageMagick ('magick' or 'convert') not usable - platform icons will not be generated")
-endif()
-
-# Platform-specific icon sizes
-set(ICON_SIZES_PNG 16 24 32 48 64 128 256)
-set(ICON_SIZES_ICO 16 24 32 48 64 128 256)
-set(ICON_SIZES_ICNS 16 32 64 128 256 512 1024)
-
-# Output paths for generated icons
-set(ICON_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/icons")
-set(ICON_SOURCE_SVG "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-stream-analyser.svg")
-
-# Ensure output directories exist at configure time
-file(MAKE_DIRECTORY "${ICON_OUTPUT_DIR}")
-if(APPLE AND ICONUTIL_EXECUTABLE)
-    set(iconset_dir "${ICON_OUTPUT_DIR}/eti-stream-analyser.iconset")
-    file(MAKE_DIRECTORY "${iconset_dir}")
-endif()
-
-# Generate PNG fallbacks for all platforms (used as Qt resource fallbacks)
-if(CONVERT_EXECUTABLE)
-    foreach(size ${ICON_SIZES_PNG})
-        set(png_output "${ICON_OUTPUT_DIR}/eti-stream-analyser_${size}.png")
-        add_custom_command(
-            OUTPUT "${png_output}"
-            COMMAND ${CONVERT_EXECUTABLE} "${ICON_SOURCE_SVG}" -resize ${size}x${size} -background none "${png_output}"
-            DEPENDS "${ICON_SOURCE_SVG}"
-            COMMENT "Generating ${size}x${size} PNG icon"
-            VERBATIM
-        )
-        list(APPEND GENERATED_PNG_ICONS "${png_output}")
-    endforeach()
-
-    # Generate Windows .ico (multi-resolution)
-    if(WIN32)
-        set(ico_output "${ICON_OUTPUT_DIR}/eti-stream-analyser.ico")
-        set(ico_inputs "")
-        foreach(size ${ICON_SIZES_ICO})
-            list(APPEND ico_inputs "${ICON_OUTPUT_DIR}/eti-stream-analyser_${size}.png")
-        endforeach()
-        add_custom_command(
-            OUTPUT "${ico_output}"
-            COMMAND ${CONVERT_EXECUTABLE} ${ico_inputs} "${ico_output}"
-            DEPENDS ${ico_inputs}
-            COMMENT "Generating Windows .ico icon"
-            VERBATIM
-        )
-        set(GENERATED_ICO_ICON "${ico_output}")
-    endif()
-
-    # Generate macOS .icns (using iconutil on macOS, ImageMagick fallback)
-    if(APPLE)
-        # On macOS, prefer iconutil which creates proper .icns with all required sizes
-        find_program(ICONUTIL_EXECUTABLE iconutil)
-        if(ICONUTIL_EXECUTABLE)
-            set(iconset_dir "${ICON_OUTPUT_DIR}/eti-stream-analyser.iconset")
-            # Generate iconset PNGs
-            foreach(size ${ICON_SIZES_ICNS})
-                set(iconset_png "${iconset_dir}/icon_${size}x${size}.png")
-                add_custom_command(
-                    OUTPUT "${iconset_png}"
-                    COMMAND ${CONVERT_EXECUTABLE} "${ICON_SOURCE_SVG}" -resize ${size}x${size} -background none "${iconset_png}"
-                    DEPENDS "${ICON_SOURCE_SVG}"
-                    COMMENT "Generating ${size}x${size} PNG for iconset"
-                    VERBATIM
-                )
-                # @2x variants for Retina
-                if(size LESS 512)
-                    set(iconset_png_2x "${iconset_dir}/icon_${size}x${size}@2x.png")
-                    set(double_size ${size})
-                    math(EXPR double_size "${size} * 2")
-                    add_custom_command(
-                        OUTPUT "${iconset_png_2x}"
-                        COMMAND ${CONVERT_EXECUTABLE} "${ICON_SOURCE_SVG}" -resize ${double_size}x${double_size} -background none "${iconset_png_2x}"
-                        DEPENDS "${ICON_SOURCE_SVG}"
-                        COMMENT "Generating ${size}x${size}@2x PNG for iconset"
-                        VERBATIM
-                    )
-                    list(APPEND ICONSET_PNGS "${iconset_png_2x}")
-                endif()
-                list(APPEND ICONSET_PNGS "${iconset_png}")
-            endforeach()
-            set(icns_output "${ICON_OUTPUT_DIR}/eti-stream-analyser.icns")
-            add_custom_command(
-                OUTPUT "${icns_output}"
-                COMMAND ${ICONUTIL_EXECUTABLE} -c icns "${iconset_dir}" -o "${icns_output}"
-                DEPENDS ${ICONSET_PNGS}
-                COMMENT "Generating macOS .icns icon via iconutil"
-                VERBATIM
-            )
-            set(GENERATED_ICNS_ICON "${icns_output}")
-        else()
-            # Fallback: ImageMagick can create basic .icns (limited support)
-            message(WARNING "iconutil not found, using ImageMagick fallback for .icns (limited)")
-            set(icns_output "${ICON_OUTPUT_DIR}/eti-stream-analyser.icns")
-            set(icns_inputs "")
-            foreach(size ${ICON_SIZES_ICNS})
-                list(APPEND icns_inputs "${ICON_OUTPUT_DIR}/eti-stream-analyser_${size}.png")
-            endforeach()
-            add_custom_command(
-                OUTPUT "${icns_output}"
-                COMMAND ${CONVERT_EXECUTABLE} ${icns_inputs} "${icns_output}"
-                DEPENDS ${icns_inputs}
-                COMMENT "Generating macOS .icns icon (ImageMagick fallback)"
-                VERBATIM
-            )
-            set(GENERATED_ICNS_ICON "${icns_output}")
-        endif()
-    endif()
-endif()
-
-# Custom target to build all icons
-if(CONVERT_EXECUTABLE)
-    set(GENERATED_ICON_OUTPUTS ${GENERATED_PNG_ICONS})
-    if(WIN32 AND GENERATED_ICO_ICON)
-        list(APPEND GENERATED_ICON_OUTPUTS "${GENERATED_ICO_ICON}")
-    endif()
-    if(APPLE AND GENERATED_ICNS_ICON)
-        list(APPEND GENERATED_ICON_OUTPUTS "${GENERATED_ICNS_ICON}")
-    endif()
-    add_custom_target(generate_icons DEPENDS ${GENERATED_ICON_OUTPUTS})
-    # Make main target depend on icon generation (added after target creation)
-endif()
-
-# Copy generated PNGs to source icons directory for Qt resource system
-# The .qrc references them as ../icons/eti-stream-analyser_XX.png relative to resources/
-if(CONVERT_EXECUTABLE)
-    foreach(size ${ICON_SIZES_PNG})
-        set(src_png "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-stream-analyser_${size}.png")
-        set(build_png "${ICON_OUTPUT_DIR}/eti-stream-analyser_${size}.png")
-        add_custom_command(
-            OUTPUT "${src_png}"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${build_png}" "${src_png}"
-            DEPENDS "${build_png}"
-            COMMENT "Copying ${size}x${size} PNG icon to source for resources"
-            VERBATIM
-        )
-        list(APPEND COPIED_PNG_ICONS "${src_png}")
-    endforeach()
-    # Add a target that depends on all copied PNGs
-    add_custom_target(copy_icons_to_source DEPENDS ${COPIED_PNG_ICONS})
-    # Make copy_icons_to_source depend on generate_icons to ensure proper build order
-    if(TARGET generate_icons AND TARGET copy_icons_to_source)
-        add_dependencies(copy_icons_to_source generate_icons)
-    endif()
-endif()
+endforeach()
 
 # Source files
 set(SOURCES
@@ -518,19 +367,15 @@ add_executable(DABAnalyser_Enhanced_FilteringBuild ${SOURCES} ${EDI_SOURCES} ${C
 # Runnable name (tests keep referencing the CMake target name above)
 set_target_properties(DABAnalyser_Enhanced_FilteringBuild PROPERTIES OUTPUT_NAME StreamDABAnalyser)
 
-# Depend on icon generation (must be after target creation)
-if(CONVERT_EXECUTABLE AND TARGET generate_icons)
-    add_dependencies(DABAnalyser_Enhanced_FilteringBuild generate_icons)
-endif()
-if(CONVERT_EXECUTABLE AND TARGET copy_icons_to_source)
-    add_dependencies(DABAnalyser_Enhanced_FilteringBuild copy_icons_to_source)
-endif()
-
-# Platform-specific icon properties
-if(WIN32 AND GENERATED_ICO_ICON)
-    set_target_properties(DABAnalyser_Enhanced_FilteringBuild PROPERTIES RC_ICON "${GENERATED_ICO_ICON}")
-elseif(APPLE AND GENERATED_ICNS_ICON)
-    set_target_properties(DABAnalyser_Enhanced_FilteringBuild PROPERTIES MACOSX_BUNDLE_ICON_FILE "${GENERATED_ICNS_ICON}")
+# Platform icon: Windows embeds the .ico as the exe icon; macOS ships the .icns
+# in Contents/Resources (CFBundleIconFile in packaging/macos/Info.plist.in).
+if(WIN32)
+    set_target_properties(DABAnalyser_Enhanced_FilteringBuild PROPERTIES RC_ICON "${APP_ICON_ICO}")
+elseif(APPLE)
+    target_sources(DABAnalyser_Enhanced_FilteringBuild PRIVATE "${APP_ICON_ICNS}")
+    set_source_files_properties("${APP_ICON_ICNS}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    set_target_properties(DABAnalyser_Enhanced_FilteringBuild PROPERTIES
+        MACOSX_BUNDLE_ICON_FILE "eti-stream-analyser.icns")
 endif()
 
 # Link Qt6, ZeroMQ, and Qt-ADS libraries
@@ -616,9 +461,8 @@ if(APPLE)
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${DABX_VERSION}"
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/Info.plist.in"
     )
-    # MACOSX_BUNDLE_ICON_FILE is deliberately OMITTED: the project ships an SVG
-    # only, and macOS Finder icons must be .icns (Qt does not accept SVG here).
-    # Generating a .icns is a documented follow-up.
+    # The Finder icon is resources/icons/eti-stream-analyser.icns (see the
+    # "Application icons" block above); Qt does not accept SVG here.
     # Keep @rpath-based Qt links working for the installed .app (brew qt@6 uses
     # @rpath); scripts/bundle-macos.sh runs macdeployqt afterwards, which
     # rewrites them to @executable_path/../Frameworks.

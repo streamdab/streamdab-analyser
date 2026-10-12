@@ -37,6 +37,22 @@ while IFS= read -r -d '' file; do
     done < <(otool -L "$file" 2>/dev/null | tail -n +2 | awk '{print $1}')
 done < <(find "$APP/Contents" -type f -print0)
 
+# 3a. the Finder icon: Info.plist must name an .icns that exists in
+#     Contents/Resources (a missing one gives the generic app icon).
+ICON_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$APP/Contents/Info.plist" 2>/dev/null || true)"
+if [ -z "$ICON_NAME" ]; then
+    echo "MISSING CFBundleIconFile in Info.plist"; bad=1
+else
+    ICON_FILE="$APP/Contents/Resources/${ICON_NAME%.icns}.icns"
+    if [ ! -s "$ICON_FILE" ]; then
+        echo "MISSING icon file: ${ICON_FILE#"$APP"/}"; bad=1
+    elif [ "$(head -c 4 "$ICON_FILE")" != "icns" ]; then
+        echo "icon file is not an icns: ${ICON_FILE#"$APP"/}"; bad=1
+    else
+        echo "icon: ${ICON_FILE#"$APP"/} ($(wc -c <"$ICON_FILE" | tr -d ' ') bytes)"
+    fi
+fi
+
 # 3. the plugins and frameworks the application really uses must be there: the
 #    Cocoa platform plugin (the GUI cannot start without it), the SVG image and
 #    icon-engine plugins (the docking library's buttons and the window icon are
