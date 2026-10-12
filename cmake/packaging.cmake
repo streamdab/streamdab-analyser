@@ -135,7 +135,11 @@ elseif(WIN32)
 
     # Icons: installer, uninstaller and the Add/Remove Programs entry all use
     # the committed multi-size .ico (scripts/generate_icons.py).
-    file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-stream-analyser.ico" _dabx_ico)
+    set(_dabx_ico_src "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-stream-analyser.ico")
+    if(NOT EXISTS "${_dabx_ico_src}")
+        message(FATAL_ERROR "missing ${_dabx_ico_src} (python3 scripts/generate_icons.py)")
+    endif()
+    file(TO_NATIVE_PATH "${_dabx_ico_src}" _dabx_ico)
     string(REPLACE "\\" "\\\\" _dabx_ico_nsis "${_dabx_ico}")
     set(CPACK_NSIS_MUI_ICON "${_dabx_ico_nsis}")
     set(CPACK_NSIS_MUI_UNIICON "${_dabx_ico_nsis}")
@@ -144,9 +148,9 @@ elseif(WIN32)
     # Start menu entry (the GUI) and a desktop shortcut.
     set(CPACK_PACKAGE_EXECUTABLES "StreamDABAnalyser" "StreamDAB Analyser")
     set(CPACK_NSIS_CREATE_ICONS_EXTRA
-        "CreateShortCut '$DESKTOP\\\\StreamDAB Analyser.lnk' '$INSTDIR\\\\bin\\\\StreamDABAnalyser.exe'")
+        "CreateShortCut \"$DESKTOP\\\\StreamDAB Analyser.lnk\" \"$INSTDIR\\\\bin\\\\StreamDABAnalyser.exe\"")
     set(CPACK_NSIS_DELETE_ICONS_EXTRA
-        "Delete '$DESKTOP\\\\StreamDAB Analyser.lnk'")
+        "Delete \"$DESKTOP\\\\StreamDAB Analyser.lnk\"")
 
 # -----------------------------------------------------------------------------
 # macOS — .app (BUNDLE) + .dmg (DragNDrop)

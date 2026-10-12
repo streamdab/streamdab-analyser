@@ -261,6 +261,7 @@ jobs:
           Start-Process $setup.FullName -ArgumentList '/S', "/D=$dir" -Wait
           if (-not (Test-Path "$dir\bin\StreamDABAnalyser.exe")) { throw "installer did not install the GUI into $dir" }
           python scripts/ci/check_pe_icon.py "$dir\bin\StreamDABAnalyser.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/ci/verify_windows_deploy.py $dir
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $uninst = Get-ChildItem $dir -Filter 'Uninstall*.exe' | Select-Object -First 1
