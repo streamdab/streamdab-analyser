@@ -220,12 +220,30 @@ ln -s /Applications "${DMG_STAGE}/Applications"
 
 echo "[3/3] hdiutil create -volname 'StreamDAB Analyser' -srcfolder ${DMG_STAGE}"
 echo "      -ov -format UDZO ${DMG_OUT_DIR}/${DMG_NAME}"
-hdiutil create \
-    -volname "StreamDAB Analyser" \
-    -srcfolder "${DMG_STAGE}" \
-    -ov \
-    -format UDZO \
-    "${DMG_OUT_DIR}/${DMG_NAME}"
+# hdiutil sometimes fails with "Resource busy" on CI runners (a Spotlight /
+# diskimages helper still holds the staging folder). Only that error is
+# transient: retry it, and fail at once on anything else.
+HDI_LOG="$(mktemp "${TMPDIR:-/tmp}/streamdab-hdiutil.XXXXXX")"
+dmg_ok=0
+for attempt in 1 2 3 4 5; do
+    if hdiutil create \
+        -volname "StreamDAB Analyser" \
+        -srcfolder "${DMG_STAGE}" \
+        -ov \
+        -format UDZO \
+        "${DMG_OUT_DIR}/${DMG_NAME}" >"${HDI_LOG}" 2>&1; then
+        cat "${HDI_LOG}"
+        dmg_ok=1
+        break
+    fi
+    cat "${HDI_LOG}"
+    grep -q "Resource busy" "${HDI_LOG}" || break      # permanent error: no retry
+    [ "${attempt}" -lt 5 ] || break
+    echo "hdiutil create: resource busy (attempt ${attempt}/5); retrying in $((attempt * 5)) s"
+    sleep $((attempt * 5))
+done
+rm -f "${HDI_LOG}"
+[ "${dmg_ok}" = 1 ] || die "hdiutil create failed (see the output above)"
 
 # Check what the image really contains.
 MOUNT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/streamdab-dmg.XXXXXX")"
