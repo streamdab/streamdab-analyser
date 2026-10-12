@@ -128,10 +128,25 @@ elseif(WIN32)
     set(CPACK_NSIS_CONTACT "StreamDAB Analyser Team <maintainers@streamdab-analyser>")
     set(CPACK_NSIS_HELP_LINK "${CPACK_PACKAGE_HOMEPAGE_URL}")
     set(CPACK_NSIS_URL_INFO_ABOUT "${CPACK_PACKAGE_HOMEPAGE_URL}")
-    set(CPACK_NSIS_MODIFY_PATH ON)
+    # Do not touch the user's PATH: the GUI is started from the Start menu.
+    set(CPACK_NSIS_MODIFY_PATH OFF)
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
     set(CPACK_NSIS_INSTALL_ROOT "C:\\\\Program Files")
-    # Installer icons are skipped: no .ico asset exists in the repo.
+
+    # Icons: installer, uninstaller and the Add/Remove Programs entry all use
+    # the committed multi-size .ico (scripts/generate_icons.py).
+    file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/eti-stream-analyser.ico" _dabx_ico)
+    string(REPLACE "\\" "\\\\" _dabx_ico_nsis "${_dabx_ico}")
+    set(CPACK_NSIS_MUI_ICON "${_dabx_ico_nsis}")
+    set(CPACK_NSIS_MUI_UNIICON "${_dabx_ico_nsis}")
+    set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\StreamDABAnalyser.exe")
+
+    # Start menu entry (the GUI) and a desktop shortcut.
+    set(CPACK_PACKAGE_EXECUTABLES "StreamDABAnalyser" "StreamDAB Analyser")
+    set(CPACK_NSIS_CREATE_ICONS_EXTRA
+        "CreateShortCut '$DESKTOP\\\\StreamDAB Analyser.lnk' '$INSTDIR\\\\bin\\\\StreamDABAnalyser.exe'")
+    set(CPACK_NSIS_DELETE_ICONS_EXTRA
+        "Delete '$DESKTOP\\\\StreamDAB Analyser.lnk'")
 
 # -----------------------------------------------------------------------------
 # macOS — .app (BUNDLE) + .dmg (DragNDrop)
