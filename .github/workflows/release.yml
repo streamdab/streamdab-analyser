@@ -146,6 +146,10 @@ jobs:
           Expand-Archive $zip.FullName -DestinationPath "$env:RUNNER_TEMP/zipcheck"
           python scripts/ci/verify_windows_deploy.py "$env:RUNNER_TEMP/zipcheck"
 
+      - name: "Windows installer (build + verify)"
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/windows-installer
+
       - name: "Package (macOS: .app + .dmg)"
         if: runner.os == 'macOS'
         run: bash scripts/bundle-macos.sh
@@ -194,6 +198,24 @@ jobs:
           mkdir -p extra
           cp "$(ls streamdab-analyser_*_amd64.deb streamdab-analyser-*.deb 2>/dev/null | head -1)" extra/streamdab-analyser-linux-amd64.deb
           cp "$(ls ./*.AppImage | head -1)" extra/StreamDAB-Analyser-linux-x86_64.AppImage
+
+      - name: "Normalize the Windows installer"
+        if: runner.os == 'Windows'
+        working-directory: build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force extra | Out-Null
+          $setup = Get-ChildItem streamdab-analyser*.exe | Select-Object -First 1
+          if (-not $setup) { throw "no installer to publish" }
+          Copy-Item $setup.FullName extra/StreamDAB-Analyser-windows-x86_64-setup.exe
+
+      - name: Upload the Windows installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: build/extra/*
+          if-no-files-found: error
 
       - name: Upload Linux DEB and AppImage
         if: runner.os == 'Linux'
@@ -245,6 +267,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: linux-extra-packages
+          path: assets
+
+      - name: Download the Windows installer
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
           path: assets
 
       - name: Checksums

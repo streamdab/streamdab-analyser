@@ -1,0 +1,52 @@
+name: Windows installer (build, verify install and uninstall)
+description: >
+  Runs after the Windows build (and `cpack -G ZIP`). Builds the NSIS installer,
+  checks that the exe and the installer carry an icon, installs it silently,
+  starts the installed program with a clean PATH and uninstalls it. Shared by
+  ci.yml and release.yml so the two cannot drift apart.
+runs:
+  using: composite
+  steps:
+    - name: Package the NSIS installer
+      shell: pwsh
+      working-directory: build
+      run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+            choco install nsis -y --no-progress
+            Add-Content $env:GITHUB_PATH 'C:\Program Files (x86)\NSIS'
+            $env:PATH += ';C:\Program Files (x86)\NSIS'
+          }
+          cpack --config CPackConfig.cmake -C Release -G NSIS
+          if ($LASTEXITCODE -ne 0) {
+            $nsisDir = '_CPack_Packages/win64/NSIS'
+            Write-Host '--- NSISOutput.log (tail) ---'
+            if (Test-Path "$nsisDir/NSISOutput.log") { Get-Content "$nsisDir/NSISOutput.log" -Tail 40 }
+            Write-Host '--- project.nsi (icon / shortcut lines) ---'
+            if (Test-Path "$nsisDir/project.nsi") { Select-String -Path "$nsisDir/project.nsi" -Pattern 'ICON|CreateShortCut|Delete ' }
+            exit $LASTEXITCODE
+          }
+          Get-ChildItem streamdab-analyser*.exe | ForEach-Object { "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
+
+    - name: Verify the installer (icons, silent install, clean PATH, uninstall)
+      shell: pwsh
+      run: |
+          pip install pefile
+          $setup = Get-ChildItem build -Filter 'streamdab-analyser*.exe' | Select-Object -First 1
+          if (-not $setup) { throw "no NSIS installer produced by CPack" }
+          python scripts/ci/check_pe_icon.py build/Release/StreamDABAnalyser.exe $setup.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $dir = Join-Path $env:RUNNER_TEMP 'nsis-install'
+          Start-Process $setup.FullName -ArgumentList '/S', "/D=$dir" -Wait
+          if (-not (Test-Path "$dir\bin\StreamDABAnalyser.exe")) { throw "installer did not install the GUI into $dir" }
+          python scripts/ci/check_pe_icon.py "$dir\bin\StreamDABAnalyser.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/ci/verify_windows_deploy.py $dir
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $uninst = Get-ChildItem $dir -Filter 'Uninstall*.exe' | Select-Object -First 1
+          if (-not $uninst) { throw "no uninstaller in $dir" }
+          # NSIS copies the uninstaller away first, otherwise -Wait returns at once.
+          $tmp = Join-Path $env:RUNNER_TEMP 'uninst.exe'
+          Copy-Item $uninst.FullName $tmp
+          Start-Process $tmp -ArgumentList '/S', "_?=$dir" -Wait
+          if (Test-Path "$dir\bin\StreamDABAnalyser.exe") { throw "uninstall left StreamDABAnalyser.exe behind" }
+          Write-Host "installer install + uninstall OK"
