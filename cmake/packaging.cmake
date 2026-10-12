@@ -88,7 +88,7 @@ if(UNIX AND NOT APPLE)
     # without touching this file:
     #   cmake -DDABX_DEBIAN_DEPENDS="" ...
     set(DABX_DEBIAN_DEPENDS
-        "libqt6core6t64 | libqt6core6, libqt6gui6t64 | libqt6gui6, libqt6widgets6t64 | libqt6widgets6, libqt6network6t64 | libqt6network6, libqt6multimedia6, libqt6svg6, libasound2 | libasound2t64, libfaad2, libfftw3-3"
+        "libqt6core6t64 | libqt6core6, libqt6gui6t64 | libqt6gui6, libqt6widgets6t64 | libqt6widgets6, libqt6network6t64 | libqt6network6, libqt6multimedia6, libqt6svg6, libasound2 | libasound2t64, libfaad2"
         CACHE STRING "CPack DEB Depends (Ubuntu 24.04 defaults; override for other distros)")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "StreamDAB Analyser Team <maintainers@streamdab-analyser>")
     set(CPACK_DEBIAN_PACKAGE_SECTION "multimedia")

@@ -39,11 +39,11 @@ check_deb() {
 
     if command -v docker >/dev/null 2>&1; then
         echo "--- installing in a clean ubuntu:24.04 container"
-        docker run --rm -v "$(cd "$(dirname "${deb}")" && pwd):/pkg:ro" ubuntu:24.04 bash -euxc '
+        docker run --rm -v "$(cd "$(dirname "${deb}")" && pwd):/pkg:ro" ubuntu:24.04 bash -euxo pipefail -c '
             export DEBIAN_FRONTEND=noninteractive
             apt-get update -qq
-            apt-get install -y -qq /pkg/'"$(basename "${deb}")"' >/dev/null
-            streamdab-cli --version | head -3
+            apt-get install -y /pkg/'"$(basename "${deb}")"' >/dev/null
+            streamdab-cli --version >/tmp/ver.txt; head -3 /tmp/ver.txt
             if ldd /usr/bin/StreamDABAnalyser | grep "not found"; then echo "unresolved libraries"; exit 1; fi
             if ldd /usr/bin/streamdab-cli | grep "not found"; then echo "unresolved libraries"; exit 1; fi
             apt-get install -y -qq desktop-file-utils >/dev/null
@@ -94,7 +94,8 @@ PY
     [ -z "${missing}" ] || die "unresolved libraries:\n${missing}"
 
     echo "--- starting the AppImage"
-    QT_QPA_PLATFORM=offscreen "${img}" --version | head -3
+    QT_QPA_PLATFORM=offscreen "${img}" --version >"${dir}/version.txt"
+    head -3 "${dir}/version.txt"
     rm -rf "${dir}"
     echo "AppImage OK"
 }

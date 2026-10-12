@@ -26,6 +26,14 @@ runs:
           https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
         curl -fsSL -o "$HOME/bin/appimagetool" \
           https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+        # The "continuous" releases are mutable: pin what was tested. If the
+        # upstream tools change, this fails loudly - re-test, then update the hashes.
+        cat > "$RUNNER_TEMP/tools.sha256" <<'SUMS'
+        8aea8da0f7f7039d2a2cecb14657d752a222a5e1d3825caeef186c82f751cdd1  linuxdeploy
+        cfc1055b2b9dbc08412b579f20990b7b41a17b61beaa5847dc9477c96c9e9617  linuxdeploy-plugin-qt
+        95cbe7cce9717fce90c484e34052ee7c7f1d7635b33c12525b4776826a7d29b6  appimagetool
+        SUMS
+        (cd "$HOME/bin" && sed 's/^ *//' "$RUNNER_TEMP/tools.sha256" | sha256sum -c -)
         chmod +x "$HOME/bin/"*
         export PATH="$HOME/bin:$PATH"
         cd build
