@@ -145,12 +145,10 @@ elseif(WIN32)
     set(CPACK_NSIS_MUI_UNIICON "${_dabx_ico_nsis}")
     set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\StreamDABAnalyser.exe")
 
-    # Start menu entry (the GUI) and a desktop shortcut.
+    # Start menu entry for the GUI. (A desktop shortcut through
+    # CPACK_NSIS_CREATE_ICONS_EXTRA is not used: CPack splits the value at
+    # spaces/semicolons and writes broken CreateShortCut/Delete lines.)
     set(CPACK_PACKAGE_EXECUTABLES "StreamDABAnalyser" "StreamDAB Analyser")
-    set(CPACK_NSIS_CREATE_ICONS_EXTRA
-        "CreateShortCut \"$DESKTOP\\\\StreamDAB Analyser.lnk\" \"$INSTDIR\\\\bin\\\\StreamDABAnalyser.exe\"")
-    set(CPACK_NSIS_DELETE_ICONS_EXTRA
-        "Delete \"$DESKTOP\\\\StreamDAB Analyser.lnk\"")
 
 # -----------------------------------------------------------------------------
 # macOS — .app (BUNDLE) + .dmg (DragNDrop)
