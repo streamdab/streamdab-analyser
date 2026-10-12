@@ -1,0 +1,45 @@
+name: Linux packages (verify DEB, build + verify AppImage)
+description: >
+  Runs after `cpack -G DEB` in the build directory. Verifies the DEB (contents,
+  clean install in ubuntu:24.04), builds the AppImage with linuxdeploy and
+  verifies it (icon, desktop entry, Qt plugins, start). Shared by ci.yml and
+  release.yml so the two cannot drift apart.
+runs:
+  using: composite
+  steps:
+    - name: Verify the DEB (contents, clean install, uninstall)
+      shell: bash
+      run: bash scripts/ci/verify_linux_packages.sh deb "$(ls build/*.deb | head -1)"
+
+    # linuxdeploy and its Qt plugin are AppImages themselves, so they run
+    # extracted (APPIMAGE_EXTRACT_AND_RUN) - no FUSE needed on the runner.
+    - name: Package the AppImage
+      shell: bash
+      env:
+        APPIMAGE_EXTRACT_AND_RUN: "1"
+      run: |
+        sudo apt-get install -y --no-install-recommends desktop-file-utils python3-pil
+        mkdir -p "$HOME/bin"
+        curl -fsSL -o "$HOME/bin/linuxdeploy" \
+          https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        curl -fsSL -o "$HOME/bin/linuxdeploy-plugin-qt" \
+          https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+        curl -fsSL -o "$HOME/bin/appimagetool" \
+          https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+        # The "continuous" releases are mutable: pin what was tested. If the
+        # upstream tools change, this fails loudly - re-test, then update the hashes.
+        cat > "$RUNNER_TEMP/tools.sha256" <<'SUMS'
+        8aea8da0f7f7039d2a2cecb14657d752a222a5e1d3825caeef186c82f751cdd1  linuxdeploy
+        cfc1055b2b9dbc08412b579f20990b7b41a17b61beaa5847dc9477c96c9e9617  linuxdeploy-plugin-qt
+        95cbe7cce9717fce90c484e34052ee7c7f1d7635b33c12525b4776826a7d29b6  appimagetool
+        SUMS
+        (cd "$HOME/bin" && sed 's/^ *//' "$RUNNER_TEMP/tools.sha256" | sha256sum -c -)
+        chmod +x "$HOME/bin/"*
+        export PATH="$HOME/bin:$PATH"
+        cd build
+        bash ../packaging/linux/create_appimage.sh
+        ls -l ./*.AppImage
+
+    - name: Verify the AppImage (icon, desktop entry, plugins, start)
+      shell: bash
+      run: bash scripts/ci/verify_linux_packages.sh appimage "$(ls build/*.AppImage | head -1)"

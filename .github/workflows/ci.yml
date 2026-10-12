@@ -67,7 +67,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake qt6-base-dev libfaad-dev libfftw3-dev libzmq3-dev \
             qt6-base-private-dev libxkbcommon-dev libxkbcommon-x11-dev \
-            libasound2-dev libgtest-dev build-essential
+            libasound2-dev libgtest-dev libqt6svg6 build-essential
 
       # -------------------------------------------------------------- Windows
       - name: Install Qt 6 (Windows, aqt; Multimedia included)
@@ -205,6 +205,12 @@ jobs:
           cpack --config CPackConfig.cmake -G DEB
           ls -l *.tar.gz *.deb
 
+      # DEB: file list + clean ubuntu:24.04 install; AppImage: build + icon /
+      # plugin / start checks (see .github/actions/linux-packages).
+      - name: "Verify the DEB and build + verify the AppImage"
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-packages
+
       - name: "Package (Windows: ZIP)"
         if: runner.os == 'Windows'
         working-directory: build
@@ -289,6 +295,7 @@ jobs:
           path: |
             build/*.tar.gz
             build/*.deb
+            build/*.AppImage
           if-no-files-found: error
           retention-days: 14
 
