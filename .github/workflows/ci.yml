@@ -237,7 +237,14 @@ jobs:
             $env:PATH += ';C:\Program Files (x86)\NSIS'
           }
           cpack --config CPackConfig.cmake -C Release -G NSIS
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($LASTEXITCODE -ne 0) {
+            $nsisDir = '_CPack_Packages/win64/NSIS'
+            Write-Host '--- NSISOutput.log (tail) ---'
+            if (Test-Path "$nsisDir/NSISOutput.log") { Get-Content "$nsisDir/NSISOutput.log" -Tail 40 }
+            Write-Host '--- project.nsi (icon / shortcut lines) ---'
+            if (Test-Path "$nsisDir/project.nsi") { Select-String -Path "$nsisDir/project.nsi" -Pattern 'ICON|CreateShortCut|Delete ' }
+            exit $LASTEXITCODE
+          }
           Get-ChildItem streamdab-analyser*.exe | ForEach-Object { "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
 
       - name: "Verify the Windows installer (icons, silent install, clean PATH, uninstall)"
