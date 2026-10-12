@@ -207,15 +207,36 @@ codesign --force --deep --sign - "${APP_DIR}"
 codesign --verify --deep --strict "${APP_DIR}"
 
 # --- 4) compressed .dmg -------------------------------------------------------
+# The image carries ONLY the signed .app and an /Applications shortcut for
+# drag-and-drop installation. (It used to hold the whole install tree: bin/,
+# include/, lib/, share/. The CLI is not relocatable, so it is not shipped in
+# the macOS image; build it from source or use the Linux/Windows packages.)
 mkdir -p "${DMG_OUT_DIR}"
-echo "[3/3] hdiutil create -volname 'StreamDAB Analyser' -srcfolder ${DIST_DIR}"
+DMG_STAGE="${BUILD_DIR}/dmg-stage"
+[ -n "${BUILD_DIR}" ] && rm -rf "${DMG_STAGE}"
+mkdir -p "${DMG_STAGE}"
+ditto "${APP_DIR}" "${DMG_STAGE}/${APP_NAME}"   # ditto keeps symlinks, xattrs and the signature
+ln -s /Applications "${DMG_STAGE}/Applications"
+
+echo "[3/3] hdiutil create -volname 'StreamDAB Analyser' -srcfolder ${DMG_STAGE}"
 echo "      -ov -format UDZO ${DMG_OUT_DIR}/${DMG_NAME}"
 hdiutil create \
     -volname "StreamDAB Analyser" \
-    -srcfolder "${DIST_DIR}" \
+    -srcfolder "${DMG_STAGE}" \
     -ov \
     -format UDZO \
     "${DMG_OUT_DIR}/${DMG_NAME}"
+
+# Check what the image really contains.
+MOUNT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/streamdab-dmg.XXXXXX")"
+hdiutil attach -nobrowse -readonly -mountpoint "${MOUNT_DIR}" "${DMG_OUT_DIR}/${DMG_NAME}" >/dev/null
+# ls -A lists dotfiles too (a stray .DS_Store must fail); only the volume
+# metadata macOS itself creates on a mount is ignored.
+DMG_ITEMS="$(ls -A "${MOUNT_DIR}" | grep -Ev '^\.(fseventsd|Trashes|Spotlight-V100|VolumeIcon\.icns)$' | sort | tr '\n' ' ' || true)"
+hdiutil detach -quiet "${MOUNT_DIR}" || hdiutil detach -force -quiet "${MOUNT_DIR}" || true
+rmdir "${MOUNT_DIR}" 2>/dev/null || true
+echo "DMG contents: ${DMG_ITEMS}"
+[ "${DMG_ITEMS}" = "Applications ${APP_NAME} " ] || die "unexpected DMG contents: ${DMG_ITEMS}"
 
 echo "=== macOS bundle complete ==="
 echo "Artifact: ${DMG_OUT_DIR}/${DMG_NAME}"
