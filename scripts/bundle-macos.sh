@@ -220,12 +220,23 @@ ln -s /Applications "${DMG_STAGE}/Applications"
 
 echo "[3/3] hdiutil create -volname 'StreamDAB Analyser' -srcfolder ${DMG_STAGE}"
 echo "      -ov -format UDZO ${DMG_OUT_DIR}/${DMG_NAME}"
-hdiutil create \
-    -volname "StreamDAB Analyser" \
-    -srcfolder "${DMG_STAGE}" \
-    -ov \
-    -format UDZO \
-    "${DMG_OUT_DIR}/${DMG_NAME}"
+# hdiutil sometimes fails with "Resource busy" on CI runners (a Spotlight /
+# diskimages helper still holds the staging folder). It is transient: retry.
+dmg_ok=0
+for attempt in 1 2 3 4 5; do
+    if hdiutil create \
+        -volname "StreamDAB Analyser" \
+        -srcfolder "${DMG_STAGE}" \
+        -ov \
+        -format UDZO \
+        "${DMG_OUT_DIR}/${DMG_NAME}"; then
+        dmg_ok=1
+        break
+    fi
+    echo "hdiutil create failed (attempt ${attempt}/5); retrying in $((attempt * 5)) s"
+    sleep $((attempt * 5))
+done
+[ "${dmg_ok}" = 1 ] || die "hdiutil create failed after 5 attempts"
 
 # Check what the image really contains.
 MOUNT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/streamdab-dmg.XXXXXX")"
