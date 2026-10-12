@@ -56,8 +56,14 @@ void AudioPlaybackController::onSinkPlaybackEnded()
 
 void AudioPlaybackController::onSinkError(const QString& message)
 {
+    // The sink has already stopped itself: show the error and drop the meters
+    // and the transport state so the UI does not keep claiming "playing".
     m_lastError = message;
+    m_peakLeft = 0.0f;
+    m_peakRight = 0.0f;
+    emit levelsChanged(0.0f, 0.0f);
     setStatus(message);
+    emit transportChanged();
 }
 
 AudioPlaybackController::AudioPlaybackController(QObject* parent)

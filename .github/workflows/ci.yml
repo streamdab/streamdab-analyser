@@ -192,15 +192,75 @@ jobs:
           # with the private captures present this also runs:
           #   ./streamdab-cli --input ../eti/bkk_20062022_141637.eti --output smoke.yaml
 
-      # Release-only packaging code rots unseen until a tag is pushed, so build
-      # the macOS bundle here too. Informational for now (continue-on-error):
-      # the result is visible in the log; make it blocking once it is green.
-      - name: macOS bundle check (informational)
+      # ------------------------------------------------------------- package
+      # Build the same packages the release workflow ships, on every run, so
+      # they can be downloaded from the run page and tried on a real machine
+      # BEFORE a tag is pushed. Unsigned (no secrets here); the release
+      # workflow adds signing when its secrets exist.
+      - name: "Package (Linux: TGZ + DEB)"
+        if: runner.os == 'Linux'
+        working-directory: build
+        run: |
+          cpack --config CPackConfig.cmake -G TGZ
+          cpack --config CPackConfig.cmake -G DEB
+          ls -l *.tar.gz *.deb
+
+      - name: "Package (Windows: ZIP)"
+        if: runner.os == 'Windows'
+        working-directory: build
+        shell: pwsh
+        run: |
+          cpack --config CPackConfig.cmake -C Release -G ZIP
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem *.zip | ForEach-Object { "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
+
+      # The shipped ZIP itself must run on a machine without Qt/vcpkg.
+      - name: "Verify the Windows ZIP runs (clean PATH)"
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem build -Filter *.zip | Select-Object -First 1
+          if (-not $zip) { throw "no ZIP produced by CPack" }
+          Expand-Archive $zip.FullName -DestinationPath "$env:RUNNER_TEMP/zipcheck"
+          python scripts/ci/verify_windows_deploy.py "$env:RUNNER_TEMP/zipcheck"
+
+      # Blocking: the bundle check used to fail silently (continue-on-error)
+      # and hid a broken v1.0.0 macOS package.
+      - name: "Package + verify (macOS: .app + .dmg)"
         if: runner.os == 'macOS'
-        continue-on-error: true
         run: |
           bash scripts/bundle-macos.sh
           bash scripts/ci/verify_macos_bundle.sh dist/StreamDAB-Analyser.app
+          ls -l build/*.dmg
+
+      - name: "Upload packages (Linux)"
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-linux-${{ github.sha }}
+          path: |
+            build/*.tar.gz
+            build/*.deb
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: "Upload packages (Windows)"
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-windows-${{ github.sha }}
+          path: build/*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: "Upload packages (macOS)"
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-macos-${{ github.sha }}
+          path: build/*.dmg
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: CLI smoke (Windows)
         if: runner.os == 'Windows'

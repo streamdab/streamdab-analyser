@@ -15,20 +15,23 @@
  * treat both backends identically (the preferred sink is selected at build
  * time: ALSA on Linux, Qt Multimedia elsewhere).
  *
- * Lifecycle / threading contract (port of the T34 ALSA contract, F1/F2/F3/F4)
- *  - Exactly one writer thread ever touches the QAudioSink / the internal push
- *    mode QIODevice, and every call is additionally serialized by a single sink
- *    mutex, so the GUI thread's control calls (stop/pause/resume/seek/close)
- *    can never race a concurrent `write()`.
- *  - The writer writes at most `bytesFree()` bytes per call (which never
- *    blocks) and, when the device ring buffer is full, waits with a bounded
- *    sleep while polling the cancellation flag. A stalled/unplugged device
- *    therefore can never pin the writer, and `close()`/the destructor always
- *    return promptly: they reset+destroy the sink (immediate teardown, no
- *    synchronous drain) and only then join.
+ * Threading contract (pull mode)
+ *  - Every public method, and every QAudioSink call, runs on the thread the
+ *    sink lives in (the GUI thread). There is no writer thread and no mutex
+ *    around Qt Multimedia calls: the audio engine PULLS PCM through a
+ *    read-only QIODevice whose `readData()` only copies bytes out of an
+ *    immutable buffer and never calls back into the sink. (The previous push
+ *    design held a mutex across `QAudioSink::start()` while the `stateChanged`
+ *    handler took the same mutex; on WASAPI/CoreAudio the state change is
+ *    emitted synchronously, so pressing Play deadlocked the GUI.)
+ *  - `close()`/the destructor tear the sink down immediately (no drain), so a
+ *    stalled device cannot hang them.
  *  - The PCM buffer is held as an immutable `shared_ptr<const QByteArray>` for
  *    the whole playback, so the owner may release/replace its reference at any
- *    time without a use-after-free.
+ *    time.
+ *  - If the device does not accept the stream's sample rate the buffer is
+ *    resampled (linear) to a rate it does accept; `positionFrames()` and
+ *    `seek()` always speak SOURCE frames.
  *
  * @author C++ Qt Developer Agent (T34-ext)
  */
@@ -76,7 +79,7 @@ public:
     /// (the output format is not known until then), so an idle open never
     /// grabs the hardware.
     bool open(const QString& device = QString());
-    /// Stop playback, join the writer and release the sink. Never blocks
+    /// Stop playback and release the sink. Never blocks
     /// indefinitely even if the device has stalled.
     void close();
     bool isOpen() const;
@@ -105,6 +108,16 @@ public:
     /// Seek the 0-based interleaved sample-frame position.
     void seek(qint64 frameIndex);
 
+    /**
+     * @brief Linear-interpolation resampler for interleaved S16 PCM.
+     *
+     * Pure helper (no device, always compiled) so it is unit-testable. Returns
+     * @p src unchanged when the rates are equal and an empty array for invalid
+     * arguments.
+     */
+    static QByteArray resampleLinearS16(const QByteArray& src, int channels,
+                                        int srcRate, int dstRate);
+
     void setVolume(double volume);  ///< 0.0 .. 1.0
     double volume() const;
     void setMuted(bool muted);
@@ -127,12 +140,12 @@ public:
      * @brief TEST-ONLY: replace the Qt audio device with a deterministic
      * simulated backend.
      *
-     * Mirrors `AudioOutputSink::setSimulatedBackendForTest` for the same
-     * headless stall/close test. When enabled, `open()`/`start()` succeed
-     * without hardware and the writer's write step simulates a device that can
-     * block for @p stallMs per call (checked against the cancellation flag
-     * every ~5 ms). Real runs never enable it. No-op when the module is not
-     * built in.
+     * When enabled, `open()`/`start()` succeed without hardware and a timer
+     * pulls from the PCM device the way the audio engine would (real-time pace),
+     * so position, level meters, pause/seek and end-of-buffer can be tested
+     * headlessly. @p stallMs is accepted for source compatibility and ignored
+     * (a pull-mode sink has nothing that can block). Real runs never enable
+     * it. No-op when the module is not built in.
      */
     static void setSimulatedBackendForTest(bool enabled, int stallMs = 0);
 

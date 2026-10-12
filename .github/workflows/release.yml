@@ -13,6 +13,15 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Existing tag to (re)build and publish, e.g. v1.0.0. Leave empty to
+          only build the packages (downloadable from the run, nothing is
+          published). Re-running with a tag replaces that Release's assets,
+          e.g. to add signatures once the signing secrets exist.
+        required: false
+        default: ""
 
 permissions:
   contents: write   # create the Release + upload assets
@@ -53,6 +62,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # explicit refs/tags/ so a branch with the same name is never built
+          ref: ${{ inputs.tag != '' && format('refs/tags/{0}', inputs.tag) || github.ref }}
 
       # ----------------------------------------------------- dependencies
       - name: Install dependencies (Linux)
@@ -175,12 +186,19 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: build
+    # A tag push, or a manual run that names a tag. A manual run without a tag
+    # only builds (the packages stay downloadable from the run page).
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
     runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: Checkout (tags; for release notes)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # explicit refs/tags/ so a branch with the same name is never built
+          ref: ${{ inputs.tag != '' && format('refs/tags/{0}', inputs.tag) || github.ref }}
 
       - name: Download per-OS archives
         uses: actions/download-artifact@v4
@@ -208,9 +226,9 @@ jobs:
         run: |
           # Commits since the previous tag (or all if none).
           PREV=$(git describe --tags --abbrev=0 --skip 1 2>/dev/null || echo "")
-          if [ -f "docs/releases/${GITHUB_REF_NAME}.md" ]; then
+          if [ -f "docs/releases/${TAG}.md" ]; then
             # Hand-written notes for this tag win over the commit list.
-            cp "docs/releases/${GITHUB_REF_NAME}.md" RELEASE_NOTES.md
+            cp "docs/releases/${TAG}.md" RELEASE_NOTES.md
             exit 0
           elif [ -z "$PREV" ]; then
             git log -1 --format='%s%n%n%b' HEAD > RELEASE_NOTES.md
@@ -230,10 +248,11 @@ jobs:
       - name: Create/update the GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: "StreamDAB Analyser ${{ github.ref_name }}"
+          tag_name: ${{ env.TAG }}
+          name: "StreamDAB Analyser ${{ env.TAG }}"
           body_path: RELEASE_NOTES.md
           draft: false
-          prerelease: false
+          # vX.Y.Z-rc1 and friends are published as pre-releases
+          prerelease: ${{ contains(env.TAG, '-') }}
           files: |
             assets/*
