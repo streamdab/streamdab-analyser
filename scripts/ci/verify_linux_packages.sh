@@ -15,6 +15,20 @@ die() { echo "error: $*" >&2; exit 1; }
 need() { grep -qE "$2" <<<"$1" || die "missing in $3: $2"; }
 forbid() { if grep -qE "$2" <<<"$1"; then die "must not be in $3: $2"; fi; }
 
+# A package built with -march=native uses the AVX2/AVX-512 registers of the
+# machine that built it and dies with "Illegal instruction" on older CPUs.
+# Our own binaries must stay on the baseline x86-64 instruction set.
+check_portable_code() {
+    local f n
+    command -v objdump >/dev/null 2>&1 || { echo "note: no objdump - skipped the CPU-portability check"; return 0; }
+    for f in "$@"; do
+        [ -f "${f}" ] || continue
+        n="$(objdump -d "${f}" 2>/dev/null | grep -cE '\b[yz]mm[0-9]+' || true)"
+        [ "${n:-0}" = 0 ] || die "${f} uses AVX/AVX-512 registers (${n} instructions): built with -march=native? Packages must be portable."
+    done
+    echo "CPU portability OK (no AVX/AVX-512 in our binaries)"
+}
+
 ICON=eti-stream-analyser
 SIZES="16 24 32 48 64 128 256 512"
 
@@ -36,6 +50,10 @@ check_deb() {
     forbid "${files}" '^\./usr/lib/cmake/' "the DEB"
     ! dpkg-deb -f "${deb}" Depends | grep -q 'libqt6test' || die "Depends lists libqt6test"
     echo "DEB file list OK"
+    local x; x="$(mktemp -d)"
+    dpkg-deb -x "${deb}" "${x}"
+    check_portable_code "${x}/usr/bin/StreamDABAnalyser" "${x}/usr/bin/streamdab-cli" "${x}"/usr/lib/libqtadvanceddocking-qt6.so.*.*.*
+    rm -rf "${x}"
 
     if command -v docker >/dev/null 2>&1; then
         echo "--- installing in a clean ubuntu:24.04 container"
@@ -87,6 +105,8 @@ PY
     ls "${root}"/usr/plugins/iconengines/libqsvgicon.so >/dev/null || die "libqsvgicon.so not bundled"
     ls "${root}"/usr/plugins/platforms/libqxcb.so >/dev/null || die "libqxcb.so not bundled"
     ls "${root}"/usr/plugins/multimedia/*.so >/dev/null 2>&1 || echo "note: no multimedia plugin bundled"
+
+    check_portable_code "${root}/usr/bin/StreamDABAnalyser" "${root}/usr/bin/streamdab-cli" "${root}"/usr/lib/libqtadvanceddocking-qt6.so.*.*.*
 
     # libraries: nothing may stay unresolved (system libs such as libc are fine)
     local missing
