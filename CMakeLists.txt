@@ -370,7 +370,12 @@ set_target_properties(DABAnalyser_Enhanced_FilteringBuild PROPERTIES OUTPUT_NAME
 # Platform icon: Windows embeds the .ico as the exe icon; macOS ships the .icns
 # in Contents/Resources (CFBundleIconFile in packaging/macos/Info.plist.in).
 if(WIN32)
-    set_target_properties(DABAnalyser_Enhanced_FilteringBuild PROPERTIES RC_ICON "${APP_ICON_ICO}")
+    # CMake has no RC_ICON property (that is qmake): the icon is embedded through
+    # a generated resource script that is compiled into the executable.
+    enable_language(RC)
+    set(APP_ICON_RC "${CMAKE_CURRENT_BINARY_DIR}/app_icon.rc")
+    file(WRITE "${APP_ICON_RC}" "IDI_ICON1 ICON \"${APP_ICON_ICO}\"\n")
+    target_sources(DABAnalyser_Enhanced_FilteringBuild PRIVATE "${APP_ICON_RC}")
 elseif(APPLE)
     target_sources(DABAnalyser_Enhanced_FilteringBuild PRIVATE "${APP_ICON_ICNS}")
     set_source_files_properties("${APP_ICON_ICNS}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
