@@ -553,6 +553,37 @@ if(UNIX AND NOT APPLE)
         DESTINATION share/mime/packages)
     install(FILES resources/icons/eti-stream-analyser.svg
         DESTINATION share/icons/hicolor/scalable/apps)
+    # Raster sizes for desktops, menus and AppImage tooling that do not render
+    # the SVG (committed by scripts/generate_icons.py).
+    foreach(_size 16 24 32 48 64 128 256 512)
+        install(FILES resources/icons/eti-stream-analyser_${_size}.png
+            DESTINATION share/icons/hicolor/${_size}x${_size}/apps
+            RENAME eti-stream-analyser.png)
+    endforeach()
+endif()
+
+# Qt-ADS is built and installed by its own CMake project. Only its shared
+# library is needed at run time; its headers and CMake package files are
+# development files that must not end up in the DEB/TGZ/ZIP/installer. This
+# install(CODE) runs after the sub-project's install rules (they come first in
+# the install order). macOS is left alone: its .app is assembled from the
+# install tree by scripts/bundle-macos.sh.
+if(NOT APPLE)
+    install(CODE [=[
+        set(_dabx_root "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}")
+        file(REMOVE_RECURSE
+            "${_dabx_root}/include/qtadvanceddocking-qt6"
+            "${_dabx_root}/lib/cmake/qtadvanceddocking-qt6")
+        # drop the now-empty parent directories (leave them if anything else is there)
+        foreach(_dabx_dir "${_dabx_root}/include" "${_dabx_root}/lib/cmake")
+            if(IS_DIRECTORY "${_dabx_dir}")
+                file(GLOB _dabx_left "${_dabx_dir}/*")
+                if(NOT _dabx_left)
+                    file(REMOVE_RECURSE "${_dabx_dir}")
+                endif()
+            endif()
+        endforeach()
+    ]=])
 endif()
 
 # Docs ship with every package (also used as the CPack license/readme

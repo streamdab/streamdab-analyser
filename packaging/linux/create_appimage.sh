@@ -80,42 +80,52 @@ echo "linuxdeploy: ${LINUXDEPLOY}"
 echo "plugin-qt : ${LINUXDEPLOY_PLUGIN_QT}"
 
 # --- 1) fresh AppDir staged from cmake --install -------------------------------
-# cmake --install --prefix <stage> produces exactly the AppDir layout the
-# AppImage spec expects: usr/bin, usr/share/applications, usr/share/icons/...,
-# usr/share/mime/packages, usr/share/doc — plus the two binaries.
+# The AppDir root holds usr/, so the install prefix is <stage>/usr: that gives
+# usr/bin, usr/lib (Qt-ADS), usr/share/applications, usr/share/icons/hicolor/*,
+# usr/share/mime/packages and usr/share/doc.
 rm -rf "${STAGE_DIR}"
-cmake --install "${BUILD_DIR}" --prefix "${STAGE_DIR}"
+cmake --install "${BUILD_DIR}" --prefix "${STAGE_DIR}/usr"
 
 [ -x "${STAGE_DIR}/usr/bin/StreamDABAnalyser" ] || die \
     "staged AppDir has no usr/bin/StreamDABAnalyser — did the build succeed?"
 [ -f "${STAGE_DIR}/usr/share/applications/eti-stream-analyser.desktop" ] || die \
     "staged AppDir has no desktop file — check install() rules"
+ICON_PNG="${STAGE_DIR}/usr/share/icons/hicolor/256x256/apps/eti-stream-analyser.png"
+[ -f "${ICON_PNG}" ] || die \
+    "staged AppDir has no 256x256 PNG icon — check the icon install() rules"
 
-# --- 2) optional high-res raster icon (AppImage tooling prefers PNG) ----------
-# The install tree ships hicolor/scalable/apps/eti-stream-analyser.svg. If a
-# rasteriser is available, add a 256x256 PNG alongside it.
-if command -v rsvg-convert >/dev/null 2>&1; then
-    mkdir -p "${STAGE_DIR}/usr/share/icons/hicolor/256x256/apps"
-    rsvg-convert -w 256 -h 256 \
-        "${STAGE_DIR}/usr/share/icons/hicolor/scalable/apps/eti-stream-analyser.svg" \
-        -o "${STAGE_DIR}/usr/share/icons/hicolor/256x256/apps/eti-stream-analyser.png"
-elif command -v convert >/dev/null 2>&1; then
-    mkdir -p "${STAGE_DIR}/usr/share/icons/hicolor/256x256/apps"
-    convert -background none \
-        "${STAGE_DIR}/usr/share/icons/hicolor/scalable/apps/eti-stream-analyser.svg" \
-        -resize 256x256 \
-        "${STAGE_DIR}/usr/share/icons/hicolor/256x256/apps/eti-stream-analyser.png"
-else
-    echo "note: no rsvg-convert/convert found — SVG icon stays scalable-only"
+# --- 2) Qt plugins linuxdeploy-plugin-qt must bundle ---------------------------
+# svg + iconengines: the Qt-ADS button icons and the window icon are SVG;
+# multimedia: QAudioSink backend; tls/imageformats: network and image loading.
+export QMAKE="${QMAKE:-$(command -v qmake6 || command -v qmake || true)}"
+[ -n "${QMAKE}" ] || die "qmake6/qmake not found — install qt6-base-dev (the Qt plugin needs it)"
+if [ -z "${EXTRA_QT_PLUGINS:-}" ]; then
+    QT_PLUGIN_DIR="$("${QMAKE}" -query QT_INSTALL_PLUGINS)"
+    # svg needs the Qt SVG module (apt: libqt6svg6) - a hard requirement
+    [ -f "${QT_PLUGIN_DIR}/iconengines/libqsvgicon.so" ] || \
+        die "Qt SVG plugins not found in ${QT_PLUGIN_DIR} (install libqt6svg6)"
+    plugins="svg;iconengines;imageformats"
+    [ -d "${QT_PLUGIN_DIR}/tls" ] && plugins="${plugins};tls"
+    export EXTRA_QT_PLUGINS="${plugins}"
 fi
+echo "Qt plugins to deploy: ${EXTRA_QT_PLUGINS}"
 
 # --- 3) bundle Qt + libs into the AppDir with linuxdeploy ----------------------
 "${LINUXDEPLOY}" \
     --appdir "${STAGE_DIR}" \
     --executable "${STAGE_DIR}/usr/bin/StreamDABAnalyser" \
     --desktop-file "${STAGE_DIR}/usr/share/applications/eti-stream-analyser.desktop" \
-    --icon-file "${STAGE_DIR}/usr/share/icons/hicolor/scalable/apps/eti-stream-analyser.svg" \
+    --icon-file "${ICON_PNG}" \
     --plugin qt
+
+# --- 3b) PNG icon at the AppDir root -------------------------------------------
+# linuxdeploy picks the scalable SVG for the root icon and for .DirIcon. File
+# managers and AppImage launchers read .DirIcon as a PNG (the AppImage spec),
+# so replace both with the 256x256 PNG.
+rm -f "${STAGE_DIR}/.DirIcon" "${STAGE_DIR}/eti-stream-analyser.svg" \
+      "${STAGE_DIR}/eti-stream-analyser.png"
+cp "${ICON_PNG}" "${STAGE_DIR}/eti-stream-analyser.png"
+cp "${ICON_PNG}" "${STAGE_DIR}/.DirIcon"
 
 # --- 4) produce the AppImage ---------------------------------------------------
 if command -v appimagetool >/dev/null 2>&1; then

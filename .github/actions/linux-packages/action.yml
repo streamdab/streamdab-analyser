@@ -1,0 +1,37 @@
+name: Linux packages (verify DEB, build + verify AppImage)
+description: >
+  Runs after `cpack -G DEB` in the build directory. Verifies the DEB (contents,
+  clean install in ubuntu:24.04), builds the AppImage with linuxdeploy and
+  verifies it (icon, desktop entry, Qt plugins, start). Shared by ci.yml and
+  release.yml so the two cannot drift apart.
+runs:
+  using: composite
+  steps:
+    - name: Verify the DEB (contents, clean install, uninstall)
+      shell: bash
+      run: bash scripts/ci/verify_linux_packages.sh deb "$(ls build/*.deb | head -1)"
+
+    # linuxdeploy and its Qt plugin are AppImages themselves, so they run
+    # extracted (APPIMAGE_EXTRACT_AND_RUN) - no FUSE needed on the runner.
+    - name: Package the AppImage
+      shell: bash
+      env:
+        APPIMAGE_EXTRACT_AND_RUN: "1"
+      run: |
+        sudo apt-get install -y --no-install-recommends desktop-file-utils python3-pil
+        mkdir -p "$HOME/bin"
+        curl -fsSL -o "$HOME/bin/linuxdeploy" \
+          https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        curl -fsSL -o "$HOME/bin/linuxdeploy-plugin-qt" \
+          https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+        curl -fsSL -o "$HOME/bin/appimagetool" \
+          https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+        chmod +x "$HOME/bin/"*
+        export PATH="$HOME/bin:$PATH"
+        cd build
+        bash ../packaging/linux/create_appimage.sh
+        ls -l ./*.AppImage
+
+    - name: Verify the AppImage (icon, desktop entry, plugins, start)
+      shell: bash
+      run: bash scripts/ci/verify_linux_packages.sh appimage "$(ls build/*.AppImage | head -1)"
