@@ -237,6 +237,10 @@ FetchContent_Declare(
 set(BUILD_EXAMPLES OFF CACHE BOOL "Build Qt-ADS examples/demo" FORCE)
 FetchContent_MakeAvailable(QtAdvancedDockingSystem)
 
+option(DABX_NATIVE_OPTIMIZATION
+    "Tune for the build machine's CPU (-march=native): faster, but the binary only runs on similar CPUs. Keep OFF for anything you distribute."
+    OFF)
+
 # Enhanced build flags (LTO disabled to avoid compiler internal error).
 # GCC/Clang keep the project's tuned -O3 flags; MSVC cannot parse them and uses
 # its own equivalents instead (a bare `-march=native` breaks every MSVC build).
@@ -244,10 +248,19 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG /DRELEASE_BUILD")
 else()
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -funroll-loops -finline-functions -DRELEASE_BUILD")
-    # -march/-mtune=native are x86_64-only: Apple Clang on arm64 rejects both
-    # (docs/CROSS_PLATFORM_BUILD_PLAN.md §3.1).
+    # Portable by default. `-march=native` makes the compiler use every
+    # instruction of the BUILD machine's CPU (AVX2, AVX-512, ...), so a package
+    # built on a CI runner dies with "Illegal instruction" on a CPU without
+    # them. Only opt in for a binary that runs on the machine that built it:
+    #   cmake -DDABX_NATIVE_OPTIMIZATION=ON ...
+    # (x86_64 only: Apple Clang on arm64 rejects -march=native,
+    # docs/CROSS_PLATFORM_BUILD_PLAN.md §3.1).
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
-        string(APPEND CMAKE_CXX_FLAGS_RELEASE " -march=native -mtune=native")
+        if(DABX_NATIVE_OPTIMIZATION)
+            string(APPEND CMAKE_CXX_FLAGS_RELEASE " -march=native -mtune=native")
+        else()
+            string(APPEND CMAKE_CXX_FLAGS_RELEASE " -mtune=generic")
+        endif()
     endif()
 endif()
 set(CMAKE_BUILD_TYPE Release)
