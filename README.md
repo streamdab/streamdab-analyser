@@ -1,7 +1,7 @@
 # StreamDAB Analyser
 
 [![CI](https://github.com/streamdab/streamdab-analyser/actions/workflows/ci.yml/badge.svg)](https://github.com/streamdab/streamdab-analyser/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/streamdab/streamdab-analyser?include_prereleases)](https://github.com/streamdab/streamdab-analyser/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/streamdab/streamdab-analyser?include_prereleases)](https://github.com/streamdab/streamdab-analyser/releases)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 
 A professional **DAB / DAB+ / ETI stream analyser** for broadcast engineers —
