@@ -1,6 +1,7 @@
 # StreamDAB Analyser
 
-[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+[![CI](https://github.com/streamdab/streamdab-analyser/actions/workflows/ci.yml/badge.svg)](https://github.com/streamdab/streamdab-analyser/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/streamdab/streamdab-analyser?include_prereleases)](https://github.com/streamdab/streamdab-analyser/releases)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 
 A professional **DAB / DAB+ / ETI stream analyser** for broadcast engineers —
@@ -9,10 +10,35 @@ Transport Interface streams end to end: ETI framing, the FIC/FIG signalling
 carousel, service and sub-channel discovery, DAB+ audio, PAD/DLS+ "now playing"
 metadata, MOT slideshow and data services, with ETSI compliance checks.
 
-> **Status:** first public release. CI builds and tests on Linux, Windows and
-> macOS; the test suite (58 targets) and the fixture parity gate must stay green.
+> **Status:** first public release. CI builds and tests every change on Linux,
+> Windows and macOS and publishes the installable packages as build artifacts.
 
 ![StreamDAB Analyser Application](resources/images/streamdab-analyser.png)
+
+## Download
+
+Get the latest build from the **[Releases page](https://github.com/streamdab/streamdab-analyser/releases/latest)**.
+Every file is listed in `SHA256SUMS.txt`.
+
+| Platform | Package | Notes |
+|---|---|---|
+| **Windows 10/11 (x64)** | `StreamDAB-Analyser-windows-x86_64-setup.exe` (installer) or `windows-x86_64.zip` (portable) | Qt, plugins and the C++ runtime are included. GUI and CLI. |
+| **macOS 12+ (Apple silicon)** | `macos-arm64.dmg` | Drag the app to *Applications*. GUI only; use the Linux/Windows package or build from source for the CLI. |
+| **Linux x86-64 (Ubuntu 24.04 or newer)** | `StreamDAB-Analyser-linux-x86_64.AppImage`, `streamdab-analyser-linux-amd64.deb`, `linux-x86_64.tar.gz` | GUI and CLI. |
+
+**These packages are not code-signed yet**, so the first start needs one extra step:
+
+- **Windows:** SmartScreen may warn. Choose *More info*, then *Run anyway*.
+- **macOS:** right-click the app, choose *Open*, then *Open* again — or run
+  `xattr -dr com.apple.quarantine /Applications/StreamDAB-Analyser.app`.
+- **Linux:** `chmod +x StreamDAB-Analyser-*.AppImage && ./StreamDAB-Analyser-*.AppImage`, or
+  `sudo apt install ./streamdab-analyser-linux-amd64.deb`. A file manager shows
+  a generic icon for an AppImage until it is integrated (AppImageLauncher,
+  Gear Lever or appimaged); the `.deb` installs the menu entry and icon.
+
+The x86-64 packages (Linux and Windows) are built for the baseline instruction set, so they run on any 64-bit PC.
+Older Linux distributions than Ubuntu 24.04 (Qt 6.2) are not supported by the
+binary packages; build from source instead.
 
 ## Features
 
@@ -73,7 +99,7 @@ without ZeroMQ (`-DDABX_ENABLE_ZMQ=OFF`), without ALSA
 (`-DDABX_ENABLE_QMULTIMEDIA=OFF`) and the analyser still builds, with the
 corresponding feature reported as unavailable.
 
-## Build
+## Build from source
 
 Full instructions (prerequisites per OS, presets, troubleshooting, packaging)
 are in **[INSTALL.md](INSTALL.md)**. The short version:
@@ -99,9 +125,10 @@ git tag (`DABX_VERSION`), so a tagged checkout reports its own version.
 ```bash
 # GUI
 ./build/StreamDABAnalyser                          # open an ETI file from the File menu
+# installed packages: start "StreamDAB Analyser" from the menu, or `StreamDABAnalyser`
 
 # CLI (headless, YAML report)
-./build/streamdab-cli --input eti/bkk_20062022_141637.eti --output report.yaml
+./build/streamdab-cli --input capture.eti --output report.yaml
 ./build/streamdab-cli --help
 
 # Live streams
@@ -126,8 +153,8 @@ The test targets are split into two labelled suites (`ctest -L PUBLIC` /
 
 - **PUBLIC** — self-contained tests; this is what GitHub CI runs.
 - **PRIVATE** — end-to-end tests against real broadcast captures
-  (`eti/bkk_20062022_141637.eti` etc.). Those captures are **World DAB
-  licensed test material and are not redistributed with this repository**: the
+  (for example a Bangkok capture). Those captures are **World DAB
+  licensed test material and are not part of this repository**: the
   private suite runs on machines that have the capture files present locally
   (e.g. by cloning the private origin). The parity gate they drive — DLS+ 1114 /
   PAD 1114, MOT 97 objects / 97 images, 16 services, Thai labels, 0 CRC
@@ -142,10 +169,10 @@ src/network/  UDP/TCP/ZeroMQ streaming, circular buffers, playback
 src/cli/      headless analyser and YAML report generator
 src/utils/    logging, settings, helpers
 tests/        unit, integration and GUI suites (ctest)
-resources/    desktop entry, MIME definition, icon
+resources/    desktop entry, MIME definition, icons (SVG/PNG/ICO/ICNS)
 packaging/    Debian/NSIS/macOS templates + AppImage and .dmg helpers
 cmake/        CPack packaging configuration
-eti/          broadcast capture used by the tests
+docs/         release notes and design notes
 ```
 
 ## Licence
