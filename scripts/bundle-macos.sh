@@ -35,6 +35,42 @@ DIST_DIR="${DIST_DIR:-${ROOT}/dist}"
 BUILD_CONFIG="${BUILD_CONFIG:-Release}"
 DMG_OUT_DIR="${DMG_OUT_DIR:-${BUILD_DIR}}"
 
+fix_qtads_rpaths() {
+    local app="$1"
+    local frameworks="$app/Contents/Frameworks"
+    mkdir -p "$frameworks"
+
+    local ads_dylib
+    ads_dylib="$(find "$BUILD_DIR" -type f -name 'libqtadvanceddocking-qt6*.dylib' | head -n 1 || true)"
+    if [ -n "$ads_dylib" ]; then
+        local ads_name
+        ads_name="$(basename "$ads_dylib")"
+        if [ ! -f "$frameworks/$ads_name" ]; then
+            cp "$ads_dylib" "$frameworks/"
+        fi
+    fi
+
+    local app_exe
+    app_exe="$(find "$app/Contents/MacOS" -type f -perm -u+x | head -n 1 || true)"
+    if [ -n "$app_exe" ]; then
+        install_name_tool -add_rpath "@executable_path/../Frameworks" "$app_exe" 2>/dev/null || true
+    fi
+
+    while IFS= read -r -d '' file; do
+        case "$(file -b "$file")" in *Mach-O*) ;; *) continue ;; esac
+        while IFS= read -r dep; do
+            case "$dep" in
+                @rpath/*)
+                    name="${dep#@rpath/}"
+                    if [ -f "$frameworks/$name" ]; then
+                        install_name_tool -change "$dep" "@executable_path/../Frameworks/$name" "$file" 2>/dev/null || true
+                    fi
+                    ;;
+            esac
+        done < <(otool -L "$file" 2>/dev/null | tail -n +2 | awk '{print $1}')
+    done < <(find "$app/Contents" -type f -print0)
+}
+
 die() { echo "error: $*" >&2; exit 1; }
 
 # --- 1) Qt 6 prefix -----------------------------------------------------------
@@ -69,6 +105,12 @@ cmake --install "${BUILD_DIR}" --prefix "${DIST_DIR}" --config "${BUILD_CONFIG}"
 # --- 3) Qt framework bundling -------------------------------------------------
 echo "[2/3] macdeployqt ${DIST_DIR}/${APP_NAME}"
 macdeployqt "${DIST_DIR}/${APP_NAME}" -always-overwrite -verbose=1
+
+# --- 3b) fix custom Qt-ADS + rpath wiring --------------------------------------
+# Qt-ADS is a project-built dylib, not a Qt framework. macdeployqt won't move it
+# into the bundle nor rewrite `@rpath` references for it. Copy it into
+# Contents/Frameworks and rewrite the runtime paths to a bundle-local location.
+fix_qtads_rpaths "${DIST_DIR}/${APP_NAME}"
 
 # --- 4) compressed .dmg -------------------------------------------------------
 mkdir -p "${DMG_OUT_DIR}"
