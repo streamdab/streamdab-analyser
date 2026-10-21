@@ -85,21 +85,30 @@ macdeployqt "${DIST_DIR}/${APP_NAME}" -always-overwrite -verbose=1
 # bundle remains self-contained and verification passes.
 prune_optional_plugin() {
     local plugin_rel="$1"
-    local required_framework_rel="$2"
     local plugin_path="${APP_DIR}/Contents/${plugin_rel}"
-    local framework_path="${FRAMEWORKS_DIR}/${required_framework_rel}"
-    if [ -e "${plugin_path}" ] && [ ! -e "${framework_path}" ]; then
-        rm -f "${plugin_path}"
-    fi
+    shift
+
+    [ -e "${plugin_path}" ] || return 0
+
+    local required_framework_rel framework_path
+    for required_framework_rel in "$@"; do
+        framework_path="${FRAMEWORKS_DIR}/${required_framework_rel}"
+        if [ ! -e "${framework_path}" ]; then
+            rm -f "${plugin_path}"
+            return 0
+        fi
+    done
 }
 prune_optional_plugin "PlugIns/platforminputcontexts/libqtvirtualkeyboardplugin.dylib" \
-    "QtVirtualKeyboard.framework/Versions/A/QtVirtualKeyboard"
-prune_optional_plugin "PlugIns/platforminputcontexts/libqtvirtualkeyboardplugin.dylib" \
+    "QtVirtualKeyboard.framework/Versions/A/QtVirtualKeyboard" \
     "QtVirtualKeyboardQml.framework/Versions/A/QtVirtualKeyboardQml"
-prune_optional_plugin "PlugIns/iconengines/libqsvgicon.dylib" \
-    "QtSvg.framework/Versions/A/QtSvg"
 prune_optional_plugin "PlugIns/imageformats/libqpdf.dylib" \
     "QtPdf.framework/Versions/A/QtPdf"
+
+if [ -e "${APP_DIR}/Contents/PlugIns/iconengines/libqsvgicon.dylib" ] &&
+    [ ! -e "${FRAMEWORKS_DIR}/QtSvg.framework/Versions/A/QtSvg" ]; then
+    die "QtSvg.framework missing while libqsvgicon.dylib is present; macOS bundle is incomplete"
+fi
 
 # --- 4) compressed .dmg -------------------------------------------------------
 mkdir -p "${DMG_OUT_DIR}"
