@@ -615,6 +615,7 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_VERSION "${DABX_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${DABX_VERSION}"
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/Info.plist.in"
+        INSTALL_RPATH "@executable_path/../Frameworks"
     )
     # MACOSX_BUNDLE_ICON_FILE is deliberately OMITTED: the project ships an SVG
     # only, and macOS Finder icons must be .icns (Qt does not accept SVG here).

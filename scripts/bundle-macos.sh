@@ -55,6 +55,8 @@ fi
 
 APP_NAME="StreamDAB-Analyser.app"
 DMG_NAME="StreamDAB-Analyser-${VERSION}.dmg"
+APP_DIR="${DIST_DIR}/${APP_NAME}"
+FRAMEWORKS_DIR="${APP_DIR}/Contents/Frameworks"
 
 echo "=== StreamDAB Analyser macOS bundle (v${VERSION}) ==="
 echo "Qt dir   : ${QT_DIR}"
@@ -64,11 +66,38 @@ echo "Build dir: ${BUILD_DIR}"
 echo "[1/3] cmake --install ${BUILD_DIR} --prefix ${DIST_DIR} (--config ${BUILD_CONFIG})"
 cmake --install "${BUILD_DIR}" --prefix "${DIST_DIR}" --config "${BUILD_CONFIG}"
 
-[ -d "${DIST_DIR}/${APP_NAME}" ] || die "expected ${DIST_DIR}/${APP_NAME} — check the install step"
+[ -d "${APP_DIR}" ] || die "expected ${APP_DIR} — check the install step"
+
+# Qt-ADS is a runtime dependency of the app executable. Its upstream install()
+# rule places it in dist/lib; copy it into the bundle so @rpath lookups can
+# resolve from Contents/Frameworks on clean machines.
+mkdir -p "${FRAMEWORKS_DIR}"
+if compgen -G "${DIST_DIR}/lib/libqtadvanceddocking-qt6*.dylib" > /dev/null; then
+    cp -a "${DIST_DIR}"/lib/libqtadvanceddocking-qt6*.dylib "${FRAMEWORKS_DIR}/"
+fi
 
 # --- 3) Qt framework bundling -------------------------------------------------
 echo "[2/3] macdeployqt ${DIST_DIR}/${APP_NAME}"
 macdeployqt "${DIST_DIR}/${APP_NAME}" -always-overwrite -verbose=1
+
+# Homebrew may ship optional plugins whose corresponding Qt module formula is
+# not installed. Remove those plugins when their framework is absent so the
+# bundle remains self-contained and verification passes.
+prune_optional_plugin() {
+    local plugin_rel="$1"
+    local required_framework_rel="$2"
+    local plugin_path="${APP_DIR}/Contents/${plugin_rel}"
+    local framework_path="${FRAMEWORKS_DIR}/${required_framework_rel}"
+    if [ -e "${plugin_path}" ] && [ ! -e "${framework_path}" ]; then
+        rm -f "${plugin_path}"
+    fi
+}
+prune_optional_plugin "PlugIns/platforminputcontexts/libqtvirtualkeyboardplugin.dylib" \
+    "QtVirtualKeyboardQml.framework/Versions/A/QtVirtualKeyboardQml"
+prune_optional_plugin "PlugIns/iconengines/libqsvgicon.dylib" \
+    "QtSvg.framework/Versions/A/QtSvg"
+prune_optional_plugin "PlugIns/imageformats/libqpdf.dylib" \
+    "QtPdf.framework/Versions/A/QtPdf"
 
 # --- 4) compressed .dmg -------------------------------------------------------
 mkdir -p "${DMG_OUT_DIR}"
