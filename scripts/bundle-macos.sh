@@ -93,6 +93,8 @@ prune_optional_plugin() {
     fi
 }
 prune_optional_plugin "PlugIns/platforminputcontexts/libqtvirtualkeyboardplugin.dylib" \
+    "QtVirtualKeyboard.framework/Versions/A/QtVirtualKeyboard"
+prune_optional_plugin "PlugIns/platforminputcontexts/libqtvirtualkeyboardplugin.dylib" \
     "QtVirtualKeyboardQml.framework/Versions/A/QtVirtualKeyboardQml"
 prune_optional_plugin "PlugIns/iconengines/libqsvgicon.dylib" \
     "QtSvg.framework/Versions/A/QtSvg"
